@@ -77,3 +77,22 @@ export {
   hasCurrentInternalApproval,
   serializeExport,
 } from "./export.js";
+export type {
+  AnchorPairInput,
+  CalibPoint2Mm,
+  CalibVec3,
+  CalibrationEvidence,
+  FitOptions,
+  PairResidual,
+  PlanarFrameSpec,
+  PlanarMapping,
+  UniformFitResult,
+} from "./calibration/index.js";
+export {
+  CALIBRATION_KERNEL_VERSION,
+  createPlanarMapping,
+  fitUniformScale,
+  validateCalibrationEvidence,
+} from "./calibration/index.js";
+export type { GeoPoint, PolygonCheck } from "./geometry/index.js";
+export { footprintFits, pointInPolygon, validateSafePolygon } from "./geometry/index.js";

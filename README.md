@@ -59,8 +59,11 @@ not proof of physical feasibility.
 See [domain model](docs/domain-model.md), [architecture](docs/architecture.md),
 [decisions](docs/decisions.md) and [status](docs/development-status.md).
 
-Schemas use `0.1.0-provisional`; Phase 1 remains incomplete. Safe-area geometry,
-variant-transfer behavior, real calibration, 3D editing, binary project packaging,
+Schemas use `0.1.0-provisional`; Phase 1 remains incomplete. A standalone
+calibration/geometry kernel exists (Phase 5 partial: scale fitting, planar
+mapping, polygon containment; synthetic fixtures only, no production wiring —
+see [calibration](docs/calibration.md)). Variant-transfer behavior, real
+calibration, 3D editing, binary project packaging,
 operation PDFs and the Builder remain pending. An internal single-HTML asset inspector has been tested offline in macOS Chrome;
 the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
 remains the delivery acceptance test.

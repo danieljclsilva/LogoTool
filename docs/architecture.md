@@ -31,8 +31,11 @@ src/ui           customer editor, calibration and internal Builder (future)
 Viewers derive geometry from mm data; inverse calibrated surface mapping translates
 visual editing back into mm. Screens/cameras/mesh transforms are never production
 units. Tripo and other generation providers remain replaceable; external GLB import
-remains required. Safe/excluded-area geometry and variant transfer are future core
-modules, not fabricated validated behavior in this foundation.
+remains required. Planar safe/excluded-area geometry and calibration scale/plane
+fitting are implemented as standalone pure utilities (`src/core/calibration`,
+`src/core/geometry`), not yet wired into product calibration records or
+production output, with no released persistence/import contract. Variant transfer
+remains pending.
 
 ## Delivery contract
 

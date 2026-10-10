@@ -6,7 +6,7 @@
 - [ ] Phase 2 — Domain model (provisional foundations present: `src/core` pure domain logic, draft `schemas/*.schema.json` at `0.1.0-provisional`, synthetic `examples/**` fixtures, `tests-ts/` Node suites; specified in `docs/domain-model.md` + `docs/decisions.md`; NOT finalized — gated on Phase 1 exit criteria)
 - [ ] Phase 3 — Architecture (provisional layering recorded in `docs/architecture.md`; core/viewer/packaging/platform split per brief §4; `src/core` and an internal asset/viewer harness implemented — customer packaging, platform and Tauri pending)
 - [ ] Phase 4 — 3D asset prototype (partial: external GLB ingestion, provenance, validated offline inspection and two synthetic fixtures; real FlexiTog assets and Tripo comparison pending)
-- [ ] Phase 5 — Product calibration (pending)
+- [ ] Phase 5 — Product calibration (PARTIAL 2026-10-10: pure calibration/region-geometry kernel only — `src/core/calibration`, `src/core/geometry`, synthetic `examples/calibration/**`; anchor picking, interactive calibration editor, real calibration validation pending; NOT integrated into product calibration schema or production output; see `docs/calibration.md`)
 - [ ] Phase 6 — Logo placement (pending)
 - [ ] Phase 7 — Variant transfer (pending)
 - [ ] Phase 8 — Hybrid project package (pending)
@@ -58,8 +58,8 @@ Odoo attachment functionality are not implemented yet.
 
 Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain/production
 contracts still need evidence review. Real physical calibration and constraints,
-geometric placement validation, variant transfer, real product assets, both offline
-packaging modes, operation PDFs and internal Builder remain pending. Offline
+production integration of geometry checks, variant transfer, real product assets, both offline
+packaging modes, operation PDFs and internal Builder remain pending.
 Internal inspector passed macOS Chrome offline `file://` checks; Windows Chrome/Edge customer delivery remains untested.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.

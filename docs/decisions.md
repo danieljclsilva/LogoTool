@@ -71,3 +71,12 @@ or physical dimensions. Require Khronos structural/binary validation in addition
 to a no-external-resource policy before rendering. Use a framework-free single
 HTML inspector to exercise offline memory parsing independently of the later
 customer project/package flow. Windows acceptance and real asset quality stay open.
+
+## Phase 5 partial calibration kernel (2026-10-10)
+
+Standalone pure-TS scale/plane fitting plus mm2D polygon containment, with
+synthetic tee/trousers/cap fixtures carrying separate per-variant evidence.
+No persistence/import contract; not wired into product calibration records or
+production output. Every fit stays candidate-pending-review and never derives
+calibration from model bounds or pixels. Real measurements, anchor-picking UI
+and Odoo corroboration remain pending.

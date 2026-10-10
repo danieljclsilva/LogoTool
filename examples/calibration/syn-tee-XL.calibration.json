@@ -1,0 +1,61 @@
+{
+  "assetFullSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "measuredDistanceMm": 210.0,
+  "pairIds": [
+    "chest-left",
+    "chest-right"
+  ],
+  "pairs": [
+    {
+      "id": "chest-left",
+      "model": {
+        "x": -1.05,
+        "y": 0.5,
+        "z": 0.2
+      },
+      "physical": {
+        "x": -105.0,
+        "y": 0.0
+      },
+      "semanticRole": "chest-left"
+    },
+    {
+      "id": "chest-right",
+      "model": {
+        "x": 1.05,
+        "y": 0.5,
+        "z": 0.2
+      },
+      "physical": {
+        "x": 105.0,
+        "y": 0.0
+      },
+      "semanticRole": "chest-right"
+    },
+    {
+      "id": "check-landmark",
+      "semanticRole": "synthetic-secondary-datum",
+      "model": {
+        "x": -1.05,
+        "y": 1.5,
+        "z": 0.2
+      }
+    }
+  ],
+  "product": "SYN-TEE-001",
+  "provisionalVersion": "prov-syn-1",
+  "relativeTolerance": 0.01,
+  "toleranceMm": 0.5,
+  "variant": "SYN-TEE-XL",
+  "calibrationId": "syn-tee-XL.calibration",
+  "frameId": "SYN-TEE-XL-frame",
+  "extraMeasurements": [
+    {
+      "pairIds": [
+        "chest-left",
+        "check-landmark"
+      ],
+      "distanceMm": 100
+    }
+  ]
+}

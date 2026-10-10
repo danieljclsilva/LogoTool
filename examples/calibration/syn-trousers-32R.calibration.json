@@ -1,0 +1,61 @@
+{
+  "assetFullSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "measuredDistanceMm": 160.0,
+  "pairIds": [
+    "thigh-left",
+    "thigh-right"
+  ],
+  "pairs": [
+    {
+      "id": "thigh-left",
+      "model": {
+        "x": -0.8,
+        "y": 1.2,
+        "z": 0.1
+      },
+      "physical": {
+        "x": -80.0,
+        "y": 0.0
+      },
+      "semanticRole": "thigh-left"
+    },
+    {
+      "id": "thigh-right",
+      "model": {
+        "x": 0.8,
+        "y": 1.2,
+        "z": 0.1
+      },
+      "physical": {
+        "x": 80.0,
+        "y": 0.0
+      },
+      "semanticRole": "thigh-right"
+    },
+    {
+      "id": "check-landmark",
+      "semanticRole": "synthetic-secondary-datum",
+      "model": {
+        "x": -0.8,
+        "y": 2.2,
+        "z": 0.1
+      }
+    }
+  ],
+  "product": "SYN-TROUSERS-001",
+  "provisionalVersion": "prov-syn-1",
+  "relativeTolerance": 0.01,
+  "toleranceMm": 0.5,
+  "variant": "SYN-TROUSERS-32R",
+  "calibrationId": "syn-trousers-32R.calibration",
+  "frameId": "SYN-TROUSERS-32R-frame",
+  "extraMeasurements": [
+    {
+      "pairIds": [
+        "thigh-left",
+        "check-landmark"
+      ],
+      "distanceMm": 100
+    }
+  ]
+}

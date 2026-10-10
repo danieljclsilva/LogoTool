@@ -1,0 +1,61 @@
+{
+  "assetFullSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "measuredDistanceMm": 100.0,
+  "pairIds": [
+    "panel-left",
+    "panel-right"
+  ],
+  "pairs": [
+    {
+      "id": "panel-left",
+      "model": {
+        "x": -0.5,
+        "y": 0.3,
+        "z": 0.4
+      },
+      "physical": {
+        "x": -50.0,
+        "y": 0.0
+      },
+      "semanticRole": "panel-left"
+    },
+    {
+      "id": "panel-right",
+      "model": {
+        "x": 0.5,
+        "y": 0.3,
+        "z": 0.4
+      },
+      "physical": {
+        "x": 50.0,
+        "y": 0.0
+      },
+      "semanticRole": "panel-right"
+    },
+    {
+      "id": "check-landmark",
+      "semanticRole": "synthetic-secondary-datum",
+      "model": {
+        "x": -0.5,
+        "y": 1.3,
+        "z": 0.4
+      }
+    }
+  ],
+  "product": "SYN-CAP-001",
+  "provisionalVersion": "prov-syn-1",
+  "relativeTolerance": 0.01,
+  "toleranceMm": 0.5,
+  "variant": "SYN-CAP-OS",
+  "calibrationId": "syn-cap-OS.calibration",
+  "frameId": "SYN-CAP-OS-frame",
+  "extraMeasurements": [
+    {
+      "pairIds": [
+        "panel-left",
+        "check-landmark"
+      ],
+      "distanceMm": 100
+    }
+  ]
+}
