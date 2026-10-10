@@ -77,9 +77,9 @@ orbit, fit/reset, toggle wireframe and download original bytes plus provenance.
 The provisional calibration draft below the preview supports armed surface
 picking (click, not drag), anchor IDs with generic roles, 1..N known-distance
 measurements in mm, uniform-scale fit with stale/inconsistent handling, a
-pending-review session-JSON download (never approved), and local restore of a
+pending-review session-JSON download (never approved; does NOT include regions), and local restore of a
 previously downloaded session file (exact current-asset SHA-256 required;
-imported fit ignored and recomputed pending review). Any new import wipes the
+imported fit ignored and recomputed pending review). A provisional planar-frame draft authors 0..N oriented region frames from existing anchors (origin/+X-side/+Y-side with explicit off-plane tolerance), shows the active frame's X (red) / Y (green) 100 mm axes on the preview, probes anchors through the frame, labels stale regions, and downloads a separate pending-review region bundle. Model replacement/reset or a successful session restore clears regions. Any new import wipes the
 draft. No server or network connection is needed. Fixtures are synthetic and uncalibrated.
 Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
 See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).

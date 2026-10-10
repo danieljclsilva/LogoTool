@@ -93,6 +93,62 @@
     </p>
   </fieldset>
 
+  <fieldset>
+    <legend>Planar region frames (provisional draft)</legend>
+    <p role="note">
+      Oriented planar frames from existing anchors only; no canvas picking here.
+      Origin anchor O is physical (0,0). X runs O to the +X-side anchor; Y is the
+      orthogonal projection of O to the Y-side anchor pointing toward that anchor
+      (the third anchor chooses the Y side, axes are not assumed orthogonal);
+      normal is X cross Y. Requires a current CONSISTENT fit; consistency never
+      approves production. The calibration session download does NOT include regions.
+    </p>
+    <label>
+      Region ID
+      <input data-calibration-hook="region-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Region frame ID
+      <input data-calibration-hook="region-frame-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Origin anchor (O)
+      <select data-calibration-hook="region-origin"></select>
+    </label>
+    <label>
+      +X-side anchor
+      <select data-calibration-hook="region-x"></select>
+    </label>
+    <label>
+      +Y-side anchor
+      <select data-calibration-hook="region-y"></select>
+    </label>
+    <label>
+      Off-plane tolerance (mm, explicit prototype setting)
+      <input data-calibration-hook="region-tolerance" type="number" min="0" step="any" />
+    </label>
+    <div>
+      <button data-calibration-hook="region-add" type="button">Add planar region</button>
+    </div>
+    <ul data-calibration-hook="region-list"></ul>
+    <label>
+      Active region
+      <select data-calibration-hook="region-active"></select>
+    </label>
+    <div data-calibration-hook="region-frame" aria-live="polite"></div>
+    <label>
+      Probe anchor through active frame
+      <select data-calibration-hook="region-probe"></select>
+    </label>
+    <div>
+      <button data-calibration-hook="region-probe-button" type="button">Probe anchor</button>
+    </div>
+    <div data-calibration-hook="region-probe-result" aria-live="polite"></div>
+    <div>
+      <button data-calibration-hook="region-export-button" type="button">Download planar region bundle JSON</button>
+    </div>
+  </fieldset>
+
   <div>
     <button data-calibration-hook="fit-button" type="button">Fit uniform scale</button>
   </div>

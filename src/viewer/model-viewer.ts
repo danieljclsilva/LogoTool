@@ -39,6 +39,13 @@ export interface ModelViewerOptions {
   /** Scene background. Defaults to a neutral dark grey. */
   background?: number;
 }
+export interface RegionAxesFrame {
+  origin: { x: number; y: number; z: number };
+  xDir: { x: number; y: number; z: number };
+  yDir: { x: number; y: number; z: number };
+  lengthMm: number;
+  mmPerModelUnit: number;
+}
 
 const FIT_DISTANCE_FACTOR = 1.15;
 const NEAR_FACTOR = 1 / 100;
@@ -62,6 +69,9 @@ export class ModelViewer {
   private readonly markerGroup: THREE.Group;
   private readonly markerGeometry: THREE.SphereGeometry;
   private readonly markerMaterial: THREE.MeshBasicMaterial;
+  private readonly axesGroup: THREE.Group;
+  private readonly axesXMaterial: THREE.LineBasicMaterial;
+  private readonly axesYMaterial: THREE.LineBasicMaterial;
   private readonly container: HTMLElement;
   private readonly resizeObserver: ResizeObserver | null;
   private readonly loader = new GLTFLoader();
@@ -93,6 +103,11 @@ export class ModelViewer {
     this.markerGroup = new THREE.Group();
     this.markerGroup.name = 'anchor-markers';
     this.wrapper.add(this.markerGroup);
+    this.axesGroup = new THREE.Group();
+    this.axesGroup.name = 'region-axes';
+    this.wrapper.add(this.axesGroup);
+    this.axesXMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    this.axesYMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
     this.markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
 
@@ -180,7 +195,7 @@ export class ModelViewer {
     this.clearModel();
     this.wrapper.add(parsed.scene);
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup) this.applyWireframe(child, this.wireframe);
+      if (child !== this.markerGroup && child !== this.axesGroup) this.applyWireframe(child, this.wireframe);
     }
     this.fitView();
     return this.setStatus({ kind: 'ready' });
@@ -246,7 +261,7 @@ export class ModelViewer {
       raycaster.setFromCamera(ndc, this.camera);
       const targets: THREE.Object3D[] = [];
       for (const child of this.wrapper.children) {
-        if (child !== this.markerGroup) targets.push(child);
+        if (child !== this.markerGroup && child !== this.axesGroup) targets.push(child);
       }
       if (targets.length === 0) return null;
       const hits = raycaster.intersectObjects(targets, true);
@@ -297,7 +312,7 @@ export class ModelViewer {
   setWireframe(enabled: boolean): void {
     this.wireframe = enabled;
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup) this.applyWireframe(child, enabled);
+      if (child !== this.markerGroup && child !== this.axesGroup) this.applyWireframe(child, enabled);
     }
   }
 
@@ -321,6 +336,9 @@ export class ModelViewer {
     if (this.markerGroup.parent !== null) this.markerGroup.parent.remove(this.markerGroup);
     this.markerGeometry.dispose();
     this.markerMaterial.dispose();
+    if (this.axesGroup.parent !== null) this.axesGroup.parent.remove(this.axesGroup);
+    this.axesXMaterial.dispose();
+    this.axesYMaterial.dispose();
     this.controls.dispose();
     this.renderer.dispose();
   }
@@ -328,11 +346,12 @@ export class ModelViewer {
   private clearModel(): void {
     for (let i = this.wrapper.children.length - 1; i >= 0; i--) {
       const child = this.wrapper.children[i];
-      if (child === undefined || child === this.markerGroup) continue;
+      if (child === undefined || child === this.markerGroup || child === this.axesGroup) continue;
       this.wrapper.remove(child);
       disposeObject(child);
     }
     this.clearMarkers();
+    this.clearAxes();
     this.wrapper.position.set(0, 0, 0);
   }
 
@@ -341,7 +360,7 @@ export class ModelViewer {
     const box = new THREE.Box3();
     box.makeEmpty();
     for (const child of this.wrapper.children) {
-      if (child === this.markerGroup) continue;
+      if (child === this.markerGroup || child === this.axesGroup) continue;
       box.expandByObject(child);
     }
     return box;
@@ -353,6 +372,66 @@ export class ModelViewer {
       const child = this.markerGroup.children[i];
       if (child === undefined) continue;
       this.markerGroup.remove(child);
+    }
+  }
+  /**
+   * Replace the planar-region axes overlay. Null clears it. Invalid frames
+   * clear the overlay and return without throwing. Length is explicit mm
+   * converted through mmPerModelUnit; never derived from the model bbox.
+   */
+  setRegionAxes(frame: RegionAxesFrame | null): void {
+    try {
+      this.clearAxes();
+      if (this.disposed) return;
+      if (frame === null || typeof frame !== 'object') return;
+      const origin = frame.origin;
+      const xDir = frame.xDir;
+      const yDir = frame.yDir;
+      const { lengthMm, mmPerModelUnit } = frame;
+      if (!isVec3(origin) || !isVec3(xDir) || !isVec3(yDir)) { this.clearAxes(); return; }
+      if (!Number.isFinite(lengthMm) || lengthMm <= 0) { this.clearAxes(); return; }
+      if (!Number.isFinite(mmPerModelUnit) || mmPerModelUnit <= 0) { this.clearAxes(); return; }
+      const xn = Math.sqrt(xDir.x * xDir.x + xDir.y * xDir.y + xDir.z * xDir.z);
+      const yn = Math.sqrt(yDir.x * yDir.x + yDir.y * yDir.y + yDir.z * yDir.z);
+      if (!Number.isFinite(xn) || xn <= 0 || !Number.isFinite(yn) || yn <= 0) { this.clearAxes(); return; }
+      const lengthUnits = lengthMm / mmPerModelUnit;
+      if (!Number.isFinite(lengthUnits) || lengthUnits <= 0) { this.clearAxes(); return; }
+      const xEnd = {
+        x: origin.x + (xDir.x / xn) * lengthUnits,
+        y: origin.y + (xDir.y / xn) * lengthUnits,
+        z: origin.z + (xDir.z / xn) * lengthUnits,
+      };
+      const yEnd = {
+        x: origin.x + (yDir.x / yn) * lengthUnits,
+        y: origin.y + (yDir.y / yn) * lengthUnits,
+        z: origin.z + (yDir.z / yn) * lengthUnits,
+      };
+      if (!isVec3(xEnd) || !isVec3(yEnd)) { this.clearAxes(); return; }
+      const xGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(origin.x, origin.y, origin.z),
+        new THREE.Vector3(xEnd.x, xEnd.y, xEnd.z),
+      ]);
+      this.axesGroup.add(new THREE.Line(xGeometry, this.axesXMaterial));
+      const yGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(origin.x, origin.y, origin.z),
+        new THREE.Vector3(yEnd.x, yEnd.y, yEnd.z),
+      ]);
+      this.axesGroup.add(new THREE.Line(yGeometry, this.axesYMaterial));
+    } catch {
+      this.clearAxes();
+      return;
+    }
+  }
+
+  /** Remove axis lines and dispose their geometries; materials are retained. */
+  private clearAxes(): void {
+    for (let i = this.axesGroup.children.length - 1; i >= 0; i--) {
+      const child = this.axesGroup.children[i];
+      if (child === undefined) continue;
+      this.axesGroup.remove(child);
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+      }
     }
   }
 
@@ -392,6 +471,26 @@ export class ModelViewer {
     return status;
   }
 }
+
+type Vec3Like = { x: number; y: number; z: number };
+
+/** Finite-component vector check; unknown shapes rejected without throwing. */
+function isVec3(value: unknown): value is Vec3Like {
+  if (value === null || typeof value !== 'object') return false;
+  if (!('x' in value) || !('y' in value) || !('z' in value)) return false;
+  const x = value.x;
+  const y = value.y;
+  const z = value.z;
+  return (
+    typeof x === 'number' &&
+    typeof y === 'number' &&
+    typeof z === 'number' &&
+    Number.isFinite(x) &&
+    Number.isFinite(y) &&
+    Number.isFinite(z)
+  );
+}
+
 
 /** Dispose geometries/materials/textures held by a detached subtree. */
 function disposeObject(root: THREE.Object3D): void {

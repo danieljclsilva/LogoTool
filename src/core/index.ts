@@ -94,5 +94,24 @@ export {
   fitUniformScale,
   validateCalibrationEvidence,
 } from "./calibration/index.js";
+export type {
+  PlanarRegionAnchor,
+  PlanarRegionInput,
+  PlanarRegionRecord,
+  PlanarRegionVec3,
+  RegionAxesFrame,
+  RegionBundle,
+} from "./planar-region/index.js";
+export {
+  PLANAR_REGION_BUNDLE_VERSION,
+  buildRegionBundle,
+  createPlanarRegion,
+  isRegionStale,
+  probeRegionPoint,
+  regionToAxesFrame,
+  serializeRegionBundle,
+  validateRegionRecord,
+} from "./planar-region/index.js";
+
 export type { GeoPoint, PolygonCheck } from "./geometry/index.js";
 export { footprintFits, pointInPolygon, validateSafePolygon } from "./geometry/index.js";

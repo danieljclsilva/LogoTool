@@ -4,8 +4,8 @@ import {
   validateSafePolygon,
   pointInPolygon,
   footprintFits,
-} from "../src/core/geometry/index.js";
-import type { GeoPoint } from "../src/core/geometry/index.js";
+} from "../src/core/index.js";
+import type { GeoPoint } from "../src/core/index.js";
 
 const square: GeoPoint[] = [
   { x: 0, y: 0 },

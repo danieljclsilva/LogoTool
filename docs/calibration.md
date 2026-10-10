@@ -1,4 +1,4 @@
-# Calibration (Phase 5 partial — kernel + offline anchor/measure draft UI)
+# Calibration (Phase 5 partial — kernel + offline anchor/measure + planar-frame draft UI)
 
 Status: provisional. The kernel plus an offline anchor-picking and
 known-distance draft panel are integrated into the internal
@@ -36,8 +36,14 @@ comparison is still pending; Phase 1 is not complete.
   routes every state into `CalibrationPanel.setAsset(record|null)` so any
   import state except `ready` wipes anchors/measurements/fit/pick/export (and
   discards in-flight restores).
-- Still absent in this slice: region/safe-polygon editor, planar plane
-  selection, production approval, packaging claims.
+## Planar frame draft
+
+- Planar region frames (`src/core/planar-region/`, tested in `tests-ts/planar-region.test.ts`): 0..N oriented frames authored from existing anchors only — distinct origin/+X-side/+Y-side anchors, Y as the orthogonal projection of O→Y pointing toward the Y anchor (third anchor chooses the Y side; orthogonality never assumed), normal X×Y, fitted mm/unit scale, explicit nonnegative off-plane tolerance (prototype setting). Creation/export/preview require a current CONSISTENT fit; consistency never approves production. `ModelViewer.setRegionAxes` draws the active frame's X (red) / Y (green) 100 mm axes under the same asset-root wrapper, excluded from raycasts/bounds/wireframe; the panel probes existing anchors through the active frame, labels stale regions, clears regions on model replacement/reset or successful session restore, and downloads a separate deterministic `0.1.0-provisional-planar-regions` bundle (always `pendingReview: true, productionApproved: false`). The calibration session download does NOT include regions; region-bundle import is out of scope. Region frame IDs must be unique within
+  a bundle. Near-collinear anchor triples with a perpendicular ratio below
+  1e-6 are rejected; this is a numeric conditioning threshold, not a physical
+  tolerance. UI frame values are rounded for readability; exports retain full
+  numeric precision.
+- Still absent in this slice: safe-polygon editor, curved-surface mapping, region-bundle restore, production approval/integration, packaging claims.
 
 ## Kernel utilities
 
@@ -50,7 +56,8 @@ comparison is still pending; Phase 1 is not complete.
   tee (M + XL as separate evidence), trousers, cap. All `assetFullSha256`
   values are placeholders (repeated hex characters), NOT real asset hashes; measured
   distances are invented (round 100 mm/unit scale) for kernel tests only.
-- Re-exported through `src/core/index.ts`. No persistence/import contract;
+- Re-exported through `src/core/index.ts`. Session restore and planar-frame
+  exports have provisional envelopes;
   candidates are NOT integrated into the product calibration schema or
   production output yet.
 
@@ -119,17 +126,32 @@ clearance or fabrication feasibility and are not wired into production approval.
 
 ## Verification
 
-- `npm run typecheck`, `npm test` (171 TypeScript tests, including session
+- `npm run typecheck`, `npm test` (189 TypeScript tests, including planar-region frame/probe/bundle/stale coverage plus session
   restore roundtrip/forged-fit/limits coverage and gesture regression checks),
   and `python3 -m unittest discover -s tests -v` (18 synthetic audit tests)
   passed. The build emits one inline inspector HTML.
-- Browser Use plugin was available. The frontend testing skill required a
-  separately listed `browser` skill for its Browser runtime path; that skill
-  was absent, so QA used the documented Playwright fallback. Regular
-  Playwright 1.62.1 used installed Chrome 154.0.8037.98 on macOS, headless,
-  with an offline context and
-  direct `file://` opening. Desktop 1280×900 and narrow 390×844 views passed
+- For this planar-frame slice, Browser Use was invoked against the existing
+  local `file://` inspector. It returned `net::ERR_BLOCKED_BY_ADMINISTRATOR`;
+  the page could not load in that session. No upload, server or tunnel was used.
+  Local Playwright 1.62.1 with installed Chrome 154.0.8037.98 on macOS then
+  tested desktop 1280×900 and narrow 390×844 in an offline context. Both passed
   without horizontal overflow, HTTP(S) requests or console/page errors.
+- Planar-frame browser checks restored synthetic translated/rotated/scaled
+  asset-root anchors, authored two frames, probed the origin and 100 mm X anchor,
+  and rejected an off-plane probe. Bundle bytes were stable through orbit,
+  fit/reset, wireframe and viewport changes. Field edits immediately marked
+  regions stale and disabled preview/probing/export; changing evidence back
+  and refitting restored the original bytes. Duplicate IDs, blank tolerance,
+  invalid triples and failed session restore preserved existing regions.
+  Successful restore, anchor removal and asset replacement cleared dependent
+  frames. The delayed restore-read regression also passed.
+- Codex restored evidence input listeners and the pre-existing core geometry
+  exports after integration, and made all region state use the live draft
+  snapshot. Bundle creation now reconstructs every frame from matching source
+  anchors/evidence; forged geometry, scale, references and snapshot strings are
+  rejected. Core tests use genuine source evidence and cover rotated/scaled
+  frames, mapping round trips, zero/nearparallel spans, overflow, off-plane
+  tolerances, generic multi-region ordering, copied data and approval flags.
 - Imported a synthetic GLB with translated, rotated, nonuniformly scaled nodes;
   picked two anchors and checked their inverse-transformed positions against
   the original mesh surface. Original node transforms remained represented;
