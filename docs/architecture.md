@@ -58,3 +58,14 @@ local workflow state, not authenticated identity. UI flows must use this boundar
 Operation PDFs, previews and later production output must derive from the same
 selected project revision. PDF generation and Odoo uploads/writes are separate
 future layers and authorization; no live Odoo tests or integration is included.
+
+
+## Phase 4 partial implementation
+
+Portable GLB ingestion and provisional provenance live in `src/assets`; the
+asynchronous validated entry point uses the bundled Khronos validator. Three.js
+and browser ownership are isolated in `src/viewer` and `src/ui/asset-inspector`.
+`tsconfig.viewer.json` supplies DOM types separately from the core build.
+`scripts/build-inspector.mjs` emits one inline IIFE HTML for internal `file://`
+inspection. This is not the hybrid project package or customer standalone export.
+See `asset-pipeline.md` for trust boundaries and unsupported resource/extension paths.

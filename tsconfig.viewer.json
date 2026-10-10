@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "src/assets/**/*.ts",
+    "src/ui/**/*.ts",
+    "src/viewer/**/*.ts"
+  ],
+  "exclude": []
+}

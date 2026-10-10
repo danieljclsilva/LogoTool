@@ -4,8 +4,8 @@
 
 - [ ] Phase 1 — Odoo discovery (in progress: audit tooling implemented; 18 synthetic tests pass; original 96-capture audit plus a separate three-request investigation; work-order, proof approval and factory-special routes examined; findings in `docs/odoo-discovery.md` plus private reports)
 - [ ] Phase 2 — Domain model (provisional foundations present: `src/core` pure domain logic, draft `schemas/*.schema.json` at `0.1.0-provisional`, synthetic `examples/**` fixtures, `tests-ts/` Node suites; specified in `docs/domain-model.md` + `docs/decisions.md`; NOT finalized — gated on Phase 1 exit criteria)
-- [ ] Phase 3 — Architecture (provisional layering recorded in `docs/architecture.md`; core/viewer/packaging/platform split per brief §4; only `src/core` implemented — viewer, packaging, platform, Tauri all pending)
-- [ ] Phase 4 — 3D asset prototype (pending)
+- [ ] Phase 3 — Architecture (provisional layering recorded in `docs/architecture.md`; core/viewer/packaging/platform split per brief §4; `src/core` and an internal asset/viewer harness implemented — customer packaging, platform and Tauri pending)
+- [ ] Phase 4 — 3D asset prototype (partial: external GLB ingestion, provenance, validated offline inspection and two synthetic fixtures; real FlexiTog assets and Tripo comparison pending)
 - [ ] Phase 5 — Product calibration (pending)
 - [ ] Phase 6 — Logo placement (pending)
 - [ ] Phase 7 — Variant transfer (pending)
@@ -40,7 +40,7 @@ Odoo attachment functionality are not implemented yet.
 
 - Validated product/variant calibration, placement areas and production coordinate
   conventions belong to product setup; customers need not supply them per job.
-- No viewer, packaging, platform, 3D, PDF, or Odoo work beyond the provisional core/schemas/fixtures/tests slice above.
+- Internal GLB viewer/ingestion present; customer packaging, platform, placement editing, PDF and Odoo integration pending.
 
 ## Implemented foundation (2026-10-10; provisional)
 
@@ -58,6 +58,8 @@ Odoo attachment functionality are not implemented yet.
 
 Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain/production
 contracts still need evidence review. Real physical calibration and constraints,
-geometric placement validation, variant transfer, 3D asset/viewer work, both offline
+geometric placement validation, variant transfer, real product assets, both offline
 packaging modes, operation PDFs and internal Builder remain pending. Offline
-Windows Chrome/Edge `file://` delivery has not been tested because no package exists.
+Internal inspector passed macOS Chrome offline `file://` checks; Windows Chrome/Edge customer delivery remains untested.
+
+See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.

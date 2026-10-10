@@ -23,7 +23,7 @@ Credentials and customer evidence stay private under the ignored `private/` dire
 
 ## Stack
 
-TypeScript core and developer tooling are present. React / Three.js / Vite remain planned. Python is developer tooling only, never a customer runtime requirement.
+TypeScript core and developer tooling are present. Three.js powers the internal asset inspector. React / Vite remain planned. Python is developer tooling only, never a customer runtime requirement.
 
 ## Schema gate
 
@@ -61,6 +61,16 @@ See [domain model](docs/domain-model.md), [architecture](docs/architecture.md),
 
 Schemas use `0.1.0-provisional`; Phase 1 remains incomplete. Safe-area geometry,
 variant-transfer behavior, real calibration, 3D editing, binary project packaging,
-operation PDFs and the Builder remain pending. No offline HTML package has been
-delivered or tested; Windows Chrome/Edge over `file://` with networking disabled
+operation PDFs and the Builder remain pending. An internal single-HTML asset inspector has been tested offline in macOS Chrome;
+the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
 remains the delivery acceptance test.
+
+
+## Internal asset inspector (Phase 4 partial)
+
+Run `npm run build`, then open `dist/asset-inspector.html` directly through `file://`.
+Choose `examples/models/synthetic-block.glb` or `synthetic-tetra.glb` to inspect,
+orbit, fit/reset, toggle wireframe and download original bytes plus provenance.
+No server or network connection is needed. Fixtures are synthetic and uncalibrated.
+Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
+See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).

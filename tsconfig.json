@@ -20,5 +20,9 @@
   "include": [
     "src/**/*.ts",
     "tests-ts/**/*.ts"
+  ],
+  "exclude": [
+    "src/ui/**",
+    "src/viewer/**"
   ]
 }

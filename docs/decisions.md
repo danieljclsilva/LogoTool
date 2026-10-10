@@ -59,3 +59,15 @@ be tested without Odoo/customer data.
 Alternative: encode unverified real assumptions or claim browser delivery from a build.
 Consequence: tests verify the implemented slice only; direct Windows `file://` testing
 remains pending before any customer package is delivered.
+
+
+## Phase 4 partial asset decisions (2026-10-10)
+
+Use external self-contained GLB ingestion first, with a provider-neutral generator
+port and deterministic synthetic assets. No Tripo credentials/uploads are implied.
+Hash and preserve original bytes; all new assets start uncalibrated. The first
+POSITION accessor's declared bounds are diagnostic metadata, not whole-model bounds
+or physical dimensions. Require Khronos structural/binary validation in addition
+to a no-external-resource policy before rendering. Use a framework-free single
+HTML inspector to exercise offline memory parsing independently of the later
+customer project/package flow. Windows acceptance and real asset quality stay open.
