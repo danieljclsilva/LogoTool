@@ -93,6 +93,8 @@ export interface AssetInspectorOptions {
   operator: string;
   /** Clock for `recordedAt`; defaults to `new Date().toISOString()`. */
   clock?: () => string;
+  /** Optional state observer; called synchronously on every state transition. */
+  onStateChange?: (state: InspectorState) => void;
   /** Async sha256 hex digest; defaults to `crypto.subtle`. */
   hashBytes?: (bytes: Uint8Array) => Promise<string>;
 }
@@ -125,6 +127,7 @@ export class AssetInspector {
   private readonly operator: string;
   private readonly clock: () => string;
   private readonly hashBytes: (bytes: Uint8Array) => Promise<string>;
+  private readonly onStateChange: ((state: InspectorState) => void) | undefined;
   private readonly canvas: HTMLCanvasElement;
   private readonly dropzone: HTMLElement;
   private readonly fileInput: HTMLInputElement;
@@ -150,6 +153,7 @@ export class AssetInspector {
     this.operator = options.operator;
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.hashBytes = options.hashBytes ?? defaultHashBytes;
+    this.onStateChange = options.onStateChange;
     const get = <T extends HTMLElement>(name: InspectorHookName): T => {
       const found = options.root.querySelector<T>(
         `[data-inspector-hook="${name}"]`,
@@ -379,6 +383,7 @@ export class AssetInspector {
 
   private setState(state: InspectorState): void {
     this.state = state;
+    this.onStateChange?.(state);
     this.render();
   }
 

@@ -1,0 +1,87 @@
+<section data-calibration-hook="panel" aria-label="Calibration (provisional offline draft)">
+  <h2>Calibration draft (provisional)</h2>
+  <p role="note">
+    <strong>Offline draft only.</strong>
+    Anchor coordinates come only from surface picks on the preview canvas.
+    Nothing here is production-approved; every fit stays pending review.
+  </p>
+  <p data-calibration-hook="status" role="status" aria-live="polite"></p>
+
+  <fieldset>
+    <legend>Calibration identity</legend>
+    <label>
+      Product
+      <input data-calibration-hook="product-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Variant
+      <input data-calibration-hook="variant-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Calibration ID
+      <input data-calibration-hook="calibration-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Frame ID
+      <input data-calibration-hook="frame-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Provisional version
+      <input data-calibration-hook="version" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Absolute tolerance (mm)
+      <input data-calibration-hook="tolerance-mm" type="number" min="0" step="any" value="0.5" />
+    </label>
+    <label>
+      Relative tolerance (fraction, not %)
+      <input data-calibration-hook="tolerance-relative" type="number" min="0" step="any" value="0.01" />
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Anchors (from surface picks only)</legend>
+    <label>
+      Anchor ID
+      <input data-calibration-hook="anchor-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Semantic role (generic free text, optional)
+      <input data-calibration-hook="anchor-role" type="text" autocomplete="off" />
+    </label>
+    <div>
+      <button data-calibration-hook="arm-pick" type="button">Pick anchor on model</button>
+      <button data-calibration-hook="cancel-pick" type="button">Cancel pick</button>
+      <button data-calibration-hook="add-anchor" type="button">Add anchor from last pick</button>
+    </div>
+    <ul data-calibration-hook="anchor-list"></ul>
+  </fieldset>
+
+  <fieldset>
+    <legend>Known distances (mm, straight-line spans)</legend>
+    <label>
+      Anchor A
+      <select data-calibration-hook="measure-a"></select>
+    </label>
+    <label>
+      Anchor B
+      <select data-calibration-hook="measure-b"></select>
+    </label>
+    <label>
+      Measured distance (mm)
+      <input data-calibration-hook="measure-distance" type="number" min="0" step="any" />
+    </label>
+    <div>
+      <button data-calibration-hook="add-measurement" type="button">Add measurement</button>
+    </div>
+    <ul data-calibration-hook="measurement-list"></ul>
+  </fieldset>
+
+  <div>
+    <button data-calibration-hook="fit-button" type="button">Fit uniform scale</button>
+  </div>
+  <div data-calibration-hook="fit-result" aria-live="polite"></div>
+  <div>
+    <button data-calibration-hook="export-button" type="button">Download calibration session JSON</button>
+  </div>
+</section>

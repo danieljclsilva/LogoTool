@@ -69,11 +69,15 @@ the customer package remains pending, and Windows Chrome/Edge over `file://` wit
 remains the delivery acceptance test.
 
 
-## Internal asset inspector (Phase 4 partial)
+## Internal asset inspector (Phase 4 partial + Phase 5 draft panel)
 
 Run `npm run build`, then open `dist/asset-inspector.html` directly through `file://`.
 Choose `examples/models/synthetic-block.glb` or `synthetic-tetra.glb` to inspect,
 orbit, fit/reset, toggle wireframe and download original bytes plus provenance.
-No server or network connection is needed. Fixtures are synthetic and uncalibrated.
+The provisional calibration draft below the preview supports armed surface
+picking (click, not drag), anchor IDs with generic roles, 1..N known-distance
+measurements in mm, uniform-scale fit with stale/inconsistent handling, and a
+pending-review session-JSON download (never approved). Any new import wipes the
+draft. No server or network connection is needed. Fixtures are synthetic and uncalibrated.
 Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
 See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).

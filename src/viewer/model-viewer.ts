@@ -59,6 +59,9 @@ export class ModelViewer {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: OrbitControls;
   private readonly wrapper: THREE.Group;
+  private readonly markerGroup: THREE.Group;
+  private readonly markerGeometry: THREE.SphereGeometry;
+  private readonly markerMaterial: THREE.MeshBasicMaterial;
   private readonly container: HTMLElement;
   private readonly resizeObserver: ResizeObserver | null;
   private readonly loader = new GLTFLoader();
@@ -87,6 +90,11 @@ export class ModelViewer {
     this.wrapper = new THREE.Group();
     this.wrapper.name = 'model-viewer-wrapper';
     this.scene.add(this.wrapper);
+    this.markerGroup = new THREE.Group();
+    this.markerGroup.name = 'anchor-markers';
+    this.wrapper.add(this.markerGroup);
+    this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
+    this.markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
 
     // Simple key/fill lighting; materials come from the GLB itself.
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -171,7 +179,9 @@ export class ModelViewer {
     }
     this.clearModel();
     this.wrapper.add(parsed.scene);
-    this.applyWireframe(this.wrapper, this.wireframe);
+    for (const child of this.wrapper.children) {
+      if (child !== this.markerGroup) this.applyWireframe(child, this.wireframe);
+    }
     this.fitView();
     return this.setStatus({ kind: 'ready' });
   }
@@ -185,7 +195,7 @@ export class ModelViewer {
 
   /** Frame the current model in the camera (wrapper transform only). */
   fitView(): void {
-    const box = new THREE.Box3().setFromObject(this.wrapper);
+    const box = this.modelBBox();
     if (box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
@@ -211,10 +221,84 @@ export class ModelViewer {
     this.fitView();
   }
 
-  /** Toggle flat wireframe rendering on all model materials. */
+  /**
+   * Raycast the asset model at canvas client coords; returns the hit in
+   * wrapper-local (unframed asset-scene root) coords, or null on any miss
+   * or bad input. Never throws. Marker meshes are never hit-tested.
+   */
+  pickSurface(clientX: number, clientY: number): { modelPosition: { x: number; y: number; z: number } } | null {
+    try {
+      if (this.disposed) return null;
+      if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+      const canvas = this.renderer.domElement;
+      const rect = canvas.getBoundingClientRect();
+      if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return null;
+      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      if (px < 0 || py < 0 || px > rect.width || py > rect.height) return null;
+      if (this.wrapper.children.length === 0) return null;
+      this.scene.updateMatrixWorld();
+      this.camera.updateMatrixWorld();
+      const ndc = new THREE.Vector2((px / rect.width) * 2 - 1, -((py / rect.height) * 2 - 1));
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, this.camera);
+      const targets: THREE.Object3D[] = [];
+      for (const child of this.wrapper.children) {
+        if (child !== this.markerGroup) targets.push(child);
+      }
+      if (targets.length === 0) return null;
+      const hits = raycaster.intersectObjects(targets, true);
+      const hit = hits.find(candidate => candidate.object instanceof THREE.Mesh);
+      if (hit === undefined) return null;
+      const local = this.wrapper.worldToLocal(hit.point.clone());
+      if (!Number.isFinite(local.x) || !Number.isFinite(local.y) || !Number.isFinite(local.z)) return null;
+      return { modelPosition: { x: local.x, y: local.y, z: local.z } };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Replace the anchor marker set. Positions are wrapper-local model coords
+   * so markers ride wrapper transforms. Entries with nonfinite coords are
+   * skipped. Empty array clears markers. Never mutates the model subtree.
+   */
+  setAnchorMarkers(anchors: Array<{ id: string; model: { x: number; y: number; z: number } }>): void {
+    try {
+      this.clearMarkers();
+      if (this.disposed) return;
+      if (!Array.isArray(anchors) || anchors.length === 0) return;
+      const size = this.modelBBox().getSize(new THREE.Vector3()).length();
+      const radius = Number.isFinite(size) && size > 0 ? size * 0.015 : 0.02;
+      for (const anchor of anchors) {
+        if (anchor === null || typeof anchor !== 'object') continue;
+        if (!('model' in anchor)) continue;
+        const model = anchor.model;
+        if (model === null || typeof model !== 'object') continue;
+        if (!('x' in model) || !('y' in model) || !('z' in model)) continue;
+        const mx = model.x;
+        const my = model.y;
+        const mz = model.z;
+        if (typeof mx !== 'number' || typeof my !== 'number' || typeof mz !== 'number') continue;
+        if (!Number.isFinite(mx) || !Number.isFinite(my) || !Number.isFinite(mz)) continue;
+        const marker = new THREE.Mesh(this.markerGeometry, this.markerMaterial);
+        marker.position.set(mx, my, mz);
+        marker.scale.setScalar(radius);
+        this.markerGroup.add(marker);
+      }
+    } catch {
+      return;
+    }
+  }
+
+  /** Toggle flat wireframe rendering on model materials; markers unaffected. */
   setWireframe(enabled: boolean): void {
     this.wireframe = enabled;
-    this.applyWireframe(this.wrapper, enabled);
+    for (const child of this.wrapper.children) {
+      if (child !== this.markerGroup) this.applyWireframe(child, enabled);
+    }
   }
 
   getWireframe(): boolean {
@@ -234,6 +318,9 @@ export class ModelViewer {
     this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.resizeBound);
     this.clearModel();
+    if (this.markerGroup.parent !== null) this.markerGroup.parent.remove(this.markerGroup);
+    this.markerGeometry.dispose();
+    this.markerMaterial.dispose();
     this.controls.dispose();
     this.renderer.dispose();
   }
@@ -241,11 +328,32 @@ export class ModelViewer {
   private clearModel(): void {
     for (let i = this.wrapper.children.length - 1; i >= 0; i--) {
       const child = this.wrapper.children[i];
-      if (child === undefined) continue;
+      if (child === undefined || child === this.markerGroup) continue;
       this.wrapper.remove(child);
       disposeObject(child);
     }
+    this.clearMarkers();
     this.wrapper.position.set(0, 0, 0);
+  }
+
+  /** Bounding box of the asset model only; markers never contribute. */
+  private modelBBox(): THREE.Box3 {
+    const box = new THREE.Box3();
+    box.makeEmpty();
+    for (const child of this.wrapper.children) {
+      if (child === this.markerGroup) continue;
+      box.expandByObject(child);
+    }
+    return box;
+  }
+
+  /** Remove marker meshes; shared geometry/material are retained. */
+  private clearMarkers(): void {
+    for (let i = this.markerGroup.children.length - 1; i >= 0; i--) {
+      const child = this.markerGroup.children[i];
+      if (child === undefined) continue;
+      this.markerGroup.remove(child);
+    }
   }
 
   private applyWireframe(root: THREE.Object3D, enabled: boolean): void {

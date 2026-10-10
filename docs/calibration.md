@@ -1,10 +1,35 @@
-# Calibration kernel (Phase 5 partial — kernel only)
+# Calibration (Phase 5 partial — kernel + offline anchor/measure draft UI)
 
-Status: provisional utility slice. Anchor picking, interactive calibration
-editor, real product calibration and production-output integration are pending.
-Phase 4 real product/Tripo comparison is still pending; Phase 1 is not complete.
+Status: provisional. The kernel plus an offline anchor-picking and
+known-distance draft panel are integrated into the internal
+`dist/asset-inspector.html` harness. Every fit stays
+`productionApproved: false, pendingReview: true`. No real product measurements
+were obtained or physically validated in this development pass; production
+output integration remains pending. Phase 4 real product/Tripo
+comparison is still pending; Phase 1 is not complete.
 
-## What exists
+## Interactive draft (2026-10-10 slice)
+
+- `ModelViewer.pickSurface(clientX, clientY)` raycasts asset meshes only and
+  returns hit points in unframed asset-scene-root coordinates
+  (`wrapper.worldToLocal`); `setAnchorMarkers` draws markers under the same
+  wrapper so raw model coordinates align. Markers are excluded from raycast
+  and fit bbox, and are cleared on model replace/clear/dispose.
+- `src/ui/calibration/panel.ts` + `fragment.html`, with pure draft logic in
+  `src/core/calibration-session/` (tested in
+  `tests-ts/calibration-session.test.ts`): arm-one-shot surface picking with
+  click-vs-drag (maximum pointer movement above 6px is ignored; only primary
+  left-button clicks with a matching down/up sequence count), anchor list, 1..N
+  known-distance measurements, `fitUniformScale`, stale-fit invalidation, and
+  deterministic pending-review session-JSON download
+  (`0.1.0-provisional-calibration-session`; stable ordering, no timestamps).
+- `AssetInspector` exposes an optional `onStateChange` observer; `main.ts`
+  routes every state into `CalibrationPanel.setAsset(record|null)` so any
+  import state except `ready` wipes anchors/measurements/fit/pick/export.
+- Still absent in this slice: candidate restore/import, region/safe-polygon
+  editor, planar plane selection, production approval, packaging claims.
+
+## Kernel utilities
 
 - `src/core/calibration/`: pure-TS evidence validation, uniform isotropic
   least-squares scale fit (`fitUniformScale`), explicit planar frame mapping
@@ -71,15 +96,38 @@ clearance or fabrication feasibility and are not wired into production approval.
 
 ## Verification
 
-Codex independently corrected boundary-only concave containment, closed-ring
-handling, malformed-anchor errors, fit ordering, pair-ID collisions, numerical
-range checks and near-orthogonal inverse mapping after OMP's integrated handoff.
-Regression tests cover those cases as well as translated/rotated planes, multiple
-scales, disagreement between measurements, safe/exclusion contact and concavity.
-The existing inspector runtime is unchanged; no new browser feature is claimed.
+- `npm run typecheck`, `npm test` (161 TypeScript tests, including session and
+  gesture regression checks), and `python3 -m unittest discover -s tests -v`
+  (18 synthetic audit tests) passed. The build emits one inline inspector HTML.
+- Browser plugin not available: regular Playwright 1.62.1 used installed Chrome
+  154.0.8037.98 on macOS, headless, offline context and direct `file://` opening.
+  Desktop 1280×900 and narrow 390×844 views passed without horizontal overflow,
+  HTTP(S) requests or console/page errors.
+- Imported a synthetic GLB with translated, rotated, nonuniformly scaled nodes;
+  picked two anchors and checked their inverse-transformed positions against
+  the original mesh surface. Original node transforms remained represented;
+  viewer framing did not enter saved coordinates. Entered 100 mm, fitted and
+  downloaded a candidate bound to the exact asset SHA-256.
+- Candidate bytes stayed identical through orbit, fit/reset and viewport resize.
+  Field edits disabled stale export. A second 1000 mm measurement of the same
+  pair produced a clearly inconsistent, pending-review export. New imports
+  cleared identities, anchors, measurements, picks, markers and fit/export.
+- Browser checks exercised returning orbit drags, right-clicks, cancelled and
+  missed picks, invalid zero distances and cascading removal of measurements
+  after anchor deletion. Unit tests cover native-event getter properties,
+  multi-pointer/cancel recognition, deterministic session assembly and stale fits.
 
-Final checks: `npm run typecheck`, `npm test` (144 tests), and
-`python3 -m unittest discover -s tests -v` (18 tests) passed. The build still
-emits the offline inspector. All four revised synthetic fixtures validate and
-fit their invented scale with distinct frame/variant references; no live Odoo
-or external generation requests were made.
+Codex independently corrected gesture recognition, explicit native event value
+capture, pending-pick cancellation, blank tolerance handling and selection
+preservation after OMP integration. The model raycast accepts meshes only;
+markers do not participate. Prior kernel regression coverage for concavity,
+exclusions, arithmetic limits, fit ordering and planar mapping still passes.
+
+Screenshots, temporary browser checks and downloaded candidates are local under
+`/tmp/logotool-*`, outside tracked source. The current UI downloads a provisional
+candidate but does not restore/import it. A frame ID here identifies calibration
+evidence; the UI does not select an oriented planar region or establish its
+production datum/axes. Region editing and curved mappings remain later work.
+Windows Chrome/Edge validation, real FlexiTog/Tripo assets, measured product setup,
+and production readiness remain open. No live Odoo or external generation/upload
+requests were made.
