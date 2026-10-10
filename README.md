@@ -76,8 +76,10 @@ Choose `examples/models/synthetic-block.glb` or `synthetic-tetra.glb` to inspect
 orbit, fit/reset, toggle wireframe and download original bytes plus provenance.
 The provisional calibration draft below the preview supports armed surface
 picking (click, not drag), anchor IDs with generic roles, 1..N known-distance
-measurements in mm, uniform-scale fit with stale/inconsistent handling, and a
-pending-review session-JSON download (never approved). Any new import wipes the
+measurements in mm, uniform-scale fit with stale/inconsistent handling, a
+pending-review session-JSON download (never approved), and local restore of a
+previously downloaded session file (exact current-asset SHA-256 required;
+imported fit ignored and recomputed pending review). Any new import wipes the
 draft. No server or network connection is needed. Fixtures are synthetic and uncalibrated.
 Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
 See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).

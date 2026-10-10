@@ -32,6 +32,8 @@ import {
   buildEvidence,
   buildSessionExport,
   isFitCurrent,
+  parseSessionRestore,
+  RESTORE_LIMITS,
   removeAnchor,
   removeMeasurement,
   serializeSessionExport,
@@ -79,7 +81,9 @@ type HookName =
   | "measurement-list"
   | "fit-button"
   | "fit-result"
-  | "export-button";
+  | "export-button"
+  | "restore-file"
+  | "restore-button";
 
 /** Click-vs-drag threshold in CSS pixels: larger movement is a drag, ignored. */
 const CLICK_MAX_MOVE_PX = 6;
@@ -108,6 +112,8 @@ export class CalibrationPanel {
   private readonly fitButton: HTMLButtonElement;
   private readonly fitResult: HTMLElement;
   private readonly exportButton: HTMLButtonElement;
+  private readonly restoreFile: HTMLInputElement;
+  private readonly restoreButton: HTMLButtonElement;
 
   private record: AssetRecord | null = null;
   private anchors: DraftAnchor[] = [];
@@ -118,6 +124,8 @@ export class CalibrationPanel {
   private fitEvidence: CalibrationEvidence | null = null;
   private fit: UniformFitResult | null = null;
   private fitSnapshot: string | null = null;
+  private restoreSeq = 0;
+  private restoreBusy = false;
 
   private constructor(options: CalibrationPanelOptions) {
     this.getViewer = options.viewer;
@@ -154,6 +162,8 @@ export class CalibrationPanel {
     this.fitButton = query<HTMLButtonElement>("fit-button");
     this.fitResult = query("fit-result");
     this.exportButton = query<HTMLButtonElement>("export-button");
+    this.restoreFile = query<HTMLInputElement>("restore-file");
+    this.restoreButton = query<HTMLButtonElement>("restore-button");
 
     for (const input of [
       this.productInput,
@@ -186,7 +196,9 @@ export class CalibrationPanel {
     this.exportButton.addEventListener("click", () => {
       this.onExport();
     });
-
+    this.restoreButton.addEventListener("click", () => {
+      void this.onRestore();
+    });
     const canvas = document.querySelector(
       '[data-inspector-hook="canvas"]',
     );
@@ -207,6 +219,8 @@ export class CalibrationPanel {
   }
 
   setAsset(record: AssetRecord | null): void {
+    this.restoreSeq += 1;
+    this.restoreBusy = false;
     this.record = record;
     this.anchors = [];
     this.measurements = [];
@@ -226,6 +240,7 @@ export class CalibrationPanel {
     this.anchorIdInput.value = "";
     this.anchorRoleInput.value = "";
     this.measureDistanceInput.value = "";
+    this.restoreFile.value = "";
     const viewer = this.getViewer();
     if (viewer !== null) {
       viewer.setAnchorMarkers([]);
@@ -265,7 +280,7 @@ export class CalibrationPanel {
   }
 
   private onCanvasPointerUp(clientX: number, clientY: number): void {
-    if (!this.armed) return;
+    if (!this.armed || this.restoreBusy) return;
     if (this.record === null) {
       this.armed = false;
       this.setStatus("Pick disarmed: no asset loaded.");
@@ -541,6 +556,104 @@ export class CalibrationPanel {
     );
   }
 
+  private async onRestore(): Promise<void> {
+    if (this.restoreBusy) return;
+    if (this.record === null) {
+      this.setStatus("Load an asset before restoring a session.");
+      return;
+    }
+    const files = this.restoreFile.files;
+    const file = files !== null && files.length > 0 ? files[0] : undefined;
+    if (file === undefined) {
+      this.setStatus("No file selected: choose a calibration session JSON file first.");
+      return;
+    }
+    if (file.size > RESTORE_LIMITS.maxBytes) {
+      this.restoreFile.value = "";
+      this.setStatus(`Restore failed: file exceeds ${RESTORE_LIMITS.maxBytes} bytes.`);
+      return;
+    }
+    const seq = ++this.restoreSeq;
+    const loadRecord = this.record;
+    const loadSha = loadRecord.sha256Hex;
+    this.restoreBusy = true;
+    this.render();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+      this.restoreBusy = false;
+      this.restoreFile.value = "";
+      this.setStatus("Restore failed: could not read the selected file.");
+      this.render();
+      return;
+    }
+    if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+    const parsed = parseSessionRestore(text, loadSha);
+    if (!parsed.ok) {
+      this.restoreBusy = false;
+      this.restoreFile.value = "";
+      this.setStatus(`Restore failed: ${parsed.error}.`);
+      this.render();
+      return;
+    }
+    const draft = parsed.draft;
+    const built = buildEvidence(draft.fields, draft.anchors, draft.measurements);
+    if (!built.ok) {
+      this.restoreBusy = false;
+      this.restoreFile.value = "";
+      this.setStatus(`Restore failed: ${built.error}.`);
+      this.render();
+      return;
+    }
+    const validation = validateCalibrationEvidence(built.evidence);
+    if (!validation.ok) {
+      this.restoreBusy = false;
+      this.restoreFile.value = "";
+      this.setStatus(`Restore failed: ${validation.errors.join("; ")}.`);
+      this.render();
+      return;
+    }
+    let result: UniformFitResult;
+    try {
+      result = fitUniformScale(built.evidence);
+    } catch (error) {
+      this.restoreBusy = false;
+      this.restoreFile.value = "";
+      this.setStatus(`Restore failed: ${error instanceof Error ? error.message : String(error)}.`);
+      this.render();
+      return;
+    }
+    this.anchors = [...draft.anchors];
+    this.measurements = [...draft.measurements];
+    this.productInput.value = draft.fields.product;
+    this.variantInput.value = draft.fields.variant;
+    this.calibrationInput.value = draft.fields.calibrationId;
+    this.frameInput.value = draft.fields.frameId;
+    this.versionInput.value = draft.fields.provisionalVersion;
+    this.toleranceMmInput.value = String(draft.fields.toleranceMm);
+    this.toleranceRelativeInput.value = String(draft.fields.relativeTolerance);
+    this.anchorIdInput.value = "";
+    this.anchorRoleInput.value = "";
+    this.measureDistanceInput.value = "";
+    this.armed = false;
+    this.gesture.cancel();
+    this.pendingPick = null;
+    this.fitEvidence = built.evidence;
+    this.fit = result;
+    this.fitSnapshot = snapshotEvidence(built.evidence);
+    this.syncMarkers();
+    this.restoreBusy = false;
+    this.restoreFile.value = "";
+    this.render();
+    this.setStatus(
+      result.inconsistent
+        ? "Session restored: fit recomputed locally but is INCONSISTENT. Pending review, never approved."
+        : "Session restored: fit recomputed locally. Pending review, never approved.",
+    );
+  }
+
   private sanitizeFileFragment(value: string): string {
     const cleaned = value
       .trim()
@@ -566,7 +679,7 @@ export class CalibrationPanel {
   }
 
   private render(): void {
-    const enabled = this.record !== null;
+    const enabled = this.record !== null && !this.restoreBusy;
     for (const input of [
       this.productInput,
       this.variantInput,
@@ -597,7 +710,10 @@ export class CalibrationPanel {
     this.armButton.setAttribute("aria-pressed", String(this.armed));
     this.addAnchorButton.disabled = !enabled || this.pendingPick === null;
     this.cancelButton.disabled = !enabled || (!this.armed && this.pendingPick === null);
+    this.restoreButton.disabled = this.record === null || this.restoreBusy;
+    this.restoreFile.disabled = this.record === null || this.restoreBusy;
     this.renderFit();
+    if (this.restoreBusy) this.exportButton.disabled = true;
   }
 
   private renderAnchors(enabled: boolean): void {

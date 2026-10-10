@@ -77,6 +77,22 @@
     <ul data-calibration-hook="measurement-list"></ul>
   </fieldset>
 
+  <fieldset>
+    <legend>Restore provisional session JSON</legend>
+    <label>
+      Session JSON file (local file only)
+      <input data-calibration-hook="restore-file" type="file" accept=".json,application/json" />
+    </label>
+    <div>
+      <button data-calibration-hook="restore-button" type="button">Load calibration session JSON</button>
+    </div>
+    <p role="note">
+      Local file only; nothing is uploaded. The file must match this asset's
+      exact SHA-256. Any imported fit is ignored: scale is recomputed locally
+      and stays pending review, never approved.
+    </p>
+  </fieldset>
+
   <div>
     <button data-calibration-hook="fit-button" type="button">Fit uniform scale</button>
   </div>

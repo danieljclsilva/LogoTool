@@ -1,7 +1,8 @@
 # Architecture foundation
 
-Status: provisional Phase 2/3 work. Only the portable domain core is implemented.
-No viewer, customer UI, binary package, PDF renderer or Odoo integration exists.
+Status: provisional Phase 2–5 work. Portable domain utilities and an internal
+offline GLB/calibration inspector are implemented. Customer editing, binary
+packaging, PDF rendering and Odoo integration remain pending.
 
 ## Boundaries
 
@@ -21,22 +22,25 @@ Future layers follow brief §4:
 
 ```text
 src/core         physical domain and workflow (implemented)
-src/viewer       Three.js, model/surface mapping, logo rendering (future)
-src/assets       replaceable generation and external GLB import (future)
+src/viewer       Three.js model inspection/picking (logo rendering future)
+src/assets       offline external GLB import (generation providers future)
 src/packaging    canonical project, hybrid ZIP, self-contained HTML (future)
 src/platform     file/download/storage interfaces, browser and Tauri adapters (future)
-src/ui           customer editor, calibration and internal Builder (future)
+src/ui           internal calibration draft (customer editor/Builder future)
 ```
 
 Viewers derive geometry from mm data; inverse calibrated surface mapping translates
-visual editing back into mm. Screens/cameras/mesh transforms are never production
-units. Tripo and other generation providers remain replaceable; external GLB import
-fitting are implemented as standalone pure utilities (`src/core/calibration`,
-`src/core/geometry`), plus an offline inspector draft layer (`src/viewer`
-pick/markers, `src/ui/calibration` panel, pure `src/core/calibration-session`
-draft state with a pending-review session-JSON download), not yet wired into
-product calibration records or production output, with no released
-persistence/import contract. Variant transfer remains pending.
+visual editing back into mm. Screens, cameras and mesh transforms are never
+production units. Tripo and other generation providers remain replaceable;
+external GLB import follows the same asset pipeline.
+
+Calibration fitting and region geometry are standalone pure utilities
+(`src/core/calibration`, `src/core/geometry`). The offline inspector draft layer
+adds viewer picks/markers, the calibration panel and pure session helpers. A
+provisional local save/restore envelope requires the exact current-asset hash,
+discards imported fit values and recomputes the fit as pending review. These
+utilities are not yet wired into product calibration records or production
+output. Variant transfer remains pending.
 
 ## Delivery contract
 

@@ -8,26 +8,36 @@ were obtained or physically validated in this development pass; production
 output integration remains pending. Phase 4 real product/Tripo
 comparison is still pending; Phase 1 is not complete.
 
-## Interactive draft (2026-10-10 slice)
+## Interactive draft (2026-10-10 slices)
 
-- `ModelViewer.pickSurface(clientX, clientY)` raycasts asset meshes only and
-  returns hit points in unframed asset-scene-root coordinates
-  (`wrapper.worldToLocal`); `setAnchorMarkers` draws markers under the same
-  wrapper so raw model coordinates align. Markers are excluded from raycast
-  and fit bbox, and are cleared on model replace/clear/dispose.
+- `ModelViewer.pickSurface` returns mesh hits in unframed asset-scene-root
+  coordinates; anchor markers share that frame and stay outside raycasts and
+  framing bounds. GLB node transforms remain represented in saved coordinates.
 - `src/ui/calibration/panel.ts` + `fragment.html`, with pure draft logic in
   `src/core/calibration-session/` (tested in
   `tests-ts/calibration-session.test.ts`): arm-one-shot surface picking with
   click-vs-drag (maximum pointer movement above 6px is ignored; only primary
   left-button clicks with a matching down/up sequence count), anchor list, 1..N
-  known-distance measurements, `fitUniformScale`, stale-fit invalidation, and
+  known-distance measurements, `fitUniformScale`, stale-fit invalidation,
   deterministic pending-review session-JSON download
-  (`0.1.0-provisional-calibration-session`; stable ordering, no timestamps).
+  (`0.1.0-provisional-calibration-session`; stable ordering, no timestamps),
+  plus local restore of a previously downloaded session JSON.
+- Restore is a local file pick only (inline `file://`, no fetch/upload): the
+  current GLB must be `ready`, the file's `evidence.assetFullSha256` must equal
+  the loaded asset hash exactly, and the imported `fit` block is required but
+  never trusted — scale is recomputed with `fitUniformScale` and always stays
+  `pendingReview`/unapproved. Pure parsing lives in
+  `parseSessionRestore` (same module); the panel swaps the restored draft in
+  atomically and guards in-flight reads with a sequence generation plus
+  asset-record check. Obsolete read completions leave newer UI state untouched.
+  Draft inputs, buttons and canvas picking are locked during reads; failed
+  imports preserve the previous draft, fit and armed pick.
 - `AssetInspector` exposes an optional `onStateChange` observer; `main.ts`
   routes every state into `CalibrationPanel.setAsset(record|null)` so any
-  import state except `ready` wipes anchors/measurements/fit/pick/export.
-- Still absent in this slice: candidate restore/import, region/safe-polygon
-  editor, planar plane selection, production approval, packaging claims.
+  import state except `ready` wipes anchors/measurements/fit/pick/export (and
+  discards in-flight restores).
+- Still absent in this slice: region/safe-polygon editor, planar plane
+  selection, production approval, packaging claims.
 
 ## Kernel utilities
 
@@ -77,6 +87,19 @@ Infinity. Defaults of 0.5 mm absolute tolerance and 1% relative tolerance are
 prototype settings, not observed decoration tolerances; allowed residual is the
 larger of those two thresholds. Consistency never establishes physical validity.
 
+Restore policy (`parseSessionRestore`, same envelope version): session JSON is
+untrusted runtime data. Inputs are bounded before kernel validation — at most
+1,048,576 UTF-16 code units, 512 anchors, 2048 measurements (primary + extras),
+and 256 characters per free-form string (identities, anchor IDs, semantic
+roles). The UI also rejects files larger than 1,048,576 bytes before reading.
+Envelope version must match exactly; the `fit` block must be present
+but its values are discarded and recomputed locally. Optional anchor `physical`
+mm coordinates are preserved when finite, never affect the fit, and non-finite
+values are rejected. Missing tolerances default to the prototype 0.5 mm / 1%
+settings; missing extras restore the primary measurement only. Rebuilds are
+canonical (sorted anchors/measurements, fresh copies, no input mutation).
+Unknown properties are ignored; supported evidence fields are validated and copied.
+
 `PlanarFrameSpec` declares `frameId`, model-space origin, positive X/Y direction
 vectors, positive mm per model unit and explicit off-plane tolerance in mm.
 Axes are normalized; input with normalized dot product greater than 1e-6 is
@@ -96,18 +119,28 @@ clearance or fabrication feasibility and are not wired into production approval.
 
 ## Verification
 
-- `npm run typecheck`, `npm test` (161 TypeScript tests, including session and
-  gesture regression checks), and `python3 -m unittest discover -s tests -v`
-  (18 synthetic audit tests) passed. The build emits one inline inspector HTML.
-- Browser plugin not available: regular Playwright 1.62.1 used installed Chrome
-  154.0.8037.98 on macOS, headless, offline context and direct `file://` opening.
-  Desktop 1280×900 and narrow 390×844 views passed without horizontal overflow,
-  HTTP(S) requests or console/page errors.
+- `npm run typecheck`, `npm test` (171 TypeScript tests, including session
+  restore roundtrip/forged-fit/limits coverage and gesture regression checks),
+  and `python3 -m unittest discover -s tests -v` (18 synthetic audit tests)
+  passed. The build emits one inline inspector HTML.
+- Browser Use plugin was available. The frontend testing skill required a
+  separately listed `browser` skill for its Browser runtime path; that skill
+  was absent, so QA used the documented Playwright fallback. Regular
+  Playwright 1.62.1 used installed Chrome 154.0.8037.98 on macOS, headless,
+  with an offline context and
+  direct `file://` opening. Desktop 1280×900 and narrow 390×844 views passed
+  without horizontal overflow, HTTP(S) requests or console/page errors.
 - Imported a synthetic GLB with translated, rotated, nonuniformly scaled nodes;
   picked two anchors and checked their inverse-transformed positions against
   the original mesh surface. Original node transforms remained represented;
   viewer framing did not enter saved coordinates. Entered 100 mm, fitted and
   downloaded a candidate bound to the exact asset SHA-256.
+- Restore browser checks passed byte-identical save/load/save for current and
+  inconsistent sessions, recomputation of forged scale/approval claims, preservation
+  of physical anchor coordinates, malformed/version/hash/reference rejection
+  without draft changes, stale edits, and replacement resets. Delayed read checks
+  covered obsolete reads while a newer restore is pending, read rejection,
+  canvas-pick locking and file-size rejection before reading.
 - Candidate bytes stayed identical through orbit, fit/reset and viewport resize.
   Field edits disabled stale export. A second 1000 mm measurement of the same
   pair produced a clearly inconsistent, pending-review export. New imports
@@ -124,8 +157,9 @@ markers do not participate. Prior kernel regression coverage for concavity,
 exclusions, arithmetic limits, fit ordering and planar mapping still passes.
 
 Screenshots, temporary browser checks and downloaded candidates are local under
-`/tmp/logotool-*`, outside tracked source. The current UI downloads a provisional
-candidate but does not restore/import it. A frame ID here identifies calibration
+`/tmp/logotool-*`, outside tracked source. The UI downloads a provisional
+candidate and restores previously downloaded session files locally (exact asset
+hash, recomputed pending-review fit). A frame ID here identifies calibration
 evidence; the UI does not select an oriented planar region or establish its
 production datum/axes. Region editing and curved mappings remain later work.
 Windows Chrome/Edge validation, real FlexiTog/Tripo assets, measured product setup,
