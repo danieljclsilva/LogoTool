@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "0.1.0-provisional",
+  "id": "SYN-CAP-001",
+  "name": "Synthetic Cap",
+  "kind": "headwear",
+  "variants": [
+    {
+      "id": "SYN-CAP-OS",
+      "name": "One size",
+      "regionIds": ["SYN-CAP-FRONT"]
+    }
+  ],
+  "regions": [
+    {
+      "id": "SYN-CAP-FRONT",
+      "name": "Front panel",
+      "frame": {
+        "frameId": "FRAME-SYN-CAP",
+        "originDescription": "Synthetic datum at front-panel center; +x right, +y up facing the region; mm.",
+        "axes": { "xPositive": "right", "yPositive": "up" }
+      },
+      "calibrationRef": { "calibrationId": "CAL-SYN-001", "version": "v1" },
+      "safeArea": [[-50, -30], [50, -30], [50, 30], [-50, 30]],
+      "exclusions": [],
+      "allowedMethods": ["embroidery"]
+    }
+  ],
+  "calibrations": [
+    {
+      "id": "CAL-SYN-001",
+      "version": "v1",
+      "description": "Synthetic calibration fixture; not a real measurement."
+    }
+  ]
+}

@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flexitog.example/logotool/project.schema.json",
+  "title": "LogoTool provisional customer project",
+  "description": "PROVISIONAL draft (schemaVersion 0.1.0-provisional). Customer project embedding product/logo snapshots plus configurations, confirmation and review state. Every content mutation creates a new revision (integer counter + digest of the canonical configuration); content change invalidates the current confirmation (prior confirmations kept in history). Opening or importing never confers approval. Draft status: subject to the Phase 1 Odoo-discovery exit gate; do not treat as final. Synthetic fixture data only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "revision",
+    "products",
+    "logos",
+    "configurations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1.0-provisional",
+      "description": "Provisional schema version literal. Any other or missing value must be rejected with a version error."
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "synthetic": {
+      "type": "boolean",
+      "description": "Fixture marker. Synthetic example data only; never real customer data."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Content revision counter. Every content mutation yields a new revision.",
+      "maximum": 9007199254740991
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://flexitog.example/logotool/product.schema.json"
+      },
+      "description": "Embedded product definition snapshots (baseline for tamper checks)."
+    },
+    "logos": {
+      "type": "array",
+      "items": {
+        "$ref": "https://flexitog.example/logotool/logo.schema.json"
+      },
+      "description": "Embedded logo records."
+    },
+    "configurations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/configuration"
+      }
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "confirmation": {
+      "$ref": "#/$defs/confirmation",
+      "description": "Customer confirmation binding { revision, digest, confirmedBy, confirmedAt }. Absent means unconfirmed (draft)."
+    },
+    "review": {
+      "$ref": "#/$defs/review",
+      "description": "Current internal review state, separate from customer confirmation. Never conferred by opening, validating, or importing."
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/confirmation"
+      },
+      "description": "Superseded prior confirmations (invalidated by later content changes)."
+    },
+    "reviewHistory": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/review"
+      },
+      "description": "Superseded prior internal reviews."
+    },
+    "issuedBaselineHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Optional hash of the issued baseline for identity checks."
+    }
+  },
+  "$defs": {
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "productId",
+        "variantId",
+        "placements"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variantId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placement"
+          }
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logoId",
+        "regionId",
+        "method",
+        "pos",
+        "widthMm",
+        "heightMm",
+        "rotationDeg"
+      ],
+      "properties": {
+        "logoId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Production method. Must be listed in the region allowedMethods."
+        },
+        "pos": {
+          "$ref": "#/$defs/pos"
+        },
+        "widthMm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "heightMm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rotationDeg": {
+          "type": "number",
+          "exclusiveMinimum": -180,
+          "maximum": 180,
+          "description": "Clockwise-positive facing the region, normalized to (-180,180]. JSON cannot represent NaN/Infinity; core additionally enforces Number.isFinite on every numeric field."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instructions": {
+          "type": "string"
+        }
+      },
+      "description": "Placement: pos (xMm,yMm) is the artwork bbox center in the region frame (mm, +x right, +y up facing the region); widthMm/heightMm is the axis-aligned bbox BEFORE rotation (finite, > 0)."
+    },
+    "pos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "xMm",
+        "yMm"
+      ],
+      "properties": {
+        "xMm": {
+          "type": "number"
+        },
+        "yMm": {
+          "type": "number"
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "digest",
+        "confirmedBy",
+        "confirmedAt"
+      ],
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase SHA-256 hex of the canonical operational content envelope bytes (schemaVersion, projectId, products, logos, configurations, instructions \u2014 never revision/confirmation/review bookkeeping). confirmedBy is customer-supplied evidence text, never authenticated identity."
+        },
+        "confirmedBy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmedAt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "digest",
+        "decision",
+        "reviewer",
+        "at"
+      ],
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "changesRequested"
+          ],
+          "description": "Internal approval state. Customer confirmation never equals internal approval."
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

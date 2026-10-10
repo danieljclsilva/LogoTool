@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0.1.0-provisional",
+  "id": "SYN-LOGO-B",
+  "name": "Synthetic Mark B",
+  "assets": [
+    {
+      "uri": "logos/syn-mark-b.svg",
+      "role": "original",
+      "mediaType": "image/svg+xml",
+      "widthPx": 400,
+      "heightPx": 200,
+      "sha256Hex": "eb31e9a6596de36e57e47f14fe83f99a9a21445f9f00fa5d662788ea728fd7e3"
+    }
+  ]
+}

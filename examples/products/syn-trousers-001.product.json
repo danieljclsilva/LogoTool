@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "0.1.0-provisional",
+  "id": "SYN-TR-001",
+  "name": "Synthetic Trousers",
+  "kind": "lower-body",
+  "variants": [
+    {
+      "id": "SYN-TR-REG",
+      "name": "Regular",
+      "regionIds": ["SYN-TR-THIGH-L", "SYN-TR-THIGH-R"]
+    },
+    {
+      "id": "SYN-TR-SHORT",
+      "name": "Short",
+      "regionIds": ["SYN-TR-THIGH-L", "SYN-TR-THIGH-R"]
+    }
+  ],
+  "regions": [
+    {
+      "id": "SYN-TR-THIGH-L",
+      "name": "Left thigh",
+      "frame": {
+        "frameId": "FRAME-SYN-THIGH-L",
+        "originDescription": "Synthetic datum at left-thigh center; +x right, +y up facing the region; mm.",
+        "axes": { "xPositive": "right", "yPositive": "up" }
+      },
+      "calibrationRef": { "calibrationId": "CAL-SYN-001", "version": "v1" },
+      "safeArea": [[-60, -50], [60, -50], [60, 50], [-60, 50]],
+      "exclusions": [],
+      "allowedMethods": ["print", "embroidery"]
+    },
+    {
+      "id": "SYN-TR-THIGH-R",
+      "name": "Right thigh",
+      "frame": {
+        "frameId": "FRAME-SYN-THIGH-R",
+        "originDescription": "Synthetic datum at right-thigh center; +x right, +y up facing the region; mm.",
+        "axes": { "xPositive": "right", "yPositive": "up" }
+      },
+      "calibrationRef": { "calibrationId": "CAL-SYN-001", "version": "v1" },
+      "safeArea": [[-60, -50], [60, -50], [60, 50], [-60, 50]],
+      "exclusions": [],
+      "allowedMethods": ["print"]
+    }
+  ],
+  "calibrations": [
+    {
+      "id": "CAL-SYN-001",
+      "version": "v1",
+      "description": "Synthetic calibration fixture; not a real measurement."
+    }
+  ]
+}

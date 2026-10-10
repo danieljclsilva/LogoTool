@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flexitog.example/logotool/result.schema.json",
+  "title": "LogoTool provisional candidate export",
+  "description": "PROVISIONAL draft (schemaVersion 0.1.0-provisional). Deterministic candidate export serialized via canonicalize; byte-stable across runs. Status is always candidate-pending-review: an internal workflow approval (hasCurrentInternalApproval) is a review bookkeeping state, never a physical or production-readiness check. Draft status: subject to the Phase 1 Odoo-discovery exit gate; do not treat as final. Synthetic fixture data only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "projectId",
+    "revision",
+    "digest",
+    "products",
+    "logos",
+    "configurations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1.0-provisional",
+      "description": "Provisional schema version literal. Any other or missing value must be rejected with a version error."
+    },
+    "status": {
+      "const": "candidate-pending-review",
+      "description": "Candidate export is never approved. Internal workflow approval is a separate review state, not a production instruction."
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lowercase SHA-256 hex of the canonical operational content envelope bytes (schemaVersion, projectId, products, logos, configurations, instructions \u2014 never revision/confirmation/review bookkeeping)."
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Project-level instructions carried into the candidate output (absent when the project has none)."
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://flexitog.example/logotool/product.schema.json"
+      },
+      "description": "Product snapshots resolving regions, frames and calibration refs."
+    },
+    "logos": {
+      "type": "array",
+      "items": {
+        "$ref": "https://flexitog.example/logotool/logo.schema.json"
+      },
+      "description": "Logo snapshots resolving actual artwork (usable originals included where present)."
+    },
+    "configurations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exportConfiguration"
+      },
+      "description": "Per-configuration output. Every configuration appears, including zero-placement ones."
+    }
+  },
+  "$defs": {
+    "exportConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "productId",
+        "variantId",
+        "placements"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variantId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variantName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exportPlacement"
+          },
+          "description": "Placements for this configuration; empty array means explicit zero placements."
+        }
+      }
+    },
+    "exportPlacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configurationId",
+        "productId",
+        "variantId",
+        "logoId",
+        "regionId",
+        "method",
+        "pos",
+        "widthMm",
+        "heightMm",
+        "rotationDeg",
+        "frame",
+        "calibration",
+        "artwork"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configurationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variantId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "logoId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pos": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xMm",
+            "yMm"
+          ],
+          "properties": {
+            "xMm": {
+              "type": "number"
+            },
+            "yMm": {
+              "type": "number"
+            }
+          }
+        },
+        "widthMm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "heightMm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rotationDeg": {
+          "type": "number",
+          "exclusiveMinimum": -180,
+          "maximum": 180
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "frame": {
+          "$ref": "#/$defs/exportFrame"
+        },
+        "calibration": {
+          "$ref": "#/$defs/exportCalibration"
+        },
+        "artwork": {
+          "$ref": "#/$defs/exportArtwork"
+        }
+      }
+    },
+    "exportFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameId",
+        "originDescription",
+        "axes",
+        "unit",
+        "referencePoint",
+        "rotationConvention"
+      ],
+      "properties": {
+        "frameId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "originDescription": {
+          "type": "string",
+          "minLength": 1
+        },
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xPositive",
+            "yPositive"
+          ],
+          "properties": {
+            "xPositive": {
+              "type": "string",
+              "minLength": 1
+            },
+            "yPositive": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "unit": {
+          "const": "mm"
+        },
+        "referencePoint": {
+          "const": "artwork-bbox-center"
+        },
+        "rotationConvention": {
+          "const": "clockwise-deg-facing-region"
+        }
+      },
+      "description": "Explicit physical frame + measurement convention for the placement. pos is the artwork bbox center in this frame (mm); widthMm/heightMm is the axis-aligned bbox BEFORE rotation; rotationDeg is clockwise degrees facing the region in (-180,180]."
+    },
+    "exportCalibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calibrationId",
+        "version"
+      ],
+      "properties": {
+        "calibrationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "Calibration reference resolving to the enclosing product calibrations[] (synthetic ids in fixtures; real calibration is unresolved)."
+    },
+    "exportArtwork": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logoId",
+        "assets"
+      ],
+      "properties": {
+        "logoId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "original",
+            "reference",
+            "proposal",
+            "proof",
+            "production"
+          ],
+          "description": "Logo-level role hint. A reference-only visual is never production artwork."
+        },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://flexitog.example/logotool/logo.schema.json#/$defs/assetRef"
+          },
+          "description": "Artwork asset snapshot(s). Production specification needs a usable original/production asset; a reference visual alone is not production artwork."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,336 @@
+{
+  "schemaVersion": "0.1.0-provisional",
+  "projectId": "SYN-PROJ-MULTI-001",
+  "synthetic": true,
+  "description": "Synthetic multi-product fixture: two configured products, three placements including the same logo twice in different regions. All ids, coordinates and calibrations are invented; no real customer, artwork or calibration data.",
+  "revision": 3,
+  "products": [
+    {
+      "schemaVersion": "0.1.0-provisional",
+      "id": "SYN-TEE-001",
+      "name": "Synthetic Tee",
+      "kind": "upper-body",
+      "variants": [
+        {
+          "id": "SYN-TEE-M",
+          "name": "Size M",
+          "regionIds": [
+            "SYN-TEE-CHEST",
+            "SYN-TEE-BACK"
+          ]
+        },
+        {
+          "id": "SYN-TEE-XL",
+          "name": "Size XL",
+          "regionIds": [
+            "SYN-TEE-CHEST"
+          ],
+          "placementOverrides": [
+            {
+              "regionId": "SYN-TEE-CHEST",
+              "widthMm": 90,
+              "heightMm": 45
+            }
+          ]
+        }
+      ],
+      "regions": [
+        {
+          "id": "SYN-TEE-CHEST",
+          "name": "Chest",
+          "frame": {
+            "frameId": "FRAME-SYN-CHEST",
+            "originDescription": "Synthetic datum at chest center; +x right, +y up facing the region; mm.",
+            "axes": {
+              "xPositive": "right",
+              "yPositive": "up"
+            }
+          },
+          "calibrationRef": {
+            "calibrationId": "CAL-SYN-001",
+            "version": "v1"
+          },
+          "safeArea": [
+            [
+              -100,
+              -80
+            ],
+            [
+              100,
+              -80
+            ],
+            [
+              100,
+              80
+            ],
+            [
+              -100,
+              80
+            ]
+          ],
+          "exclusions": [],
+          "allowedMethods": [
+            "embroidery",
+            "print"
+          ]
+        },
+        {
+          "id": "SYN-TEE-BACK",
+          "name": "Back",
+          "frame": {
+            "frameId": "FRAME-SYN-BACK",
+            "originDescription": "Synthetic datum at back center; +x right, +y up facing the region; mm.",
+            "axes": {
+              "xPositive": "right",
+              "yPositive": "up"
+            }
+          },
+          "calibrationRef": {
+            "calibrationId": "CAL-SYN-001",
+            "version": "v1"
+          },
+          "safeArea": [
+            [
+              -110,
+              -90
+            ],
+            [
+              110,
+              -90
+            ],
+            [
+              110,
+              90
+            ],
+            [
+              -110,
+              90
+            ]
+          ],
+          "exclusions": [],
+          "allowedMethods": [
+            "embroidery",
+            "print"
+          ]
+        }
+      ],
+      "calibrations": [
+        {
+          "id": "CAL-SYN-001",
+          "version": "v1",
+          "description": "Synthetic calibration fixture; not a real measurement."
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0.1.0-provisional",
+      "id": "SYN-TR-001",
+      "name": "Synthetic Trousers",
+      "kind": "lower-body",
+      "variants": [
+        {
+          "id": "SYN-TR-REG",
+          "name": "Regular",
+          "regionIds": [
+            "SYN-TR-THIGH-L",
+            "SYN-TR-THIGH-R"
+          ]
+        },
+        {
+          "id": "SYN-TR-SHORT",
+          "name": "Short",
+          "regionIds": [
+            "SYN-TR-THIGH-L",
+            "SYN-TR-THIGH-R"
+          ]
+        }
+      ],
+      "regions": [
+        {
+          "id": "SYN-TR-THIGH-L",
+          "name": "Left thigh",
+          "frame": {
+            "frameId": "FRAME-SYN-THIGH-L",
+            "originDescription": "Synthetic datum at left-thigh center; +x right, +y up facing the region; mm.",
+            "axes": {
+              "xPositive": "right",
+              "yPositive": "up"
+            }
+          },
+          "calibrationRef": {
+            "calibrationId": "CAL-SYN-001",
+            "version": "v1"
+          },
+          "safeArea": [
+            [
+              -60,
+              -50
+            ],
+            [
+              60,
+              -50
+            ],
+            [
+              60,
+              50
+            ],
+            [
+              -60,
+              50
+            ]
+          ],
+          "exclusions": [],
+          "allowedMethods": [
+            "print",
+            "embroidery"
+          ]
+        },
+        {
+          "id": "SYN-TR-THIGH-R",
+          "name": "Right thigh",
+          "frame": {
+            "frameId": "FRAME-SYN-THIGH-R",
+            "originDescription": "Synthetic datum at right-thigh center; +x right, +y up facing the region; mm.",
+            "axes": {
+              "xPositive": "right",
+              "yPositive": "up"
+            }
+          },
+          "calibrationRef": {
+            "calibrationId": "CAL-SYN-001",
+            "version": "v1"
+          },
+          "safeArea": [
+            [
+              -60,
+              -50
+            ],
+            [
+              60,
+              -50
+            ],
+            [
+              60,
+              50
+            ],
+            [
+              -60,
+              50
+            ]
+          ],
+          "exclusions": [],
+          "allowedMethods": [
+            "print"
+          ]
+        }
+      ],
+      "calibrations": [
+        {
+          "id": "CAL-SYN-001",
+          "version": "v1",
+          "description": "Synthetic calibration fixture; not a real measurement."
+        }
+      ]
+    }
+  ],
+  "logos": [
+    {
+      "schemaVersion": "0.1.0-provisional",
+      "id": "SYN-LOGO-A",
+      "name": "Synthetic Mark A",
+      "assets": [
+        {
+          "uri": "logos/syn-mark-a.svg",
+          "role": "original",
+          "mediaType": "image/svg+xml",
+          "widthPx": 400,
+          "heightPx": 200,
+          "sha256Hex": "cbcc5c61b12a89406cfc3f18023777175fcf0a7b87efec83aea1a29a632c1567"
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0.1.0-provisional",
+      "id": "SYN-LOGO-B",
+      "name": "Synthetic Mark B",
+      "assets": [
+        {
+          "uri": "logos/syn-mark-b.svg",
+          "role": "original",
+          "mediaType": "image/svg+xml",
+          "widthPx": 400,
+          "heightPx": 200,
+          "sha256Hex": "eb31e9a6596de36e57e47f14fe83f99a9a21445f9f00fa5d662788ea728fd7e3"
+        }
+      ]
+    }
+  ],
+  "configurations": [
+    {
+      "id": "SYN-CFG-TEE-M",
+      "productId": "SYN-TEE-001",
+      "variantId": "SYN-TEE-M",
+      "placements": [
+        {
+          "logoId": "SYN-LOGO-A",
+          "regionId": "SYN-TEE-CHEST",
+          "method": "embroidery",
+          "pos": {
+            "xMm": 0,
+            "yMm": 10
+          },
+          "widthMm": 80,
+          "heightMm": 40,
+          "rotationDeg": 0
+        },
+        {
+          "logoId": "SYN-LOGO-A",
+          "regionId": "SYN-TEE-BACK",
+          "method": "print",
+          "pos": {
+            "xMm": 0,
+            "yMm": 0
+          },
+          "widthMm": 80,
+          "heightMm": 40,
+          "rotationDeg": 180
+        }
+      ]
+    },
+    {
+      "id": "SYN-CFG-TR-REG",
+      "productId": "SYN-TR-001",
+      "variantId": "SYN-TR-REG",
+      "placements": [
+        {
+          "logoId": "SYN-LOGO-B",
+          "regionId": "SYN-TR-THIGH-L",
+          "method": "print",
+          "pos": {
+            "xMm": 0,
+            "yMm": 0
+          },
+          "widthMm": 60,
+          "heightMm": 30,
+          "rotationDeg": -90
+        }
+      ]
+    }
+  ],
+  "instructions": "Synthetic fixture instructions: chest embroidery centered slightly above datum; back print centered; left-thigh print rotated.",
+  "confirmation": {
+    "revision": 3,
+    "digest": "3bab8fb3343f93f288d23642e4f3a2cb6cb7a23d4033db87f7322e910f84f49a",
+    "confirmedBy": "synthetic-customer",
+    "confirmedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "review": {
+    "revision": 3,
+    "digest": "3bab8fb3343f93f288d23642e4f3a2cb6cb7a23d4033db87f7322e910f84f49a",
+    "decision": "pending",
+    "reviewer": "synthetic-reviewer",
+    "at": "2026-01-02T00:00:00.000Z",
+    "note": "Synthetic fixture: awaiting internal review; customer confirmation is not approval."
+  },
+  "history": []
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "0.1.0-provisional",
+  "id": "SYN-TEE-001",
+  "name": "Synthetic Tee",
+  "kind": "upper-body",
+  "variants": [
+    {
+      "id": "SYN-TEE-M",
+      "name": "Size M",
+      "regionIds": ["SYN-TEE-CHEST", "SYN-TEE-BACK"]
+    },
+    {
+      "id": "SYN-TEE-XL",
+      "name": "Size XL",
+      "regionIds": ["SYN-TEE-CHEST"],
+      "placementOverrides": [
+        { "regionId": "SYN-TEE-CHEST", "widthMm": 90, "heightMm": 45 }
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "id": "SYN-TEE-CHEST",
+      "name": "Chest",
+      "frame": {
+        "frameId": "FRAME-SYN-CHEST",
+        "originDescription": "Synthetic datum at chest center; +x right, +y up facing the region; mm.",
+        "axes": { "xPositive": "right", "yPositive": "up" }
+      },
+      "calibrationRef": { "calibrationId": "CAL-SYN-001", "version": "v1" },
+      "safeArea": [[-100, -80], [100, -80], [100, 80], [-100, 80]],
+      "exclusions": [],
+      "allowedMethods": ["embroidery", "print"]
+    },
+    {
+      "id": "SYN-TEE-BACK",
+      "name": "Back",
+      "frame": {
+        "frameId": "FRAME-SYN-BACK",
+        "originDescription": "Synthetic datum at back center; +x right, +y up facing the region; mm.",
+        "axes": { "xPositive": "right", "yPositive": "up" }
+      },
+      "calibrationRef": { "calibrationId": "CAL-SYN-001", "version": "v1" },
+      "safeArea": [[-110, -90], [110, -90], [110, 90], [-110, 90]],
+      "exclusions": [],
+      "allowedMethods": ["embroidery", "print"]
+    }
+  ],
+  "calibrations": [
+    {
+      "id": "CAL-SYN-001",
+      "version": "v1",
+      "description": "Synthetic calibration fixture; not a real measurement."
+    }
+  ]
+}

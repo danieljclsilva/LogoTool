@@ -3,8 +3,8 @@
 ## Phases (names per brief §43)
 
 - [ ] Phase 1 — Odoo discovery (in progress: audit tooling implemented; 18 synthetic tests pass; original 96-capture audit plus a separate three-request investigation; work-order, proof approval and factory-special routes examined; findings in `docs/odoo-discovery.md` plus private reports)
-- [ ] Phase 2 — Domain model (round-trip workflow requirements recorded; schemas and implementation pending)
-- [ ] Phase 3 — Architecture (pending)
+- [ ] Phase 2 — Domain model (provisional foundations present: `src/core` pure domain logic, draft `schemas/*.schema.json` at `0.1.0-provisional`, synthetic `examples/**` fixtures, `tests-ts/` Node suites; specified in `docs/domain-model.md` + `docs/decisions.md`; NOT finalized — gated on Phase 1 exit criteria)
+- [ ] Phase 3 — Architecture (provisional layering recorded in `docs/architecture.md`; core/viewer/packaging/platform split per brief §4; only `src/core` implemented — viewer, packaging, platform, Tauri all pending)
 - [ ] Phase 4 — 3D asset prototype (pending)
 - [ ] Phase 5 — Product calibration (pending)
 - [ ] Phase 6 — Logo placement (pending)
@@ -22,8 +22,8 @@ jobs do not need to supply the coordinates that the configurator will generate.
 
 The customer handoff now includes an editable returned project with visual
 placements, mm measurements and revision-specific customer pre-approval, pending
-Logo Station review. See `docs/customer-project-workflow.md`. Requirements are
-recorded; the editor, package round trip and approval behavior are not implemented.
+Logo Station review. See `docs/customer-project-workflow.md`. Core revision, confirmation, internal-review and returned-data validation rules are
+implemented provisionally; the editor and binary package round trip remain pending.
 
 The internal Builder will also preview/export an operation PDF for ticket and
 BoM attachments, enriching the discovered proof layouts with physical placement
@@ -40,4 +40,24 @@ Odoo attachment functionality are not implemented yet.
 
 - Validated product/variant calibration, placement areas and production coordinate
   conventions belong to product setup; customers need not supply them per job.
-- No domain, architecture, 3D, or packaging work.
+- No viewer, packaging, platform, 3D, PDF, or Odoo work beyond the provisional core/schemas/fixtures/tests slice above.
+
+## Implemented foundation (2026-10-10; provisional)
+
+- TypeScript core with shared JSON Schema validation, mm placement references,
+  deterministic content digests/serialization and candidate export.
+- Revision-specific customer confirmation, separate internal review, preserved
+  history and an issued-baseline customer-return boundary that discards returned
+  internal approval. These are structured-data rules, not a browser package flow.
+- Synthetic multiple-product/variant/region, repeated-logo and zero-placement
+  fixtures, original SVG artwork and regression tests. Customer-specific evidence
+  remains private; tracked fixtures contain no real customer data.
+- Architecture and decisions document observed facts, assumptions and remaining gates.
+
+## Remaining milestones
+
+Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain/production
+contracts still need evidence review. Real physical calibration and constraints,
+geometric placement validation, variant transfer, 3D asset/viewer work, both offline
+packaging modes, operation PDFs and internal Builder remain pending. Offline
+Windows Chrome/Edge `file://` delivery has not been tested because no package exists.
