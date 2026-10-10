@@ -11,13 +11,17 @@ The human approved read-only discovery of the brief's references and their
 related records, instructions and attachment metadata. The enabled broker
 scope covers two companies; UK company records are not enabled. Archived and
 companyless records can be visible under the sealed policy. No permissions
-were changed, no discovered methods executed, and no artwork downloaded.
+were changed and no discovered methods executed. The first pass examined
+attachment metadata only; the later retry included three explicitly approved
+local document downloads, described below.
 
 Discovery used typed search, read, count and parent-linked evidence operations.
 Each response has a local capture containing its timestamp, request/projection,
 scope, broker revision and result. The current sealed metadata is preserved in
 `private/odoo-discovery-context.json`. The detailed report with model/ID chains
 and capture citations is `private/odoo-discovery-report.md`.
+The retry supplement and document observations are preserved in
+`private/odoo-discovery-retry-report.md` and `private/odoo-document-findings.json`.
 
 The initial sample contains three supplied sales orders, two further orders
 identified through manufacturing origins, and three inspected completed
@@ -62,9 +66,10 @@ the exact physical position, orientation, artwork dimensions or operator UI.
 | Placement vocabulary | Placement attributes and logo type attributes | Chest/back/custom labels are not mm coordinates. |
 | Decoration method | No-variant sale-line options, logo attributes, routing workcentre | Terminology differs between the two branding paths. |
 | Customer/job linkage | Order references and intercompany relationship fields | Internal follow-up orders are not automatically reorders. |
-| Artwork source | Order attachment relationship and parent-linked metadata | Artwork/proof files were listed, not examined. |
-| Operator instructions | Routing note and worksheet type | A sampled note refers to a document folder; worksheet content is unverified. |
-| Physical dimensions/calibration | Unresolved | No verified production measurements in this sample. |
+| Artwork source | Order attachment relationship and parent-linked metadata | One artwork image and its linked proof were inspected on retry. |
+| Operator instructions | Routing operation and field-backed worksheet PDF | A sampled worksheet contains template-based placement guidance and process settings. Actual operator screen remains unverified. |
+| Logo size | Visible annotation in an attached proof | A size dimension is present; dimension conventions, height and physical positioning remain incomplete. |
+| Physical positioning/calibration | Unresolved | The inspected documents do not establish a calibrated mm placement frame. |
 
 Field semantics and permitted projections are preserved in the local metadata
 capture. Server provenance does not establish whether a field is standard or
@@ -86,14 +91,61 @@ production in that configuration.
 
 ## Unresolved questions and exit criteria
 
+## Broker retry and document review
+
+After the user fixed the tool, sealed metadata exposed 45 models, including
+`mrp.workorder`, under the same enabled company scope. Direct reads of the three
+previously identified work orders succeeded. Their manufacturing, operation,
+product and workcentre links and produced quantities match the sampled chains.
+Production-ID queries reconciled three work orders and eight component moves
+with separate counts, without the earlier component create-date restriction.
+
+The catalog now distinguishes binary `attachment_evidence` from generic field
+readability. Work-order worksheet listings were empty, but following an approved
+`operation_id` to its routing operation exposed one worksheet PDF through
+`field: worksheet`. Ordinary attachment listings had not exposed that file.
+Four sampled product-template artwork fields returned no attachments; these
+results do not prove the artwork is absent from other related records.
+
+With explicit download approval, the worksheet, an order proof and an artwork
+image were downloaded through the broker. Their byte hashes were verified
+against the broker's hashes. Both one-page PDFs were rendered and visually
+reviewed alongside text extraction; files, extracted text and detailed findings
+remain under ignored `private/` paths.
+
+Observed document findings:
+
+- The worksheet combines a garment/placement illustration with process settings
+  and instructions to orient a physical template at the collar, using size
+  markings and visual adjustment. It does not provide numerical anchor offsets,
+  a calibrated surface map or safe-area boundaries.
+- The visible proof identifies front-side embroidery, a chest position, a logo
+  size dimension and colour references. Its garment sketch explicitly describes
+  proportions and colours as approximate. The picture cannot establish physical
+  placement coordinates or calibration. The proof does not identify an exact
+  article/SKU, so applicability to every line of its linked order is unconfirmed.
+- PDF text extraction contains unused back-side template fields absent from the
+  visible proof. These are not evidence of an additional logo, zero-sized artwork
+  or an approved back-side placement.
+- The proof requests reuse of the digital proof for future orders. This is
+  documented reorder guidance, not evidence that a particular reorder occurred.
+
+The retry preserved 15 additional record/evidence captures, bringing the local
+capture set to 96. Download metadata and content hashes are retained separately.
+Three initial destination-write refusals were resolved by creating the parent
+directory through the broker workspace tool; original denial evidence remains
+local. No credentials, documents or customer-specific dimensions were published.
+
+## Remaining exit criteria
+
 Before Phase 2 schema finalization:
 
-- Inspect operator work orders and worksheets. `stock.move.workorder_id` points
-  to confirmed work orders, but `mrp.workorder` is outside the current catalog.
-  Any addition requires a separate human-reviewed broker setup; no bypass was
-  attempted.
-- Examine representative artwork/proof documents after download authorization,
-  and confirm the measurements and coordinate conventions production uses.
+- Confirm the operator-facing workflow and how the inspected worksheet is used
+  in practice. Work-order access and one worksheet review are now complete;
+  no operator screen or physical process was observed.
+- Confirm the logo-size annotation convention, production measurements,
+  physical template dimensions and coordinate conventions. Documents provide
+  partial guidance but not a complete mm placement specification.
 - Extend evidence to non-upper-body products, unusual placements, repeated
   designs and genuine reorders. No Plover-specific taxonomy is justified.
 - Define a bounded Logo Station job population and denominator before claiming

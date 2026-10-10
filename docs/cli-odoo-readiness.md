@@ -211,3 +211,36 @@ non-executable and do not grant model or method authorization.
 
 This recheck called only MCP metadata endpoints. No business records were read,
 no discovered methods were executed, and no behavior-testing calls were made.
+
+## Discovery retry after tool update — 2026-10-10
+
+Current metadata confirms 45 exposed models, including `mrp.workorder`, under
+the same two enabled companies. The sealed/recomputed digest matches. Current
+bounded hints admit work-order `production_id`/`operation_id`, stock-move
+`production_id`/`raw_material_production_id`/`workorder_id`, and stock-move-line
+`production_id`/`workorder_id` anchors. Earlier limitations above are historical
+assessments; these specific exposure/anchor gaps are now resolved.
+
+Authorized discovery reads succeeded for three known work orders. Focused
+production-ID searches reconciled three work orders and eight component moves
+with counts. These were discovery operations, not live automated tests or
+method-behavior probes.
+
+The updated catalog reports binary `attachment_evidence` separately from
+`readable`. An explicit `field: worksheet` listing on a routing operation
+exposed a PDF that ordinary attachment listings had not returned. Related
+work-order field listings were empty. Under separate human download approval,
+the routing worksheet and two previously listed order artwork/proof files
+downloaded successfully; returned SHA-256 hashes match the inspected local
+bytes. The tool now declares a 5 MiB download cap and requires an existing
+destination parent, created through `workspace_mkdir`.
+
+The current `workspace_read` route returns text rather than a binary encoding;
+do not reconstruct PDFs/images from its JSON string. This discovery inspected
+the already-downloaded local originals, copied to ignored project paths only
+after matching the broker's reported hashes. Do not locate or read unrelated
+workspace files or credential/configuration files to obtain binary content.
+
+These corrections enable the current investigation; they do not settle category
+population, physical calibration, historical revisions or operator-facing UI.
+See `odoo-discovery.md` for findings and the remaining evidence gate.

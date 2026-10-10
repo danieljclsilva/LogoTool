@@ -2,7 +2,7 @@
 
 ## Phases (names per brief §43)
 
-- [ ] Phase 1 — Odoo discovery (in progress: audit tooling implemented; 18 synthetic tests pass; 81 local captures validated; initial findings in `docs/odoo-discovery.md` plus a private report)
+- [ ] Phase 1 — Odoo discovery (in progress: audit tooling implemented; 18 synthetic tests pass; 96 local captures; work-order access and three approved document downloads succeeded; findings in `docs/odoo-discovery.md` plus a private report)
 - [ ] Phase 2 — Domain model (pending)
 - [ ] Phase 3 — Architecture (pending)
 - [ ] Phase 4 — 3D asset prototype (pending)
@@ -21,8 +21,8 @@ Codex discovery → `docs/odoo-discovery.md` → domain schemas. No schema final
 ## Gaps (Phase 1 unresolved)
 
 - Category population derived from a defined population of actual jobs.
-- Measurements / operator worksheets access.
-- Workorder (`mrp.workorder`) model access.
+- Confirmed measurements, template dimensions and production coordinate conventions.
+- Operator-facing workflow corroboration; work-order access and one routing worksheet review now succeeded.
 
 ## Gaps (later phases)
 
