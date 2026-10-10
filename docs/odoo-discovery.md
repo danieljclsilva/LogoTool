@@ -136,16 +136,74 @@ Three initial destination-write refusals were resolved by creating the parent
 directory through the broker workspace tool; original denial evidence remains
 local. No credentials, documents or customer-specific dimensions were published.
 
+## Request-to-production case investigation
+
+A supplemental investigation of three user-selected requests followed complete
+visible ticket chatter, attached artwork/reference images, proposed and approved
+visuals, finished SKUs, sales, BoMs, actual component moves, work orders and a
+purchased-finished-product route. Customer details, original media, dated case
+histories, hashes and exact record/query provenance remain under ignored
+`private/ticket-investigation/`. These captures are separate from the earlier
+96-capture audit; that audit's validation claims do not cover the supplement.
+
+Observed workflow patterns:
+
+- Internal production staff adapt artwork size to fit the target garment and
+  propose colour changes for visibility. Customer approval can bind a specific
+  attached visual after those decisions; the initial request need not contain
+  measurements or an exact placement.
+- Reference material can depict another garment and extra front/back logos.
+  A request's extra artwork row can explicitly mean a reference visual rather
+  than an additional ordered placement. Resolve applicability from the complete
+  request, approval evidence and actual components, not image count alone.
+- Visual approval may precede finished-SKU and BoM creation. The eventual SKU can
+  differ from the requested reference. Commercial pricing, order confirmation,
+  technical readiness and fulfillment are distinct steps.
+- A special garment with additional hardware can be decorated at the factory,
+  bypassing the local BoM/MO route. Matching reference images were carried from
+  sales into purchasing, with received and delivered quantities on finished SKUs.
+  Unpopulated direct allocation links limit conclusions about procurement linkage.
+- Correspondence describes a replacement problem caused by loss of knowledge
+  about an established customer's garment modification. Some related order data
+  corroborates this account, but the complete earlier return/credit history and
+  physical finished-product quality were not inspected.
+- Current ticket state and populated completion dates do not replace revision
+  approval or production state. The inspected cases include cancelled MOs and
+  an outstanding backorder alongside completed work.
+
+Tracking-value reads were denied upstream. No bypass was attempted. The visible
+chatter was complete according to the broker's distinct-message totals, but
+detailed tracked field revisions remain unavailable. Attachments were downloaded
+within the user's investigation request, preserved and hash-verified locally.
+One PDF was rendered and visually inspected; an attached Outlook message was
+parsed statically without fetching its external content.
+
+Development implications, still provisional:
+
+- Let customers express intent and approve a proposal without supplying physical
+  coordinate frames. Maintain reusable garment calibration and placement presets
+  internally, with per-variant applicability and job-specific overrides.
+- Separate original artwork, reference, proposal, approved proof and production
+  instructions. Version size/colour/placement changes and bind approval to the
+  actual revision; preserve conflicting measurements until reconciled.
+- Support route-dependent handoffs for in-house decoration and factory specials.
+  Include garment modifications in reusable configurations and reorder outputs.
+
+These cases provide stronger workflow evidence but no calibrated physical frame,
+measured placement offsets, tolerance or population-wide frequency estimates.
+
 ## Remaining exit criteria
 
-Before Phase 2 schema finalization:
+Evidence qualifications for domain design and later implementation:
 
 - Confirm the operator-facing workflow and how the inspected worksheet is used
   in practice. Work-order access and one worksheet review are now complete;
   no operator screen or physical process was observed.
-- Confirm the logo-size annotation convention, production measurements,
-  physical template dimensions and coordinate conventions. Documents provide
-  partial guidance but not a complete mm placement specification.
+- Preserve the unresolved logo-size annotation convention and conflicting
+  measurements. Define explicit mm frames in the domain; validate real template
+  dimensions, product calibration and placement conventions during product setup.
+  The tool will generate new job placement specifications, so missing historical
+  x/y coordinates are not a prerequisite for this workflow's implementation.
 - Extend evidence to non-upper-body products, unusual placements, repeated
   designs and genuine reorders. No Plover-specific taxonomy is justified.
 - Define a bounded Logo Station job population and denominator before claiming
@@ -169,4 +227,7 @@ These are design directions, not finalized product or production schemas.
 
 The current implementation is offline developer evidence tooling with synthetic
 tests. It does not yet deliver the customer configurator or an offline HTML
-package. Subsequent milestones remain subject to the evidence gate above.
+package. The latest target is the customer project round trip described in
+`customer-project-workflow.md`, including customer pre-approval and subsequent
+Logo Station review. Unobserved operational details remain explicit assumptions
+or implementation validation requirements, not invented historical facts.

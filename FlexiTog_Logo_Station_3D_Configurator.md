@@ -7,6 +7,12 @@ Build an offline 3D logo-placement system for FlexiTog's Logo Station operation.
 
 The system must let FlexiTog prepare a customer-specific project containing one or more products. The customer should be able to open the supplied tool locally, visualize products in 3D, place one or more logos, edit their positions and dimensions, enter relevant instructions, and export the structured information required for Logo Station production.
 
+The primary customer handoff is a round-trip project: FlexiTog issues a project,
+the customer configures it and records pre-approval of the exact configuration,
+then saves and emails the updated project back. Logo Station reviews that return
+before approving production. Customer measurements are optional inputs; the tool
+creates structured placement measurements from visual editing on prepared products.
+
 Before finalizing the domain model, inspect real Logo Station data in Odoo.
 
 Odoo discovery is the first major task.
@@ -745,6 +751,13 @@ screen pixels
 
 Do not derive production measurements from rendered pixels.
 
+For visual editing, use the pointer to select a point on the product surface,
+then use that region's calibrated inverse surface mapping to obtain physical
+coordinates. Resize and rotate in physical units, updating the visual from those
+values. Camera zoom, viewpoint and screen resolution must not change the saved
+placement. Product calibration is prepared internally and reused; the customer
+does not need to supply the physical coordinate frame.
+
 In other words:
 
 ```text
@@ -1403,6 +1416,34 @@ Final fields should be based on Odoo discovery.
 
 Use explicit versioning from the beginning.
 
+The canonical project must also support the customer-to-Logo-Station round trip:
+
+- retain the issued project identity, revision and relevant product, calibration,
+  region, constraint and artwork definitions so the return can reopen offline;
+- store editable configurations for the selected products and variants, with
+  0..N placements, physical positions and logo dimensions in mm, rotation,
+  coordinate-frame references, applicability and customer instructions;
+- preserve original artwork separately from references and generated previews;
+- record customer pre-approval against an exact configuration revision/content
+  digest, with confirmation details and validation results;
+- preserve separate Logo Station review decisions and revision history;
+- allow a draft save without pre-approval and a clearly identified submission
+  export with customer pre-approval, pending Logo Station review.
+
+These are required capabilities, not a finalized list of manifest field names.
+Editing a confirmed configuration makes its previous pre-approval historical;
+the changed configuration must be confirmed again. Customer confirmation is
+distinct from Logo Station authorization to manufacture. An imported customer
+return never creates internal approval by itself.
+
+The internal importer compares the return with the issued project, validates it
+against the internal product definitions and presents differences for review.
+Customer edits must not silently replace internal calibration or placement rules.
+Returned projects can be used to prepare richer ticket content and attachments;
+automatic Odoo ticket creation is a later write integration requiring separate
+authorization. The offline customer tool only saves the return for the customer
+to attach to email; it does not require email or Odoo connectivity.
+
 ---
 
 # 34. Production result
@@ -1432,6 +1473,30 @@ Structured data is authoritative.
 
 PDF/images are human-readable representations.
 
+The customer's returned `.logo-project` is the primary editable submission.
+It includes the candidate operational specification and customer pre-approval.
+A `.logo-result` is an optional downstream production handoff, derived from a
+Logo Station-approved project revision. Avoid two independently edited sources
+of placement truth. Customer previews represent the same saved configuration.
+
+The internal Builder must export an operation PDF from a selected project
+revision for attachment to the ticket and BoM. Follow the useful structure of
+the discovered proofs: product views with applied logos and accompanying logo,
+method, size, position and colour panels. Enrich them with numbered placements,
+physical positioning references, detail diagrams, variant applicability,
+operational instructions and revision-specific approval status.
+
+Include all recorded operational information across as many pages as needed.
+Generate measurements and visuals from the same structured placement data as
+the project and production output, rather than transcribing screenshots. Label
+product views as illustrative unless generated and verified as scale drawings.
+Include recorded method settings and garment modifications; clearly identify
+unresolved values instead of inventing them.
+
+Permit a pending-review PDF for the ticket and an approved PDF for production.
+Every page identifies the project/revision and review status. See
+`docs/operation-pdf.md` for content and acceptance criteria.
+
 ---
 
 # 35. Customer configurator workflow
@@ -1459,7 +1524,17 @@ Add instructions
     ↓
 Review all placements
     ↓
-Export
+Review physical dimensions and positioning references
+    ↓
+Confirm this configuration (customer pre-approval)
+    ↓
+Save updated .logo-project
+    ↓
+Customer attaches the saved project to email
+    ↓
+Logo Station imports and validates the returned revision
+    ↓
+Approve for production or request a revision
 ```
 
 Support:
@@ -1469,6 +1544,17 @@ Support:
 ```
 
 during editing, subject to project requirements.
+
+Show logo width/height, region, rotation and useful distances from named product
+landmarks while editing and in the final review. Permit numerical adjustments
+as well as visual manipulation. Internally prepared placement areas, safe zones
+and exclusion zones constrain the choices. All confirmation summaries and
+previews must describe the exact revision saved in the return file.
+
+Customer pre-approval does not bypass Logo Station's method, fit, artwork and
+manufacturing checks. If Logo Station changes customer-visible size, position,
+colour, artwork or garment selection, create a new revision for customer
+confirmation rather than inheriting the previous confirmation.
 
 ---
 
@@ -1519,6 +1605,11 @@ Include only required product assets.
 Do not ship the full FlexiTog catalogue with every project.
 
 Show estimated size.
+
+The Builder also imports returned customer projects, supports Logo Station
+review and previews/exports operation PDFs. The same selected revision supplies
+the ticket and BoM documents. Document generation is local functionality;
+uploading or attaching documents to Odoo is a separate authorized integration.
 
 ---
 
@@ -1578,6 +1669,11 @@ Choose Project
 
 and drag/drop.
 
+Do not require silent loading of a neighbouring `.logo-project` through
+`file://`. The reliable hybrid workflow uses Choose Project or drag/drop.
+For automatic initial loading, embed the issued project into the self-contained
+HTML (Mode A). Both modes save the same editable `.logo-project` return format.
+
 ---
 
 # 40. Offline compatibility
@@ -1613,6 +1709,12 @@ No runtime dependency installation.
 Do not make browser persistence essential.
 
 Explicit export must always preserve the job.
+
+Saving downloads an updated project; it must not depend on permission to overwrite
+the original file. Reopening that saved project must restore assets, placements,
+measurements, instructions, validation context and the applicable confirmation.
+Saving a draft must remain available before confirmation. Changes after
+confirmation require a new confirmation for submission.
 
 Optional autosave may come later.
 
@@ -1672,6 +1774,12 @@ docs/odoo-discovery.md
 Include product-category analysis and multiple-logo examples.
 
 ## Phase 2 — Domain model
+
+Include project revisions, customer pre-approval, internal review and a
+deterministic candidate operational specification. Missing historical job
+coordinates are an output gap the tool is designed to fill; do not require Odoo
+to already contain those coordinates before designing this workflow. Real product
+calibration and operational constraints still require validation in their phases.
 
 Produce:
 
@@ -1744,6 +1852,11 @@ HTML + .logo-project
 
 and verify true offline use.
 
+Verify the full round trip: issue, load, place/resize, review measurements,
+confirm, save, reopen and import internally with the same physical data and
+confirmation revision. Verify editing invalidates current confirmation and
+internal review can return a revised project for another customer confirmation.
+
 ## Phase 9 — Self-contained HTML
 
 Generate equivalent single-file output.
@@ -1752,9 +1865,16 @@ Generate equivalent single-file output.
 
 Implement schema derived from Odoo discovery.
 
+Generate the operation PDF from the same project revision, including product
+renders, placement diagrams, measurements, instructions and approval status.
+Verify agreement between the PDF, project and structured production output.
+
 ## Phase 11 — Internal Builder
 
 Create customer-project packaging interface.
+
+Include returned-project import/review, operation-PDF preview/export and
+ticket/BoM handoff preparation.
 
 ---
 
