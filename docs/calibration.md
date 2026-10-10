@@ -1,4 +1,4 @@
-# Calibration (Phase 5 partial — kernel + offline anchor/measure + planar-frame draft UI)
+# Calibration (Phase 5 partial — kernel + offline calibration, frames and safe areas)
 
 Status: provisional. The kernel plus an offline anchor-picking and
 known-distance draft panel are integrated into the internal
@@ -43,7 +43,40 @@ comparison is still pending; Phase 1 is not complete.
   1e-6 are rejected; this is a numeric conditioning threshold, not a physical
   tolerance. UI frame values are rounded for readability; exports retain full
   numeric precision.
-- Still absent in this slice: safe-polygon editor, curved-surface mapping, region-bundle restore, production approval/integration, packaging claims.
+- Still absent in this slice: curved-surface mapping, region-bundle restore, production approval/integration, packaging claims.
+## Region safe-area draft (2026-10-10 slice)
+
+- `src/core/region-areas/` (tested in `tests-ts/region-areas.test.ts`): per-region
+  nullable safe polygon + 0..N named/id exclusions in frame millimetres, bound to
+  the exact frame record snapshot (`stableStringify(region)`) plus region/frame
+  IDs. Pure `parsePolygonText` accepts JSON `[[x,y],...]` or `[{x,y},...]`
+  (limits: 65536 chars, 3..512 vertices, 64 exclusions/region, 256-char ids/names);
+  malformed/non-finite/numeric-string/self-crossing/duplicate/zero-area rings are
+  rejected without partial replacement; one optional closing vertex is normalized;
+  winding and full precision preserved. Validation reuses `validateSafePolygon`;
+  footprint checks reuse `footprintFits`. Overlapping/outside-safe exclusions are
+  retained as union obstacles (documented, no invented restrictions).
+- Deterministic `0.1.0-provisional-region-areas` bundle carries the rebuilt
+  planar-region bundle plus per-region area records (sorted by regionId,
+  exclusions by id; deep copies; no timestamps/pixels). The provided fit is
+  re-verified, never trusted; every record must match its current frame snapshot.
+  `safePolygon: null` marks unconfigured frames (draft-only, not production
+  readiness). Export requires a current CONSISTENT fit with all frames current.
+  `pendingReview: true`, `productionApproved: false` at every level; no bundle
+  import is implemented; the calibration-session importer rejects this different
+  envelope version. Existing
+  calibration and planar-region downloads are unchanged and exclude area data.
+- `src/ui/calibration/region-areas-panel.ts` + `region-areas-fragment.html`,
+  bound inside the calibration panel: active-region label + mm/frame context, safe
+  textarea + Set/Clear, exclusion id/name/polygon + Add/Remove, footprint textarea
+  + Check (draft geometry only), 2D SVG mm preview (viewBox from stored mm, +Y up,
+  origin marker/axis legend — preview only, never backconverted), and a dedicated
+  area-bundle download. Controls enable only on a current consistent fit with the
+  active region matching the draft evidence and no restore in flight; verdicts
+  clear on text/area/region/evidence changes; unsaved text is marked dirty.
+  Removal prunes dependent areas (no inheritance on same-ID recreation); failed
+  restores preserve prior frame/area state; `setAsset`/successful restore resets
+  area drafts. Epsilon is numeric (1e-9 mm), not clearance.
 
 ## Kernel utilities
 
@@ -126,11 +159,25 @@ clearance or fabrication feasibility and are not wired into production approval.
 
 ## Verification
 
-- `npm run typecheck`, `npm test` (189 TypeScript tests, including planar-region frame/probe/bundle/stale coverage plus session
+- Safe-area browser checks passed concave edge rejection, allowed safe-boundary
+  contact, forbidden exclusion contact/overlap/enclosure, independent region
+  state, explicit unsaved-text notice, stale preview/export blocking, failed
+  restore preservation, successful restore/replacement clearing and no area
+  inheritance after same-ID region recreation. Exports retained byte-identical
+  mm geometry through camera, framing and viewport changes. Desktop 1280×900
+  and narrow 390×844 passed offline without HTTP(S) requests, page/console
+  errors or horizontal overflow. Planar-frame and delayed-restore regressions
+  also passed.
+- Codex reviewed the OMP integration, removed an out-of-scope area import
+  parser, and tightened frame/map bindings, prototype-like IDs, logical vertex
+  limits and whitespace identity rejection. Every frame exports an explicit
+  area record, including `safePolygon: null` when unconfigured.
+
+- `npm run typecheck`, `npm test` (211 TypeScript tests, including planar-region frame/probe/bundle/stale coverage plus session
   restore roundtrip/forged-fit/limits coverage and gesture regression checks),
   and `python3 -m unittest discover -s tests -v` (18 synthetic audit tests)
   passed. The build emits one inline inspector HTML.
-- For this planar-frame slice, Browser Use was invoked against the existing
+- Browser Use was invoked against the existing
   local `file://` inspector. It returned `net::ERR_BLOCKED_BY_ADMINISTRATOR`;
   the page could not load in that session. No upload, server or tunnel was used.
   Local Playwright 1.62.1 with installed Chrome 154.0.8037.98 on macOS then
@@ -181,9 +228,9 @@ exclusions, arithmetic limits, fit ordering and planar mapping still passes.
 Screenshots, temporary browser checks and downloaded candidates are local under
 `/tmp/logotool-*`, outside tracked source. The UI downloads a provisional
 candidate and restores previously downloaded session files locally (exact asset
-hash, recomputed pending-review fit). A frame ID here identifies calibration
-evidence; the UI does not select an oriented planar region or establish its
-production datum/axes. Region editing and curved mappings remain later work.
+hash, recomputed pending-review fit). Calibration evidence and authored planar regions have separate frame IDs.
+The inspector supports oriented frame and safe-area drafts; their physical
+production datum still needs validation. Curved mappings remain later work.
 Windows Chrome/Edge validation, real FlexiTog/Tripo assets, measured product setup,
 and production readiness remain open. No live Odoo or external generation/upload
 requests were made.

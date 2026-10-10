@@ -51,6 +51,7 @@ import {
   serializeRegionBundle,
   type PlanarRegionRecord,
 } from "../../core/planar-region/index.js";
+import { RegionAreasPanel } from "./region-areas-panel.js";
 
 export interface RegionAxesFrameLike {
   origin: { x: number; y: number; z: number };
@@ -174,6 +175,7 @@ export class CalibrationPanel {
   private restoreBusy = false;
   private regions: PlanarRegionRecord[] = [];
   private activeRegionId: string | null = null;
+  private areasPanel: RegionAreasPanel | null = null;
 
   private constructor(options: CalibrationPanelOptions) {
     this.getViewer = options.viewer;
@@ -247,6 +249,23 @@ export class CalibrationPanel {
     this.regionExportButton.addEventListener("click", () => {
       this.onExportRegions();
     });
+    this.areasPanel = RegionAreasPanel.bind({
+      root: options.root,
+      getContext: () => ({
+        regions: [...this.regions],
+        activeRegion: this.activeRegion(),
+        evidence: this.fitEvidence,
+        fit: this.fit,
+        fitReady: this.isRegionFitReady(),
+        fitSnapshot: this.fitSnapshot,
+        draftEvidenceSnapshot: this.draftSnapshot(),
+        restoreBusy: this.restoreBusy,
+      }),
+      notify: (kind) => {
+        if (kind === "areas") this.render();
+      },
+    });
+
     this.armButton.addEventListener("click", () => {
       this.onArm();
     });
@@ -301,6 +320,7 @@ export class CalibrationPanel {
     this.fitSnapshot = null;
     this.regions = [];
     this.activeRegionId = null;
+    this.areasPanel?.reset();
     this.regionIdInput.value = "";
     this.regionFrameInput.value = "";
     this.regionToleranceInput.value = "";
@@ -474,6 +494,7 @@ export class CalibrationPanel {
     if (this.activeRegionId !== null && !this.regions.some((region) => region.regionId === this.activeRegionId)) {
       this.activeRegionId = null;
     }
+    this.areasPanel?.pruneToRegions(this.regions);
     this.syncMarkers();
     this.syncRegionAxes();
     this.setStatus(
@@ -605,6 +626,11 @@ export class CalibrationPanel {
     return built.ok ? built.evidence : null;
   }
 
+  private draftSnapshot(): string | null {
+    const evidence = this.draftEvidence();
+    return evidence === null ? null : snapshotEvidence(evidence);
+  }
+
   private isExportable(): boolean {
     if (
       this.record === null ||
@@ -732,6 +758,7 @@ export class CalibrationPanel {
     this.fitSnapshot = snapshotEvidence(built.evidence);
     this.regions = [];
     this.activeRegionId = null;
+    this.areasPanel?.reset();
     this.regionIdInput.value = "";
     this.regionFrameInput.value = "";
     this.regionToleranceInput.value = "";
@@ -863,6 +890,7 @@ export class CalibrationPanel {
   private onRemoveRegion(regionId: string): void {
     this.regions = this.regions.filter((region) => region.regionId !== regionId);
     if (this.activeRegionId === regionId) this.activeRegionId = null;
+    this.areasPanel?.pruneToRegions(this.regions);
     this.syncRegionAxes();
     this.setStatus(`Planar region "${regionId}" removed. Recreate it against the current fit if still needed.`);
     this.render();
@@ -1002,6 +1030,7 @@ export class CalibrationPanel {
     this.regionProbeButton.disabled = !enabled || !this.isActiveRegionReady();
     this.syncRegionAxes();
     if (!this.isActiveRegionReady()) this.regionProbeResult.replaceChildren();
+    this.areasPanel?.setEnabledFromHost();
     this.renderFit();
     if (this.restoreBusy) {
       this.exportButton.disabled = true;

@@ -115,3 +115,29 @@ export {
 
 export type { GeoPoint, PolygonCheck } from "./geometry/index.js";
 export { footprintFits, pointInPolygon, validateSafePolygon } from "./geometry/index.js";
+export type {
+  AddExclusionResult,
+  AreaBundle,
+  AreaExclusion,
+  AreasMap,
+  BuildAreaBundleResult,
+  CheckFootprintResult,
+  ParsePolygonResult,
+  RegionAreaRecord,
+  RemoveExclusionResult,
+  SetSafePolygonResult,
+} from "./region-areas/index.js";
+export {
+  AREA_BUNDLE_VERSION,
+  AREA_LIMITS,
+  addExclusion,
+  buildAreaBundle as buildRegionAreaBundle,
+  checkFootprint,
+  clearSafePolygon,
+  parsePolygonText,
+  pruneAreas,
+  removeExclusion,
+  serializeAreaBundle,
+  setSafePolygon,
+  validateAreaRecord as validateRegionAreaRecord,
+} from "./region-areas/index.js";

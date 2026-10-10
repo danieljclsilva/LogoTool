@@ -35,10 +35,10 @@ production units. Tripo and other generation providers remain replaceable;
 external GLB import follows the same asset pipeline.
 
 Calibration fitting and region geometry are standalone pure utilities
-(`src/core/calibration`, `src/core/geometry`, `src/core/planar-region` for provisional oriented planar frames). The offline inspector draft layer
-adds viewer picks/markers/region axes, the calibration panel (anchor/measure plus planar-frame fieldset) and pure session helpers. A
+(`src/core/calibration`, `src/core/geometry`, `src/core/planar-region` for provisional oriented planar frames, `src/core/region-areas` for nullable safe polygons + named exclusions bound to exact frame snapshots with a deterministic export-only area bundle). The offline inspector draft layer
+adds viewer picks/markers/region axes, the calibration panel (anchor/measure plus planar-frame fieldset plus safe-area subpanel with 2D mm preview) and pure session helpers. A
 provisional local save/restore envelope requires the exact current-asset hash,
-discards imported fit values and recomputes the fit as pending review; planar region bundles are a separate deterministic provisional export with no restore path yet. These
+discards imported fit values and recomputes the fit as pending review; planar region bundles and the dedicated area bundle are separate deterministic provisional exports with no restore path yet. These
 utilities are not yet wired into product calibration records or production
 output. Variant transfer remains pending.
 
