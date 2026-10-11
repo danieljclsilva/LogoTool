@@ -51,6 +51,7 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   stability.
 - `placements.spec.ts` — 0-placement export, multi-logo/region/rotation adds,
   footprint statuses, numeric-update exact bytes.
+- `placements-drag.spec.ts` — direct footprint dragging (2026-10-11, 11 tests: basic/letterbox/grab-offset deltas, rotated out-of-safe multi-step, Escape + re-drag, pointercancel/right/non-primary, real lostpointercapture + focus-loss handler + re-drag (blur fallback recorded per run), stale/restoreBusy/asset-swap invalidation, mid-drag baseline export + roundtrips, out-of-limit/tap release, quote-backslash punctuation id). Tolerance 0.05mm (0.1mm only in the 220px letterbox case); screenshots to ignored `test-results/`, attached per test+project.
 - `placements-restore.spec.ts` — save/restore roundtrip incl. fresh context,
   forged recompute, atomic failures, stale lock/recovery, determinism.
 - `placements-race.spec.ts` — `restoreBusy` locks and obsolete async reads
@@ -61,6 +62,36 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. Portable stand-in until true ZIP/unzip customer-package
   acceptance exists.
+
+## Acceptance run — 2026-10-11
+
+Independent Codex validation after OMP integration, on macOS 27.2 arm64
+(Darwin 27.2.0), directly opening the built inspector through `file://`.
+Contexts were offline, using 1280×900 and 390×844 viewports; every passing
+test asserted zero console/page errors and zero HTTP(S) requests.
+
+| Command | Browser | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain, viewer and e2e TypeScript | Pass |
+| `npm test` | Node-only domain/assets checks | 260/260 |
+| `npm run test:e2e` | Bundled Playwright Chromium 156.0.8078.4 | 19/19 |
+| `npm run test:e2e:chrome` | Installed Google Chrome 154.0.8037.98 | 19/19 |
+
+The new drag cases cover live mm fields, fit feedback, fixed gesture bounds,
+grab offset, rotated independent placements, cancellation and re-drag,
+restore/asset invalidation, committed-only mid-drag export, deterministic
+roundtrips, coordinate limits, release endpoints, and punctuation IDs.
+Screenshots are saved per test/project, with desktop/mobile preview images.
+The `focus-loss-evidence` attachment records whether browser focus transition
+or dispatched blur exercised the handler; the final Chrome run used the
+dispatched-handler path. Genuine pointer-capture loss was tested through the
+browser's capture lifecycle. Native OS focus loss and touch interruptions
+remain unverified.
+
+The in-app Browser was available but refused `file://` navigation under its
+URL policy. No workaround was attempted; the explicitly required repo-local
+Playwright suite provided acceptance evidence. Windows Chrome/Edge, customer
+ZIP delivery, real calibration and curved mapping remain separate gates.
 
 ## Failure artifacts and scope
 

@@ -111,6 +111,37 @@ export interface PlacementDraftBundle {
   placements: PlacementsMap;
 }
 
+/** Live drag transaction: candidate kept separate from committed state. */
+export interface PlacementDragState {
+  placementId: string;
+  pointerId: number;
+  baseline: DraftPlacement;
+  candidateX: number;
+  candidateY: number;
+  grabOffsetX: number;
+  grabOffsetY: number;
+  generation: number;
+  evidenceSnapshot: string | null;
+  fitSnapshot: string | null;
+  regionIds: string;
+  // Full physical-context signature captured at pointerdown: any host-side
+  // change to these values mid-gesture makes the baseline untrustworthy and
+  // aborts the drag (see dragStale). Baseline/area/region comparisons catch
+  // host edits even when ids are retained.
+  assetSha: string | null;
+  fitReady: boolean;
+  fitScaleMmPerUnit: number | null;
+  fitInconsistent: boolean | null;
+  fitAssetFullSha256: string | null;
+  selectedId: string | null;
+  regionSignature: string;
+  areaSignature: string;
+  // Frozen svg mapping seen at gesture start ("minX,minY,w,h|minY|maxY"):
+  // renderPreview2d holds these bounds from committed footprints while the
+  // drag is live, so the stored string must still match at move/up time.
+  frozenViewBox: string;
+}
+
 /**
  * Frozen-contract footprint: delegates to the core `placementFootprint`
  * kernel (4 corners of the w×h box about (xMm, yMm), rotated clockwise).
@@ -205,6 +236,25 @@ export class PlacementPanel {
   >;
   private selectedPlacementId: string | null = null;
   private idCounter = 1;
+  /**
+   * Monotonic draft-generation counter. Incremented by every host-owned
+   * committed-state swap (`replaceDraft`/`reset`/`pruneToContext`) so a
+   * render mid-gesture can detect that the baseline moved under the drag.
+   */
+  private dragGeneration = 0;
+  /**
+   * Live drag candidate, kept SEPARATE from committed `this.placements`
+   * until pointerup commits via core `updatePlacement`. Export during a
+   * drag (`collectDraft`) therefore serializes pre-drag bytes; only the
+   * render helpers merge the candidate for display.
+   */
+  private activeDrag: PlacementDragState | null = null;
+  /**
+   * Focus target: placement id whose live footprint should take keyboard
+   * focus after the svg subtree is rebuilt, so focus is never stranded on
+   * a detached node (see renderPreview2d tail).
+   */
+  private pendingDragFocus: string | null = null;
 
   private constructor(options: PlacementBindOptions) {
     this.root = options.root;
@@ -263,6 +313,37 @@ export class PlacementPanel {
       this.syncPreview();
       this.setNote("3D overlay refresh requested (preview only).");
     });
+    // Drag listeners attach ONCE on the stable preview2d container: render
+    // rebuilds the SVG children (footprints) on every pointermove, so
+    // capturing on the footprint itself would lose the gesture. Pointer
+    // capture is taken on the container instead (see onDragPointerDown).
+    this.preview2d.addEventListener("pointerdown", (e) => {
+      if (e instanceof PointerEvent) this.onDragPointerDown(e);
+    });
+    this.preview2d.addEventListener("pointermove", (e) => {
+      if (e instanceof PointerEvent) this.onDragPointerMove(e);
+    });
+    this.preview2d.addEventListener("pointerup", (e) => {
+      if (e instanceof PointerEvent) this.onDragPointerUp(e);
+    });
+    this.preview2d.addEventListener("pointercancel", (e) => {
+      if (e instanceof PointerEvent) this.onDragPointerCancel(e);
+    });
+    this.preview2d.addEventListener("lostpointercapture", (e) => {
+      // PointerId policy: only the captured pointer ends the gesture; every
+      // pointer event (move/up/cancel/lostcapture) must match drag.pointerId
+      // exactly — no zero special-case, so synthetic id-0 events stay inert.
+      if (e instanceof PointerEvent) this.onDragLostCapture(e);
+    });
+    // Keyboard handling lives on window (not the container): synthetic and
+    // real Escape presses may arrive with focus outside the preview, while
+    // footprint Enter/Space still bubbles up from the focused polygon.
+    window.addEventListener("keydown", (e) => {
+      if (e instanceof KeyboardEvent) this.onDragKeyDown(e);
+    });
+    window.addEventListener("blur", () => {
+      this.cancelActiveDrag("Drag cancelled (window lost focus).");
+    });
     this.render();
   }
 
@@ -316,6 +397,8 @@ export class PlacementPanel {
       this.placements[this.selectedPlacementId] !== undefined
         ? this.selectedPlacementId
         : null;
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     this.render();
   }
 
@@ -331,6 +414,8 @@ export class PlacementPanel {
     ) {
       this.selectedPlacementId = null;
     }
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     if (pruned.dropped.length > 0) this.render(context);
     return pruned.dropped;
   }
@@ -344,12 +429,30 @@ export class PlacementPanel {
     this.placements = Object.create(null) as Record<string, DraftPlacement>;
     this.selectedPlacementId = null;
     this.idCounter = 1;
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     this.render();
   }
 
   /** Host entry point: refresh from host state; recompute + resync preview. */
   render(context?: PlacementContext): void {
     const ctx = context ?? this.getContext();
+    // Mid-gesture invalidation: baseline moved under the drag (restore
+    // running, generation bumped by host edits/replaceDraft/reset/prune,
+    // snapshots/fit/regions/areas/selection changed, placement/region
+    // vanished, or the frozen viewBox drifted) → silently discard the
+    // candidate internals (no note spam, no nested render) and continue
+    // this pass on committed state; a late pointerup is then inert.
+    if (
+      this.activeDrag !== null &&
+      (this.dragStale(ctx, this.activeDrag) || this.dragViewBoxStale(this.activeDrag))
+    ) {
+      const stale = this.activeDrag;
+      this.releaseDragCapture(stale.pointerId);
+      this.activeDrag = null;
+      const baseline = this.placements[stale.placementId];
+      if (baseline !== undefined) this.hydrateEditor(baseline);
+    }
     this.renderContextLine(ctx);
     this.renderLogoList();
     this.renderSelects(ctx);
@@ -493,6 +596,9 @@ export class PlacementPanel {
       return;
     }
     this.logos = removed.logos;
+    // Host-owned committed edits invalidate even when ids are retained.
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     this.setNote(`Logo "${id}" removed (draft only).`);
     this.notify("placements", `logo removed ${id}`);
     this.render();
@@ -592,6 +698,8 @@ export class PlacementPanel {
       return;
     }
     this.placements = updated.placements;
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     this.setNote(`Placement "${selected.id}" updated (draft only).`);
     this.notify("placements", `placement updated ${selected.id}`);
     this.render(ctx);
@@ -614,6 +722,8 @@ export class PlacementPanel {
     }
     this.placements = removed.placements;
     this.selectedPlacementId = null;
+    this.dragGeneration += 1;
+    this.dropActiveDrag();
     this.setNote(`Placement "${selected.id}" deleted (draft only).`);
     this.notify("placements", `placement deleted ${selected.id}`);
     this.render();
@@ -623,19 +733,31 @@ export class PlacementPanel {
     if (this.getContext().restoreBusy) return;
     const placement = this.placements[id];
     if (placement === undefined) return;
+    // A host selection change under a live gesture retires the drag through
+    // the selectedId leg of the context signature (never a silent reseed).
     this.selectedPlacementId = id;
     this.hydrateEditor(placement);
     this.render();
   }
 
   private hydrateEditor(placement: DraftPlacement): void {
+    const shown = this.draggedView(placement);
     this.placementLogo.value = placement.logoId;
     this.placementRegion.value = placement.regionId;
-    this.placementX.value = String(placement.xMm);
-    this.placementY.value = String(placement.yMm);
-    this.placementW.value = String(placement.widthMm);
-    this.placementH.value = String(placement.heightMm);
-    this.placementRot.value = String(placement.rotationDeg);
+    this.placementX.value = String(shown.xMm);
+    this.placementY.value = String(shown.yMm);
+    this.placementW.value = String(shown.widthMm);
+    this.placementH.value = String(shown.heightMm);
+    this.placementRot.value = String(shown.rotationDeg);
+  }
+
+  /** Committed placement merged with the live drag candidate for display. */
+  private draggedView(placement: DraftPlacement): DraftPlacement {
+    const drag = this.activeDrag;
+    if (drag !== null && drag.placementId === placement.id) {
+      return { ...placement, xMm: drag.candidateX, yMm: drag.candidateY };
+    }
+    return placement;
   }
 
   private evaluatePlacement(
@@ -814,8 +936,9 @@ export class PlacementPanel {
       return;
     }
     for (const id of ids) {
-      const placement = this.placements[id];
-      if (placement === undefined) continue;
+      const committed = this.placements[id];
+      if (committed === undefined) continue;
+      const placement = this.draggedView(committed);
       const item = document.createElement("li");
       const selected = placement.id === this.selectedPlacementId;
       item.textContent =
@@ -845,8 +968,9 @@ export class PlacementPanel {
     }
     const list = document.createElement("ul");
     for (const id of ids) {
-      const placement = this.placements[id];
-      if (placement === undefined) continue;
+      const committed = this.placements[id];
+      if (committed === undefined) continue;
+      const placement = this.draggedView(committed);
       const verdict = this.evaluatePlacement(ctx, placement);
       const footprint = computePlacementFootprintSafe(placement);
       const item = document.createElement("li");
@@ -869,6 +993,9 @@ export class PlacementPanel {
 
   private renderPreview2d(ctx: PlacementContext): void {
     const svgNS = "http://www.w3.org/2000/svg";
+    const activeElement = document.activeElement;
+    const focusInsidePreview =
+      activeElement instanceof Element && this.preview2d.contains(activeElement);
     this.preview2d.replaceChildren();
     if (ctx.regions.length === 0) {
       this.preview2d.textContent = "Preview unavailable: no regions authored.";
@@ -884,20 +1011,27 @@ export class PlacementPanel {
       const record = ctx.areas[region.regionId];
       const safe = record?.safePolygon ?? null;
       const exclusions = record?.exclusions ?? [];
-      const footprints = Object.values(this.placements)
-        .filter((placement) => placement.regionId === region.regionId)
-        .map((placement) => ({
-          placement,
-          corners: computePlacementFootprintSafe(placement),
-        }))
-        .filter(
-          (
-            entry,
-          ): entry is {
-            placement: DraftPlacement;
-            corners: GeoPoint[];
-          } => entry.corners !== null,
-        );
+      // Frozen bounds while a drag is live: the svg viewBox is measured
+      // from COMMITTED footprints only (never the candidate), so the
+      // viewBox/letterbox mapping that clientToRegionMm inverts cannot drift
+      // under the pointer. The candidate polygon still renders — under those
+      // frozen bounds, possibly overflowing mid-gesture. Commit re-measures.
+      const frozen = this.activeDrag !== null;
+      const draggedRegion =
+        frozen && this.activeDrag !== null
+          ? (this.placements[this.activeDrag.placementId]?.regionId ?? null)
+          : null;
+      const footprints: { placement: DraftPlacement; corners: GeoPoint[] }[] = [];
+      for (const committed of Object.values(this.placements)) {
+        if (committed.regionId !== region.regionId) continue;
+        const shown = this.draggedView(committed);
+        // Only the dragged region freezes its measure input; sibling svgs
+        // keep live bounds so unrelated regions never go stale-looking.
+        const freezeMeasure = frozen && region.regionId === draggedRegion;
+        const corners = computePlacementFootprintSafe(freezeMeasure ? committed : shown);
+        if (corners === null) continue;
+        footprints.push({ placement: shown, corners });
+      }
       if (safe === null && exclusions.length === 0 && footprints.length === 0) {
         continue;
       }
@@ -905,33 +1039,27 @@ export class PlacementPanel {
       const heading = document.createElement("h3");
       heading.textContent = `Region "${region.regionId}" (mm, +Y up)`;
       this.preview2d.appendChild(heading);
-      const all: GeoPoint[] = [
-        { x: 0, y: 0 },
-        ...(safe ?? []),
-        ...exclusions.flatMap((entry) => entry.polygon),
-        ...footprints.flatMap((entry) => entry.corners),
-      ];
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const point of all) {
-        minX = Math.min(minX, point.x);
-        minY = Math.min(minY, point.y);
-        maxX = Math.max(maxX, point.x);
-        maxY = Math.max(maxY, point.y);
-      }
-      const pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 1;
-      minX -= pad;
-      minY -= pad;
-      maxX += pad;
-      maxY += pad;
+      const frozenBox =
+        frozen && region.regionId === draggedRegion ? this.frozenBoxForRegion(region.regionId) : null;
+      const measuredCorners: GeoPoint[][] = [];
+      for (const entry of footprints) measuredCorners.push(entry.corners);
+      const bounds = frozenBox ?? this.measureBounds(safe, exclusions, measuredCorners);
+      if (bounds === null) continue;
+      const minX = bounds.minX;
+      const minY = bounds.minY;
+      const maxX = bounds.maxX;
+      const maxY = bounds.maxY;
       const width = maxX - minX;
       const height = maxY - minY;
       const svg = document.createElementNS(svgNS, "svg");
       svg.setAttribute("viewBox", `${minX} ${minY} ${width} ${height}`);
-      svg.setAttribute("role", "presentation");
+      svg.setAttribute("role", "group");
+      svg.setAttribute("aria-label", `Millimetre preview of region ${region.regionId}`);
+      svg.setAttribute("data-region-id", region.regionId);
+      svg.setAttribute("data-min-y", String(minY));
+      svg.setAttribute("data-max-y", String(maxY));
       svg.setAttribute("width", "100%");
+      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
       const flip = document.createElementNS(svgNS, "g");
       flip.setAttribute("transform", `translate(0 ${minY + maxY}) scale(1 -1)`);
       const polygonEl = (
@@ -939,20 +1067,22 @@ export class PlacementPanel {
         fill: string,
         stroke: string,
         dash: string | null,
-      ): SVGGraphicsElement => {
+      ): SVGPolygonElement => {
         const el = document.createElementNS(svgNS, "polygon");
-        el.setAttribute(
+        // createElementNS is untyped for the svg tag name; "polygon" always yields a polygon element.
+        const polygon = el as SVGPolygonElement;
+        polygon.setAttribute(
           "points",
           points.map((point) => `${point.x},${point.y}`).join(" "),
         );
-        el.setAttribute("fill", fill);
-        el.setAttribute("stroke", stroke);
-        el.setAttribute(
+        polygon.setAttribute("fill", fill);
+        polygon.setAttribute("stroke", stroke);
+        polygon.setAttribute(
           "stroke-width",
           String(Math.max(width, height) * 0.004),
         );
-        if (dash !== null) el.setAttribute("stroke-dasharray", dash);
-        return el as unknown as SVGGraphicsElement;
+        if (dash !== null) polygon.setAttribute("stroke-dasharray", dash);
+        return polygon;
       };
       if (safe !== null) {
         flip.appendChild(polygonEl(safe, "#d7e9f7", "#1d5f9e", null));
@@ -964,15 +1094,33 @@ export class PlacementPanel {
       }
       for (const entry of footprints) {
         const selected = entry.placement.id === this.selectedPlacementId;
-        const fits = this.evaluatePlacement(ctx, entry.placement).fits;
-        flip.appendChild(
-          polygonEl(
-            entry.corners,
-            selected ? "#c8f0d4" : "none",
-            fits ? "#1e7d32" : "#a31c1c",
-            selected ? null : "4 2",
-          ),
+        const verdict = this.evaluatePlacement(ctx, entry.placement);
+        // Contract attrs live directly on the footprint polygon so the
+        // existing stroke assertion keeps hitting this element. Hittable:
+        // fill is never "none" (selected: translucent blue; unselected:
+        // "transparent") + pointer-events all, so the selected footprint
+        // stays visibly distinct while the red/green verdict stroke reads.
+        const fp = polygonEl(
+          entry.corners,
+          selected ? "rgba(29, 95, 158, 0.35)" : "transparent",
+          verdict.fits ? "#1e7d32" : "#ff0000",
+          null,
         );
+        fp.setAttribute("data-placement-id", entry.placement.id);
+        fp.setAttribute("tabindex", "0");
+        fp.setAttribute("role", "button");
+        fp.setAttribute(
+          "aria-label",
+          `Placement ${entry.placement.id} in region ${entry.placement.regionId} at ` +
+            `x ${entry.placement.xMm} y ${entry.placement.yMm} millimetres` +
+            (verdict.fits ? ", fits" : ", does not fit"),
+        );
+        fp.setAttribute("aria-pressed", selected ? "true" : "false");
+        fp.setAttribute("data-selected", selected ? "true" : "false");
+        fp.style.pointerEvents = "all";
+        fp.style.cursor = "grab";
+        fp.style.touchAction = "none";
+        flip.appendChild(fp);
       }
       svg.appendChild(flip);
       this.preview2d.appendChild(svg);
@@ -988,6 +1136,35 @@ export class PlacementPanel {
         "No saved areas or placements to preview yet (mm).";
       this.preview2d.appendChild(empty);
     }
+    // Keyboard focus usability: an svg rebuild replaces the focused polygon
+    // node, so when focus sat inside the preview (or a drag cellared one),
+    // refocus the live footprint; without a live match keep focus stable
+    // on the container instead of stranding it on a detached node.
+    if (this.pendingDragFocus !== null) {
+      const wanted = this.pendingDragFocus;
+      this.pendingDragFocus = null;
+      if (focusInsidePreview) this.focusLiveFootprint(wanted);
+    } else if (focusInsidePreview) {
+      const selected = this.selectedPlacementId;
+      if (selected !== null) this.focusLiveFootprint(selected);
+    }
+  }
+
+  /** Refocus the live footprint after an SVG redraw, else the container. */
+  private focusLiveFootprint(wantedId: string): void {
+    const live = this.findFootprint(wantedId);
+    if (live instanceof SVGElement) {
+      live.focus({ preventScroll: true });
+      return;
+    }
+    if (live instanceof HTMLElement) {
+      live.focus({ preventScroll: true });
+      return;
+    }
+    if (!this.preview2d.hasAttribute("tabindex")) {
+      this.preview2d.setAttribute("tabindex", "-1");
+    }
+    this.preview2d.focus({ preventScroll: true });
   }
 
   /**
@@ -1006,7 +1183,8 @@ export class PlacementPanel {
         return;
       }
       const items: PlacementOverlayItem[] = [];
-      for (const placement of Object.values(this.placements)) {
+      for (const committed of Object.values(this.placements)) {
+        const placement = this.draggedView(committed);
         const region = this.regionById(ctx, placement.regionId);
         if (region === null) continue;
         if (
@@ -1071,6 +1249,631 @@ export class PlacementPanel {
 
   private setNote(message: string): void {
     this.noteEl.textContent = message;
+  }
+
+  /** True when the drag baseline no longer matches the live context. */
+  private dragStale(ctx: PlacementContext, drag: PlacementDragState): boolean {
+    const committed = this.placements[drag.placementId];
+    if (committed === undefined) return true;
+    if (ctx.restoreBusy) return true;
+    if (drag.generation !== this.dragGeneration) return true;
+    if (ctx.draftEvidenceSnapshot !== drag.evidenceSnapshot) return true;
+    if (ctx.fitSnapshot !== drag.fitSnapshot) return true;
+    if (ctx.assetSha !== drag.assetSha) return true;
+    if (ctx.fitReady !== drag.fitReady) return true;
+    if (ctx.draftEvidenceSnapshot !== ctx.fitSnapshot) return true;
+    if (!this.isReady(ctx)) return true;
+    if (ctx.regions.map((region) => region.regionId).join("\0") !== drag.regionIds) return true;
+    if (this.regionSignature(ctx) !== drag.regionSignature) return true;
+    if (this.areaSignature(ctx) !== drag.areaSignature) return true;
+    if (this.selectedPlacementId !== drag.selectedId) return true;
+    // Committed baseline copy: host numeric edits / delete+re-add with same
+    // id still invalidate even when the id is retained.
+    const base = drag.baseline;
+    if (
+      committed.id !== base.id ||
+      committed.logoId !== base.logoId ||
+      committed.regionId !== base.regionId ||
+      committed.xMm !== base.xMm ||
+      committed.yMm !== base.yMm ||
+      committed.widthMm !== base.widthMm ||
+      committed.heightMm !== base.heightMm ||
+      committed.rotationDeg !== base.rotationDeg
+    ) {
+      return true;
+    }
+    if (this.regionById(ctx, committed.regionId) === null) return true;
+    const fit = ctx.fit;
+    if ((fit === null) !== (drag.fitScaleMmPerUnit === null)) return true;
+    if (fit !== null) {
+      if (
+        fit.scaleMmPerUnit !== drag.fitScaleMmPerUnit ||
+        fit.inconsistent !== drag.fitInconsistent ||
+        fit.assetFullSha256 !== drag.fitAssetFullSha256
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Stable string of every region's frame/origin/axes/mm/tolerance + source. */
+  private regionSignature(ctx: PlacementContext): string {
+    return JSON.stringify(ctx.regions
+      .map((region) =>
+        [
+          region.regionId,
+          region.frameId,
+          region.originAnchorId,
+          region.xAnchorId,
+          region.yAnchorId,
+          region.origin.x,
+          region.origin.y,
+          region.origin.z,
+          region.xAxis.x,
+          region.xAxis.y,
+          region.xAxis.z,
+          region.yAxis.x,
+          region.yAxis.y,
+          region.yAxis.z,
+          region.mmPerModelUnit,
+          region.offPlaneToleranceMm,
+          region.sourceEvidenceSnapshot,
+        ],
+      )
+    );
+  }
+
+  /** Stable string of the saved safe/exclusion areas (dragged region included). */
+  private areaSignature(ctx: PlacementContext): string {
+    return JSON.stringify(Object.keys(ctx.areas).sort().map((id) => {
+      const record = ctx.areas[id];
+      return [id, record?.safePolygon ?? null,
+        record?.exclusions.map((exclusion) => exclusion.polygon) ?? []];
+    }));
+  }
+
+  /**
+   * Committed-only bounds for the dragged region's svg, in the same
+   * "minX,minY,w,h|minY|maxY" shape stored on the drag. Candidate polygons
+   * are excluded so the viewBox cannot drift mid-gesture.
+   */
+  private committedViewBoxFor(ctx: PlacementContext, placementId: string): string | null {
+    const committed = this.placements[placementId];
+    if (committed === undefined) return null;
+    const regionId = committed.regionId;
+    const region = this.regionById(ctx, regionId);
+    if (region === null) return null;
+    const record = ctx.areas[regionId];
+    const corners: GeoPoint[][] = [];
+    for (const entry of Object.values(this.placements)) {
+      if (entry.regionId !== regionId) continue;
+      const footprint = computePlacementFootprintSafe(entry);
+      if (footprint === null) return null;
+      corners.push(footprint);
+    }
+    const bounds = this.measureBounds(record?.safePolygon ?? null, record?.exclusions ?? [], corners);
+    if (bounds === null) return null;
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    return `${bounds.minX},${bounds.minY},${width},${height}|${bounds.minY}|${bounds.maxY}`;
+  }
+
+  /** Shared committed-geometry measure behind render + frozen viewBox. */
+  private measureBounds(
+    safe: { x: number; y: number }[] | null,
+    exclusions: { polygon: { x: number; y: number }[] }[],
+    cornerSets: GeoPoint[][],
+  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const all: GeoPoint[] = [
+      { x: 0, y: 0 },
+      ...(safe ?? []),
+      ...exclusions.flatMap((entry) => entry.polygon),
+    ];
+    for (const set of cornerSets) {
+      for (const point of set) all.push(point);
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const point of all) {
+      if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y)) return null;
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+    if (!isFiniteNumber(minX) || !isFiniteNumber(minY) || !isFiniteNumber(maxX) || !isFiniteNumber(maxY)) {
+      return null;
+    }
+    const pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 1;
+    minX -= pad;
+    minY -= pad;
+    maxX += pad;
+    maxY += pad;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (!isFiniteNumber(width) || !isFiniteNumber(height) || !(width > 0) || !(height > 0)) {
+      return null;
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  /**
+   * Committed bounds for a non-dragged region during render. Null skips the
+   * svg exactly like the previous empty-geometry path.
+   */
+  private frozenBoxForRegion(regionId: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const ctx = this.getContext();
+    const record = ctx.areas[regionId];
+    const corners: GeoPoint[][] = [];
+    for (const entry of Object.values(this.placements)) {
+      if (entry.regionId !== regionId) continue;
+      const footprint = computePlacementFootprintSafe(entry);
+      if (footprint === null) return null;
+      corners.push(footprint);
+    }
+    const bounds = this.measureBounds(record?.safePolygon ?? null, record?.exclusions ?? [], corners);
+    if (bounds === null) return null;
+    return bounds;
+  }
+
+  /**
+   * True when the frozen svg mapping drifted: the committed-only viewBox no
+   * longer matches the gesture-start snapshot (e.g. safe-area edit), so the
+   * stored client→mm math is stale and the drag must abort.
+   */
+  private dragViewBoxStale(drag: PlacementDragState): boolean {
+    const live = this.committedViewBoxFor(this.getContext(), drag.placementId);
+    return live === null || live !== drag.frozenViewBox;
+  }
+
+  /**
+   * Punctuation-safe footprint lookup: attribute equality over
+   * `[data-placement-id]` (never a CSS selector), so restored ids with
+   * quotes/backslashes/brackets can never throw or misfire.
+   */
+  private findFootprint(id: string): Element | null {
+    const nodes = this.preview2d.querySelectorAll("[data-placement-id]");
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes.item(index);
+      if (node.getAttribute("data-placement-id") === id) return node;
+    }
+    return null;
+  }
+
+  /**
+   * Punctuation-safe region svg lookup by stable data-region-id equality.
+   */
+  private findRegionSvg(regionId: string): SVGSVGElement | null {
+    const nodes = this.preview2d.querySelectorAll("svg[data-region-id]");
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes.item(index);
+      if (node.getAttribute("data-region-id") === regionId && node instanceof SVGSVGElement) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+
+
+  /**
+   * Client px → region mm against the FROZEN svg mapping. Explicit
+   * xMidYMid-meet letterbox math (uniform `s = min(rect.w/vb.w,
+   * rect.h/vb.h)` with centred offsets, then the y-flip
+   * `mmY = minY + maxY - outerY` for the inner
+   * `translate(0 minY+maxY) scale(1 -1)` group, whose outer viewBox y grows
+   * down while mm y grows up).
+   *
+   * Why explicit math instead of `getScreenCTM().inverse()`: the svg subtree
+   * is rebuilt on every pointermove, so a cached CTM would go stale with
+   * the detached node; re-deriving from the frozen viewBox string keeps one
+   * authoritative mapping for the whole gesture without touching the live
+   * DOM. Guards non-finite at every step: null on any bad input, never NaN
+   * to core. No hardcoded px/mm: scale derives from rect vs frozen viewBox.
+   */
+  private clientToRegionMm(
+    svg: SVGSVGElement,
+    frozenViewBox: string,
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    try {
+      const parsed = this.parseFrozenViewBox(frozenViewBox);
+      if (parsed === null) return null;
+      const rect = svg.getBoundingClientRect();
+      const vbX = parsed.x;
+      const vbY = parsed.y;
+      const vbW = parsed.w;
+      const vbH = parsed.h;
+      if (
+        typeof clientX !== "number" ||
+        typeof clientY !== "number" ||
+        !isFiniteNumber(clientX) ||
+        !isFiniteNumber(clientY) ||
+        !isFiniteNumber(rect.left) ||
+        !isFiniteNumber(rect.top) ||
+        !isFiniteNumber(rect.width) ||
+        !isFiniteNumber(rect.height) ||
+        !isFiniteNumber(vbX) ||
+        !isFiniteNumber(vbY) ||
+        !isFiniteNumber(vbW) ||
+        !isFiniteNumber(vbH) ||
+        !(rect.width > 0) ||
+        !(rect.height > 0) ||
+        !(vbW > 0) ||
+        !(vbH > 0)
+      ) {
+        return null;
+      }
+      const s = Math.min(rect.width / vbW, rect.height / vbH);
+      if (!isFiniteNumber(s) || !(s > 0)) return null;
+      const offX = rect.left + (rect.width - vbW * s) / 2;
+      const offY = rect.top + (rect.height - vbH * s) / 2;
+      const outerX = vbX + (clientX - offX) / s;
+      const outerY = vbY + (clientY - offY) / s;
+      if (!isFiniteNumber(outerX) || !isFiniteNumber(outerY)) return null;
+      const x = outerX;
+      const y = parsed.minY + parsed.maxY - outerY;
+      if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
+      return { x, y };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Parse the frozen "minX,minY,w,h|minY|maxY" gesture-start snapshot. */
+  private parseFrozenViewBox(frozen: string): { x: number; y: number; w: number; h: number; minY: number; maxY: number } | null {
+    const bar = frozen.indexOf("|");
+    if (bar < 0) return null;
+    const head = frozen.slice(0, bar);
+    const tail = frozen.slice(bar + 1).split("|");
+    if (tail.length !== 2) return null;
+    const dims = head.split(",");
+    if (dims.length !== 4) return null;
+    const x = Number(dims[0]);
+    const y = Number(dims[1]);
+    const w = Number(dims[2]);
+    const h = Number(dims[3]);
+    const minY = Number(tail[0]);
+    const maxY = Number(tail[1]);
+    if (
+      !isFiniteNumber(x) ||
+      !isFiniteNumber(y) ||
+      !isFiniteNumber(w) ||
+      !(w > 0) ||
+      !isFiniteNumber(h) ||
+      !(h > 0) ||
+      !isFiniteNumber(minY) ||
+      !isFiniteNumber(maxY)
+    ) {
+      return null;
+    }
+    return { x, y, w, h, minY, maxY };
+  }
+
+  /**
+   * Gesture start. Starting a drag REQUIRES the isReady-equivalent (fit
+   * current, snapshots equal, no restore): refuse silently otherwise, since
+   * there is no trustworthy mapping to grab against. Refuses while
+   * `restoreBusy` (the host owns an atomic draft swap there). Wrong button,
+   * non-primary, and unknown footprints are silent no-ops with no mutation.
+   * preventDefault avoids unwanted text selection / touch scrolling; a
+   * failed setPointerCapture refuses the gesture (no stuck transaction).
+   */
+  private onDragPointerDown(e: PointerEvent): void {
+    if (e.isPrimary !== true || e.button !== 0) return;
+    const ctx = this.getContext();
+    if (ctx.restoreBusy || !this.isReady(ctx)) return;
+    const target = e.target instanceof Element ? e.target : null;
+    const fp = target === null ? null : target.closest("[data-placement-id]");
+    const placementId = fp === null ? null : fp.getAttribute("data-placement-id");
+    if (placementId === null || placementId === "") return;
+    const baseline = this.placements[placementId];
+    if (baseline === undefined) return;
+    const region = this.regionById(ctx, baseline.regionId);
+    if (region === null) return;
+    // The dragged region's source evidence must be current: a calibrated
+    // region whose frame predates the draft would map against a stale frame.
+    if (
+      ctx.draftEvidenceSnapshot === null ||
+      region.sourceEvidenceSnapshot !== ctx.draftEvidenceSnapshot
+    ) {
+      return;
+    }
+    const svg = fp === null ? null : fp.closest("svg");
+    if (!(svg instanceof SVGSVGElement)) return;
+    const frozenViewBox = this.committedViewBoxFor(ctx, placementId);
+    if (frozenViewBox === null) return;
+    const pointerMm = this.clientToRegionMm(svg, frozenViewBox, e.clientX, e.clientY);
+    if (pointerMm === null) return;
+    const grabOffsetX = pointerMm.x - baseline.xMm;
+    const grabOffsetY = pointerMm.y - baseline.yMm;
+    if (!isFiniteNumber(grabOffsetX) || !isFiniteNumber(grabOffsetY)) return;
+    // Capture on the stable container (see constructor comment): the svg
+    // subtree is rebuilt on every move, so per-footprint capture would be
+    // lost. Capture failure refuses the gesture — no stuck transaction, so
+    // preventDefault only runs once capture succeeds below.
+    let captured = false;
+    try {
+      const canQueryCapture = typeof this.preview2d.hasPointerCapture === "function";
+      if (canQueryCapture && this.preview2d.hasPointerCapture(e.pointerId)) {
+        captured = true;
+      } else {
+        this.preview2d.setPointerCapture(e.pointerId);
+        captured = true;
+      }
+    } catch {
+      captured = false;
+    }
+    if (!captured) return;
+    e.preventDefault();
+    this.activeDrag = {
+      placementId,
+      pointerId: e.pointerId,
+      baseline: { ...baseline },
+      candidateX: baseline.xMm,
+      candidateY: baseline.yMm,
+      grabOffsetX,
+      grabOffsetY,
+      generation: this.dragGeneration,
+      evidenceSnapshot: ctx.draftEvidenceSnapshot,
+      fitSnapshot: ctx.fitSnapshot,
+      regionIds: ctx.regions.map((region) => region.regionId).join("\0"),
+      assetSha: ctx.assetSha,
+      fitReady: ctx.fitReady,
+      fitScaleMmPerUnit: ctx.fit === null ? null : ctx.fit.scaleMmPerUnit,
+      fitInconsistent: ctx.fit === null ? null : ctx.fit.inconsistent,
+      fitAssetFullSha256: ctx.fit === null ? null : ctx.fit.assetFullSha256,
+      selectedId: placementId,
+      regionSignature: this.regionSignature(ctx),
+      areaSignature: this.areaSignature(ctx),
+      frozenViewBox,
+    };
+    this.pendingDragFocus = placementId;
+    this.selectedPlacementId = placementId;
+    this.hydrateEditor(baseline);
+    this.render(ctx);
+  }
+
+  /** Live move: local re-render only, never `notify` (avoids host loops). */
+  private onDragPointerMove(e: PointerEvent): void {
+    const drag = this.activeDrag;
+    if (drag === null || e.pointerId !== drag.pointerId) return;
+    // The host never re-renders mid-gesture, so check the full signature
+    // live here (not just at render top): stale → cancel hygiene, inert.
+    const ctx = this.getContext();
+    if (this.dragStale(ctx, drag) || this.dragViewBoxStale(drag)) {
+      this.cancelActiveDrag("Drag cancelled (context changed during the drag); no changes applied.");
+      return;
+    }
+    // Frozen lookup: region svg by attribute equality (never a
+    // punctuation-fragile selector); mapping reads the frozen viewBox.
+    const svg = this.findRegionSvg(drag.baseline.regionId);
+    if (svg === null) return;
+    e.preventDefault();
+    const probeMm = this.clientToRegionMm(svg, drag.frozenViewBox, e.clientX, e.clientY);
+    if (probeMm === null) return;
+    // Full float precision in the candidate: no rounding/quantization here.
+    const impliedX = probeMm.x - drag.grabOffsetX;
+    const impliedY = probeMm.y - drag.grabOffsetY;
+    if (!isFiniteNumber(impliedX) || !isFiniteNumber(impliedY)) return;
+    // Canonical endpoint/limits gate BEFORE any display: out-of-limit
+    // coordinates never reach the fields, verdicts, preview, or 3D overlay.
+    // (Geometric fit is still live: invalid-but-wellformed stays red via
+    // evaluatePlacement, never promoted to fits.)
+    const probe = updatePlacement(
+      this.placements,
+      drag.placementId,
+      {
+        logoId: drag.baseline.logoId,
+        regionId: drag.baseline.regionId,
+        xMm: impliedX,
+        yMm: impliedY,
+        widthMm: drag.baseline.widthMm,
+        heightMm: drag.baseline.heightMm,
+        rotationDeg: drag.baseline.rotationDeg,
+      },
+      this.logos,
+      ctx.regions.map((region) => region.regionId),
+    );
+    if (!probe.ok) return;
+    const candidateX = impliedX;
+    const candidateY = impliedY;
+    drag.candidateX = candidateX;
+    drag.candidateY = candidateY;
+    // Live UX: numeric fields track the candidate (keyboard alternative
+    // stays in sync); committed state is untouched until pointerup.
+    this.placementX.value = String(candidateX);
+    this.placementY.value = String(candidateY);
+    this.pendingDragFocus = drag.placementId;
+    this.render(ctx);
+  }
+  /**
+   * Transaction end: read the FINAL event coordinates (not just the last
+   * move), validated through core `updatePlacement` BEFORE display/commit so
+   * malformed/out-of-limit values never crash render/geometry. Invalid stays
+   * uncommitted (existing evaluatePlacement verdicts); never promoted to
+   * fits. A pointerup with no preceding move still applies the down-anchored
+   * candidate (baseline centre preserved through the grab offset).
+   */
+  private onDragPointerUp(e: PointerEvent): void {
+    const drag = this.activeDrag;
+    if (drag === null || e.pointerId !== drag.pointerId) return;
+    const ctx = this.getContext();
+    // Stale-context commit guard (checked live: the host does not
+    // re-render mid-gesture). A late pointerup after invalidation silently
+    // discards the candidate — no commit, no note spam.
+    if (this.dragStale(ctx, drag) || this.dragViewBoxStale(drag)) {
+      this.dropActiveDrag();
+      return;
+    }
+    const baseline = this.placements[drag.placementId];
+    if (baseline === undefined) {
+      this.dropActiveDrag();
+      this.render(ctx);
+      return;
+    }
+    // Final coordinates from THIS event against the frozen mapping: the
+    // release point counts even when no pointermove preceded it. Mapping or
+    // finite failures keep the last validated move candidate (baseline when
+    // no move ever validated); an out-of-limit final point is ignored the
+    // same way (candidate keeps its last good value).
+    const upSvg = this.findRegionSvg(drag.baseline.regionId);
+    if (upSvg !== null) {
+      const finalMm = this.clientToRegionMm(upSvg, drag.frozenViewBox, e.clientX, e.clientY);
+      if (finalMm !== null) {
+        const finalX = finalMm.x - drag.grabOffsetX;
+        const finalY = finalMm.y - drag.grabOffsetY;
+        if (isFiniteNumber(finalX) && isFiniteNumber(finalY)) {
+          const probe = updatePlacement(
+            this.placements,
+            drag.placementId,
+            {
+              logoId: drag.baseline.logoId,
+              regionId: drag.baseline.regionId,
+              xMm: finalX,
+              yMm: finalY,
+              widthMm: drag.baseline.widthMm,
+              heightMm: drag.baseline.heightMm,
+              rotationDeg: drag.baseline.rotationDeg,
+            },
+            this.logos,
+            ctx.regions.map((region) => region.regionId),
+          );
+          if (probe.ok) {
+            drag.candidateX = finalX;
+            drag.candidateY = finalY;
+          }
+        }
+      }
+    }
+    const candidate = {
+      logoId: baseline.logoId,
+      regionId: baseline.regionId,
+      xMm: drag.candidateX,
+      yMm: drag.candidateY,
+      widthMm: baseline.widthMm,
+      heightMm: baseline.heightMm,
+      rotationDeg: baseline.rotationDeg,
+    };
+    if (
+      ctx.restoreBusy ||
+      !isFiniteNumber(candidate.xMm) ||
+      !isFiniteNumber(candidate.yMm)
+    ) {
+      this.cancelActiveDrag(`Drag of "${drag.placementId}" was not applied: context changed during the drag.`);
+      return;
+    }
+    const updated = updatePlacement(
+      this.placements,
+      drag.placementId,
+      candidate,
+      this.logos,
+      ctx.regions.map((region) => region.regionId),
+    );
+    const placementId = drag.placementId;
+    this.pendingDragFocus = placementId;
+    this.releaseDragCapture(drag.pointerId);
+    this.activeDrag = null;
+    if (!updated.ok) {
+      this.hydrateEditor(baseline);
+      this.setNote(`Drag of "${placementId}" was not applied: ${updated.error}`);
+      this.render(ctx);
+      return;
+    }
+    this.placements = updated.placements;
+    this.selectedPlacementId = placementId;
+    const committed = this.placements[placementId];
+    if (committed !== undefined) this.hydrateEditor(committed);
+    this.setNote(`Placement "${placementId}" moved (draft only).`);
+    this.notify("placements", `placement dragged ${placementId}`);
+    this.render();
+  }
+
+  private onDragPointerCancel(e: PointerEvent): void {
+    const drag = this.activeDrag;
+    if (drag === null || e.pointerId !== drag.pointerId) return;
+    this.cancelActiveDrag(`Drag of "${drag.placementId}" cancelled; no changes applied.`);
+  }
+
+  private onDragLostCapture(e: PointerEvent): void {
+    // A real capture loss mid-gesture aborts like a cancel — but only for
+    // the captured pointer id. Note: `lostpointercapture` also fires after
+    // an intentional release, but pointerup clears activeDrag first, so this
+    // is a no-op in that path.
+    const drag = this.activeDrag;
+    if (drag === null || e.pointerId !== drag.pointerId) return;
+    this.cancelActiveDrag("Drag cancelled (pointer capture lost); no changes applied.");
+  }
+
+  private onDragKeyDown(e: KeyboardEvent): void {
+    if ((e.key === "Enter" || e.key === " ") && this.activeDrag === null) {
+      const target = e.target instanceof Element ? e.target : null;
+      const fp = target === null ? null : target.closest("[data-placement-id]");
+      const placementId = fp === null ? null : fp.getAttribute("data-placement-id");
+      if (placementId !== null && placementId !== "") {
+        e.preventDefault();
+        this.onSelectPlacement(placementId);
+        return;
+      }
+    }
+    if (e.key === "Escape" && this.activeDrag !== null) {
+      e.preventDefault();
+      const id = this.activeDrag.placementId;
+      this.cancelActiveDrag(`Drag of "${id}" cancelled; no changes applied.`);
+    }
+  }
+
+  /**
+   * Cancel path: discard candidate, hydrate numeric fields back to the
+   * committed baseline, re-render, release capture safely, leave late events
+   * inert. Covers Escape / pointercancel / lostpointercapture / blur / live
+   * stale (move, pointerup, render top).
+   */
+  private cancelActiveDrag(message: string): void {
+    const drag = this.activeDrag;
+    if (drag === null) return;
+    this.pendingDragFocus = drag.placementId;
+    this.releaseDragCapture(drag.pointerId);
+    this.activeDrag = null;
+    const baseline = this.placements[drag.placementId];
+    if (baseline !== undefined) this.hydrateEditor(baseline);
+    this.setNote(message);
+    this.render();
+  }
+
+  /**
+   * Silent variant for render/host-swap invalidation: same hygiene as
+   * cancel but without note spam, so a late pointerup stays a silent no-op.
+   * Never calls render() itself — the render-top caller continues its own
+   * pass on committed state, and host-swap callers render explicitly — so
+   * no re-entrancy through the render-top invalidation check.
+   */
+  private dropActiveDrag(): void {
+    const drag = this.activeDrag;
+    if (drag === null) return;
+    this.pendingDragFocus = drag.placementId;
+    this.releaseDragCapture(drag.pointerId);
+    this.activeDrag = null;
+    const baseline = this.placements[drag.placementId];
+    if (baseline !== undefined) this.hydrateEditor(baseline);
+  }
+
+  /** Safe capture release: try/catch + hasPointerCapture check, never throws. */
+  private releaseDragCapture(pointerId: number): void {
+    try {
+      if (
+        typeof this.preview2d.hasPointerCapture === "function" &&
+        this.preview2d.hasPointerCapture(pointerId)
+      ) {
+        this.preview2d.releasePointerCapture(pointerId);
+      }
+    } catch {
+      return;
+    }
   }
 }
 
