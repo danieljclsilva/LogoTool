@@ -32,6 +32,30 @@ structured physical production specifications.
 - Report changes, verification and remaining gaps accurately.
 - Keep `.gitignore` scoped: when new generated artifacts, local secrets, or customer-specific data paths appear, add explicit entries; keep templates, source, and evidence tracked and review staged files before commit.
 
+## Testing
+
+- Unit/domain: `npm run typecheck`, `npm test` (builds first; Node-only, no
+  browser). Offline inspector acceptance: `npm run test:e2e` (build + bundled
+  chromium), `npm run test:e2e:chrome` / `npm run test:e2e:edge` (real branded
+  browsers), `npm run test:e2e:matrix` (all three; requires Chrome AND Edge).
+  See `docs/offline-testing.md` for projects, fixtures and failure artifacts.
+- Playwright is the primary deterministic check: repo-local `@playwright/test`
+  opens built `dist/asset-inspector.html` directly via `file://` in offline
+  contexts, asserting zero console/page errors and zero HTTP(S) requests. No
+  `webServer`, no fixed scratch-file or external runtime dependencies, synthetic
+  fixtures only. Portable temporary output directories are allowed.
+- Actual Windows Chrome/Edge over `file://` with networking disabled is the
+  delivery release gate (still untested); macOS chromium/Chrome runs are
+  development evidence, never Windows validation. Missing branded browsers
+  must fail clearly — never skip silently or claim bundled Chromium as Chrome.
+- The Browser tool (when installed) is supplementary for interactive
+  inspection only, never a substitute for the suite. Obey explicit user tool
+  preferences and browser security refusals (e.g. `file://` automation
+  rejection): do not bypass, do not infer absence from a skill list — verify
+  actual session capabilities before claiming a tool unavailable.
+- Record OS/browser/version/viewport/offline/results and gaps for every
+  acceptance run. Do not use live Odoo calls as automated tests.
+
 ## Coordination and delegation
 
 - The main Codex agent in this chat coordinates the work. Use `omp` (oh-my-pi)

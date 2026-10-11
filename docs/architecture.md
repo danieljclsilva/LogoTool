@@ -1,6 +1,6 @@
 # Architecture foundation
 
-Status: provisional Phase 2–5 work. Portable domain utilities and an internal
+Status: provisional Phase 2–6 work. Portable domain utilities and an internal
 offline GLB/calibration inspector are implemented. Customer editing, binary
 packaging, PDF rendering and Odoo integration remain pending.
 
@@ -22,7 +22,7 @@ Future layers follow brief §4:
 
 ```text
 src/core         physical domain and workflow (implemented)
-src/viewer       Three.js model inspection/picking (logo rendering future)
+src/viewer       Three.js model inspection/picking and planar synthetic-logo preview
 src/assets       offline external GLB import (generation providers future)
 src/packaging    canonical project, hybrid ZIP, self-contained HTML (future)
 src/platform     file/download/storage interfaces, browser and Tauri adapters (future)
@@ -35,10 +35,10 @@ production units. Tripo and other generation providers remain replaceable;
 external GLB import follows the same asset pipeline.
 
 Calibration fitting and region geometry are standalone pure utilities
-(`src/core/calibration`, `src/core/geometry`, `src/core/planar-region` for provisional oriented planar frames, `src/core/region-areas` for nullable safe polygons + named exclusions bound to exact frame snapshots with a deterministic area bundle). The offline inspector draft layer
-adds viewer picks/markers/region axes, the calibration panel (anchor/measure plus planar-frame fieldset plus safe-area subpanel with 2D mm preview) and pure session helpers. A
+(`src/core/calibration`, `src/core/geometry`, `src/core/planar-region` for provisional oriented planar frames, `src/core/region-areas` for nullable safe polygons + named exclusions bound to exact frame snapshots with a deterministic area bundle, `src/core/logo-placements` for 0..N synthetic-logo placements with recomputed rotated footprints checked against those areas plus a deterministic placement bundle, `src/core/logo-placement-restore` for its atomic local restore). The offline inspector draft layer
+adds viewer picks/markers/region axes/placement overlays (procedural asymmetric synthetic artwork textures UV-mapped to footprint corners with fit outlines, disposed on refresh/clear; depth-buffer bias prevents surface flicker without moving physical corners), the calibration panel (anchor/measure plus planar-frame fieldset plus safe-area subpanel with 2D mm preview plus logo-placement editor with numeric fields, per-placement statuses, 2D mm preview and physical-data-driven 3D overlays) and pure session helpers. A
 provisional local save/restore envelope requires the exact current-asset hash,
-discards imported fit values and recomputes the fit as pending review; planar region bundles are a separate deterministic provisional export with no restore path, while the dedicated area bundle has a local restore path (`src/core/region-areas-restore`, 8 MiB chars, max 128 regions, 512 ring vertices, 64 exclusions/region, 65536 total vertices; nested session limits unchanged). These
+discards imported fit values and recomputes the fit as pending review; planar region bundles are a separate deterministic provisional export with no restore path, while the dedicated area bundle has a local restore path (`src/core/region-areas-restore`, 8 MiB chars, max 128 regions, 512 ring vertices, 64 exclusions/region, 65536 total vertices; nested session limits unchanged). The placement bundle (`0.1.0-provisional-logo-placements`, max 256 placements / 64 logos) has the same trust posture: exact asset hash, recomputed fit/regions/areas/footprints, supplied approval/footprint/status never echoed, malformed/reference-invalid files fail atomically while geometrically-invalid-but-wellformed placements stay editable with explicit non-fitting statuses. These
 utilities are not yet wired into product calibration records or production
 output. Variant transfer remains pending.
 

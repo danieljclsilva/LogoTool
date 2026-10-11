@@ -1,0 +1,78 @@
+<section data-placement-hook="placement-panel" aria-label="Logo placements (provisional offline draft)">
+  <h2>Logo placements (provisional)</h2>
+  <p role="note">
+    <strong>Offline draft only — pending review.</strong>
+    Placements are millimetre rectangles in the selected region frame. The
+    mesh is never authoritative; numbers are recomputed from the fields
+    below on every render.
+  </p>
+  <p data-placement-hook="placement-context" aria-live="polite"></p>
+
+  <fieldset>
+    <legend>Logos (independent catalogue)</legend>
+    <ul data-placement-hook="logo-list"></ul>
+    <div>
+      <label>Logo id
+        <input data-placement-hook="logo-id" type="text" autocomplete="off" />
+      </label>
+      <label>Logo name
+        <input data-placement-hook="logo-name" type="text" autocomplete="off" />
+      </label>
+    </div>
+    <div>
+      <button data-placement-hook="logo-add" type="button">Add logo</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Placement editor (mm, clockwise degrees)</legend>
+    <ul data-placement-hook="placement-list"></ul>
+    <div>
+      <label>Logo
+        <select data-placement-hook="placement-logo"></select>
+      </label>
+      <label>Region
+        <select data-placement-hook="placement-region"></select>
+      </label>
+    </div>
+    <div>
+      <label>Centre x (mm)
+        <input data-placement-hook="placement-x" type="text" inputmode="decimal" autocomplete="off" />
+      </label>
+      <label>Centre y (mm)
+        <input data-placement-hook="placement-y" type="text" inputmode="decimal" autocomplete="off" />
+      </label>
+    </div>
+    <div>
+      <label>Width (mm)
+        <input data-placement-hook="placement-w" type="text" inputmode="decimal" autocomplete="off" />
+      </label>
+      <label>Height (mm)
+        <input data-placement-hook="placement-h" type="text" inputmode="decimal" autocomplete="off" />
+      </label>
+      <label>Rotation, clockwise (deg, in (-180, 180])
+        <input data-placement-hook="placement-rot" type="text" inputmode="decimal" autocomplete="off" />
+      </label>
+    </div>
+    <div>
+      <button data-placement-hook="placement-add" type="button">Add placement</button>
+      <button data-placement-hook="placement-update" type="button">Update selected</button>
+      <button data-placement-hook="placement-delete" type="button">Delete selected</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Status (recomputed per placement)</legend>
+    <div data-placement-hook="placement-status" aria-live="polite"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Preview (mm, not to scale with the 3D view)</legend>
+    <div data-placement-hook="placement-preview2d" role="img" aria-label="Millimetre preview of safe polygons, exclusions, and placement footprints"></div>
+    <div>
+      <button data-placement-hook="placement-sync3d" type="button">Refresh 3D overlay</button>
+    </div>
+  </fieldset>
+
+  <p data-placement-hook="placement-note" role="status" aria-live="polite"></p>
+</section>

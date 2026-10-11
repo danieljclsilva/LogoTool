@@ -52,8 +52,18 @@ import {
   type PlanarRegionRecord,
 } from "../../core/planar-region/index.js";
 import { parseAreaBundleRestore } from "../../core/region-areas-restore/index.js";
+import {
+  buildPlacementBundle,
+  serializePlacementBundle,
+} from "../../core/logo-placements/index.js";
+import {
+  parsePlacementRestore,
+  PLACEMENT_RESTORE_LIMITS,
+} from "../../core/logo-placement-restore/index.js";
 import { RegionAreasPanel } from "./region-areas-panel.js";
 import type { AreasMap } from "../../core/region-areas/index.js";
+import { PlacementPanel } from "../placement/placement-panel.js";
+import type { PlacementDraftBundle, PlacementOverlayItem } from "../placement/placement-panel.js";
 
 export interface RegionAxesFrameLike {
   origin: { x: number; y: number; z: number };
@@ -72,6 +82,7 @@ export interface ViewerPort {
     anchors: Array<{ id: string; model: { x: number; y: number; z: number } }>,
   ): void;
   setRegionAxes(frame: RegionAxesFrameLike | null): void;
+  setPlacementOverlays(items: PlacementOverlayItem[]): void;
 }
 
 export interface CalibrationPanelOptions {
@@ -120,7 +131,10 @@ type HookName =
   | "region-probe"
   | "region-probe-button"
   | "region-probe-result"
-  | "region-export-button";
+  | "region-export-button"
+  | "placement-export-button"
+  | "placement-restore-file"
+  | "placement-restore-button";
 
 /** Click-vs-drag threshold in CSS pixels: larger movement is a drag, ignored. */
 const CLICK_MAX_MOVE_PX = 6;
@@ -169,6 +183,9 @@ export class CalibrationPanel {
   private readonly regionProbeButton: HTMLButtonElement;
   private readonly regionProbeResult: HTMLElement;
   private readonly regionExportButton: HTMLButtonElement;
+  private readonly placementExportButton: HTMLButtonElement;
+  private readonly placementRestoreFile: HTMLInputElement;
+  private readonly placementRestoreButton: HTMLButtonElement;
   private record: AssetRecord | null = null;
   private anchors: DraftAnchor[] = [];
   private measurements: DraftMeasurement[] = [];
@@ -183,6 +200,7 @@ export class CalibrationPanel {
   private regions: PlanarRegionRecord[] = [];
   private activeRegionId: string | null = null;
   private areasPanel: RegionAreasPanel | null = null;
+  private placementPanel: PlacementPanel | null = null;
 
   private constructor(options: CalibrationPanelOptions) {
     this.getViewer = options.viewer;
@@ -237,6 +255,9 @@ export class CalibrationPanel {
     this.regionProbeButton = query<HTMLButtonElement>("region-probe-button");
     this.regionProbeResult = query("region-probe-result");
     this.regionExportButton = query<HTMLButtonElement>("region-export-button");
+    this.placementExportButton = query<HTMLButtonElement>("placement-export-button");
+    this.placementRestoreFile = query<HTMLInputElement>("placement-restore-file");
+    this.placementRestoreButton = query<HTMLButtonElement>("placement-restore-button");
 
     for (const input of [this.productInput, this.variantInput, this.calibrationInput,
       this.frameInput, this.versionInput, this.toleranceMmInput, this.toleranceRelativeInput]) {
@@ -274,6 +295,32 @@ export class CalibrationPanel {
         if (kind === "areas") this.render();
       },
     });
+    this.placementPanel = PlacementPanel.bind({
+      root: options.root,
+      getContext: () => ({
+        regions: [...this.regions],
+        areas: this.areasPanel?.areas ?? (Object.create(null) as AreasMap),
+        evidence: this.fitEvidence,
+        fit: this.fit,
+        fitReady: this.isRegionFitReady(),
+        fitSnapshot: this.fitSnapshot,
+        draftEvidenceSnapshot: this.draftSnapshot(),
+        assetSha: this.record?.sha256Hex ?? null,
+        restoreBusy: this.restoreBusy,
+      }),
+      notify: (kind) => {
+        if (kind === "placements") this.render();
+      },
+      viewer: () => {
+        const viewer = this.getViewer();
+        if (viewer === null) return null;
+        return {
+          setPlacementOverlays: (items: PlacementOverlayItem[]) => {
+            viewer.setPlacementOverlays(items);
+          },
+        };
+      },
+    });
 
     this.armButton.addEventListener("click", () => {
       this.onArm();
@@ -298,6 +345,12 @@ export class CalibrationPanel {
     });
     this.areaRestoreButton.addEventListener("click", () => {
       void this.onAreaRestore();
+    });
+    this.placementExportButton.addEventListener("click", () => {
+      this.onExportPlacements();
+    });
+    this.placementRestoreButton.addEventListener("click", () => {
+      void this.onPlacementRestore();
     });
     const canvas = document.querySelector(
       '[data-inspector-hook="canvas"]',
@@ -333,6 +386,7 @@ export class CalibrationPanel {
     this.regions = [];
     this.activeRegionId = null;
     this.areasPanel?.reset();
+    this.placementPanel?.reset();
     this.regionIdInput.value = "";
     this.regionFrameInput.value = "";
     this.regionToleranceInput.value = "";
@@ -349,10 +403,12 @@ export class CalibrationPanel {
     this.measureDistanceInput.value = "";
     this.restoreFile.value = "";
     this.areaRestoreFile.value = "";
+    this.placementRestoreFile.value = "";
     const viewer = this.getViewer();
     if (viewer !== null) {
       viewer.setAnchorMarkers([]);
       viewer.setRegionAxes(null);
+      viewer.setPlacementOverlays([]);
     }
     this.setStatus(
       record === null
@@ -508,6 +564,7 @@ export class CalibrationPanel {
       this.activeRegionId = null;
     }
     this.areasPanel?.pruneToRegions(this.regions);
+    this.placementPanel?.pruneToContext(this.placementContext());
     this.syncMarkers();
     this.syncRegionAxes();
     this.setStatus(
@@ -755,6 +812,7 @@ export class CalibrationPanel {
     this.regions = [];
     this.activeRegionId = null;
     this.areasPanel?.reset();
+    this.placementPanel?.pruneToContext(this.placementContext());
     this.regionIdInput.value = "";
     this.regionFrameInput.value = "";
     this.regionToleranceInput.value = "";
@@ -859,6 +917,7 @@ export class CalibrationPanel {
     this.syncMarkers();
     this.syncRegionAxes();
     this.areasPanel?.replaceSavedAreas(areas);
+    this.placementPanel?.pruneToContext(this.placementContext());
     this.restoreBusy = false;
     this.areaRestoreFile.value = "";
     this.render();
@@ -901,6 +960,29 @@ export class CalibrationPanel {
     return isFitCurrent(this.draftEvidence(), this.fitSnapshot);
   }
 
+  private placementContext(): {
+    regions: PlanarRegionRecord[];
+    areas: AreasMap;
+    evidence: CalibrationEvidence | null;
+    fit: UniformFitResult | null;
+    fitReady: boolean;
+    fitSnapshot: string | null;
+    draftEvidenceSnapshot: string | null;
+    assetSha: string | null;
+    restoreBusy: boolean;
+  } {
+    return {
+      regions: [...this.regions],
+      areas: this.areasPanel?.areas ?? (Object.create(null) as AreasMap),
+      evidence: this.fitEvidence,
+      fit: this.fit,
+      fitReady: this.isRegionFitReady(),
+      fitSnapshot: this.fitSnapshot,
+      draftEvidenceSnapshot: this.draftSnapshot(),
+      assetSha: this.record?.sha256Hex ?? null,
+      restoreBusy: this.restoreBusy,
+    };
+  }
   private isActiveRegionReady(): boolean {
     const active = this.activeRegion();
     const evidence = this.draftEvidence();
@@ -983,6 +1065,7 @@ export class CalibrationPanel {
     this.regions = this.regions.filter((region) => region.regionId !== regionId);
     if (this.activeRegionId === regionId) this.activeRegionId = null;
     this.areasPanel?.pruneToRegions(this.regions);
+    this.placementPanel?.pruneToContext(this.placementContext());
     this.syncRegionAxes();
     this.setStatus(`Planar region "${regionId}" removed. Recreate it against the current fit if still needed.`);
     this.render();
@@ -1063,6 +1146,151 @@ export class CalibrationPanel {
     this.setStatus("Exported provisional planar region bundle (pending review, never approved).");
   }
 
+  /**
+   * Deterministic provisional placement-bundle download. The fit is
+   * re-verified and every footprint/status recomputed inside
+   * `buildPlacementBundle`; supplied panel numbers are the only artwork
+   * authority. Geometrically-invalid-but-wellformed placements export with
+   * explicit fits:false statuses; malformed/reference-invalid drafts fail
+   * with no file written.
+   */
+  private onExportPlacements(): void {
+    if (this.record === null || this.fit === null || this.fitEvidence === null || this.fitSnapshot === null) {
+      this.setStatus("Placement export unavailable: fit is missing. Fit a consistent scale first.");
+      this.render();
+      return;
+    }
+    if (this.fit.inconsistent) {
+      this.setStatus("Placement export unavailable: fit is INCONSISTENT. Refit before exporting.");
+      this.render();
+      return;
+    }
+    if (!isFitCurrent(this.draftEvidence(), this.fitSnapshot)) {
+      this.setStatus("Placement export unavailable: fit is STALE or evidence changed. Refit before exporting.");
+      this.render();
+      return;
+    }
+    if (this.regions.length === 0) {
+      this.setStatus("Placement export unavailable: no planar regions authored yet.");
+      this.render();
+      return;
+    }
+    const snapshot = this.fitSnapshot;
+    const stale = this.regions.filter((region) => isRegionStale(region, snapshot));
+    if (stale.length > 0) {
+      this.setStatus(
+        `Placement export unavailable: ${stale.length} stale region(s) (${stale.map((region) => region.regionId).join(", ")}). Remove and recreate them against the current fit.`,
+      );
+      this.render();
+      return;
+    }
+    const draft: PlacementDraftBundle = this.placementPanel?.collectDraft() ?? { logos: Object.create(null), placements: Object.create(null) };
+    const areas = this.areasPanel?.areas ?? (Object.create(null) as AreasMap);
+    const built = buildPlacementBundle(
+      this.fitEvidence,
+      this.fit,
+      [...this.regions],
+      areas,
+      draft.logos,
+      draft.placements,
+      snapshot,
+    );
+    if (!built.ok) {
+      this.setStatus(`Placement export failed: ${built.error}.`);
+      this.render();
+      return;
+    }
+    const text = serializePlacementBundle(built.bundle);
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `logo-placements-${this.sanitizeFileFragment(this.fitEvidence.calibrationId)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    const invalid = built.bundle.statuses.filter((status) => !status.fits).length;
+    this.setStatus(
+      invalid > 0
+        ? `Exported provisional placement bundle with ${invalid} non-fitting placement(s) flagged (pending review, never approved).`
+        : "Exported provisional placement bundle (pending review, never approved).",
+    );
+  }
+
+  /**
+   * Atomic trusted restore of a placement bundle: exact current-asset hash,
+   * recomputed fit/regions/areas/footprints via `parsePlacementRestore`.
+   * Supplied approval/footprint/status values are never echoed. On failure
+   * nothing is swapped (panels keep prior state).
+   */
+  private async onPlacementRestore(): Promise<void> {
+    if (this.restoreBusy) return;
+    if (this.record === null) {
+      this.setStatus("Load an asset before restoring a placement bundle.");
+      return;
+    }
+    const files = this.placementRestoreFile.files;
+    const file = files !== null && files.length > 0 ? files[0] : undefined;
+    if (file === undefined) {
+      this.setStatus("No file selected: choose a placement bundle JSON file first.");
+      return;
+    }
+    if (file.size > PLACEMENT_RESTORE_LIMITS.maxChars) {
+      this.placementRestoreFile.value = "";
+      this.setStatus(`Placement restore failed: file exceeds ${PLACEMENT_RESTORE_LIMITS.maxChars} bytes.`);
+      return;
+    }
+    const seq = ++this.restoreSeq;
+    const loadRecord = this.record;
+    const loadSha = loadRecord.sha256Hex;
+    this.restoreBusy = true;
+    this.render();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+      this.restoreBusy = false;
+      this.placementRestoreFile.value = "";
+      this.setStatus("Placement restore failed: could not read the selected file.");
+      this.render();
+      return;
+    }
+    if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+    const parsed = parsePlacementRestore(text, loadSha);
+    if (!parsed.ok) {
+      this.restoreBusy = false;
+      this.placementRestoreFile.value = "";
+      this.setStatus(`Placement restore failed: ${parsed.error}.`);
+      this.render();
+      return;
+    }
+    const sortedRegions = [...parsed.bundle.regions].sort((a, b) =>
+      a.regionId < b.regionId ? -1 : a.regionId > b.regionId ? 1 : 0,
+    );
+    const restoredAreas: AreasMap = Object.create(null) as AreasMap;
+    for (const record of parsed.bundle.areas) {
+      restoredAreas[record.regionId] = record;
+    }
+    this.applyRecomputedDraft(parsed.draft.fields, parsed.draft.anchors, parsed.draft.measurements, parsed.evidence, parsed.fit);
+    this.regions = sortedRegions;
+    this.activeRegionId = sortedRegions.length > 0 ? sortedRegions[0]!.regionId : null;
+    this.regionIdInput.value = "";
+    this.regionFrameInput.value = "";
+    this.regionToleranceInput.value = "";
+    this.regionProbeResult.replaceChildren();
+    this.syncMarkers();
+    this.syncRegionAxes();
+    this.areasPanel?.replaceSavedAreas(restoredAreas);
+    this.placementPanel?.replaceDraft({ logos: parsed.draft.logos, placements: parsed.draft.placements });
+    this.restoreBusy = false;
+    this.placementRestoreFile.value = "";
+    this.render();
+    this.setStatus(
+      "Placement bundle restored: fit, regions, areas and footprints recomputed locally. Pending review, never approved.",
+    );
+  }
   private syncRegionAxes(): void {
     const viewer = this.getViewer();
     if (viewer === null) return;
@@ -1117,6 +1345,8 @@ export class CalibrationPanel {
     this.restoreFile.disabled = this.record === null || this.restoreBusy;
     this.areaRestoreButton.disabled = this.record === null || this.restoreBusy;
     this.areaRestoreFile.disabled = this.record === null || this.restoreBusy;
+    this.placementRestoreButton.disabled = this.record === null || this.restoreBusy;
+    this.placementRestoreFile.disabled = this.record === null || this.restoreBusy;
     this.regionIdInput.disabled = !enabled;
     this.regionFrameInput.disabled = !enabled;
     this.regionToleranceInput.disabled = !enabled;
@@ -1125,12 +1355,33 @@ export class CalibrationPanel {
     this.syncRegionAxes();
     if (!this.isActiveRegionReady()) this.regionProbeResult.replaceChildren();
     this.areasPanel?.setEnabledFromHost();
+    this.placementPanel?.setEnabledFromHost();
     this.renderFit();
+    this.renderPlacementExport();
     if (this.restoreBusy) {
       this.exportButton.disabled = true;
       this.regionExportButton.disabled = true;
+      this.placementExportButton.disabled = true;
     }
     this.syncRegionAxes();
+  }
+
+  /** Enable the placement-export button only when a bundle can build. */
+  private renderPlacementExport(): void {
+    if (this.record === null || this.fit === null || this.fitEvidence === null || this.fitSnapshot === null) {
+      this.placementExportButton.disabled = true;
+      return;
+    }
+    if (this.fit.inconsistent || !isFitCurrent(this.draftEvidence(), this.fitSnapshot)) {
+      this.placementExportButton.disabled = true;
+      return;
+    }
+    if (this.regions.length === 0) {
+      this.placementExportButton.disabled = true;
+      return;
+    }
+    const snapshot = this.fitSnapshot;
+    this.placementExportButton.disabled = this.regions.some((region) => isRegionStale(region, snapshot));
   }
   private renderAnchors(enabled: boolean): void {
     const selectedA = this.measureA.value, selectedB = this.measureB.value;

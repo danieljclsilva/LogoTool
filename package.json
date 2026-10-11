@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@types/node": "^22.20.5",
     "@types/three": "^0.186.0",
     "esbuild": "^0.28.2",
@@ -10,8 +11,12 @@
   "scripts": {
     "build": "tsc && node scripts/build-inspector.mjs",
     "test": "npm run build && node --test dist/tests-ts/*.test.js",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.viewer.json",
-    "generate:models": "node scripts/generate-synthetic-glb.mjs"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.viewer.json && tsc -p tsconfig.e2e.json",
+    "generate:models": "node scripts/generate-synthetic-glb.mjs",
+    "test:e2e": "npm run build && playwright test --project=chromium",
+    "test:e2e:chrome": "npm run build && playwright test --project=chrome",
+    "test:e2e:edge": "npm run build && playwright test --project=msedge",
+    "test:e2e:matrix": "npm run build && playwright test"
   },
   "type": "module",
   "version": "0.1.0",

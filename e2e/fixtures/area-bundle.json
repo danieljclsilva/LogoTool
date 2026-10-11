@@ -1,0 +1,263 @@
+{
+  "areas": [
+    {
+      "exclusions": [],
+      "frameId": "back-frame",
+      "frameSnapshot": "{\"assetFullSha256\":\"__ASSET_SHA256__\",\"calibrationFrameId\":\"asset-scene-root\",\"calibrationId\":\"syn-calibration\",\"frameId\":\"back-frame\",\"mmPerModelUnit\":94.58033737310733,\"normal\":{\"x\":-4.364873631932628e-16,\"y\":1.1884155727217087e-16,\"z\":1},\"offPlaneToleranceMm\":0.01,\"origin\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.5000000000000004},\"originAnchorId\":\"A\",\"product\":\"SYN-BOX\",\"provisionalVersion\":\"draft-1\",\"regionId\":\"back\",\"sourceEvidenceSnapshot\":\"{\\\"assetFullSha256\\\":\\\"__ASSET_SHA256__\\\",\\\"calibrationId\\\":\\\"syn-calibration\\\",\\\"frameId\\\":\\\"asset-scene-root\\\",\\\"measuredDistanceMm\\\":100,\\\"pairIds\\\":[\\\"A\\\",\\\"B\\\"],\\\"pairs\\\":[{\\\"id\\\":\\\"A\\\",\\\"model\\\":{\\\"x\\\":4.98784590375354,\\\"y\\\":2.1806903392685064,\\\"z\\\":-2.5000000000000004},\\\"semanticRole\\\":\\\"synthetic-test-role\\\"},{\\\"id\\\":\\\"B\\\",\\\"model\\\":{\\\"x\\\":6.038202956418286,\\\"y\\\":2.3016780712458837,\\\"z\\\":-2.5},\\\"semanticRole\\\":\\\"synthetic-test-role\\\"},{\\\"id\\\":\\\"C\\\",\\\"model\\\":{\\\"x\\\":5.1374234482978,\\\"y\\\":2.730066411996355,\\\"z\\\":-2.5000000000000004},\\\"semanticRole\\\":\\\"synthetic-Y-side\\\"},{\\\"id\\\":\\\"P\\\",\\\"model\\\":{\\\"x\\\":4.98784590375354,\\\"y\\\":2.1806903392685064,\\\"z\\\":-2.3000000000000003},\\\"semanticRole\\\":\\\"synthetic-off-plane-probe\\\"}],\\\"product\\\":\\\"SYN-BOX\\\",\\\"provisionalVersion\\\":\\\"draft-1\\\",\\\"relativeTolerance\\\":0.01,\\\"toleranceMm\\\":0.5,\\\"variant\\\":\\\"SYN-V1\\\"}\",\"variant\":\"SYN-V1\",\"xAnchorId\":\"B\",\"xAxis\":{\"x\":0.9934312440325436,\"y\":0.11443060508427433,\"z\":4.2002107291375574e-16},\"yAnchorId\":\"C\",\"yAxis\":{\"x\":-0.11443060508427444,\"y\":0.9934312440325433,\"z\":-1.6800842916550197e-16}}",
+      "regionId": "back",
+      "safePolygon": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 50,
+          "y": 0
+        },
+        {
+          "x": 50,
+          "y": 50
+        },
+        {
+          "x": 0,
+          "y": 50
+        }
+      ]
+    },
+    {
+      "exclusions": [
+        {
+          "id": "pocket",
+          "name": "Synthetic pocket",
+          "polygon": [
+            {
+              "x": 15,
+              "y": 15
+            },
+            {
+              "x": 25,
+              "y": 15
+            },
+            {
+              "x": 25,
+              "y": 25
+            },
+            {
+              "x": 15,
+              "y": 25
+            }
+          ]
+        }
+      ],
+      "frameId": "front-frame",
+      "frameSnapshot": "{\"assetFullSha256\":\"__ASSET_SHA256__\",\"calibrationFrameId\":\"asset-scene-root\",\"calibrationId\":\"syn-calibration\",\"frameId\":\"front-frame\",\"mmPerModelUnit\":94.58033737310733,\"normal\":{\"x\":-4.364873631932628e-16,\"y\":1.1884155727217087e-16,\"z\":1},\"offPlaneToleranceMm\":0.01,\"origin\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.5000000000000004},\"originAnchorId\":\"A\",\"product\":\"SYN-BOX\",\"provisionalVersion\":\"draft-1\",\"regionId\":\"front\",\"sourceEvidenceSnapshot\":\"{\\\"assetFullSha256\\\":\\\"__ASSET_SHA256__\\\",\\\"calibrationId\\\":\\\"syn-calibration\\\",\\\"frameId\\\":\\\"asset-scene-root\\\",\\\"measuredDistanceMm\\\":100,\\\"pairIds\\\":[\\\"A\\\",\\\"B\\\"],\\\"pairs\\\":[{\\\"id\\\":\\\"A\\\",\\\"model\\\":{\\\"x\\\":4.98784590375354,\\\"y\\\":2.1806903392685064,\\\"z\\\":-2.5000000000000004},\\\"semanticRole\\\":\\\"synthetic-test-role\\\"},{\\\"id\\\":\\\"B\\\",\\\"model\\\":{\\\"x\\\":6.038202956418286,\\\"y\\\":2.3016780712458837,\\\"z\\\":-2.5},\\\"semanticRole\\\":\\\"synthetic-test-role\\\"},{\\\"id\\\":\\\"C\\\",\\\"model\\\":{\\\"x\\\":5.1374234482978,\\\"y\\\":2.730066411996355,\\\"z\\\":-2.5000000000000004},\\\"semanticRole\\\":\\\"synthetic-Y-side\\\"},{\\\"id\\\":\\\"P\\\",\\\"model\\\":{\\\"x\\\":4.98784590375354,\\\"y\\\":2.1806903392685064,\\\"z\\\":-2.3000000000000003},\\\"semanticRole\\\":\\\"synthetic-off-plane-probe\\\"}],\\\"product\\\":\\\"SYN-BOX\\\",\\\"provisionalVersion\\\":\\\"draft-1\\\",\\\"relativeTolerance\\\":0.01,\\\"toleranceMm\\\":0.5,\\\"variant\\\":\\\"SYN-V1\\\"}\",\"variant\":\"SYN-V1\",\"xAnchorId\":\"B\",\"xAxis\":{\"x\":0.9934312440325436,\"y\":0.11443060508427433,\"z\":4.2002107291375574e-16},\"yAnchorId\":\"C\",\"yAxis\":{\"x\":-0.11443060508427444,\"y\":0.9934312440325433,\"z\":-1.6800842916550197e-16}}",
+      "regionId": "front",
+      "safePolygon": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 100,
+          "y": 0
+        },
+        {
+          "x": 100,
+          "y": 100
+        },
+        {
+          "x": 60,
+          "y": 100
+        },
+        {
+          "x": 60,
+          "y": 40
+        },
+        {
+          "x": 40,
+          "y": 40
+        },
+        {
+          "x": 40,
+          "y": 100
+        },
+        {
+          "x": 0,
+          "y": 100
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "provisional planar frame draft; not production approved",
+    "planar mapping cannot model curved surfaces",
+    "provisional safe-area draft; not production approved",
+    "unconfigured frames (no safe polygon) are draft-only placeholders"
+  ],
+  "pendingReview": true,
+  "productionApproved": false,
+  "regions": [
+    {
+      "assetFullSha256": "__ASSET_SHA256__",
+      "calibrationFrameId": "asset-scene-root",
+      "calibrationId": "syn-calibration",
+      "frameId": "back-frame",
+      "mmPerModelUnit": 94.58033737310733,
+      "normal": {
+        "x": -4.364873631932628e-16,
+        "y": 1.1884155727217087e-16,
+        "z": 1
+      },
+      "offPlaneToleranceMm": 0.01,
+      "origin": {
+        "x": 4.98784590375354,
+        "y": 2.1806903392685064,
+        "z": -2.5000000000000004
+      },
+      "originAnchorId": "A",
+      "product": "SYN-BOX",
+      "provisionalVersion": "draft-1",
+      "regionId": "back",
+      "sourceEvidenceSnapshot": "{\"assetFullSha256\":\"__ASSET_SHA256__\",\"calibrationId\":\"syn-calibration\",\"frameId\":\"asset-scene-root\",\"measuredDistanceMm\":100,\"pairIds\":[\"A\",\"B\"],\"pairs\":[{\"id\":\"A\",\"model\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.5000000000000004},\"semanticRole\":\"synthetic-test-role\"},{\"id\":\"B\",\"model\":{\"x\":6.038202956418286,\"y\":2.3016780712458837,\"z\":-2.5},\"semanticRole\":\"synthetic-test-role\"},{\"id\":\"C\",\"model\":{\"x\":5.1374234482978,\"y\":2.730066411996355,\"z\":-2.5000000000000004},\"semanticRole\":\"synthetic-Y-side\"},{\"id\":\"P\",\"model\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.3000000000000003},\"semanticRole\":\"synthetic-off-plane-probe\"}],\"product\":\"SYN-BOX\",\"provisionalVersion\":\"draft-1\",\"relativeTolerance\":0.01,\"toleranceMm\":0.5,\"variant\":\"SYN-V1\"}",
+      "variant": "SYN-V1",
+      "xAnchorId": "B",
+      "xAxis": {
+        "x": 0.9934312440325436,
+        "y": 0.11443060508427433,
+        "z": 4.2002107291375574e-16
+      },
+      "yAnchorId": "C",
+      "yAxis": {
+        "x": -0.11443060508427444,
+        "y": 0.9934312440325433,
+        "z": -1.6800842916550197e-16
+      }
+    },
+    {
+      "assetFullSha256": "__ASSET_SHA256__",
+      "calibrationFrameId": "asset-scene-root",
+      "calibrationId": "syn-calibration",
+      "frameId": "front-frame",
+      "mmPerModelUnit": 94.58033737310733,
+      "normal": {
+        "x": -4.364873631932628e-16,
+        "y": 1.1884155727217087e-16,
+        "z": 1
+      },
+      "offPlaneToleranceMm": 0.01,
+      "origin": {
+        "x": 4.98784590375354,
+        "y": 2.1806903392685064,
+        "z": -2.5000000000000004
+      },
+      "originAnchorId": "A",
+      "product": "SYN-BOX",
+      "provisionalVersion": "draft-1",
+      "regionId": "front",
+      "sourceEvidenceSnapshot": "{\"assetFullSha256\":\"__ASSET_SHA256__\",\"calibrationId\":\"syn-calibration\",\"frameId\":\"asset-scene-root\",\"measuredDistanceMm\":100,\"pairIds\":[\"A\",\"B\"],\"pairs\":[{\"id\":\"A\",\"model\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.5000000000000004},\"semanticRole\":\"synthetic-test-role\"},{\"id\":\"B\",\"model\":{\"x\":6.038202956418286,\"y\":2.3016780712458837,\"z\":-2.5},\"semanticRole\":\"synthetic-test-role\"},{\"id\":\"C\",\"model\":{\"x\":5.1374234482978,\"y\":2.730066411996355,\"z\":-2.5000000000000004},\"semanticRole\":\"synthetic-Y-side\"},{\"id\":\"P\",\"model\":{\"x\":4.98784590375354,\"y\":2.1806903392685064,\"z\":-2.3000000000000003},\"semanticRole\":\"synthetic-off-plane-probe\"}],\"product\":\"SYN-BOX\",\"provisionalVersion\":\"draft-1\",\"relativeTolerance\":0.01,\"toleranceMm\":0.5,\"variant\":\"SYN-V1\"}",
+      "variant": "SYN-V1",
+      "xAnchorId": "B",
+      "xAxis": {
+        "x": 0.9934312440325436,
+        "y": 0.11443060508427433,
+        "z": 4.2002107291375574e-16
+      },
+      "yAnchorId": "C",
+      "yAxis": {
+        "x": -0.11443060508427444,
+        "y": 0.9934312440325433,
+        "z": -1.6800842916550197e-16
+      }
+    }
+  ],
+  "schemaVersion": "0.1.0-provisional-region-areas",
+  "session": {
+    "evidence": {
+      "assetFullSha256": "__ASSET_SHA256__",
+      "calibrationId": "syn-calibration",
+      "frameId": "asset-scene-root",
+      "measuredDistanceMm": 100,
+      "pairIds": [
+        "A",
+        "B"
+      ],
+      "pairs": [
+        {
+          "id": "A",
+          "model": {
+            "x": 4.98784590375354,
+            "y": 2.1806903392685064,
+            "z": -2.5000000000000004
+          },
+          "semanticRole": "synthetic-test-role"
+        },
+        {
+          "id": "B",
+          "model": {
+            "x": 6.038202956418286,
+            "y": 2.3016780712458837,
+            "z": -2.5
+          },
+          "semanticRole": "synthetic-test-role"
+        },
+        {
+          "id": "C",
+          "model": {
+            "x": 5.1374234482978,
+            "y": 2.730066411996355,
+            "z": -2.5000000000000004
+          },
+          "semanticRole": "synthetic-Y-side"
+        },
+        {
+          "id": "P",
+          "model": {
+            "x": 4.98784590375354,
+            "y": 2.1806903392685064,
+            "z": -2.3000000000000003
+          },
+          "semanticRole": "synthetic-off-plane-probe"
+        }
+      ],
+      "product": "SYN-BOX",
+      "provisionalVersion": "draft-1",
+      "relativeTolerance": 0.01,
+      "toleranceMm": 0.5,
+      "variant": "SYN-V1"
+    },
+    "fit": {
+      "assetFullSha256": "__ASSET_SHA256__",
+      "calibrationId": "syn-calibration",
+      "frameId": "asset-scene-root",
+      "inconsistent": false,
+      "limitations": [
+        "Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation; directional distortion is undetectable by this kernel.",
+        "Result is provisional and pending human review; this kernel never production-approves a calibration."
+      ],
+      "maxResidualMm": 0,
+      "pendingReview": true,
+      "perPair": [
+        {
+          "id": "[\"A\",\"B\"]",
+          "measuredDistanceMm": 100,
+          "modelDistance": 1.0573022128850398,
+          "pairIds": [
+            "A",
+            "B"
+          ],
+          "predictedDistanceMm": 100,
+          "residualMm": 0
+        }
+      ],
+      "product": "SYN-BOX",
+      "productionApproved": false,
+      "provisionalVersion": "draft-1",
+      "relativeTolerance": 0.01,
+      "scaleMmPerUnit": 94.58033737310733,
+      "schemaVersion": "0.1.0-provisional-calibration",
+      "toleranceMm": 0.5,
+      "variant": "SYN-V1"
+    },
+    "schemaVersion": "0.1.0-provisional-calibration-session"
+  }
+}

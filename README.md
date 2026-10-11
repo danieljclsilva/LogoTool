@@ -35,13 +35,17 @@ Use Node.js 22.18+ (verified here on 26.10) for development only:
 
 ```sh
 npm ci
+npx playwright install chromium # setup only (may need network)
 npm run typecheck
 npm test
+npm run test:e2e # maintained offline inspector suite (build + bundled chromium)
 python3 -m unittest discover -s tests -v
 ```
 
 `npm test` builds the TypeScript code first; `npm run build` also works separately.
 The customer package will not require Node or Python.
+Real Chrome/Edge runs: `npm run test:e2e:chrome`, `npm run test:e2e:edge`,
+`npm run test:e2e:matrix`. See [offline testing](docs/offline-testing.md).
 
 Implemented: generalized products/variants/regions, mm placements with explicit
 frames and calibration references, schema and reference validation, canonical
@@ -64,7 +68,7 @@ calibration/geometry kernel exists (Phase 5 partial: scale fitting, planar
 mapping, polygon containment; synthetic fixtures only, no production wiring —
 see [calibration](docs/calibration.md)). Variant-transfer behavior, real
 calibration, 3D editing, binary project packaging,
-operation PDFs and the Builder remain pending. An internal single-HTML asset inspector has been tested offline in macOS Chrome;
+operation PDFs and the Builder remain pending. The internal single-HTML asset inspector has a maintained offline Playwright suite (`e2e/`, 8 specs) passing on macOS bundled chromium and installed Chrome (see [offline testing](docs/offline-testing.md));
 the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
 remains the delivery acceptance test.
 

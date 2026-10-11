@@ -143,3 +143,43 @@ export {
 } from "./region-areas/index.js";
 export type { ParseAreaBundleRestoreResult } from "./region-areas-restore/index.js";
 export { AREA_RESTORE_LIMITS, parseAreaBundleRestore } from "./region-areas-restore/index.js";
+export type {
+  AddLogoResult,
+  AddPlacementResult,
+  BuildPlacementBundleResult,
+  CheckPlacementFootprintResult,
+  DraftLogo,
+  DraftPlacement,
+  LogosMap,
+  PlacementBundle,
+  PlacementStatus,
+  PlacementsMap,
+  RemoveLogoResult,
+  RemovePlacementResult,
+  UpdatePlacementResult,
+} from "./logo-placements/index.js";
+export {
+  PLACEMENT_BUNDLE_VERSION,
+  PLACEMENT_LIMITS,
+  addLogo,
+  addPlacement,
+  buildPlacementBundle,
+  checkPlacementFootprint,
+  placementFootprint,
+  prunePlacements,
+  removeLogo,
+  removePlacement,
+  serializePlacementBundle,
+  statusAll,
+  updatePlacement,
+  validateDraftLogo,
+  validateDraftPlacement,
+} from "./logo-placements/index.js";
+export type {
+  ParsePlacementRestoreResult,
+  PlacementRestoreDraft,
+} from "./logo-placement-restore/index.js";
+export {
+  PLACEMENT_RESTORE_LIMITS,
+  parsePlacementRestore,
+} from "./logo-placement-restore/index.js";

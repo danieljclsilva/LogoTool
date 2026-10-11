@@ -46,6 +46,21 @@ export interface RegionAxesFrame {
   lengthMm: number;
   mmPerModelUnit: number;
 }
+/** One logo-placement overlay quad in wrapper-local model coords. */
+export interface PlacementOverlayItem {
+  id: string;
+  regionId: string;
+  cornersModel: Array<{ x: number; y: number; z: number }>;
+  fits: boolean;
+  selected: boolean;
+  /**
+   * Opaque artwork identity token selecting the procedural preview texture
+   * (e.g. `mark-a` / `mark-b` from the placement panel). Optional so older
+   * callers still compile; missing/empty/unknown tokens fall back to the
+   * default variant. Never affects geometry — corners alone drive position.
+   */
+  art?: string;
+}
 
 const FIT_DISTANCE_FACTOR = 1.15;
 const NEAR_FACTOR = 1 / 100;
@@ -70,6 +85,7 @@ export class ModelViewer {
   private readonly markerGeometry: THREE.SphereGeometry;
   private readonly markerMaterial: THREE.MeshBasicMaterial;
   private readonly axesGroup: THREE.Group;
+  private readonly placementGroup: THREE.Group;
   private readonly axesXMaterial: THREE.LineBasicMaterial;
   private readonly axesYMaterial: THREE.LineBasicMaterial;
   private readonly container: HTMLElement;
@@ -106,6 +122,9 @@ export class ModelViewer {
     this.axesGroup = new THREE.Group();
     this.axesGroup.name = 'region-axes';
     this.wrapper.add(this.axesGroup);
+    this.placementGroup = new THREE.Group();
+    this.placementGroup.name = 'placement-overlays';
+    this.wrapper.add(this.placementGroup);
     this.axesXMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     this.axesYMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
@@ -195,7 +214,7 @@ export class ModelViewer {
     this.clearModel();
     this.wrapper.add(parsed.scene);
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup) this.applyWireframe(child, this.wireframe);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) this.applyWireframe(child, this.wireframe);
     }
     this.fitView();
     return this.setStatus({ kind: 'ready' });
@@ -261,7 +280,7 @@ export class ModelViewer {
       raycaster.setFromCamera(ndc, this.camera);
       const targets: THREE.Object3D[] = [];
       for (const child of this.wrapper.children) {
-        if (child !== this.markerGroup && child !== this.axesGroup) targets.push(child);
+        if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) targets.push(child);
       }
       if (targets.length === 0) return null;
       const hits = raycaster.intersectObjects(targets, true);
@@ -312,7 +331,7 @@ export class ModelViewer {
   setWireframe(enabled: boolean): void {
     this.wireframe = enabled;
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup) this.applyWireframe(child, enabled);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) this.applyWireframe(child, enabled);
     }
   }
 
@@ -339,6 +358,8 @@ export class ModelViewer {
     if (this.axesGroup.parent !== null) this.axesGroup.parent.remove(this.axesGroup);
     this.axesXMaterial.dispose();
     this.axesYMaterial.dispose();
+    if (this.placementGroup.parent !== null) this.placementGroup.parent.remove(this.placementGroup);
+    this.clearPlacements();
     this.controls.dispose();
     this.renderer.dispose();
   }
@@ -346,12 +367,13 @@ export class ModelViewer {
   private clearModel(): void {
     for (let i = this.wrapper.children.length - 1; i >= 0; i--) {
       const child = this.wrapper.children[i];
-      if (child === undefined || child === this.markerGroup || child === this.axesGroup) continue;
+      if (child === undefined || child === this.markerGroup || child === this.axesGroup || child === this.placementGroup) continue;
       this.wrapper.remove(child);
       disposeObject(child);
     }
     this.clearMarkers();
     this.clearAxes();
+    this.clearPlacements();
     this.wrapper.position.set(0, 0, 0);
   }
 
@@ -360,7 +382,7 @@ export class ModelViewer {
     const box = new THREE.Box3();
     box.makeEmpty();
     for (const child of this.wrapper.children) {
-      if (child === this.markerGroup || child === this.axesGroup) continue;
+      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup) continue;
       box.expandByObject(child);
     }
     return box;
@@ -434,6 +456,122 @@ export class ModelViewer {
       }
     }
   }
+  /**
+   * Replace the logo-placement overlay set. Positions are wrapper-local
+   * model coords (mapped by the caller via the region planar mapping
+   * `toModel`); overlays live in their own group and never mutate the model
+   * subtree. Entries with non-quad or nonfinite coords are skipped. Empty
+   * array clears overlays. Never throws.
+   */
+  setPlacementOverlays(items: PlacementOverlayItem[]): void {
+    try {
+      this.clearPlacements();
+      if (this.disposed) return;
+      if (!Array.isArray(items) || items.length === 0) return;
+      for (const item of items) {
+        if (item === null || typeof item !== 'object') continue;
+        if (!('cornersModel' in item)) continue;
+        const corners: unknown = item.cornersModel;
+        if (!Array.isArray(corners) || corners.length !== 4) continue;
+        const points: THREE.Vector3[] = [];
+        let valid = true;
+        for (const corner of corners) {
+          if (!isVec3(corner)) { valid = false; break; }
+          points.push(new THREE.Vector3(corner.x, corner.y, corner.z));
+        }
+        if (!valid || points.length !== 4) continue;
+        const fits = 'fits' in item && item.fits === true;
+        const selected = 'selected' in item && item.selected === true;
+        const color = fits ? 0x2ecc71 : 0xe74c3c;
+        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const outlineMaterial = new THREE.LineBasicMaterial({ color, depthTest: true });
+        this.placementGroup.add(new THREE.LineLoop(outlineGeometry, outlineMaterial));
+        if (selected) {
+          const centroid = new THREE.Vector3(0, 0, 0);
+          for (const point of points) centroid.add(point);
+          centroid.multiplyScalar(0.25);
+          const haloPoints = points.map((point) =>
+            new THREE.Vector3().subVectors(point, centroid).multiplyScalar(1.03).add(centroid),
+          );
+          const haloGeometry = new THREE.BufferGeometry().setFromPoints(haloPoints);
+          const haloMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: true });
+          this.placementGroup.add(new THREE.LineLoop(haloGeometry, haloMaterial));
+        }
+        const fillGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        fillGeometry.setIndex([0, 1, 2, 0, 2, 3]);
+        fillGeometry.computeVertexNormals();
+        const fillMaterial = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.25,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        this.placementGroup.add(new THREE.Mesh(fillGeometry, fillMaterial));
+        // Textured artwork preview (append-only): same quad, procedurally
+        // drawn from the opaque `art` token. Geometry is untouched — the
+        // plane reuses the exact corner positions; only appearance varies.
+        // Never throws: any texture failure leaves the outline+fill above.
+        try {
+          const art = 'art' in item && typeof item.art === 'string' ? item.art : '';
+          const artGeometry = new THREE.BufferGeometry().setFromPoints(points);
+          artGeometry.setIndex([0, 1, 2, 0, 2, 3]);
+          // UV mapping rationale documented at createPlacementArtTexture.
+          artGeometry.setAttribute('uv', new THREE.Float32BufferAttribute([
+            0, 0,
+            1, 0,
+            1, 1,
+            0, 1,
+          ], 2));
+          artGeometry.computeVertexNormals();
+          const artTexture = createPlacementArtTexture(art);
+          const artMaterial = new THREE.MeshBasicMaterial({
+            map: artTexture,
+            transparent: true,
+            opacity: 0.95,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+            polygonOffsetUnits: -4,
+          });
+          const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+          // Keep the exact calibrated quad; a depth-buffer bias makes the
+          // preview visible on either face without moving it into the mesh.
+          this.placementGroup.add(artMesh);
+        } catch {
+          // Outline + fill already added; artwork is preview-only.
+        }
+      }
+    } catch {
+      return;
+    }
+  }
+
+  /** Remove overlay lines/meshes and dispose their geometries/materials. */
+  private clearPlacements(): void {
+    for (let i = this.placementGroup.children.length - 1; i >= 0; i--) {
+      const child = this.placementGroup.children[i];
+      if (child === undefined) continue;
+      this.placementGroup.remove(child);
+      if (child instanceof THREE.LineLoop || child instanceof THREE.Line || child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const material = child.material;
+        const materials = Array.isArray(material) ? material : [material];
+        for (const entry of materials) {
+          if (entry === undefined) continue;
+          // Material.dispose() leaves textures alive: release the artwork
+          // CanvasTexture explicitly (art meshes are the only textured
+          // children; line/fill materials have no map).
+          if (entry instanceof THREE.MeshBasicMaterial && entry.map !== null) {
+            entry.map.dispose();
+          }
+          entry.dispose();
+        }
+      }
+    }
+  }
+
 
   private applyWireframe(root: THREE.Object3D, enabled: boolean): void {
     root.traverse((child: THREE.Object3D) => {
@@ -471,6 +609,93 @@ export class ModelViewer {
     return status;
   }
 }
+/**
+ * Procedural preview texture for one placement-overlay artwork token.
+ *
+ * Variants (opaque `art` strings; unknown/empty tokens fall back to mark-a):
+ *   - mark-a: teal ground, diagonal split (dark band toward uv top-right),
+ *     off-center disc toward uv top-left. Asymmetric in both axes.
+ *   - mark-b: amber ground, chevron apex toward uv top, corner bar along the
+ *     uv bottom edge. Asymmetric in both axes.
+ *
+ * Why asymmetric: a symmetric fill cannot show whether the quad is rotated
+ * or mirrored; these marks make clockwise rotation verifiable — rotating the
+ * placement moves the disc/chevron to a visibly different corner.
+ *
+ * Orientation contract (matches the uv assignment in setPlacementOverlays):
+ * footprint corners arrive in frozen order [(-w/2,-h/2), (w/2,-h/2),
+ * (w/2,h/2), (-w/2,h/2)] in the region frame (+x right, +y up facing the
+ * region), i.e. index 0 = region bottom-left, index 2 = region top-right.
+ * UVs are corner[0]=(0,0), corner[1]=(1,0), corner[2]=(1,1), corner[3]=(0,1),
+ * so texture v=0 sits at region −y (bottom) and v=1 at region +y (top).
+ * CanvasTexture keeps flipY=true (three.js default): uv (0,0) samples the
+ * canvas row drawn at y=height-1 (canvas bottom), uv (1,1) the row at y=0
+ * (canvas top). Therefore drawing the artwork upright on the canvas (motif
+ * toward canvas y=0) renders it upright facing the region with +y up —
+ * no canvas-row inversion is applied below.
+ */
+function createPlacementArtTexture(art: string): THREE.CanvasTexture {
+  const variant: 'mark-a' | 'mark-b' = art === 'mark-b' ? 'mark-b' : 'mark-a';
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) throw new Error('2d canvas context unavailable');
+  ctx.fillStyle = variant === 'mark-b' ? '#8a5a00' : '#0a5a5a';
+  ctx.fillRect(0, 0, size, size);
+  if (variant === 'mark-a') {
+    // Diagonal split: dark band across the uv top-right half (canvas top-right).
+    ctx.fillStyle = '#062a3a';
+    ctx.beginPath();
+    ctx.moveTo(size * 0.35, size);
+    ctx.lineTo(size, size * 0.35);
+    ctx.lineTo(size, 0);
+    ctx.lineTo(size * 0.75, 0);
+    ctx.lineTo(0, size * 0.75);
+    ctx.lineTo(0, size);
+    ctx.closePath();
+    ctx.fill();
+    // Off-center disc toward uv top-left = canvas top-left (x small, y small).
+    ctx.fillStyle = '#e8f4ff';
+    ctx.beginPath();
+    ctx.arc(size * 0.28, size * 0.26, size * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    // Anchor square at uv bottom-right for second-axis asymmetry.
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(size * 0.78, size * 0.78, size * 0.12, size * 0.12);
+  } else {
+    // Chevron apex toward uv top = canvas top (y small).
+    ctx.strokeStyle = '#10243a';
+    ctx.lineWidth = size * 0.07;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    ctx.moveTo(size * 0.12, size * 0.52);
+    ctx.lineTo(size * 0.5, size * 0.14);
+    ctx.lineTo(size * 0.88, size * 0.52);
+    ctx.stroke();
+    // Corner bar along the uv bottom edge = canvas bottom (y near height).
+    ctx.fillStyle = '#10243a';
+    ctx.fillRect(size * 0.08, size * 0.86, size * 0.34, size * 0.07);
+    // Disc toward uv top-right for second-axis asymmetry.
+    ctx.fillStyle = '#fff4d6';
+    ctx.beginPath();
+    ctx.arc(size * 0.78, size * 0.24, size * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Border + uv-origin tick: white frame with a red tick at the uv origin
+  // corner (bottom-left) so orientation is checkable at a glance.
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = Math.max(2, size * 0.012);
+  ctx.strokeRect(0, 0, size, size);
+  ctx.fillStyle = '#ff0000';
+  ctx.fillRect(0, size - size * 0.09, size * 0.09, size * 0.09);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
 
 type Vec3Like = { x: number; y: number; z: number };
 

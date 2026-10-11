@@ -163,7 +163,35 @@
       and stays pending review, never approved. Restored areas are an unapproved draft.
     </p>
   </fieldset>
-
+  <fieldset>
+    <legend>Export provisional placement bundle JSON</legend>
+    <div>
+      <button data-calibration-hook="placement-export-button" type="button">Download placement bundle JSON</button>
+    </div>
+    <p role="note">
+      Pending review, never approved. The fit is re-verified and every
+      footprint and status recomputed from the placement numbers at export
+      time; geometrically-invalid-but-wellformed placements export with
+      explicit non-fitting statuses.
+    </p>
+  </fieldset>
+  <fieldset>
+    <legend>Restore provisional placement bundle JSON</legend>
+    <label>
+      Placement bundle JSON file (local file only)
+      <input data-calibration-hook="placement-restore-file" type="file" accept=".json,application/json" />
+    </label>
+    <div>
+      <button data-calibration-hook="placement-restore-button" type="button">Load placement bundle JSON</button>
+    </div>
+    <p role="note">
+      Local file only; nothing is uploaded. The file must match this asset's
+      exact SHA-256. Any imported fit, footprint, status or approval is
+      ignored: everything is recomputed locally and stays pending review,
+      never approved. Malformed or reference-invalid files fail atomically
+      with no state changed.
+    </p>
+  </fieldset>
 
 <!-- REGION_AREAS_FRAGMENT -->
 

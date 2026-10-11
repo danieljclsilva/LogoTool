@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "0.1.0-provisional-calibration-session",
+  "evidence": {
+    "calibrationId": "syn-calibration",
+    "frameId": "asset-scene-root",
+    "assetFullSha256": "__ASSET_SHA256__",
+    "product": "SYN-BOX",
+    "variant": "SYN-V1",
+    "pairs": [
+      {
+        "id": "A",
+        "model": {
+          "x": 4.98784590375354,
+          "y": 2.1806903392685064,
+          "z": -2.5000000000000004
+        },
+        "semanticRole": "synthetic-test-role"
+      },
+      {
+        "id": "B",
+        "model": {
+          "x": 6.038202956418286,
+          "y": 2.3016780712458837,
+          "z": -2.5
+        },
+        "semanticRole": "synthetic-test-role"
+      },
+      {
+        "id": "C",
+        "model": {
+          "x": 5.1374234482978,
+          "y": 2.730066411996355,
+          "z": -2.5000000000000004
+        },
+        "semanticRole": "synthetic-Y-side"
+      },
+      {
+        "id": "P",
+        "model": {
+          "x": 4.98784590375354,
+          "y": 2.1806903392685064,
+          "z": -2.3000000000000003
+        },
+        "semanticRole": "synthetic-off-plane-probe"
+      }
+    ],
+    "measuredDistanceMm": 100,
+    "pairIds": [
+      "A",
+      "B"
+    ],
+    "provisionalVersion": "draft-1",
+    "toleranceMm": 0.5,
+    "relativeTolerance": 0.01
+  },
+  "fit": {
+    "schemaVersion": "0.1.0-provisional-calibration",
+    "calibrationId": "syn-calibration",
+    "frameId": "asset-scene-root",
+    "assetFullSha256": "__ASSET_SHA256__",
+    "product": "SYN-BOX",
+    "variant": "SYN-V1",
+    "toleranceMm": 0.5,
+    "relativeTolerance": 0.01,
+    "scaleMmPerUnit": 94.58033737310733,
+    "perPair": [
+      {
+        "id": "[\"A\",\"B\"]",
+        "pairIds": [
+          "A",
+          "B"
+        ],
+        "modelDistance": 1.0573022128850398,
+        "measuredDistanceMm": 100,
+        "predictedDistanceMm": 100,
+        "residualMm": 0
+      }
+    ],
+    "maxResidualMm": 0,
+    "inconsistent": false,
+    "productionApproved": false,
+    "pendingReview": true,
+    "limitations": [
+      "Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation; directional distortion is undetectable by this kernel.",
+      "Result is provisional and pending human review; this kernel never production-approves a calibration."
+    ],
+    "provisionalVersion": "draft-1"
+  }
+}
