@@ -62,10 +62,14 @@ comparison is still pending; Phase 1 is not complete.
   re-verified, never trusted; every record must match its current frame snapshot.
   `safePolygon: null` marks unconfigured frames (draft-only, not production
   readiness). Export requires a current CONSISTENT fit with all frames current.
-  `pendingReview: true`, `productionApproved: false` at every level; no bundle
-  import is implemented; the calibration-session importer rejects this different
-  envelope version. Existing
-  calibration and planar-region downloads are unchanged and exclude area data.
+  `pendingReview: true`, `productionApproved: false` at every level; local area
+  restore is implemented in `src/core/region-areas-restore/` (exact bundle
+  version + asset-hash match, frames/full snapshot binding re-verified through
+  the builders, fit recomputed locally and never imported; 8 MiB chars, max
+  128 regions, 512 ring vertices, 64 exclusions/region, 65536 total vertices).
+  The calibration-session importer still rejects this different envelope
+  version. Calibration and planar-region downloads remain unchanged and
+  exclude area data.
 - `src/ui/calibration/region-areas-panel.ts` + `region-areas-fragment.html`,
   bound inside the calibration panel: active-region label + mm/frame context, safe
   textarea + Set/Clear, exclusion id/name/polygon + Add/Remove, footprint textarea
@@ -75,8 +79,28 @@ comparison is still pending; Phase 1 is not complete.
   active region matching the draft evidence and no restore in flight; verdicts
   clear on text/area/region/evidence changes; unsaved text is marked dirty.
   Removal prunes dependent areas (no inheritance on same-ID recreation); failed
-  restores preserve prior frame/area state; `setAsset`/successful restore resets
-  area drafts. Epsilon is numeric (1e-9 mm), not clearance.
+  restores preserve prior frame/area state; `setAsset` or successful session
+  restore clears area drafts, while area-bundle restore replaces them. Epsilon is numeric (1e-9 mm), not clearance.
+
+## Local area-bundle restore
+
+- `parseAreaBundleRestore` in `src/core/region-areas-restore/` restores the
+  dedicated area envelope only. It rebuilds session evidence and the fit,
+  rejects inconsistent fits, verifies every planar frame against source anchors
+  and evidence, and requires exactly one matching area record per region.
+  Imported fit values and approval claims are discarded; all output stays
+  pending review and unapproved. Null safe polygons remain unconfigured drafts.
+- The host panel has a separate local area-bundle picker. Loading replaces
+  calibration, frames and areas together, selects the first sorted region,
+  hydrates its saved polygon, and clears pending geometry and picks. Failures
+  preserve the current draft and pending text. Both restore paths share the
+  busy lock and sequence/asset guards; obsolete reads cannot overwrite or
+  unlock newer loads. Asset replacement clears both file pickers.
+- The UI rejects files above 8 MiB before reading; the parser bounds text to
+  8,388,608 UTF-16 code units, 128 regions, 512 logical vertices per ring,
+  64 exclusions per region, and 65,536 total polygon vertices. Nested session
+  limits remain 1 MiB, 512 anchors and 2,048 measurements. Exported drafts that
+  exceed restore limits cannot be reopened through this importer.
 
 ## Kernel utilities
 
@@ -159,6 +183,19 @@ clearance or fabrication feasibility and are not wired into production approval.
 
 ## Verification
 
+- Area-bundle browser checks passed byte-identical save/load/save for two
+  configured frames, active-region text hydration, restored concave/exclusion
+  checks, ignored forged fit/approval claims, malformed/version/hash/frame/area
+  rejection with pending text and armed picks preserved, cross-mode busy locks,
+  obsolete-read rejection, read failures, pre-read size rejection, and asset
+  replacement during a load. Session-restore races and safe-area authoring
+  regressions also passed. The same local offline Chrome environment below
+  produced no console warnings/errors, page errors or HTTP(S) requests on
+  desktop 1280×900 and narrow 390×844. No horizontal overflow was observed.
+- Codex tested 187 malformed-data shapes without parser exceptions, reviewed
+  the OMP integration fixes for the dropped component import and active-region
+  hydration, and restored the original session-picker reset on asset changes.
+
 - Safe-area browser checks passed concave edge rejection, allowed safe-boundary
   contact, forbidden exclusion contact/overlap/enclosure, independent region
   state, explicit unsaved-text notice, stale preview/export blocking, failed
@@ -173,7 +210,7 @@ clearance or fabrication feasibility and are not wired into production approval.
   limits and whitespace identity rejection. Every frame exports an explicit
   area record, including `safePolygon: null` when unconfigured.
 
-- `npm run typecheck`, `npm test` (211 TypeScript tests, including planar-region frame/probe/bundle/stale coverage plus session
+- `npm run typecheck`, `npm test` (230 TypeScript tests, including planar-region frame/probe/bundle/stale coverage plus session
   restore roundtrip/forged-fit/limits coverage and gesture regression checks),
   and `python3 -m unittest discover -s tests -v` (18 synthetic audit tests)
   passed. The build emits one inline inspector HTML.

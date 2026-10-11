@@ -214,6 +214,42 @@ export class RegionAreasPanel {
     this.lastEvidenceSnapshot = this.getContext().draftEvidenceSnapshot;
     this.render();
   }
+  /**
+   * Replace saved areas wholesale from a restored area bundle (atomic swap,
+   * no merge). Deep-copies the input, clears pending textarea drafts,
+   * verdict and preview, then INVALIDATES the last-active markers so the
+   * next render takes the active-change branch and hydrates the safe-text
+   * textarea from the restored record. (Setting lastRegionId to the current
+   * active id here would suppress that branch and leave the textarea empty.)
+   */
+  replaceSavedAreas(areas: AreasMap): void {
+    const copy: AreasMap = Object.create(null) as AreasMap;
+    for (const [key, record] of Object.entries(areas)) {
+      copy[key] = {
+        regionId: record.regionId,
+        frameId: record.frameId,
+        frameSnapshot: record.frameSnapshot,
+        safePolygon: record.safePolygon === null ? null : record.safePolygon.map((point) => ({ x: point.x, y: point.y })),
+        exclusions: record.exclusions.map((exclusion) => ({
+          id: exclusion.id,
+          name: exclusion.name,
+          polygon: exclusion.polygon.map((point) => ({ x: point.x, y: point.y })),
+        })),
+      };
+    }
+    this.areasByRegion = copy;
+    this.previewFootprint = null;
+    this.safeText.value = "";
+    this.exclusionId.value = "";
+    this.exclusionName.value = "";
+    this.exclusionText.value = "";
+    this.footprintText.value = "";
+    this.clearVerdict();
+    this.lastRegionId = null;
+    this.lastEvidenceSnapshot = null;
+    this.render();
+  }
+
 
   /** Drop saved records whose regionId is no longer authored. */
   pruneToRegions(regions: PlanarRegionRecord[]): void {

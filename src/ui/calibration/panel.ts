@@ -51,7 +51,9 @@ import {
   serializeRegionBundle,
   type PlanarRegionRecord,
 } from "../../core/planar-region/index.js";
+import { parseAreaBundleRestore } from "../../core/region-areas-restore/index.js";
 import { RegionAreasPanel } from "./region-areas-panel.js";
+import type { AreasMap } from "../../core/region-areas/index.js";
 
 export interface RegionAxesFrameLike {
   origin: { x: number; y: number; z: number };
@@ -103,6 +105,8 @@ type HookName =
   | "export-button"
   | "restore-file"
   | "restore-button"
+  | "area-restore-file"
+  | "area-restore-button"
   | "region-id"
   | "region-frame-id"
   | "region-origin"
@@ -121,6 +125,8 @@ type HookName =
 /** Click-vs-drag threshold in CSS pixels: larger movement is a drag, ignored. */
 const CLICK_MAX_MOVE_PX = 6;
 
+/** Provisional local area-bundle restore: file-size guard only (parser enforces text limits). */
+const AREA_RESTORE_MAX_BYTES = 8388608;
 export class CalibrationPanel {
   private readonly getViewer: () => ViewerPort | null;
   private readonly statusEl: HTMLElement;
@@ -145,9 +151,10 @@ export class CalibrationPanel {
   private readonly fitButton: HTMLButtonElement;
   private readonly fitResult: HTMLElement;
   private readonly exportButton: HTMLButtonElement;
-
   private readonly restoreFile: HTMLInputElement;
   private readonly restoreButton: HTMLButtonElement;
+  private readonly areaRestoreFile: HTMLInputElement;
+  private readonly areaRestoreButton: HTMLButtonElement;
   private readonly regionIdInput: HTMLInputElement;
   private readonly regionFrameInput: HTMLInputElement;
   private readonly regionOrigin: HTMLSelectElement;
@@ -214,6 +221,8 @@ export class CalibrationPanel {
     this.exportButton = query<HTMLButtonElement>("export-button");
     this.restoreFile = query<HTMLInputElement>("restore-file");
     this.restoreButton = query<HTMLButtonElement>("restore-button");
+    this.areaRestoreFile = query<HTMLInputElement>("area-restore-file");
+    this.areaRestoreButton = query<HTMLButtonElement>("area-restore-button");
     this.regionIdInput = query<HTMLInputElement>("region-id");
     this.regionFrameInput = query<HTMLInputElement>("region-frame-id");
     this.regionOrigin = query<HTMLSelectElement>("region-origin");
@@ -287,6 +296,9 @@ export class CalibrationPanel {
     this.restoreButton.addEventListener("click", () => {
       void this.onRestore();
     });
+    this.areaRestoreButton.addEventListener("click", () => {
+      void this.onAreaRestore();
+    });
     const canvas = document.querySelector(
       '[data-inspector-hook="canvas"]',
     );
@@ -336,6 +348,7 @@ export class CalibrationPanel {
     this.anchorRoleInput.value = "";
     this.measureDistanceInput.value = "";
     this.restoreFile.value = "";
+    this.areaRestoreFile.value = "";
     const viewer = this.getViewer();
     if (viewer !== null) {
       viewer.setAnchorMarkers([]);
@@ -738,24 +751,7 @@ export class CalibrationPanel {
       this.render();
       return;
     }
-    this.anchors = [...draft.anchors];
-    this.measurements = [...draft.measurements];
-    this.productInput.value = draft.fields.product;
-    this.variantInput.value = draft.fields.variant;
-    this.calibrationInput.value = draft.fields.calibrationId;
-    this.frameInput.value = draft.fields.frameId;
-    this.versionInput.value = draft.fields.provisionalVersion;
-    this.toleranceMmInput.value = String(draft.fields.toleranceMm);
-    this.toleranceRelativeInput.value = String(draft.fields.relativeTolerance);
-    this.anchorIdInput.value = "";
-    this.anchorRoleInput.value = "";
-    this.measureDistanceInput.value = "";
-    this.armed = false;
-    this.gesture.cancel();
-    this.pendingPick = null;
-    this.fitEvidence = built.evidence;
-    this.fit = result;
-    this.fitSnapshot = snapshotEvidence(built.evidence);
+    this.applyRecomputedDraft(draft.fields, draft.anchors, draft.measurements, built.evidence, result);
     this.regions = [];
     this.activeRegionId = null;
     this.areasPanel?.reset();
@@ -772,6 +768,102 @@ export class CalibrationPanel {
       result.inconsistent
         ? "Session restored: fit recomputed locally but is INCONSISTENT. Pending review, never approved."
         : "Session restored: fit recomputed locally. Pending review, never approved.",
+    );
+  }
+
+  /**
+   * Shared atomic swap for both restore paths: anchors, measurements,
+   * identity fields, disarmed pick state, and locally recomputed fit trio.
+   * Callers handle regions/areas tails plus their own status wording.
+   */
+  private applyRecomputedDraft(
+    fields: SessionFields,
+    anchors: DraftAnchor[],
+    measurements: DraftMeasurement[],
+    evidence: CalibrationEvidence,
+    result: UniformFitResult,
+  ): void {
+    this.anchors = [...anchors];
+    this.measurements = [...measurements];
+    this.productInput.value = fields.product;
+    this.variantInput.value = fields.variant;
+    this.calibrationInput.value = fields.calibrationId;
+    this.frameInput.value = fields.frameId;
+    this.versionInput.value = fields.provisionalVersion;
+    this.toleranceMmInput.value = String(fields.toleranceMm);
+    this.toleranceRelativeInput.value = String(fields.relativeTolerance);
+    this.anchorIdInput.value = "";
+    this.anchorRoleInput.value = "";
+    this.measureDistanceInput.value = "";
+    this.armed = false;
+    this.gesture.cancel();
+    this.pendingPick = null;
+    this.fitEvidence = evidence;
+    this.fit = result;
+    this.fitSnapshot = snapshotEvidence(evidence);
+  }
+
+  private async onAreaRestore(): Promise<void> {
+    if (this.restoreBusy) return;
+    if (this.record === null) {
+      this.setStatus("Load an asset before restoring an area bundle.");
+      return;
+    }
+    const files = this.areaRestoreFile.files;
+    const file = files !== null && files.length > 0 ? files[0] : undefined;
+    if (file === undefined) {
+      this.setStatus("No file selected: choose an area bundle JSON file first.");
+      return;
+    }
+    if (file.size > AREA_RESTORE_MAX_BYTES) {
+      this.areaRestoreFile.value = "";
+      this.setStatus(`Area restore failed: file exceeds ${AREA_RESTORE_MAX_BYTES} bytes.`);
+      return;
+    }
+    const seq = ++this.restoreSeq;
+    const loadRecord = this.record;
+    const loadSha = loadRecord.sha256Hex;
+    this.restoreBusy = true;
+    this.render();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+      this.restoreBusy = false;
+      this.areaRestoreFile.value = "";
+      this.setStatus("Area restore failed: could not read the selected file.");
+      this.render();
+      return;
+    }
+    if (seq !== this.restoreSeq || this.record !== loadRecord) return;
+    const parsed = parseAreaBundleRestore(text, loadSha);
+    if (!parsed.ok) {
+      this.restoreBusy = false;
+      this.areaRestoreFile.value = "";
+      this.setStatus(`Area restore failed: ${parsed.error}.`);
+      this.render();
+      return;
+    }
+    const sortedRegions = [...parsed.regions].sort((a, b) =>
+      a.regionId < b.regionId ? -1 : a.regionId > b.regionId ? 1 : 0,
+    );
+    const areas: AreasMap = parsed.areas;
+    this.applyRecomputedDraft(parsed.draft.fields, parsed.draft.anchors, parsed.draft.measurements, parsed.evidence, parsed.fit);
+    this.regions = sortedRegions;
+    this.activeRegionId = sortedRegions.length > 0 ? sortedRegions[0]!.regionId : null;
+    this.regionIdInput.value = "";
+    this.regionFrameInput.value = "";
+    this.regionToleranceInput.value = "";
+    this.regionProbeResult.replaceChildren();
+    this.syncMarkers();
+    this.syncRegionAxes();
+    this.areasPanel?.replaceSavedAreas(areas);
+    this.restoreBusy = false;
+    this.areaRestoreFile.value = "";
+    this.render();
+    this.setStatus(
+      "Area bundle restored: fit recomputed locally. Pending review, never approved.",
     );
   }
 
@@ -1023,6 +1115,8 @@ export class CalibrationPanel {
     this.cancelButton.disabled = !enabled || (!this.armed && this.pendingPick === null);
     this.restoreButton.disabled = this.record === null || this.restoreBusy;
     this.restoreFile.disabled = this.record === null || this.restoreBusy;
+    this.areaRestoreButton.disabled = this.record === null || this.restoreBusy;
+    this.areaRestoreFile.disabled = this.record === null || this.restoreBusy;
     this.regionIdInput.disabled = !enabled;
     this.regionFrameInput.disabled = !enabled;
     this.regionToleranceInput.disabled = !enabled;

@@ -141,3 +141,5 @@ export {
   setSafePolygon,
   validateAreaRecord as validateRegionAreaRecord,
 } from "./region-areas/index.js";
+export type { ParseAreaBundleRestoreResult } from "./region-areas-restore/index.js";
+export { AREA_RESTORE_LIMITS, parseAreaBundleRestore } from "./region-areas-restore/index.js";

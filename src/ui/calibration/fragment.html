@@ -148,6 +148,22 @@
       <button data-calibration-hook="region-export-button" type="button">Download planar region bundle JSON</button>
     </div>
   </fieldset>
+  <fieldset>
+    <legend>Restore provisional area bundle JSON</legend>
+    <label>
+      Area bundle JSON file (local file only)
+      <input data-calibration-hook="area-restore-file" type="file" accept=".json,application/json" />
+    </label>
+    <div>
+      <button data-calibration-hook="area-restore-button" type="button">Load area bundle JSON</button>
+    </div>
+    <p role="note">
+      Local file only; nothing is uploaded. The file must match this asset's
+      exact SHA-256. Any imported fit is ignored: scale is recomputed locally
+      and stays pending review, never approved. Restored areas are an unapproved draft.
+    </p>
+  </fieldset>
+
 
 <!-- REGION_AREAS_FRAGMENT -->
 

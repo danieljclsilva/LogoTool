@@ -18,10 +18,13 @@
  * record first, so a recreated region with a reused id can never reattach to
  * a previous safe polygon or exclusions.
  *
- * Bundles are export-only drafts (`pendingReview: true`,
- * `productionApproved: false`, never endorsed for production). There is
- * intentionally no restore path. A `safePolygon` of `null` (unconfigured
- * frame) is allowed through export and marks the bundle as draft-only.
+ * Bundles are provisional drafts (`pendingReview: true`,
+ * `productionApproved: false`, never endorsed for production). Local restore
+ * of a saved bundle is implemented separately in
+ * `src/core/region-areas-restore/` (exact-version/asset-hash match, fit
+ * recomputed locally, never imported). A `safePolygon` of `null`
+ * (unconfigured frame) is allowed through export and marks the bundle as
+ * draft-only.
  *
  * Pure module: no browser/Node/fs/Three imports.
  */
@@ -46,7 +49,7 @@ import {
   type SessionExport,
 } from "../calibration-session/index.js";
 
-/** Provisional area-bundle envelope version (never restored into drafts). */
+/** Provisional area-bundle envelope version (restored only via region-areas-restore). */
 export const AREA_BUNDLE_VERSION = "0.1.0-provisional-region-areas" as const;
 
 export const AREA_LIMITS = {
