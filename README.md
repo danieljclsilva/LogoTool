@@ -66,11 +66,15 @@ See [domain model](docs/domain-model.md), [architecture](docs/architecture.md),
 Schemas use `0.1.0-provisional`; Phase 1 remains incomplete. A standalone
 calibration/geometry kernel exists (Phase 5 partial: scale fitting, planar
 mapping, polygon containment; synthetic fixtures only, no production wiring —
-see [calibration](docs/calibration.md)). Variant-transfer behavior, real
-calibration, 3D editing, binary project packaging,
-operation PDFs and the Builder remain pending. The internal single-HTML asset inspector has a maintained offline Playwright suite (`e2e/`, 8 specs) passing on macOS bundled chromium and installed Chrome (see [offline testing](docs/offline-testing.md));
+see [calibration](docs/calibration.md)). A provisional pure variant-transfer
+kernel exists (Phase 7 partial: absolute/normalized/proportional/override
+across explicit variant contexts, 50 Node tests, standalone pending-review
+contracts — see [variant transfer](docs/variant-transfer.md)); inspector/UI
+wiring, real calibration, production mapping, and customer packaging remain
+pending. The internal single-HTML asset inspector has a maintained offline Playwright suite (`e2e/`, 8 specs) passing on macOS bundled chromium and installed Chrome (see [offline testing](docs/offline-testing.md));
 the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
 remains the delivery acceptance test.
+Operation PDFs and the internal Builder also remain pending.
 
 
 ## Internal asset inspector (Phase 4 partial + Phase 5 draft panel)

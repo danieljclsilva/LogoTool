@@ -183,3 +183,21 @@ export {
   PLACEMENT_RESTORE_LIMITS,
   parsePlacementRestore,
 } from "./logo-placement-restore/index.js";
+export type {
+  PlacementTransferOverride,
+  ReferenceRect,
+  RegionTransferRule,
+  TransferRequest,
+  TransferRuleStrategy,
+  TransferStrategyUsed,
+  VariantTransferBundle,
+  VariantTransferContext,
+  VariantTransferRecord,
+  VariantTransferSourceInfo,
+} from "./variant-transfer/index.js";
+export {
+  VARIANT_TRANSFER_LIMITS,
+  VARIANT_TRANSFER_VERSION,
+  serializeTransferBundle as serializeVariantTransferBundle,
+  transferPlacements,
+} from "./variant-transfer/index.js";

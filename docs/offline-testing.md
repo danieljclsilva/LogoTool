@@ -93,6 +93,39 @@ URL policy. No workaround was attempted; the explicitly required repo-local
 Playwright suite provided acceptance evidence. Windows Chrome/Edge, customer
 ZIP delivery, real calibration and curved mapping remain separate gates.
 
+## Variant-transfer regression acceptance — 2026-10-11
+
+Independent Codex validation of the provisional Phase 7 pure kernel and its
+integration corrections: `npm run typecheck` passed; `npm test` passed 310/310
+Node tests, including 50 variant-transfer checks. No live Odoo tests were run.
+The kernel is not wired into the inspector, so the browser runs below verify
+existing inspector behavior rather than a variant-transfer UI.
+
+| Command | Environment | Result |
+| --- | --- | --- |
+| `npm run test:e2e` | macOS 27.2 arm64, Chromium 156.0.8078.4 | 19/19 |
+| `npm run test:e2e:chrome` | macOS 27.2 arm64, Chrome 154.0.8037.98 | 19/19 |
+
+Both final runs opened built HTML directly through `file://`, with offline
+contexts at 1280×900 and 390×844. Every test checked zero console/page errors
+and zero HTTP(S) requests; page identity, desktop/mobile screenshots and
+placement/restore interactions remain covered. Repo-local Playwright is the
+project-mandated primary acceptance route; no supplementary Browser run was
+needed for this kernel/test change.
+
+The first Chrome run failed 1/19: the existing mid-drag restore test observed
+one disabled control, then the file finished restoring before its separate
+export-button assertion. The test now holds `File.text` until the lock assertions
+and busy-window pointer movement finish, releases the native read, then checks
+that the late pointerup preserves the baseline bytes. This removes the transient
+timing branch without sleeps or retries. Both complete browser suites passed
+after that test-only correction. Application browser code was unchanged.
+Generated reports/screenshots remain under the existing ignored paths.
+
+Windows Chrome/Edge, actual customer ZIP delivery, real variant calibration,
+curved mapping and native OS interruptions remain unverified. No Edge run was
+claimed on this macOS host.
+
 ## Failure artifacts and scope
 
 Reports/screenshots land under the already-ignored `test-results/` and

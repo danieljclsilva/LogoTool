@@ -23,8 +23,9 @@ category population and future Odoo mapping remain unresolved.
 - Products contain generalized kinds, variants, regions and calibration records.
   Kinds are descriptive; no category-specific placement behavior is implemented.
 - Variants list supported region IDs. Different variant calibration can be
-  represented by separate regions/calibration references. Transfer algorithms and
-  placement overrides beyond structural/reference checks remain pending.
+  represented by separate regions/calibration references. A standalone draft
+  transfer kernel exists; canonical project integration of transfer and placement
+  overrides beyond structural/reference checks remains pending.
 - Regions define a named frame/datum, axis labels, a calibration ID/version,
   safe polygon, exclusions and allowed methods. Polygon shape and references are
   checked; geometric feasibility is not yet checked.
@@ -91,3 +92,14 @@ nonfinite values are rejected. Packaging must preserve these semantics.
 Synthetic SVG originals live under `examples/logos/`; asset URIs resolve relative
 to `examples/`, the intended fixture-package root. Tests verify their byte hashes.
 References alone do not prove offline binary round trip or artwork suitability.
+
+## Variant transfer (provisional, standalone)
+
+`src/core/variant-transfer` moves 0..N draft placements across explicit
+source/target variant contexts without touching canonical schemas (see
+`docs/variant-transfer.md`). Absolute copies mm offsets under exactly
+matching declared frame conventions; normalized maps through
+caller-supplied physical rects; per-placement overrides win. Context
+product/variant must match same-side evidence. Output is always
+pending-review with recomputed target verdicts. Inspector/UI wiring,
+real calibration, production mapping, and customer packaging pending.

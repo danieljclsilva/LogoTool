@@ -938,6 +938,26 @@ test('drag: mid-drag invalidation aborts late commit', async ({ browser }) => {
     // disturbs a later drag); the button is then activated by keyboard
     // (Space on a type=button fires click with no pointer events), so the
     // gesture is undisturbed. Late pointerup must not apply.
+    // Hold File.text until assertions finish; a small local file can otherwise
+    // complete between observing one disabled control and asserting another.
+    await page.evaluate(() => {
+      const native = File.prototype.text;
+      const gate: { release: (() => Promise<void>) | null } = { release: null };
+      (window as unknown as { dragRestoreRead: typeof gate }).dragRestoreRead = gate;
+      File.prototype.text = function text(this: File) {
+        const file = this;
+        return new Promise<string>((resolve, reject) => {
+          gate.release = async () => {
+            File.prototype.text = native;
+            try {
+              resolve(await native.call(file));
+            } catch (error) {
+              reject(error);
+            }
+          };
+        });
+      };
+    });
     await hook(page, 'calibration', 'placement-restore-file').setInputFiles({
       name: 'placement-bundle.json',
       mimeType: 'application/json',
@@ -957,27 +977,25 @@ test('drag: mid-drag invalidation aborts late commit', async ({ browser }) => {
       if (el instanceof HTMLElement) el.focus({ preventScroll: true });
     });
     await restoreButton.press(' ');
-    // The small bundle restores fast: either the busy lock is still held
-    // (editor disabled) or the atomic swap already landed (editor enabled,
-    // generation bumped). Both invalidate the gesture — the late pointerup
-    // must not apply either way. Branch on the observed lock state.
-    const sawBusy = await hook(page, 'placement', 'placement-x')
-      .isDisabled()
-      .catch(() => false);
-    if (sawBusy) {
-      await expect(
-        hook(page, 'calibration', 'placement-export-button'),
-        'restore must hold the busy lock mid-gesture',
-      ).toBeDisabled();
-      // Keep the gesture alive across the busy window, then release: the
-      // restore swaps the draft (generation bump), so the late pointerup
-      // must not apply.
-      await page.mouse.move(dragStart.x + 10 * sb, dragStart.y, { steps: 2 });
-      await waitRestoreReady(page, 'placement-restore-button');
-      await expect(
-        hook(page, 'calibration', 'placement-export-button'),
-      ).toBeEnabled();
-    }
+    await page.waitForFunction(() =>
+      typeof (window as unknown as {
+        dragRestoreRead: { release: (() => Promise<void>) | null };
+      }).dragRestoreRead.release === 'function',
+    );
+    await expect(hook(page, 'placement', 'placement-x')).toBeDisabled();
+    await expect(
+      hook(page, 'calibration', 'placement-export-button'),
+      'restore must hold the busy lock mid-gesture',
+    ).toBeDisabled();
+    await page.mouse.move(dragStart.x + 10 * sb, dragStart.y, { steps: 2 });
+    await page.evaluate(async () => {
+      const gate = (window as unknown as {
+        dragRestoreRead: { release: (() => Promise<void>) | null };
+      }).dragRestoreRead;
+      if (gate.release === null) throw new Error('restore read was not queued');
+      await gate.release();
+    });
+    await waitRestoreReady(page, 'placement-restore-button');
     await expect(
       hook(page, 'calibration', 'placement-export-button'),
     ).toBeEnabled();

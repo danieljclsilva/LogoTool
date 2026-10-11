@@ -80,3 +80,28 @@ No persistence/import contract; not wired into product calibration records or
 production output. Every fit stays candidate-pending-review and never derives
 calibration from model bounds or pixels. Real measurements, anchor-picking UI
 and Odoo corroboration remain pending.
+
+## Phase 7 partial variant-transfer kernel (2026-10-11)
+
+Provisional pure transfer of 0..N draft placements across explicit
+source/target variant contexts (`src/core/variant-transfer`, 50 Node
+tests). Absolute copies mm offsets under exactly matching declared
+frame conventions; normalized maps through caller-supplied physical
+rects (fixed-size default, opt-in proportional); per-placement
+overrides win. Context product/variant labels must exactly match
+same-side calibration evidence; cyclic/BigInt/NaN/Infinity inputs
+fail closed without throwing or mutating. Fits recomputed in the
+target, borrowed fit/frame evidence recomputed, unknown imported
+approvals ignored (never applied). Output is standalone
+pending-review; canonical schemas untouched. Inspector/UI wiring,
+real calibration, production mapping, and customer packaging remain
+pending. Assumptions explicitly provisional: normalized rotation uses
+caller-declared conventions with no mirror/re-axis compensation.
+
+Reason and evidence: brief §22/Phase 7 require multiple transfer strategies;
+synthetic numerical and polygon tests verify this engineering interpretation.
+This does not establish real variant dimensions or Odoo production rules.
+Inferring reference rectangles from safe-area bounds or matching regions by
+name was rejected because neither establishes a shared physical datum.
+Consequently callers must supply explicit mappings and measured reference
+rectangles; real setup and canonical project integration remain separate gates.
