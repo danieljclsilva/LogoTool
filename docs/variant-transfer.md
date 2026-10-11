@@ -4,7 +4,7 @@ Status: provisional. This documents the pure variant-transfer kernel at
 `VARIANT_TRANSFER_VERSION = "0.1.0-provisional-variant-transfer"`.
 Every transfer output is a versioned **pending-review bundle**
 (`pendingReview: true`, `productionApproved: false`); transfer **never
-approves**. Core stays DOM/Node/Three-free; browser wiring is pending.
+approves**. Core stays DOM/Node/Three-free; an offline internal inspector panel is wired.
 Full scope remains provisional pending Phase 1 exit (see
 `docs/odoo-discovery.md`, `docs/development-status.md`); there is no real
 calibration in this slice.
@@ -245,8 +245,8 @@ Single-string atomic failures, one per rejected transfer:
 - No approvals: output is always pending-review; no customer
   confirmation, internal review, or production export is granted or
   wired.
-- No browser wiring: pure kernel only; inspector/packaging integration
-  pending.
+- No packaging integration: the inspector panel below is wired, but the
+  customer ZIP/unzip delivery path is still pending.
 - No curved-surface mapping, no deformation/anisotropy handling, no
   clearance/tolerance semantics beyond the 1e-9 mm numeric epsilon
   reused from geometry checks.
@@ -255,3 +255,33 @@ Single-string atomic failures, one per rejected transfer:
   explicit refs are the only guards.
 - Provisional version: `0.1.0-provisional-variant-transfer` is not a
   finalized contract and may change at Phase 1 exit.
+
+## Inspector UI (provisional, offline internal panel)
+
+`src/ui/variant-transfer/` (`variant-transfer-panel.ts`,
+`variant-transfer-fragment.html`) is bound by the calibration panel host in
+`src/ui/calibration/panel.ts` and inlined into `dist/asset-inspector.html` by
+`scripts/build-inspector.mjs`. Behaviour:
+
+- Capture freezes a VALID CURRENT placement bundle (via `buildPlacementBundle`)
+  as an immutable source snapshot: committed draft only, never a drag
+  candidate. Capture is disabled while a drag is active or a restore runs.
+  The frozen source intentionally survives target asset replacement; clearing
+  never touches the live target placements.
+- The target is the live host context: regions, areas, evidence, fit,
+  asset SHA, identity labels, restore/drag state, and the committed placement
+  draft (included in the result signature).
+- Rules start as `[]` (operator must declare every frame convention; no
+  inference). Illustrative `centre-mm-y-up` examples ship in the fragment
+  `<details>` block, marked not calibrated. Rules/overrides edits immediately
+  invalidate the stored run; export stays disabled until rerun.
+- Run calls the pure `transferPlacements` kernel atomically and shows
+  full-precision per-transfer numbers, recomputed target verdicts, and a
+  read-only +Y-up SVG preview. Results are preview/export only — never
+  applied to the target draft. Export serializes via
+  `serializeTransferBundle` (deterministic bytes, `pendingReview: true`,
+  `productionApproved: false`).
+- Drag lifecycle: `PlacementPanel.dragActive` is exposed to the host; drag
+  start/cancel notify the host so capture/run/export disable and prior
+  results discard. No recursive renders (child `render()` is idempotent;
+  host notification re-renders once from the same getters).

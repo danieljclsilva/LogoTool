@@ -11,7 +11,7 @@
 
   Direct 2D dragging added in the internal inspector (2026-10-11): primary-pointer movement preserves grab offset, dimensions, rotation and references; a fixed gesture viewBox converts pointer coordinates into region millimetres. Numeric fields, verdicts and 3D overlays show the candidate, while exports retain committed bytes until release. Core limits gate movement and release; stale context, restore, asset replacement and cancellation discard the candidate. The maintained drag spec adds 11 offline tests, including release endpoints, punctuation IDs and save/restore. Windows delivery, curved mapping and production approval remain pending.
 
-- [ ] Phase 7 — Variant transfer (PARTIAL 2026-10-11: provisional pure kernel `src/core/variant-transfer` with 50 Node tests — absolute/normalized/proportional/override, rotation copy, 0..N/multi-region, stale/forged currentness, concave/exclusion verdicts, determinism/immutability, malformed/limits; standalone pending-review contracts, canonical schemas untouched. Inspector/UI wiring, real calibration, production mapping, and customer packaging still pending.)
+- [ ] Phase 7 — Variant transfer (PARTIAL 2026-10-11: provisional pure kernel `src/core/variant-transfer` with 50 Node tests — absolute/normalized/proportional/override, rotation copy, 0..N/multi-region, stale/forged currentness, concave/exclusion verdicts, determinism/immutability, malformed/limits; standalone pending-review contracts, canonical schemas untouched. PLUS offline inspector panel `src/ui/variant-transfer` (2026-10-11): frozen source capture via `buildPlacementBundle`, explicit current-target context incl. committed draft in the result signature, operator-declared rules starting `[]` with illustrative +Y-up examples, atomic draft run with full-precision numbers and read-only preview, deterministic pending-review export; 10 Playwright tests in `e2e/variant-transfer.spec.ts` covering absolute/normalized/override, multi/zero/unsafe, source-survives-replacement, cross-region and independently calibrated variant transfer, unchanged target drafts, drag locks/cancellation, obsolete reads, and atomic/busy/invalidation flows. Real calibration, production mapping, and customer packaging still pending.)
 - [ ] Phase 8 — Hybrid project package (pending)
 - [ ] Phase 9 — Self-contained HTML (pending)
 - [ ] Phase 10 — Production export (pending)
@@ -61,9 +61,9 @@ Odoo attachment functionality are not implemented yet.
 
 Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain/production
 contracts still need evidence review. Real physical calibration and constraints,
-production integration of geometry checks, Phase 7 inspector/UI wiring and production
+production integration of geometry checks, Phase 7 production
 mapping, real product assets, both offline packaging modes, operation PDFs and
 internal Builder remain pending.
-Internal inspector has a maintained offline Playwright suite (`e2e/`, 8 spec files and 19 tests), passing on macOS bundled Chromium and installed Chrome 154 via `npm run test:e2e` / `npm run test:e2e:chrome` (2026-10-11). Acceptance contexts run offline through `file://`, at 1280×900 and 390×844, with zero console/page errors and zero HTTP(S) requests. Windows Chrome/Edge delivery remains untested. See `docs/offline-testing.md` for evidence and gaps.
+Internal inspector has a maintained offline Playwright suite (`e2e/`, 9 spec files and 29 tests), passing on macOS bundled Chromium and installed Chrome 154 via `npm run test:e2e` / `npm run test:e2e:chrome` (2026-10-11). Acceptance contexts run offline through `file://`, at 1280×900 and 390×844, with zero console/page errors and zero HTTP(S) requests. Windows Chrome/Edge delivery remains untested. See `docs/offline-testing.md` for evidence and gaps.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.

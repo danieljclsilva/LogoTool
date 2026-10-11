@@ -64,6 +64,7 @@ import { RegionAreasPanel } from "./region-areas-panel.js";
 import type { AreasMap } from "../../core/region-areas/index.js";
 import { PlacementPanel } from "../placement/placement-panel.js";
 import type { PlacementDraftBundle, PlacementOverlayItem } from "../placement/placement-panel.js";
+import { VariantTransferPanel } from "../variant-transfer/variant-transfer-panel.js";
 
 export interface RegionAxesFrameLike {
   origin: { x: number; y: number; z: number };
@@ -201,6 +202,7 @@ export class CalibrationPanel {
   private activeRegionId: string | null = null;
   private areasPanel: RegionAreasPanel | null = null;
   private placementPanel: PlacementPanel | null = null;
+  private transferPanel: VariantTransferPanel | null = null;
 
   private constructor(options: CalibrationPanelOptions) {
     this.getViewer = options.viewer;
@@ -319,6 +321,16 @@ export class CalibrationPanel {
             viewer.setPlacementOverlays(items);
           },
         };
+      },
+    });
+    this.transferPanel = VariantTransferPanel.bind({
+      root: options.root,
+      getContext: () => this.transferContext(),
+      notify: (kind) => {
+        // Transfer child notifications re-render the host once so button
+        // enablement and the target summary track host state; the child
+        // render is idempotent and reads the same host getters, so no loop.
+        if (kind === "transfer" || kind === "status") this.render();
       },
     });
 
@@ -983,6 +995,36 @@ export class CalibrationPanel {
       restoreBusy: this.restoreBusy,
     };
   }
+  /** Live target context for the provisional variant-transfer panel. */
+  private transferContext(): {
+    regions: PlanarRegionRecord[];
+    areas: AreasMap;
+    evidence: CalibrationEvidence | null;
+    fit: UniformFitResult | null;
+    fitReady: boolean;
+    fitSnapshot: string | null;
+    draftEvidenceSnapshot: string | null;
+    assetSha: string | null;
+    restoreBusy: boolean;
+    dragActive: boolean;
+    placementDraft: PlacementDraftBundle;
+    productLabel: string;
+    variantLabel: string;
+    calibrationIdLabel: string;
+  } {
+    const draft: PlacementDraftBundle = this.placementPanel?.collectDraft() ?? {
+      logos: Object.create(null),
+      placements: Object.create(null),
+    };
+    return {
+      ...this.placementContext(),
+      dragActive: this.placementPanel?.dragActive ?? false,
+      placementDraft: draft,
+      productLabel: this.productInput.value.trim(),
+      variantLabel: this.variantInput.value.trim(),
+      calibrationIdLabel: this.calibrationInput.value.trim(),
+    };
+  }
   private isActiveRegionReady(): boolean {
     const active = this.activeRegion();
     const evidence = this.draftEvidence();
@@ -1356,6 +1398,7 @@ export class CalibrationPanel {
     if (!this.isActiveRegionReady()) this.regionProbeResult.replaceChildren();
     this.areasPanel?.setEnabledFromHost();
     this.placementPanel?.setEnabledFromHost();
+    this.transferPanel?.render(this.transferContext());
     this.renderFit();
     this.renderPlacementExport();
     if (this.restoreBusy) {

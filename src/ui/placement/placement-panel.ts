@@ -351,6 +351,10 @@ export class PlacementPanel {
     return new PlacementPanel(options);
   }
 
+  /** Whether a 2D drag holds an uncommitted candidate (host invalidation contract). */
+  public get dragActive(): boolean {
+    return this.activeDrag !== null;
+  }
   /** Deep copy of the draft for the lead-owned export path. */
   collectDraft(): PlacementDraftBundle {
     const logos: Record<string, PlacementDraftLogo> = Object.create(null) as Record<
@@ -1635,6 +1639,8 @@ export class PlacementPanel {
     this.pendingDragFocus = placementId;
     this.selectedPlacementId = placementId;
     this.hydrateEditor(baseline);
+    this.setNote(`Drag of "${placementId}" started (uncommitted candidate; capture/run/export stay disabled).`);
+    this.notify("placements", `drag started ${placementId}`);
     this.render(ctx);
   }
 
@@ -1836,12 +1842,14 @@ export class PlacementPanel {
   private cancelActiveDrag(message: string): void {
     const drag = this.activeDrag;
     if (drag === null) return;
-    this.pendingDragFocus = drag.placementId;
+    const id = drag.placementId;
+    this.pendingDragFocus = id;
     this.releaseDragCapture(drag.pointerId);
     this.activeDrag = null;
-    const baseline = this.placements[drag.placementId];
+    const baseline = this.placements[id];
     if (baseline !== undefined) this.hydrateEditor(baseline);
     this.setNote(message);
+    this.notify("placements", `drag cancelled ${id}`);
     this.render();
   }
 

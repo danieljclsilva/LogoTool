@@ -58,6 +58,7 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   stay inert (controlled file-read completion and state waits, no timed sleeps).
 - `safe-area-regression.spec.ts` — rect + concave-with-exclusion verdicts,
   2D preview presence.
+- `variant-transfer.spec.ts` — provisional transfer UI (2026-10-11, 10 tests: absolute determinism, normalized fixed/proportional worked rects, override exact mm, multi/zero/unsafe verdicts, frozen-source survives asset replacement, cross-region frozen numerics, independently calibrated variant transfer without target mutation, drag locks/cancellation, obsolete restore reads, atomic failures incl. busy-restore and rule/override invalidation). Screenshots per test+project via `test.info().outputPath`, attached per test+project.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. Portable stand-in until true ZIP/unzip customer-package
@@ -98,8 +99,8 @@ ZIP delivery, real calibration and curved mapping remain separate gates.
 Independent Codex validation of the provisional Phase 7 pure kernel and its
 integration corrections: `npm run typecheck` passed; `npm test` passed 310/310
 Node tests, including 50 variant-transfer checks. No live Odoo tests were run.
-The kernel is not wired into the inspector, so the browser runs below verify
-existing inspector behavior rather than a variant-transfer UI.
+At this earlier kernel-only checkpoint, the kernel was not wired into the
+inspector; these runs verified the existing inspector behavior.
 
 | Command | Environment | Result |
 | --- | --- | --- |
@@ -125,6 +126,41 @@ Generated reports/screenshots remain under the existing ignored paths.
 Windows Chrome/Edge, actual customer ZIP delivery, real variant calibration,
 curved mapping and native OS interruptions remain unverified. No Edge run was
 claimed on this macOS host.
+
+## Variant-transfer UI acceptance — 2026-10-11
+
+Independent Codex review and validation after OMP integration of the provisional Phase 7 transfer panel
+(`src/ui/variant-transfer/`, host binding in `src/ui/calibration/panel.ts`,
+drag `dragActive` + start/cancel notify in
+`src/ui/placement/placement-panel.ts`, fragment inlined by
+`scripts/build-inspector.mjs`), on macOS 27.2 arm64. `npm run typecheck`
+passed; `npm test` passed 310/310 (incl. 50 variant-transfer kernel tests).
+Both browser suites below opened the built inspector through `file://` with
+offline contexts (1280×900 + 390×844 per `shoot`), asserting zero
+console/page errors and zero HTTP(S) requests per test.
+
+| Command | Environment | Result |
+| --- | --- | --- |
+| `npm run test:e2e` | macOS 27.2 arm64, Chromium 156.0.8078.4 | 29/29 |
+| `npm run test:e2e:chrome` | macOS 27.2 arm64, Chrome 154.0.8037.98 | 29/29 |
+
+The 10 transfer tests cover absolute roundtrip determinism, normalized
+fixed-size vs proportional worked rects, override exact mm, multi/zero/empty
+and exclusion-unsafe (`fits:false`, still pending-review) verdicts,
+frozen-source survival across asset replacement with rerun determinism,
+cross-region frozen numerics (front→back verbatim), independently calibrated
+SYN-V1→SYN-V2 transfer with a different mm scale and an unchanged target
+draft, drag lock/cancellation recovery, obsolete-read rejection after asset
+replacement, and atomic failures
+(bad JSON, missing mapping, stale identity, busy restore via controlled
+`File.text`, rule/override post-run edits). Screenshots use
+`test.info().outputPath` per test/project (fixed-path collisions removed).
+The smoke spec caught a mobile overflow from the new textareas; fixed with
+transfer-scoped responsive CSS (`textarea`/`pre`/`svg`), no app logic change.
+The supplementary in-app Browser was available; its attempted `file://`
+navigation was rejected by its URL policy. No workaround was attempted. The
+explicitly required repo-local offline suite provided acceptance evidence.
+Windows Chrome/Edge delivery remains untested; no Edge run claimed.
 
 ## Failure artifacts and scope
 

@@ -1,0 +1,131 @@
+<section data-transfer-hook="transfer-panel" aria-label="Variant transfer (provisional offline draft)">
+  <h2>Variant transfer (provisional)</h2>
+  <p role="note">
+    <strong>Offline draft only — pending review, never approved.</strong>
+    Transfer results below are preview/export only; they are never applied to
+    the target placements. Frame conventions are declared strings and are
+    never guessed, normalized, or coerced. Reference rects are
+    caller-supplied millimetre rectangles, never inferred from polygons,
+    bounds, pixels, artwork size, or model geometry. The source is a frozen
+    snapshot: it survives target asset replacement, and recapturing is always
+    explicit.
+  </p>
+  <p role="note">
+    Mirrored (opposite-handed) frames are an unresolved risk:
+    absolute-position requires an exact convention match and fails otherwise,
+    while normalized-position never mirrors, rotates, or re-axes frames — it
+    maps the numbers across as declared.
+  </p>
+
+  <fieldset>
+    <legend>Source (frozen snapshot)</legend>
+    <p data-transfer-hook="transfer-source-status" aria-live="polite"></p>
+    <div>
+      <button data-transfer-hook="transfer-capture-button" type="button">Capture source snapshot</button>
+      <button data-transfer-hook="transfer-clear-button" type="button">Clear source snapshot</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Target (live context from the host)</legend>
+    <p data-transfer-hook="transfer-target-summary" aria-live="polite"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Region rules (JSON array, millimetres)</legend>
+    <p>
+      One rule maps one source region to one target region.
+      <code>absolute-position</code> copies the source centre verbatim into
+      the target region frame and requires the declared frame conventions to
+      match exactly. <code>normalized-position</code> maps through
+      caller-supplied <code>sourceRef</code>/<code>targetRef</code> rectangles
+      (both required); without <code>proportionalDimensions</code> the logo
+      keeps its fixed size, with <code>"proportionalDimensions": true</code>
+      it scales proportionally. A placement with no matching rule and no
+      override fails the whole transfer atomically. The operator must declare
+      every frame convention explicitly: the rules box starts empty
+      (<code>[]</code>), nothing is inferred, and the examples below are
+      illustrative only — not calibrated for this asset.
+    </p>
+    <label>Rules JSON (array of rule objects)
+      <textarea data-transfer-hook="transfer-rules-text" rows="6" cols="64" spellcheck="false" placeholder='[] — declare one rule per source→target region pair'>[]</textarea>
+    </label>
+    <details>
+      <summary>Rule and override examples (illustrative +Y-up values, not calibrated)</summary>
+      <p>Absolute front-to-front (conventions must match exactly):</p>
+      <pre>{
+  "sourceRegionId": "front",
+  "targetRegionId": "front",
+  "strategy": "absolute-position",
+  "sourceFrameConvention": "centre-mm-y-up",
+  "targetFrameConvention": "centre-mm-y-up"
+}</pre>
+      <p>Normalized, fixed-size logo (default; dimensions copied verbatim):</p>
+      <pre>{
+  "sourceRegionId": "front",
+  "targetRegionId": "front",
+  "strategy": "normalized-position",
+  "sourceFrameConvention": "centre-mm-y-up",
+  "targetFrameConvention": "centre-mm-y-up",
+  "sourceRef": { "originXmm": 0, "originYmm": 0, "widthMm": 200, "heightMm": 100 },
+  "targetRef": { "originXmm": 10, "originYmm": 20, "widthMm": 300, "heightMm": 150 }
+}</pre>
+      <p>Normalized, proportional scaling (add only this flag):</p>
+      <pre>{
+  "sourceRegionId": "front",
+  "targetRegionId": "front",
+  "strategy": "normalized-position",
+  "sourceFrameConvention": "centre-mm-y-up",
+  "targetFrameConvention": "centre-mm-y-up",
+  "sourceRef": { "originXmm": 0, "originYmm": 0, "widthMm": 200, "heightMm": 100 },
+  "targetRef": { "originXmm": 10, "originYmm": 20, "widthMm": 300, "heightMm": 150 },
+  "proportionalDimensions": true
+}</pre>
+      <p>Per-placement override (beats any rule; width/height/rotation default to the source values):</p>
+      <pre>{
+  "placementId": "PLC-0001",
+  "targetRegionId": "front",
+  "xMm": 85,
+  "yMm": 57.5
+}</pre>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>Placement overrides (JSON array, millimetres)</legend>
+    <p>
+      Optional explicit per-placement mappings. Each override supplies the
+      target region and centre; width, height, and rotation default to the
+      source placement values when absent. Use <code>[]</code> for none.
+    </p>
+    <label>Overrides JSON (array of override objects)
+      <textarea data-transfer-hook="transfer-overrides-text" rows="4" cols="64" spellcheck="false">[]</textarea>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Run (preview only, never applied)</legend>
+    <div>
+      <button data-transfer-hook="transfer-run-button" type="button">Run transfer (preview only)</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Status</legend>
+    <p data-transfer-hook="transfer-status" role="status" aria-live="polite"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Results (per-transfer numbers plus target verdicts)</legend>
+    <div data-transfer-hook="transfer-result-list" aria-live="polite"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Preview (read-only target footprints, mm)</legend>
+    <div data-transfer-hook="transfer-preview" role="group" aria-label="Read-only millimetre preview of transferred target footprints"></div>
+  </fieldset>
+
+  <div>
+    <button data-transfer-hook="transfer-export-button" type="button">Download transfer bundle JSON (pending review)</button>
+  </div>
+</section>

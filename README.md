@@ -66,15 +66,25 @@ See [domain model](docs/domain-model.md), [architecture](docs/architecture.md),
 Schemas use `0.1.0-provisional`; Phase 1 remains incomplete. A standalone
 calibration/geometry kernel exists (Phase 5 partial: scale fitting, planar
 mapping, polygon containment; synthetic fixtures only, no production wiring —
-see [calibration](docs/calibration.md)). A provisional pure variant-transfer
-kernel exists (Phase 7 partial: absolute/normalized/proportional/override
-across explicit variant contexts, 50 Node tests, standalone pending-review
-contracts — see [variant transfer](docs/variant-transfer.md)); inspector/UI
-wiring, real calibration, production mapping, and customer packaging remain
-pending. The internal single-HTML asset inspector has a maintained offline Playwright suite (`e2e/`, 8 specs) passing on macOS bundled chromium and installed Chrome (see [offline testing](docs/offline-testing.md));
+see [calibration](docs/calibration.md)). A provisional variant-transfer kernel plus an offline inspector panel
+exist (Phase 7 partial: absolute/normalized/proportional/override across
+explicit variant contexts, 50 Node tests, frozen-source capture with atomic
+draft transfer and deterministic pending-review export — see
+[variant transfer](docs/variant-transfer.md)); real calibration, production
+mapping, and customer packaging remain pending. The internal single-HTML
+asset inspector has a maintained offline Playwright suite (`e2e/`, 9 specs,
+29 tests) passing on macOS bundled chromium and installed Chrome
+(see [offline testing](docs/offline-testing.md));
 the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
 remains the delivery acceptance test.
 Operation PDFs and the internal Builder also remain pending.
+
+For draft variant transfer, capture the current calibrated placements as the
+source, then author or restore the target variant using the existing inspector
+controls. Enter explicit region rules and optional placement overrides, run the
+transfer, review its millimetre measurements and fit verdicts, and download the
+pending-review bundle. The source survives target asset changes; preview and
+export leave the target's placements unchanged.
 
 
 ## Internal asset inspector (Phase 4 partial + Phase 5 draft panel)
