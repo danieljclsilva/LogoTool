@@ -78,3 +78,19 @@ Real FlexiTog multi-product images/meshes, authorized Tripo access and compariso
 model quality/texture assessment, measured calibration, placement and package
 editing remain pending. Windows Chrome/Edge direct `file://` verification is still
 required; local macOS Chrome success is not Windows evidence.
+
+
+## Current private development asset (2026-10-11)
+
+For manual development inspection, use
+`private/development-assets/jacket/model.glb`. Its preview, source GLBs/photos,
+SHA-256 manifest and texture-transfer report are beside it. This ignored asset
+is for development only, has no measured physical calibration and retains
+sleeve/side color defects. It has not passed the inspector/offline acceptance
+suite; filesystem geometry/UV and embedded-texture checks alone are not delivery
+validation. Do not replace synthetic automated-test fixtures with this asset.
+
+Local inference experiments have been retired and model creation is deferred.
+Their compact private evidence archive is retained; model weights and the old
+Python environment are removed. A flat-image workflow will be discussed with
+the Logo Department; it is not yet an approved change to the product scope.

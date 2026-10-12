@@ -105,3 +105,24 @@ Inferring reference rectangles from safe-area bounds or matching regions by
 name was rejected because neither establishes a shared physical datum.
 Consequently callers must supply explicit mappings and measured reference
 rectangles; real setup and canonical project integration remain separate gates.
+
+
+## Development asset and generation pause (2026-10-11)
+
+Use the locally merged Meshy jacket GLB for development testing only. The asset,
+original front/back GLBs, source photographs and transfer provenance live under
+ignored `private/development-assets/jacket/`; they are not public examples or
+automated-test fixtures. Geometry is uncalibrated and sleeve/side texture defects
+remain. This decision does not establish production quality or physical dimensions.
+
+Pause local image-to-3D inference and defer the model-generation provider/workflow.
+Retired experiment source, logs, manifests and inspection evidence are kept in a
+compact private archive; downloaded weights, its virtual environment and unused
+intermediate models have been removed. The approved development asset needs none
+of those inference dependencies. Existing synthetic offline tests remain intact.
+
+The user intends to suggest flat product images to the Logo Department. A switch
+to 2D is a proposal awaiting their decision, not an approved replacement of the
+current project requirements. Keep physical measurements/calibration independent
+of the visual representation. No external messages, uploads or API calls are
+authorized by this housekeeping decision.
