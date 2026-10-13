@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogoTool · Project Package Transport Preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f2f5f7; color: #1b2c39; font: 16px/1.5 system-ui, sans-serif; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0; font-size: clamp(1.55rem, 4vw, 2rem); }
+    h2 { margin: 24px 0 10px; font-size: 1.2rem; }
+    button { border: 1px solid #9cabb7; border-radius: 6px; background: #fff; color: inherit; cursor: pointer; font: inherit; padding: 8px 14px; }
+    button:disabled { cursor: default; opacity: .5; }
+    button:focus-visible, [data-package-hook="dropzone"]:focus-visible { outline: 3px solid #1976a5; outline-offset: 2px; }
+    .transport-banner { margin: 18px 0; padding: 13px 16px; border-left: 5px solid #9b6517; background: #fff4dc; }
+    .load-panel { border: 1px solid #c2ccd3; border-radius: 10px; background: #fff; padding: 16px; }
+    [data-package-hook="dropzone"] { margin: 0 0 14px; padding: 18px; border: 2px dashed #8ea6b5; border-radius: 8px; background: #f8fbfc; cursor: pointer; text-align: center; }
+    [data-package-hook="dropzone"] p { margin: 4px; }
+    [data-package-hook="dropzone"].is-dragging { border-color: #176b91; background: #e5f3f8; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .actions [data-package-hook="save"] { margin-left: auto; }
+    input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    [data-package-hook="status"] { min-height: 1.5em; margin: 12px 0 0; }
+    .source-label { margin: 3px 0 0; color: #52616d; font-size: .92rem; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: 0; }
+    .summary-grid > div { min-width: 0; padding: 12px; border: 1px solid #cbd4da; border-radius: 8px; background: #fff; }
+    dt { color: #52616d; font-size: .9rem; font-weight: 700; }
+    dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+    .unit-note { color: #52616d; font-size: .85rem; font-weight: 400; }
+    .table-scroll { overflow-x: auto; max-width: 100%; }
+    table { width: 100%; border-collapse: collapse; background: #fff; font-variant-numeric: tabular-nums; }
+    th, td { padding: 8px 10px; border: 1px solid #cbd4da; text-align: left; vertical-align: top; }
+    th { background: #e8eef1; white-space: nowrap; }
+    td { overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      .actions [data-package-hook="save"] { margin-left: 0; }
+      .actions button { flex: 1 1 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 id="transport-preview-title">LogoTool · Project Package Transport Preview</h1>
+    <section id="project-package-inspector" aria-labelledby="transport-preview-title">
+      <p class="transport-banner" role="note">
+        <strong>Transport preview only — not a customer editor.</strong>
+        This offline harness inspects package metadata and placement records. It does not edit projects,
+        render artwork, or confer approval. The included project and assets are synthetic.
+      </p>
+
+      <section class="load-panel" aria-label="Open a LogoTool project package">
+        <h2>Open a project package</h2>
+        <div data-package-hook="dropzone" tabindex="0" role="button" aria-label="Drop a .logo-project archive here">
+          <p><strong>Drop a <code>.logo-project</code> archive here</strong></p>
+          <p>Or choose a project from this device. Files are read locally and are never uploaded.</p>
+        </div>
+        <div class="actions">
+          <button data-package-hook="choose" type="button">Choose Project</button>
+          <input data-package-hook="file-input" type="file" accept=".logo-project,application/zip" aria-label="Choose a .logo-project file">
+          <button data-package-hook="save" type="button" disabled>Download .logo-project</button>
+        </div>
+        <p data-package-hook="status" role="status" aria-live="polite">Choose or drop a .logo-project package to inspect it.</p>
+        <p class="source-label">Loaded file: <span data-package-hook="source-name">None</span></p>
+      </section>
+
+      <section aria-labelledby="summary-title">
+        <h2 id="summary-title">Project summary</h2>
+        <dl class="summary-grid" data-package-hook="project-summary">
+          <div><dt>Project</dt><dd data-package-hook="project-id">Not loaded</dd></div>
+          <div><dt>Revision</dt><dd data-package-hook="project-revision">Not loaded</dd></div>
+          <div><dt>Customer confirmation</dt><dd data-package-hook="confirmation">Not loaded</dd></div>
+          <div><dt>Internal review</dt><dd data-package-hook="review">Not loaded</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="placement-title">
+        <h2 id="placement-title">Placements <span class="unit-note">(all dimensions and coordinates in mm)</span></h2>
+        <p data-package-hook="placement-empty">Load a project to inspect its placements.</p>
+        <div class="table-scroll">
+          <table data-package-hook="placement-table" hidden>
+            <thead>
+              <tr>
+                <th scope="col">Configuration</th><th scope="col">Product / variant</th>
+                <th scope="col">Logo</th><th scope="col">Region</th><th scope="col">Method</th>
+                <th scope="col">X (mm)</th><th scope="col">Y (mm)</th><th scope="col">Width (mm)</th>
+                <th scope="col">Height (mm)</th><th scope="col">Rotation (°)</th>
+              </tr>
+            </thead>
+            <tbody data-package-hook="placement-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="assets-title">
+        <h2 id="assets-title">Asset inventory</h2>
+        <p>Metadata only. Asset bytes are not previewed, executed, or interpreted.</p>
+        <p data-package-hook="assets-empty">Load a project to inspect its asset inventory.</p>
+        <div class="table-scroll">
+          <table data-package-hook="asset-table" hidden>
+            <thead>
+              <tr><th scope="col">Package path</th><th scope="col">Type</th><th scope="col">Referenced by</th><th scope="col">Size (bytes)</th></tr>
+            </thead>
+            <tbody data-package-hook="asset-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script><!-- APP_SCRIPT --></script>
+</body>
+</html>

@@ -9,7 +9,8 @@
   "name": "logotool-foundations",
   "private": true,
   "scripts": {
-    "build": "tsc && node scripts/build-inspector.mjs",
+    "build": "tsc && node scripts/build-inspector.mjs && node scripts/build-package-preview.mjs",
+    "build:package-preview": "tsc && node scripts/build-package-preview.mjs",
     "test": "npm run build && node --test dist/tests-ts/*.test.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.viewer.json && tsc -p tsconfig.e2e.json",
     "generate:models": "node scripts/generate-synthetic-glb.mjs",
@@ -22,6 +23,7 @@
   "version": "0.1.0",
   "dependencies": {
     "ajv": "^8.17.1",
+    "fflate": "0.8.2",
     "gltf-validator": "^2.0.0-dev.3.10",
     "three": "^0.186.1"
   },

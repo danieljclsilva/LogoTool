@@ -1,13 +1,15 @@
-# Offline testing — asset inspector e2e suite
+# Offline testing — inspector and project package preview
 
-Maintained Playwright acceptance for the standalone inspector
-(`dist/asset-inspector.html`, built by `npm run build`). The suite opens the
-built file directly through `file://` (via `pathToFileURL`, no server), drives
-it in offline browser contexts, and asserts zero console/page errors and zero
-HTTP(S) requests on every spec.
+Maintained Playwright acceptance covers the internal asset inspector and the
+Phase 8 transport-only package preview. The inspector opens its built HTML
+directly through `file://`; the package spec extracts the generated synthetic
+hybrid ZIP into a temporary directory with spaces and opens its inline HTML
+through `file://`. Both run with networking disabled and assert zero
+console/page errors and zero HTTP(S) requests.
 
-This is the internal inspector harness only — not the customer package
-milestone. True ZIP/unzip acceptance awaits customer packaging.
+The package spec proves binary transport and metadata inspection only. It is not
+the customer editor, internal return-import/review workflow, production export,
+or Windows delivery gate.
 
 ## Requirements
 
@@ -26,6 +28,7 @@ npm run test:e2e:chrome   # build + real Google Chrome (channel: chrome)
 npm run test:e2e:edge     # build + real Microsoft Edge (channel: msedge)
 npm run test:e2e:matrix   # build + all three projects (requires Chrome AND Edge)
 npm run test:e2e -- --project=chrome   # --project selection passthrough
+npm run build:package-preview # inline inspector + synthetic hybrid transport ZIP
 ```
 
 `npm run typecheck` checks domain, viewer, and e2e/config TypeScript.
@@ -59,10 +62,14 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
 - `safe-area-regression.spec.ts` — rect + concave-with-exclusion verdicts,
   2D preview presence.
 - `variant-transfer.spec.ts` — provisional transfer UI (2026-10-11, 10 tests: absolute determinism, normalized fixed/proportional worked rects, override exact mm, multi/zero/unsafe verdicts, frozen-source survives asset replacement, cross-region frozen numerics, independently calibrated variant transfer without target mutation, drag locks/cancellation, obsolete restore reads, atomic failures incl. busy-restore and rule/override invalidation). Screenshots per test+project via `test.info().outputPath`, attached per test+project.
+- `project-package-inspector.spec.ts` — extracts the generated hybrid ZIP into a
+  folder with spaces, opens its HTML offline through `file://`, and covers
+  chooser/drop, byte-identical save/reopen, zero-placement configurations,
+  oversized/failing loads and controlled obsolete reads.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
-  runs offline. Portable stand-in until true ZIP/unzip customer-package
-  acceptance exists.
+  runs offline. ZIP/unzip transport-preview acceptance is covered separately
+  by `project-package-inspector.spec.ts`.
 
 ## Acceptance run — 2026-10-11
 
@@ -166,9 +173,42 @@ Windows Chrome/Edge delivery remains untested; no Edge run claimed.
 
 Reports/screenshots land under the already-ignored `test-results/` and
 `playwright-report/` — never committed. Only explicitly synthetic source
-fixtures (`e2e/fixtures/*.json`) are tracked. Known limits: `msedge` needs a
-real Edge install (absent on this development host); geometry assertions go through
+fixtures (`e2e/fixtures/*.json`) are tracked. Branded `msedge` requires an installed
+Edge browser; no Edge run was performed for this slice. Geometry assertions go through
 the UI's own verdicts/export bytes while `tests-ts/` covers the core math;
 browser contexts attach OS, browser version, viewport and offline evidence to
 the HTML report. Desktop/mobile screenshots use per-test/project paths and
 are attached to the report.
+
+## Phase 8 transport-preview acceptance — 2026-10-13
+
+Independent integration validation on macOS 27.2 arm64 (Darwin 27.2.0). The
+package-preview tests opened the extracted hybrid HTML through `file://` in
+offline 1280×900 contexts. Each package test attaches OS/release/architecture,
+browser name/version, viewport, offline state and entry point, and asserts zero
+console errors, page errors and HTTP(S) requests. The pre-existing inspector
+suite also exercises 1280×900 and 390×844 viewports.
+
+Codex independently repeated typecheck, all 321 Node tests, and both full
+32-test browser suites. After the final test-only download-filename correction,
+Codex reran the three package tests on both browsers (6/6) and verified identical
+ZIP, HTML and zero-placement fixture bytes across UTC and Amsterdam builds.
+
+| Command | Browser / scope | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Core, viewer and e2e TypeScript | Pass |
+| `npm test` | Node-only | 321/321 |
+| `npm run test:e2e` | Playwright Chromium 156.0.8078.4 | 32/32 |
+| `npm run test:e2e:chrome` | Google Chrome 154.0.8037.98 | 32/32 |
+
+The new ZIP/unzip cases cover the synthetic two-entry hybrid archive, folder
+names with spaces, Choose Project and drop, byte-identical save/reopen, preserved
+project and binary asset data, zero-placement and mixed configurations, failed
+and oversized loads, and a controlled obsolete read. `npm run build:package-preview`
+also produced identical hybrid ZIP SHA-256 output under `TZ=UTC` and
+`TZ=Europe/Amsterdam`.
+
+No Edge run was performed or claimed. Windows Chrome/Edge over `file://` with
+networking disabled remains the delivery release gate and is untested. The
+preview does not implement placement editing, internal baseline review, or
+production export.

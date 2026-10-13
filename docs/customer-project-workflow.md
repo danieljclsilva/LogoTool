@@ -1,7 +1,8 @@
 # Customer project round trip
 
 Requirement agreed from the user's workflow direction on 2026-10-10. This is
-the target behavior; no customer editor or package implementation exists yet.
+the target behavior. Phase 8 currently has only a binary transport and offline
+inspection preview; no customer editor or end-to-end workflow exists yet.
 Exact schema fields remain subject to domain design and evidence review.
 
 ## Handoff

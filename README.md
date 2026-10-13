@@ -1,6 +1,6 @@
 # LogoTool
 
-Phase 1 Odoo discovery is in progress: initial findings are in [docs/odoo-discovery.md](docs/odoo-discovery.md), with a detailed local report under `private/`. Evidence-audit tooling is implemented and verified. A provisional TypeScript domain foundation is implemented; there is no customer configurator or delivered browser package yet.
+Phase 1 Odoo discovery is in progress: initial findings are in [docs/odoo-discovery.md](docs/odoo-discovery.md), with a detailed local report under `private/`. Evidence-audit tooling is implemented and verified. The TypeScript domain and a provisional Phase 8 binary package-transport preview exist; there is no customer editor or production-ready customer package.
 
 ## Phase 1 evidence audit
 
@@ -43,7 +43,9 @@ python3 -m unittest discover -s tests -v
 ```
 
 `npm test` builds the TypeScript code first; `npm run build` also works separately.
-The customer package will not require Node or Python.
+`npm run build:package-preview` builds the synthetic transport preview under ignored `dist/`.
+It is not a customer editor or production package; see [project packaging](docs/project-packaging.md).
+Customer runtime packages are intended to need no Node or Python; build tooling is development-only.
 Real Chrome/Edge runs: `npm run test:e2e:chrome`, `npm run test:e2e:edge`,
 `npm run test:e2e:matrix`. See [offline testing](docs/offline-testing.md).
 
@@ -70,13 +72,16 @@ see [calibration](docs/calibration.md)). A provisional variant-transfer kernel p
 exist (Phase 7 partial: absolute/normalized/proportional/override across
 explicit variant contexts, 50 Node tests, frozen-source capture with atomic
 draft transfer and deterministic pending-review export — see
-[variant transfer](docs/variant-transfer.md)); real calibration, production
-mapping, and customer packaging remain pending. The internal single-HTML
-asset inspector has a maintained offline Playwright suite (`e2e/`, 9 specs,
-29 tests) passing on macOS bundled chromium and installed Chrome
-(see [offline testing](docs/offline-testing.md));
-the customer package remains pending, and Windows Chrome/Edge over `file://` with networking disabled
-remains the delivery acceptance test.
+[variant transfer](docs/variant-transfer.md)). Phase 8 is partial: binary `.logo-project` transport,
+an offline metadata/placement inspector and synthetic hybrid-ZIP round trip. The
+transport preview has no placement editing, artwork rendering, baseline import,
+production review, or production export. Provisional core workflow rules remain
+available separately. See [project packaging](docs/project-packaging.md).
+The maintained offline Playwright suite covers both the internal single-HTML
+asset inspector and the package transport preview (`e2e/`, 10 specs, 32 tests),
+passing on macOS bundled Chromium 156.0.8078.4 and installed Chrome 154.0.8037.98.
+Windows Chrome/Edge over `file://` with networking disabled remains the release
+acceptance gate and is untested. See [offline testing](docs/offline-testing.md).
 Operation PDFs and the internal Builder also remain pending.
 
 For draft variant transfer, capture the current calibrated placements as the
@@ -101,3 +106,7 @@ imported fit ignored and recomputed pending review). A provisional planar-frame 
 draft. No server or network connection is needed. Fixtures are synthetic and uncalibrated.
 Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
 See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).
+
+## Project package transport preview (Phase 8 partial)
+
+Run `npm run build:package-preview`, unzip `dist/synthetic-package-transport-preview.zip`, and open `OPEN_LOGO_CONFIGURATOR.html` directly through `file://`. The synthetic archive includes one `.logo-project`; Choose Project or drag/drop loads it for metadata and mm-placement inspection, and Download saves the same package format. This is transport-only, with no placement editor or production workflow. See [project packaging](docs/project-packaging.md).

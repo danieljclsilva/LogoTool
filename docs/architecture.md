@@ -1,8 +1,9 @@
 # Architecture foundation
 
-Status: provisional Phase 2–6 work. Portable domain utilities and an internal
-offline GLB/calibration inspector are implemented. Customer editing, binary
-packaging, PDF rendering and Odoo integration remain pending.
+Status: provisional Phase 2–8 foundations. Portable domain utilities and an internal
+offline GLB/calibration inspector are implemented. Phase 8 adds binary project
+transport and an inspection-only preview; customer editing, production packaging,
+PDF rendering and Odoo integration remain pending.
 
 ## Boundaries
 
@@ -24,9 +25,9 @@ Future layers follow brief §4:
 src/core         physical domain and workflow (implemented)
 src/viewer       Three.js model inspection/picking and planar synthetic-logo preview
 src/assets       offline external GLB import (generation providers future)
-src/packaging    canonical project, hybrid ZIP, self-contained HTML (future)
+src/packaging    provisional binary project ZIP transport; hybrid preview build (editor and self-contained HTML future)
 src/platform     file/download/storage interfaces, browser and Tauri adapters (future)
-src/ui           internal calibration draft (customer editor/Builder future)
+src/ui           internal calibration draft + transport inspector (customer editor/Builder future)
 ```
 
 Viewers derive geometry from mm data; inverse calibrated surface mapping translates
@@ -47,14 +48,15 @@ output. Variant transfer remains pending.
 The customer runtime must work after unzip via `file://` in Windows Chrome/Edge,
 with networking disabled, no installation, server, CDN, fonts or remote assets.
 Application code/dependencies must be bundled. Current emitted TypeScript modules
-are developer build output, not a delivered customer application.
+are developer output or inspection-only harnesses, not a delivered customer application.
 
 Hybrid HTML must load the project using Choose Project or drag/drop, not silently
 fetch neighboring files. A self-contained HTML package embeds its issued project.
 Both formats share the same canonical project semantics and explicit downloadable
 return format. Persistence must not depend on browser storage or overwriting the
 original. Binary assets are normal bytes behind packaging adapters, not domain
-Base64 fields. Direct offline browser/package acceptance is pending.
+Base64 fields. The synthetic package transport preview passes macOS offline `file://`
+acceptance; Windows Chrome/Edge and full customer workflow acceptance remain pending.
 
 ## Trust and export
 
@@ -77,3 +79,7 @@ and browser ownership are isolated in `src/viewer` and `src/ui/asset-inspector`.
 `scripts/build-inspector.mjs` emits one inline IIFE HTML for internal `file://`
 inspection. This is not the hybrid project package or customer standalone export.
 See `asset-pipeline.md` for trust boundaries and unsupported resource/extension paths.
+
+## Phase 8 partial package transport
+
+`src/packaging/project-package` writes and validates a separately versioned provisional ZIP envelope around an unchanged `ProjectDocument` and binary assets. The async SHA-256 adapter is injected; `src/core` and its provisional domain/production schemas are unchanged. `src/ui/project-package-inspector` is a no-edit metadata/mm-placement harness; `scripts/build-package-preview.mjs` emits the ignored standalone HTML, zero-placement fixture, and synthetic hybrid ZIP. It does not implement placement editing, an issued-baseline importer, internal approval, production export, or the self-contained HTML mode. Format, path/decompression limits, and ZIP compatibility restrictions are documented in [project packaging](project-packaging.md).
