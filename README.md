@@ -1,6 +1,11 @@
 # LogoTool
 
-Phase 1 Odoo discovery is in progress: initial findings are in [docs/odoo-discovery.md](docs/odoo-discovery.md), with a detailed local report under `private/`. Evidence-audit tooling is implemented and verified. The TypeScript domain and a provisional Phase 8 binary package-transport preview exist; there is no customer editor or production-ready customer package.
+Phase 1 Odoo discovery remains in progress; initial findings are in
+[docs/odoo-discovery.md](docs/odoo-discovery.md), with detailed evidence under
+`private/`. Evidence-audit tooling is implemented. Phase 8 now includes a
+provisional transport preview plus editable synthetic planar customer/review
+workflows. Real calibration, production readiness and Windows delivery are not
+implemented or approved.
 
 ## Phase 1 evidence audit
 
@@ -38,13 +43,16 @@ npm ci
 npx playwright install chromium # setup only (may need network)
 npm run typecheck
 npm test
-npm run test:e2e # maintained offline inspector suite (build + bundled chromium)
+npm run test:e2e # offline inspector + Phase 8 workflows (build + Chromium)
 python3 -m unittest discover -s tests -v
 ```
 
 `npm test` builds the TypeScript code first; `npm run build` also works separately.
-`npm run build:package-preview` builds the synthetic transport preview under ignored `dist/`.
-It is not a customer editor or production package; see [project packaging](docs/project-packaging.md).
+`npm run build:package-preview` builds the unchanged transport preview and the
+synthetic customer/reviewer artifacts under ignored `dist/`. Run
+`npm run build:customer-prototype` to build those package artifacts directly.
+They are a functional synthetic prototype, not production output; see
+[project packaging](docs/project-packaging.md).
 Customer runtime packages are intended to need no Node or Python; build tooling is development-only.
 Real Chrome/Edge runs: `npm run test:e2e:chrome`, `npm run test:e2e:edge`,
 `npm run test:e2e:matrix`. See [offline testing](docs/offline-testing.md).
@@ -72,17 +80,19 @@ see [calibration](docs/calibration.md)). A provisional variant-transfer kernel p
 exist (Phase 7 partial: absolute/normalized/proportional/override across
 explicit variant contexts, 50 Node tests, frozen-source capture with atomic
 draft transfer and deterministic pending-review export — see
-[variant transfer](docs/variant-transfer.md)). Phase 8 is partial: binary `.logo-project` transport,
-an offline metadata/placement inspector and synthetic hybrid-ZIP round trip. The
-transport preview has no placement editing, artwork rendering, baseline import,
-production review, or production export. Provisional core workflow rules remain
-available separately. See [project packaging](docs/project-packaging.md).
-The maintained offline Playwright suite covers both the internal single-HTML
-asset inspector and the package transport preview (`e2e/`, 10 specs, 32 tests),
-passing on macOS bundled Chromium 156.0.8078.4 and installed Chrome 154.0.8037.98.
-Windows Chrome/Edge over `file://` with networking disabled remains the release
-acceptance gate and is untested. See [offline testing](docs/offline-testing.md).
-Operation PDFs and the internal Builder also remain pending.
+[variant transfer](docs/variant-transfer.md)). Phase 8 remains partial: binary
+`.logo-project` transport, an editable offline synthetic planar customer editor,
+and a separate internal return-review harness now exercise the issue/edit/
+confirm/save/reopen/import/revise/reconfirm workflow. No real product calibration,
+artwork rendering, 3D/curved mapping, production export/PDF, Odoo write path or
+Windows release is claimed. Schemas remain provisional. See
+[project packaging](docs/project-packaging.md) and
+[customer workflow](docs/customer-project-workflow.md).
+The maintained offline Playwright suite covers the internal asset inspector,
+transport preview, customer editor and return reviewer. macOS Chromium/Chrome
+results are engineering evidence only. Windows Chrome/Edge over `file://` with
+networking disabled remains untested. See [offline testing](docs/offline-testing.md).
+Operation PDFs and the internal Builder remain pending.
 
 For draft variant transfer, capture the current calibrated placements as the
 source, then author or restore the target variant using the existing inspector
@@ -107,6 +117,24 @@ draft. No server or network connection is needed. Fixtures are synthetic and unc
 Real FlexiTog assets, Tripo comparison and Windows verification remain pending.
 See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/prototype-findings.md).
 
-## Project package transport preview (Phase 8 partial)
+## Project package transport preview
 
-Run `npm run build:package-preview`, unzip `dist/synthetic-package-transport-preview.zip`, and open `OPEN_LOGO_CONFIGURATOR.html` directly through `file://`. The synthetic archive includes one `.logo-project`; Choose Project or drag/drop loads it for metadata and mm-placement inspection, and Download saves the same package format. This is transport-only, with no placement editor or production workflow. See [project packaging](docs/project-packaging.md).
+Run `npm run build:package-preview`, unzip
+`dist/synthetic-package-transport-preview.zip`, and open
+`OPEN_LOGO_CONFIGURATOR.html` through `file://`. Choose Project or drag/drop
+loads the `.logo-project` for metadata and mm-placement inspection. This
+transport-only page remains unchanged.
+
+## Synthetic customer prototype (Phase 8 partial)
+
+Run `npm run build:customer-prototype`, unzip
+`dist/synthetic-customer-prototype.zip`, and open `customer-configurator.html`
+through `file://`. The package contains `SYNTHETIC-CUSTOMER.logo-project`;
+Choose Project or drag/drop opens it. The separate
+`dist/customer-return-review.html` imports a return only against a separately
+selected local issued baseline and downloads reviewed or revised project files.
+The editor preserves asset bytes, edits mm placements/instructions, and labels
+customer confirmation as pending internal review. Footprints are inert labelled
+boxes on schematic synthetic regions, not artwork or garment renders. Real
+calibration, physical validation and Windows Chrome/Edge release acceptance
+remain unverified.

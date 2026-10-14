@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc && node scripts/build-inspector.mjs && node scripts/build-package-preview.mjs",
     "build:package-preview": "tsc && node scripts/build-package-preview.mjs",
+    "build:customer-prototype": "tsc && node scripts/build-package-preview.mjs",
     "test": "npm run build && node --test dist/tests-ts/*.test.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.viewer.json && tsc -p tsconfig.e2e.json",
     "generate:models": "node scripts/generate-synthetic-glb.mjs",

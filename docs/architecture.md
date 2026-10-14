@@ -1,9 +1,10 @@
 # Architecture foundation
 
-Status: provisional Phase 2–8 foundations. Portable domain utilities and an internal
-offline GLB/calibration inspector are implemented. Phase 8 adds binary project
-transport and an inspection-only preview; customer editing, production packaging,
-PDF rendering and Odoo integration remain pending.
+Status: provisional Phase 2–8 foundations. Phase 8 now includes binary project
+transport, a fully inline synthetic planar customer editor, and a separate
+internal return-review harness. These are workflow prototypes only; real
+calibration, product/artwork visualization, production export/PDF and Odoo
+integration remain future work.
 
 ## Boundaries
 
@@ -13,11 +14,12 @@ export. It imports no browser, Node filesystem/crypto, React, Three.js or servic
 APIs. Ajv compiles the checked-in draft 2020-12 JSON contracts without network
 resolution; all external schema references are registered locally.
 
-Hashing is an injected synchronous `canonicalText -> lowercase SHA-256 hex`
-callback whose result shape is checked. Tests supply Node crypto. A future browser
-adapter must provide a synchronous portable implementation or explicitly adapt
-these operations to asynchronous Web Crypto; SubtleCrypto cannot directly satisfy
-this synchronous interface.
+Core hashing remains an injected synchronous `canonicalText -> lowercase
+SHA-256 hex` callback. Node tests supply Node crypto. Browser operations use
+`src/ui/shared/browser-hasher.ts`: it canonicalizes `contentEnvelope(project)`,
+awaits Web Crypto, and stores the exact text/digest pair before core calls. Its
+synchronous callback throws for every text that was not explicitly prepared;
+SubtleCrypto itself never enters `src/core`.
 
 Future layers follow brief §4:
 
@@ -25,9 +27,9 @@ Future layers follow brief §4:
 src/core         physical domain and workflow (implemented)
 src/viewer       Three.js model inspection/picking and planar synthetic-logo preview
 src/assets       offline external GLB import (generation providers future)
-src/packaging    provisional binary project ZIP transport; hybrid preview build (editor and self-contained HTML future)
+src/packaging    provisional binary project ZIP transport and inline package builds
 src/platform     file/download/storage interfaces, browser and Tauri adapters (future)
-src/ui           internal calibration draft + transport inspector (customer editor/Builder future)
+src/ui           internal calibration, transport inspector, synthetic customer editor/reviewer; Builder future
 ```
 
 Viewers derive geometry from mm data; inverse calibrated surface mapping translates
@@ -41,22 +43,20 @@ adds viewer picks/markers/region axes/placement overlays (procedural asymmetric 
 provisional local save/restore envelope requires the exact current-asset hash,
 discards imported fit values and recomputes the fit as pending review; planar region bundles are a separate deterministic provisional export with no restore path, while the dedicated area bundle has a local restore path (`src/core/region-areas-restore`, 8 MiB chars, max 128 regions, 512 ring vertices, 64 exclusions/region, 65536 total vertices; nested session limits unchanged). The placement bundle (`0.1.0-provisional-logo-placements`, max 256 placements / 64 logos) has the same trust posture: exact asset hash, recomputed fit/regions/areas/footprints, supplied approval/footprint/status never echoed, malformed/reference-invalid files fail atomically while geometrically-invalid-but-wellformed placements stay editable with explicit non-fitting statuses. These
 utilities are not yet wired into product calibration records or production
-output. Variant transfer remains pending.
+output. The provisional Phase 7 transfer kernel and inspector panel exist, but
+real variant calibration and production mapping remain unvalidated.
 
 ## Delivery contract
 
 The customer runtime must work after unzip via `file://` in Windows Chrome/Edge,
 with networking disabled, no installation, server, CDN, fonts or remote assets.
-Application code/dependencies must be bundled. Current emitted TypeScript modules
-are developer output or inspection-only harnesses, not a delivered customer application.
-
-Hybrid HTML must load the project using Choose Project or drag/drop, not silently
-fetch neighboring files. A self-contained HTML package embeds its issued project.
-Both formats share the same canonical project semantics and explicit downloadable
-return format. Persistence must not depend on browser storage or overwriting the
-original. Binary assets are normal bytes behind packaging adapters, not domain
-Base64 fields. The synthetic package transport preview passes macOS offline `file://`
-acceptance; Windows Chrome/Edge and full customer workflow acceptance remain pending.
+Application code/dependencies must be bundled. The build emits a hybrid synthetic
+customer prototype and standalone inline editor/reviewer HTML. Their file chooser
+and drop flows do not fetch neighboring files. A separate transport-only preview
+remains available. Persistence uses explicit downloads, not browser storage or
+overwriting the original. Binary assets remain bytes behind packaging adapters,
+not domain Base64 fields. Synthetic macOS offline `file://` acceptance is
+engineering evidence only; Windows Chrome/Edge release acceptance remains pending.
 
 ## Trust and export
 
@@ -80,6 +80,30 @@ and browser ownership are isolated in `src/viewer` and `src/ui/asset-inspector`.
 inspection. This is not the hybrid project package or customer standalone export.
 See `asset-pipeline.md` for trust boundaries and unsupported resource/extension paths.
 
-## Phase 8 partial package transport
+## Phase 8 synthetic project workflow
 
-`src/packaging/project-package` writes and validates a separately versioned provisional ZIP envelope around an unchanged `ProjectDocument` and binary assets. The async SHA-256 adapter is injected; `src/core` and its provisional domain/production schemas are unchanged. `src/ui/project-package-inspector` is a no-edit metadata/mm-placement harness; `scripts/build-package-preview.mjs` emits the ignored standalone HTML, zero-placement fixture, and synthetic hybrid ZIP. It does not implement placement editing, an issued-baseline importer, internal approval, production export, or the self-contained HTML mode. Format, path/decompression limits, and ZIP compatibility restrictions are documented in [project packaging](project-packaging.md).
+`src/packaging/project-package` writes and validates a separately versioned
+provisional ZIP envelope around an unchanged `ProjectDocument` and binary assets.
+`src/core/project-editor` supplies immutable placement/instruction revisions and
+full rotated-box safe/exclusion verdicts; it changes no current schemas.
+`src/ui/customer-editor` is a fully inline 2D mm editor using inert labelled
+footprints, not original-art rendering or real garment mapping. It saves drafts,
+confirms the current content digest, and gates submissions on confirmation plus
+current geometry/method checks.
+
+`src/ui/customer-return-review` requires distinct user-selected issued and
+returned archives, compares identity/definitions plus exact asset bytes, calls
+`importCustomerReturn` (discarding returned internal review), and records review
+only after current fit/validation. Customer-visible edits create a new revision
+and clear current confirmation/review. The returned file's customer confirmation
+is evidence text, and the local baseline/reviewer identity are not authentication.
+
+`scripts/build-package-preview.mjs` preserves the previous transport preview and
+emits `dist/customer-configurator.html`, `dist/customer-return-review.html`,
+`dist/synthetic-customer-prototype.zip`, and development-only
+`dist/trusted-issued.logo-project`. The issue project is a clean revision-1 clone
+of a synthetic source fixture; source examples and binary assets are unchanged.
+Real calibration, curved/3D mapping, production output, self-contained issued
+HTML, Windows delivery and internal Builder remain outside this prototype.
+Transport format, path/decompression limits and ZIP restrictions are documented
+in [project packaging](project-packaging.md).

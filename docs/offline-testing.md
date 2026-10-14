@@ -1,15 +1,15 @@
-# Offline testing — inspector and project package preview
+# Offline testing — offline inspector and Phase 8 workflow prototypes
 
-Maintained Playwright acceptance covers the internal asset inspector and the
-Phase 8 transport-only package preview. The inspector opens its built HTML
-directly through `file://`; the package spec extracts the generated synthetic
-hybrid ZIP into a temporary directory with spaces and opens its inline HTML
-through `file://`. Both run with networking disabled and assert zero
+Maintained Playwright acceptance covers the internal asset inspector, the
+transport-only package preview, the synthetic customer editor, and a separate
+internal return-review harness. Hybrid ZIPs are extracted into temporary paths
+with spaces and opened directly through `file://` in offline browser contexts.
+The workflow specs exercise actual DOM controls and downloads, and assert zero
 console/page errors and zero HTTP(S) requests.
 
-The package spec proves binary transport and metadata inspection only. It is not
-the customer editor, internal return-import/review workflow, production export,
-or Windows delivery gate.
+The customer/reviewer prototype covers synthetic mm editing and local workflow
+bookkeeping only. It is not real product calibration, artwork visualization,
+production authorization or the Windows delivery gate.
 
 ## Requirements
 
@@ -28,7 +28,8 @@ npm run test:e2e:chrome   # build + real Google Chrome (channel: chrome)
 npm run test:e2e:edge     # build + real Microsoft Edge (channel: msedge)
 npm run test:e2e:matrix   # build + all three projects (requires Chrome AND Edge)
 npm run test:e2e -- --project=chrome   # --project selection passthrough
-npm run build:package-preview # inline inspector + synthetic hybrid transport ZIP
+npm run build:package-preview # transport preview + synthetic customer/reviewer artifacts
+npm run build:customer-prototype # standalone inline customer/reviewer package build
 ```
 
 `npm run typecheck` checks domain, viewer, and e2e/config TypeScript.
@@ -66,6 +67,13 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   folder with spaces, opens its HTML offline through `file://`, and covers
   chooser/drop, byte-identical save/reopen, zero-placement configurations,
   oversized/failing loads and controlled obsolete reads.
+- `customer-editor.spec.ts` — editable offline synthetic project ZIP workflows;
+  exact detailed coverage is recorded after the acceptance run below.
+- `customer-return-review.spec.ts` — selected issued/return files, trusted
+  baseline comparison, exact asset-byte checks, confirmation/geometry gates,
+  discarded forged reviews, atomic tamper/stale/old-revision rejection, review
+  bookkeeping and revised-proposal downloads. Desktop/mobile screenshots and
+  offline browser metadata are attached per test.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. ZIP/unzip transport-preview acceptance is covered separately
@@ -212,3 +220,54 @@ No Edge run was performed or claimed. Windows Chrome/Edge over `file://` with
 networking disabled remains the delivery release gate and is untested. The
 preview does not implement placement editing, internal baseline review, or
 production export.
+
+## Editable customer and return-review acceptance — 2026-10-14
+
+Codex independently reviewed the OMP-integrated prototype, corrected undo history,
+mobile reviewer overflow and integration typing, and completed final validation.
+All fixtures and generated packages are synthetic. No live Odoo tests, external
+uploads or private customer assets were used; canonical schemas remain provisional.
+
+| Command | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Node 26.10.0, TypeScript | Passed |
+| `npm test` | Node-only | 338/338 |
+| `npm run test:e2e` | macOS 27.2 arm64, Chromium 156.0.8078.4 | 41/41 |
+| `npm run test:e2e:chrome` | macOS 27.2 arm64, Google Chrome 154.0.8037.98 | 41/41 |
+
+The full suite now has 12 specs. Customer and reviewer screenshots cover
+1280×900 desktop and 390×844 mobile; Codex inspected both layouts, including the
+full exact-mm review and internal review controls. Pages were nonblank, correctly
+identified and unobscured; document-width assertions passed. Every acceptance
+context had networking disabled and asserted zero console errors, page errors
+and HTTP(S) requests. The extracted customer ZIP was opened from a temporary
+folder with spaces via `file://`; no web server or sibling-file fetch was used.
+Environment metadata and screenshots are attached to local ignored Playwright
+reports under `test-results/` and `playwright-report/`.
+
+New coverage includes numeric placement and instruction edits in one revision,
+multiple products/variants/configurations, 0..N placements, exact frame/calibration
+and clockwise mm review, drag grab offsets/release/cancellation, draft and
+confirmed downloads, exact original asset-byte preservation, saved confirmation
+reopen, undo/reset as new revisions, oversized geometry rejection, and controlled
+obsolete file/digest/save operations. The Node suite also checks combined polygon
+work bounds before kernel evaluation. Reviewer acceptance covers trusted-baseline
+selection, definition/artwork tampering, structurally valid digest-stale
+confirmation, old revisions, forged review removal, pre-read archive bounds,
+non-fitting changes-requested reviews and atomic failure preservation. A complete
+DOM flow issues the generated package, edits and confirms in the customer page,
+imports and reviews internally, exports a revised proposal, reopens/reconfirms in
+the customer page and imports the new confirmation internally.
+
+Rebuilding the two inline pages, issued baseline, customer ZIP and transport ZIP
+under `TZ=UTC` and `TZ=Europe/Amsterdam` produced byte-identical artifacts. The
+customer ZIP SHA-256 was
+`958955f205f695013fb8ae60e18849f449ae98effcf8cc94b73fbe7d6b85e341`.
+
+The in-app Browser was available, but rejected the local `file://` URL under its
+HTTP(S)-only URL policy. That refusal was honored; no interactive workaround was
+used. Repo-local Playwright remains the project's primary offline acceptance
+mechanism. No Edge run is claimed. Actual Windows Chrome/Edge with networking
+disabled remains untested. Real calibration, artwork/garment rendering, curved
+surface mapping, production export and authenticated review remain outside this
+synthetic prototype's evidence.

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogoTool · Synthetic Customer Editor</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172a38; background: #f1f5f7; }
+    body { margin: 0; font-size: 15px; line-height: 1.45; }
+    main { max-width: 1420px; padding: 22px; margin: 0 auto; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+    h2 { margin: 0 0 12px; font-size: 1.15rem; }
+    p { margin: 8px 0; }
+    button, input, select, textarea { color: inherit; font: inherit; }
+    button { border: 1px solid #aab8c2; border-radius: 6px; padding: 8px 12px; background: #fff; cursor: pointer; }
+    button:hover:not(:disabled) { background: #eaf2f6; }
+    button:disabled { opacity: .48; cursor: default; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [data-customer-hook="dropzone"]:focus-visible { outline: 3px solid #14759a; outline-offset: 2px; }
+    input, select, textarea { min-width: 0; width: 100%; border: 1px solid #aab8c2; border-radius: 5px; padding: 7px 8px; background: #fff; }
+    textarea { min-height: 74px; resize: vertical; }
+    label { display: grid; gap: 4px; font-weight: 650; }
+    small, .muted { color: #536775; font-size: .9rem; }
+    .banner { border-left: 5px solid #a36c18; background: #fff5df; padding: 12px 15px; margin: 14px 0; }
+    .panel { min-width: 0; border: 1px solid #ccd6dc; border-radius: 9px; background: #fff; padding: 16px; }
+    .load-panel { margin-bottom: 16px; }
+    [data-customer-hook="dropzone"] { border: 2px dashed #8ba4b2; border-radius: 8px; background: #f7fafb; text-align: center; padding: 14px; cursor: pointer; }
+    [data-customer-hook="dropzone"].is-dragging { border-color: #137397; background: #e8f4f8; }
+    .actions, .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+    [data-customer-hook="status"] { min-height: 1.5em; }
+    .workspace { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(340px, 1.15fr); gap: 16px; align-items: start; }
+    .left-stack, .right-stack { display: grid; gap: 16px; min-width: 0; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .identity { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
+    .identity strong { overflow-wrap: anywhere; }
+    .canvas-wrap { width: 100%; overflow: hidden; border: 1px solid #d2dce1; border-radius: 7px; background: #f9fbfc; }
+    svg { display: block; width: 100%; min-height: 260px; height: min(44vw, 470px); touch-action: none; user-select: none; }
+    .safe-area { fill: #e4f1e8; stroke: #3a7852; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+    .exclusion-area { fill: #f5d7d4; stroke: #a6443d; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+    .footprint { fill: #b8dbea; fill-opacity: .9; stroke: #176988; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: grab; }
+    .footprint.invalid { fill: #edc3bf; stroke: #a52922; }
+    .footprint.selected { stroke-width: 2.5; }
+    .footprint:active { cursor: grabbing; }
+    .origin { stroke: #627886; stroke-width: .75; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+    .footprint-label { fill: #183b4b; font-size: 4px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+    .geometry { padding: 9px 11px; border-radius: 6px; background: #edf5ef; overflow-wrap: anywhere; }
+    .geometry.invalid { background: #fff0ed; color: #7d211b; }
+    .review { padding: 10px; background: #f3f7f9; border-radius: 6px; overflow-wrap: anywhere; }
+    .review pre { white-space: pre-wrap; font: inherit; margin: 0; }
+    .asset-note { overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
+    @media (max-width: 800px) { main { padding: 14px; } .workspace { grid-template-columns: 1fr; } svg { height: 68vw; min-height: 250px; max-height: 430px; } }
+    @media (max-width: 460px) { main { padding: 10px; } .panel { padding: 12px; } .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } button { padding: 8px 10px; } }
+  </style>
+</head>
+<body>
+  <main id="customer-editor">
+    <h1>LogoTool · Synthetic Customer Editor</h1>
+    <p class="banner" role="note"><strong>Offline synthetic prototype — not production approval.</strong> This local editor changes synthetic project drafts only. Customer confirmation is not internal approval. No project or artwork is uploaded, published, or rendered as artwork.</p>
+    <section class="panel load-panel" aria-label="Open a project">
+      <div data-customer-hook="dropzone" tabindex="0" role="button" aria-label="Drop a .logo-project archive here"><strong>Drop a .logo-project archive here</strong><br><span class="muted">or choose one from this device. The project is replaced only after the complete package validates.</span></div>
+      <div class="actions"><button data-customer-hook="choose" type="button">Choose project</button><input data-customer-hook="file-input" type="file" accept=".logo-project,application/zip" aria-label="Choose a project package"><button data-customer-hook="save" type="button" disabled>Save draft package</button><button data-customer-hook="submit" type="button" disabled>Submit confirmed draft</button></div>
+      <p data-customer-hook="status" role="status" aria-live="polite">Choose or drop a synthetic .logo-project package to begin.</p>
+      <div class="identity"><span>Project: <strong data-customer-hook="project-id">Not loaded</strong></span><span>Revision: <strong data-customer-hook="revision">—</strong></span><span>Package assets: <strong data-customer-hook="asset-count">—</strong> (bytes remain inert)</span></div>
+    </section>
+
+    <div class="workspace">
+      <div class="left-stack">
+        <section class="panel" aria-label="Configuration and placement selection">
+          <h2>Configuration</h2>
+          <div class="grid-2">
+            <label>Configuration<select data-customer-hook="configuration" disabled></select></label>
+            <label>Product<select data-customer-hook="product" disabled></select></label>
+            <label>Variant<select data-customer-hook="variant" disabled></select></label>
+            <label>Region<select data-customer-hook="region" disabled></select></label>
+            <label>Logo<select data-customer-hook="logo" disabled></select></label>
+            <label>Placement<select data-customer-hook="placement" disabled></select></label>
+          </div>
+        </section>
+        <section class="panel" aria-label="Placement dimensions and position">
+          <h2>Placement in physical millimetres</h2>
+          <p class="muted">Position is the artwork bounding-box center in the region frame. Rotation is clockwise-positive facing the region.</p>
+          <div class="grid-3">
+            <label>Center X (mm)<input data-customer-hook="x-mm" type="number" step="any" disabled></label>
+            <label>Center Y (mm)<input data-customer-hook="y-mm" type="number" step="any" disabled></label>
+            <label>Rotation clockwise (°)<input data-customer-hook="rotation" type="number" min="-179.999999999" max="180" step="any" disabled></label>
+            <label>Width (mm)<input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled></label>
+            <label>Height (mm)<input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled></label>
+            <label>Method<select data-customer-hook="method" disabled></select></label>
+          </div>
+          <label style="margin-top:10px">Placement instructions<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
+          <div class="toolbar"><button data-customer-hook="add" type="button" disabled>Add placement</button><button data-customer-hook="update" type="button" disabled>Apply pending measurement and instruction edits</button><button data-customer-hook="remove" type="button" disabled>Remove placement</button><button data-customer-hook="undo" type="button" disabled>Undo</button><button data-customer-hook="reset" type="button" disabled>Reset to opened package</button></div>
+          <p data-customer-hook="geometry" class="geometry">Load a project to evaluate the placement footprint.</p>
+        </section>
+        <section class="panel" aria-label="Project instructions">
+          <h2>Project instructions</h2>
+          <label>Customer instructions<textarea data-customer-hook="instructions" disabled></textarea></label>
+        </section>
+      </div>
+
+      <div class="right-stack">
+        <section class="panel" aria-label="Millimetre footprint preview">
+          <h2>2D safe-area and footprint preview</h2>
+          <p class="muted">Millimetre plan view only. Boxes are inert labels for placement footprints; supplied artwork bytes are never opened or displayed.</p>
+          <div class="canvas-wrap"><svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Region safe-area and placement footprint diagram"><g data-customer-hook="canvas-layer"></g></svg></div>
+          <p class="muted">Green outline: safe area. Red outline: exclusion. Blue box: inert measured placement footprint.</p>
+          <p class="muted" data-customer-hook="frame">No region selected.</p>
+        </section>
+        <section class="panel" aria-label="Exact physical review and confirmation">
+          <h2>Exact millimetre review</h2>
+          <div class="review"><pre data-customer-hook="review">Load a project to review its physical placement values.</pre></div>
+          <label style="margin-top:12px">Confirmation name<input data-customer-hook="confirmed-by" type="text" autocomplete="off" disabled></label>
+          <div class="toolbar"><button data-customer-hook="confirm" type="button" disabled>Confirm this revision</button></div>
+          <p data-customer-hook="confirmation" role="status">No project loaded.</p>
+          <p class="muted">Confirmation records customer-supplied evidence for this exact revision and content digest. It is not an authenticated identity or internal approval.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script><!-- APP_SCRIPT --></script>
+</body>
+</html>

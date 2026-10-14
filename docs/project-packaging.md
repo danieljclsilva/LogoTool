@@ -1,9 +1,10 @@
 # Provisional `.logo-project` transport
 
-Status: Phase 8 foundation only. The archive transport and offline inspection
-preview work end to end with synthetic fixtures. There is no customer placement
-editor, production importer/review workflow, production export, or released
-customer package. Core and production schemas remain provisional pending Phase 1
+Status: Phase 8 now has a provisional binary `.logo-project` transport, an
+editable offline synthetic planar customer prototype, and a separate internal
+return-review harness. These workflows remain prototypes: no real product
+calibration, approved production schema/export, customer deployment, or Windows
+release gate. Core and production schemas remain provisional pending Phase 1
 Odoo evidence review.
 
 ## Archive contract
@@ -85,33 +86,55 @@ named zero-placement configurations), and asset metadata only. Download saves
 the same `.logo-project` format; there is no editing UI or persistence
 requirement. Arbitrary imported strings are inserted as text, not HTML.
 
-Run `npm run build:package-preview` to build the HTML and issue synthetic
-artifacts under ignored `dist/`:
+Run `npm run build:customer-prototype` to emit ignored development artifacts
+under `dist/` (also emitted by `npm run build`):
 
-- `project-package-inspector.html` — standalone inspection harness;
-- `synthetic-zero-placement.logo-project` — empty fixture used by acceptance;
-- `synthetic-package-transport-preview.zip` — hybrid transport preview containing
-  exactly `OPEN_LOGO_CONFIGURATOR.html` and
-  `SYNTHETIC_PACKAGE_TRANSPORT_PREVIEW.logo-project` at the ZIP root.
+- `project-package-inspector.html` — unchanged transport-only inspection harness;
+- `synthetic-zero-placement.logo-project` — zero-placement fixture;
+- `synthetic-package-transport-preview.zip` — unchanged two-entry transport preview;
+- `customer-configurator.html` — fully inline synthetic customer editor;
+- `customer-return-review.html` — separate fully inline internal-review harness;
+- `trusted-issued.logo-project` — development-only issued baseline for review tests;
+- `synthetic-customer-prototype.zip` — `customer-configurator.html` plus
+  `SYNTHETIC-CUSTOMER.logo-project` at the ZIP root.
 
-The multi-placement project comes from `examples/projects/project-multi.project.json`
-and its exact referenced bytes from `examples/logos/`; the zero-placement
-fixture comes from `examples/projects/project-empty.project.json`. All are
-synthetic. The HTML is labelled as a transport preview, not a customer editor.
-`npm run build` also emits these artifacts. No customer runtime installation,
-server, CDN, remote asset, font, or network connection is used.
+The customer and reviewer pages bundle all runtime code; they use no server,
+CDN, remote fonts, sibling-file fetch, network, or installation. The issued
+package is a clone of `examples/projects/project-multi.project.json` plus the
+exact original bytes from `examples/logos/`. The clone starts a new authored
+issue at revision 1 with confirmation, review, and their histories deliberately
+cleared; the source example is never modified. All names, placements, products,
+coordinates and assets are synthetic.
+
+The editor displays measured boxes in region millimetres over schematic safe and
+exclusion outlines. Artwork bytes stay inert and are not rendered. This is not a
+3D, photograph, garment-surface or real-calibration mapping. The prototype can
+edit well-formed geometry-invalid drafts, but confirmation, submission and
+internal approval require current safe-area/exclusion and method checks. A
+structurally valid non-fitting draft can receive a changes-requested review. Submission
+means customer-confirmed/pending-internal-review, never production approval.
+
+The editor rejects oversized counts, coordinates and polygon rings before
+rendering. A combined 8,000,000-unit geometry-work budget also bounds repeated
+quadratic ring validation across placements; these are engineering guards, not
+manufacturing limits.
 
 ## Scope and release gate
 
-The maintained Playwright suite extracts the generated hybrid ZIP into a
-space-containing temporary directory, opens the HTML through `file://` in an
-offline context, and covers chooser/drop, load/save/reopen, byte/domain
-preservation, empty and mixed zero-placement configurations, atomic failure, and
-obsolete reads. Results and environment evidence are recorded in
-[`offline-testing.md`](offline-testing.md).
+The maintained Playwright suite extracts the generated customer ZIP into a
+space-containing temporary directory and opens the inline editor through
+`file://` while offline. DOM-level acceptance covers project chooser/drop,
+editing and dragging measured boxes, drafts and fresh confirmation, saved/reopened
+assets and revision data, and stale-operation rejection. A separate reviewer
+spec loads an explicitly selected issued baseline and return, compares definitions
+and exact archive asset bytes, rejects stale/forged approval data atomically,
+records local review bookkeeping, and exports a revised proposal with prior
+confirmation/review retained only as history. Results and environment evidence
+are recorded in [`offline-testing.md`](offline-testing.md).
 
-This is not full Phase 8: the harness does not edit placements, render products
-or artwork, confirm revisions, import against an issued baseline, review for
-production, or export production data. macOS Chromium/Chrome results are
-engineering evidence only. Actual Windows Chrome and Edge over `file://` with
-networking disabled remain untested release gates; no Edge result is claimed.
+This is functional synthetic workflow evidence, not the full Phase 8 delivery
+gate. Product calibration and coordinates are invented; there is no artwork
+preview, curved/3D surface mapping, production export/PDF, authenticated review,
+or Odoo write integration. macOS Chromium/Chrome runs are engineering evidence
+only. Actual Windows Chrome and Edge over `file://` with networking disabled
+remain untested release gates; no Edge result is claimed.

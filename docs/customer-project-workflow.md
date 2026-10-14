@@ -1,28 +1,29 @@
 # Customer project round trip
 
-Requirement agreed from the user's workflow direction on 2026-10-10. This is
-the target behavior. Phase 8 currently has only a binary transport and offline
-inspection preview; no customer editor or end-to-end workflow exists yet.
-Exact schema fields remain subject to domain design and evidence review.
+This document describes the target customer round trip. The current Phase 8
+prototype now exercises editable synthetic planar projects and a separate
+issued-baseline return-review workflow. It is not a production configurator or
+Windows release; schema fields remain provisional pending evidence review.
 
 ## Handoff
 
 1. FlexiTog prepares a project with selected garments/variants, calibrated regions,
    allowed placement areas, decoration constraints, artwork and optional defaults.
-2. The client loads it, places/resizes/rotates logos visually and sees physical
-   measurements. Coordinates come from the prepared surface mapping; visual
-   choices become mm data without the client supplying a calibration.
+2. The target uses prepared physical surface mappings so visual editing yields
+   mm values without customer calibration. The current prototype instead edits
+   schematic region-frame measurements from synthetic fixtures; it makes no
+   claim of real garment, photograph, curved-surface or 3D mapping.
 3. The client reviews all products/placements, enters instructions and confirms
    a specific revision. This is customer pre-approval, pending Logo Station review.
 4. The client downloads the updated `.logo-project` and attaches it to their email.
    A draft can be saved without confirmation. The application works offline and
    does not send email itself.
-5. Logo Station imports the return, checks its identity/revision and compares it
-   with the issued product definitions. The review displays exact dimensions,
-   placement references, constraints, previews and customer confirmation.
-6. Logo Station approves the revision for production or returns a new proposal.
-   Customer-visible changes require a new customer confirmation. An optional
-   production result is derived from the internally approved revision.
+5. Logo Station imports the return against a separately selected issued baseline,
+   verifies definitions and original/relevant asset bytes, and displays exact
+   placement differences and current geometry/confirmation status.
+6. A local review decision is separate workflow bookkeeping. Customer-visible
+   changes create a new revision that requires a new customer confirmation.
+   Production release, PDFs and operational exports remain future work.
 
 ## Information to preserve
 
@@ -58,6 +59,35 @@ The internal importer must review returned content against the internally issued
 baseline, not accept changed calibration or constraints as internal authority.
 The same project format serves repeated review cycles and future reorders.
 
+## Implemented synthetic prototype boundary
+
+The generated `dist/synthetic-customer-prototype.zip` contains a fully inline
+editor and a synthetic issued `.logo-project`. The build clones the multi-product
+fixture as a new revision-1 issue, deliberately clearing current confirmation,
+internal review and prior approval histories; it never edits the source example.
+The prototype supports multiple configurations and variants, 0..N placements,
+mm position/dimensions, clockwise-positive rotation, allowed methods,
+instructions, fit feedback, direct 2D movement, draft saves, confirmation and
+reopen. Measured boxes are labelled footprints over schematic safe/exclusion
+outlines. Original artwork is preserved as inert bytes and is not rendered.
+
+Placement centre coordinates use the selected region's declared physical frame
+and calibration reference; frame origin and axis labels are shown from that
+definition. These are synthetic fixture values, not real product measurements,
+photo landmarks or a surface mapping. The prototype is planar; it makes no 3D or
+curved-surface placement claim.
+
+`dist/customer-return-review.html` is a separate internal harness with two
+explicit file pickers: a locally selected trusted-issued baseline and a separate
+customer return. It imports through `importCustomerReturn`, compares project
+identity/definitions/revision and exact asset bytes, discards returned review
+fields, and gates review decisions on current structural, method and geometry
+checks. Internal reviewer identity is self-entered and unauthenticated. A
+customer-visible proposal is a new revision; previous confirmation/review stays
+in history, current approval is cleared, and the customer must reconfirm.
+Neither a file's review field nor this synthetic local workflow proves
+manufacturing authority.
+
 ## Loading and saving offline
 
 Hybrid output contains fully bundled HTML plus the project file. Choose Project
@@ -83,7 +113,7 @@ placement diagrams, instructions and revision/review information. See
 `operation-pdf.md`. Creating/updating Odoo records is a
 separate future integration, outside current read-only discovery authorization.
 
-## Round-trip acceptance criteria
+## Full workflow target acceptance (future release gates)
 
 - Load both packaged modes in Windows Chrome/Edge through `file://` with network
   disabled, no flags, server or installation.

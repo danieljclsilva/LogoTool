@@ -28,6 +28,16 @@ if (template.split(marker).length !== 2) {
 const inlineScript = bundled.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const html = template.replace(marker, () => inlineScript);
 const htmlBytes = new TextEncoder().encode(html);
+const customerHtmlBytes = await buildInlineHtml(
+  'src/ui/customer-editor/main.ts',
+  'src/ui/customer-editor/template.html',
+  'customer editor',
+);
+const returnReviewHtmlBytes = await buildInlineHtml(
+  'src/ui/customer-return-review/main.ts',
+  'src/ui/customer-return-review/template.html',
+  'customer return review',
+);
 
 const sha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 const project = JSON.parse(
@@ -51,6 +61,18 @@ const projectPackage = await createProjectPackage(
   { project, assets },
   { sha256 },
 );
+const issuedProject = structuredClone(project);
+issuedProject.revision = 1;
+issuedProject.description = 'Synthetic authored issue clone. Confirmation and internal review history were deliberately reset before customer handoff.';
+delete issuedProject.confirmation;
+delete issuedProject.review;
+delete issuedProject.history;
+delete issuedProject.reviewHistory;
+delete issuedProject.issuedBaselineHash;
+const issuedProjectPackage = await createProjectPackage(
+  { project: issuedProject, assets },
+  { sha256 },
+);
 const zeroProject = JSON.parse(
   await readFile('examples/projects/project-empty.project.json', 'utf8'),
 );
@@ -62,6 +84,9 @@ const zeroProjectPackage = await createProjectPackage(
 await mkdir(outputDir, { recursive: true });
 await writeFile(resolve(outputDir, 'project-package-inspector.html'), htmlBytes);
 await writeFile(resolve(outputDir, 'synthetic-zero-placement.logo-project'), zeroProjectPackage);
+await writeFile(resolve(outputDir, 'customer-configurator.html'), customerHtmlBytes);
+await writeFile(resolve(outputDir, 'customer-return-review.html'), returnReviewHtmlBytes);
+await writeFile(resolve(outputDir, 'trusted-issued.logo-project'), issuedProjectPackage);
 const hybridEntries = [
   ['OPEN_LOGO_CONFIGURATOR.html', htmlBytes],
   ['SYNTHETIC_PACKAGE_TRANSPORT_PREVIEW.logo-project', projectPackage],
@@ -71,10 +96,40 @@ const hybridZip = zipSync(Object.fromEntries(hybridEntries), {
   mtime: new Date(2000, 0, 1, 0, 0, 0),
 });
 await writeFile(resolve(outputDir, 'synthetic-package-transport-preview.zip'), hybridZip);
+const customerHybridEntries = [
+  ['customer-configurator.html', customerHtmlBytes],
+  ['SYNTHETIC-CUSTOMER.logo-project', issuedProjectPackage],
+].sort(([left], [right]) => comparePaths(left, right));
+const customerHybridZip = zipSync(Object.fromEntries(customerHybridEntries), {
+  level: 6,
+  mtime: new Date(2000, 0, 1, 0, 0, 0),
+});
+await writeFile(resolve(outputDir, 'synthetic-customer-prototype.zip'), customerHybridZip);
 console.log(
-  'Built ignored dist/project-package-inspector.html, synthetic-zero-placement.logo-project, and synthetic-package-transport-preview.zip (transport preview; not a customer editor).',
+  'Built ignored dist transport preview, inline synthetic customer editor/reviewer, hybrid customer prototype ZIP, and trusted issued baseline.',
 );
 
 function comparePaths(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+async function buildInlineHtml(entryPoint, templatePath, label) {
+  const bundle = await build({
+    entryPoints: [entryPoint],
+    bundle: true,
+    format: 'iife',
+    platform: 'browser',
+    target: 'es2022',
+    write: false,
+    minify: true,
+    legalComments: 'inline',
+  });
+  const template = await readFile(templatePath, 'utf8');
+  const marker = '<!-- APP_SCRIPT -->';
+  if (template.split(marker).length !== 2) {
+    throw new Error(`${label} template must contain one APP_SCRIPT marker`);
+  }
+  const script = bundle.outputFiles[0]?.text;
+  if (script === undefined) throw new Error(`${label} bundle produced no output`);
+  const inlineScript = script.replace(/<\/script/gi, '<\\/script');
+  return new TextEncoder().encode(template.replace(marker, () => inlineScript));
 }
