@@ -138,3 +138,10 @@ customer confirmation as pending internal review. Footprints are inert labelled
 boxes on schematic synthetic regions, not artwork or garment renders. Real
 calibration, physical validation and Windows Chrome/Edge release acceptance
 remain unverified.
+
+The same build also emits `dist/synthetic-customer-self-contained.html`
+(Phase 9 partial). Copy this single HTML file anywhere and open it locally:
+the synthetic issued project loads automatically, with no sibling files.
+Choose Project/drop can replace it; draft and confirmed downloads use the same
+editable `.logo-project` return as hybrid mode. See [project packaging](docs/project-packaging.md)
+for limits and [offline testing](docs/offline-testing.md) for evidence and gaps.

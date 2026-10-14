@@ -92,11 +92,57 @@ under `dist/` (also emitted by `npm run build`):
 - `project-package-inspector.html` — unchanged transport-only inspection harness;
 - `synthetic-zero-placement.logo-project` — zero-placement fixture;
 - `synthetic-package-transport-preview.zip` — unchanged two-entry transport preview;
-- `customer-configurator.html` — fully inline synthetic customer editor;
+- `customer-configurator.html` — fully inline synthetic customer editor (hybrid mode);
+- `synthetic-customer-self-contained.html` — single-file self-contained synthetic
+  customer editor with the same issued `.logo-project` embedded;
 - `customer-return-review.html` — separate fully inline internal-review harness;
 - `trusted-issued.logo-project` — development-only issued baseline for review tests;
 - `synthetic-customer-prototype.zip` — `customer-configurator.html` plus
   `SYNTHETIC-CUSTOMER.logo-project` at the ZIP root.
+
+## Self-contained issued HTML
+
+`src/packaging/self-contained-html` implements a browser-independent module that
+embeds a complete `.logo-project` archive into an HTML template. The build emits
+`synthetic-customer-self-contained.html`: the same fully inline customer editor,
+but with the issued package auto-loaded on startup.
+
+Embedding is deterministic and safe:
+
+- The HTML template must contain exactly one `<!-- EMBEDDED_LOGO_PROJECT -->`
+  marker.
+- The module replaces the marker with
+  `<script id="__logoEmbeddedProject" type="application/x-logo-project">BASE64</script>`.
+- Base64 uses the standard alphabet with no line breaks, so the payload cannot
+  contain `<`, `>`, `&`, `"` or `'`. This prevents HTML/script termination
+  injection; the embedded bytes are inert and are never executed or rendered.
+- The customer editor bootstrap reads the data block via `textContent`, decodes
+  it, and feeds the resulting bytes through the same `parseProjectPackage` /
+  Web Crypto pipeline used by Choose Project and drag/drop.
+
+Size overhead is predictable: the base64 encoding adds roughly 33% to the
+`.logo-project` archive size, plus the fixed script-tag wrapper. Both generation and runtime decoding enforce
+a 64 MiB base64-character ceiling
+before allocating decoded bytes, then enforce the 48 MiB archive limit. Padding
+and alphabet checks are strict, and duplicate embedded data blocks are rejected.
+The underlying `.logo-project` limits still apply; `createSelfContainedHtml`
+rejects packages
+that exceed `PROJECT_PACKAGE_LIMITS.maxArchiveBytes` (48 MiB). Source assets are
+not duplicated; the self-contained file contains exactly the same binary
+`.logo-project` used by the hybrid package.
+
+Startup failures leave the chooser usable. If the embedded data is empty,
+malformed, duplicated, oversized or fails package validation, the bootstrap shows
+a useful error in
+the status line and the customer can still choose or drop a different package.
+An absent block means hybrid mode and leaves the normal chooser prompt.
+Because the bootstrap shares the editor's monotonic load generation, a user
+replacement started while the embedded read/digest is still pending wins over
+the obsolete embedded result.
+
+This is a synthetic/provisional Phase 9 partial. The Windows Chrome/Edge
+`file://` release gate for the self-contained artifact remains untested; macOS
+Chromium/Chrome runs are engineering evidence only.
 
 The customer and reviewer pages bundle all runtime code; they use no server,
 CDN, remote fonts, sibling-file fetch, network, or installation. The issued
@@ -118,6 +164,11 @@ The editor rejects oversized counts, coordinates and polygon rings before
 rendering. A combined 8,000,000-unit geometry-work budget also bounds repeated
 quadratic ring validation across placements; these are engineering guards, not
 manufacturing limits.
+
+For the verified synthetic build, the inline hybrid editor is 247,200 bytes,
+the issued package is 1,992 bytes and the self-contained HTML is 249,904 bytes.
+The encoded payload is 2,656 bytes; replacing the marker adds 2,704 bytes to HTML.
+This measurement is not a real-product package size estimate.
 
 ## Scope and release gate
 

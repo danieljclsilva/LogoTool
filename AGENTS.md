@@ -78,6 +78,13 @@ structured physical production specifications.
   the user's authorized scope; the OMP lead and subagents must not commit or push.
 - Delegation never expands Odoo access or other user authorization. Pass relevant
   project guidance and restrictions to every agent handling that work.
+- When OMP can work independently, use a scheduled chat wake-up every 10, 20,
+  or 30 minutes based on the expected task duration instead of continuously
+  polling. Keep watching only when a concrete integration dependency, blocker,
+  or time-sensitive action requires it. At each wake-up, check completion and
+  blockers, continue independent review/validation when ready, and stay quiet
+  while nothing actionable has changed. Disable the wake-up after the delegated
+  work and Codex's final validation are complete.
 
 ## Task-specific guidance
 

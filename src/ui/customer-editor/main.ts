@@ -28,6 +28,7 @@ import {
 } from '../../packaging/project-package/index.js';
 import type { ProjectPackageAsset } from '../../packaging/project-package/index.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
+import { runCustomerSelfContainedBootstrap } from './self-contained-bootstrap.js';
 
 interface EditorPackage {
   project: ProjectDocument;
@@ -654,32 +655,27 @@ function refreshCurrentConfirmation(): void {
   if (snapshot?.project.confirmation) void checkImportedConfirmation(snapshot);
 }
 
-async function loadFiles(files: readonly File[]): Promise<void> {
+async function loadProjectSource(
+  source: { name: string; size: number; read: () => Promise<Uint8Array> },
+): Promise<void> {
+  const fileName = source.name;
   const generation = ++loadGeneration;
   stateGeneration += 1;
   cancelDrag('Drag cancelled because a project load started.');
-  if (files.length !== 1) {
+  if (source.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
     loading = false;
     updateButtons();
-    setStatus('Choose or drop exactly one .logo-project file. The currently loaded project is unchanged.');
-    refreshCurrentConfirmation();
-    return;
-  }
-  const file = files[0];
-  if (!file) return;
-  if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
-    loading = false;
-    updateButtons();
-    setStatus(`Archive size (${file.size} bytes) exceeds the ${PROJECT_PACKAGE_LIMITS.maxArchiveBytes}-byte limit. The currently loaded project is unchanged.`);
+    setStatus(`Archive size (${source.size} bytes) exceeds the ${PROJECT_PACKAGE_LIMITS.maxArchiveBytes}-byte limit. The currently loaded project is unchanged.`);
     refreshCurrentConfirmation();
     return;
   }
   loading = true;
   updateButtons();
-  setStatus(`Reading ${file.name}… The current project remains visible until package validation succeeds.`);
+  setStatus(`Reading ${fileName}… The current project remains visible until package validation succeeds.`);
   const loadToken = stateGeneration;
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    const bytes = await source.read();
+    if (generation !== loadGeneration || loadToken !== stateGeneration) return;
     const parsed = await parseProjectPackage(bytes, { sha256: hasher.sha256Bytes });
     if (generation !== loadGeneration || loadToken !== stateGeneration) return;
     assertProjectEditorLimits(parsed.project);
@@ -704,7 +700,7 @@ async function loadFiles(files: readonly File[]): Promise<void> {
     stateGeneration += 1;
     confirmationFresh = false;
     renderAll();
-    setStatus(`Loaded ${file.name}. Project metadata and all asset bytes passed package validation.`);
+    setStatus(`Loaded ${fileName}. Project metadata and all asset bytes passed package validation.`);
     const snapshot = currentSnapshot();
     if (snapshot) void checkImportedConfirmation(snapshot);
   } catch (error) {
@@ -712,9 +708,29 @@ async function loadFiles(files: readonly File[]): Promise<void> {
     loading = false;
     updateButtons();
     const detail = error instanceof Error ? error.message : String(error);
-    setStatus(`Could not load ${file.name}. The previously loaded project remains unchanged. ${detail}`);
+    setStatus(`Could not load ${fileName}. The previously loaded project remains unchanged. ${detail}`);
     refreshCurrentConfirmation();
   }
+}
+
+async function loadFiles(files: readonly File[]): Promise<void> {
+  if (files.length !== 1) {
+    loadGeneration += 1;
+    stateGeneration += 1;
+    cancelDrag('Drag cancelled because a project load started.');
+    loading = false;
+    updateButtons();
+    setStatus('Choose or drop exactly one .logo-project file. The currently loaded project is unchanged.');
+    refreshCurrentConfirmation();
+    return;
+  }
+  const file = files[0];
+  if (!file) return;
+  await loadProjectSource({
+    name: file.name,
+    size: file.size,
+    read: async () => new Uint8Array(await file.arrayBuffer()),
+  });
 }
 
 async function savePackage(submit = false): Promise<void> {
@@ -1174,3 +1190,7 @@ window.addEventListener('blur', () => cancelDrag('Drag cancelled because the win
 
 renderAll();
 updateButtons();
+
+runCustomerSelfContainedBootstrap((bytes, fileName) => loadProjectSource({
+  name: fileName, size: bytes.length, read: async () => bytes,
+}));

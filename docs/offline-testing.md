@@ -74,6 +74,12 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   discarded forged reviews, atomic tamper/stale/old-revision rejection, review
   bookkeeping and revised-proposal downloads. Desktop/mobile screenshots and
   offline browser metadata are attached per test.
+- `self-contained-customer.spec.ts` — copies only the issued HTML to an empty
+  temporary folder with spaces, auto-loads the exact hybrid issued bytes, saves
+  and reopens edits/confirmation, imports the return in the reviewer, covers
+  zero placements, malformed/duplicate/oversized embedded data and chooser
+  recovery, and deterministically releases an obsolete startup digest after
+  replacement. Desktop/mobile screenshots and environment metadata are attached.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. ZIP/unzip transport-preview acceptance is covered separately
@@ -271,3 +277,57 @@ mechanism. No Edge run is claimed. Actual Windows Chrome/Edge with networking
 disabled remains untested. Real calibration, artwork/garment rendering, curved
 surface mapping, production export and authenticated review remain outside this
 synthetic prototype's evidence.
+
+
+## Self-contained issued HTML acceptance — 2026-10-14
+
+The OMP lead reached its 30-minute deadline before returning an integration
+report. Codex independently reviewed the working tree, restored the file loader's
+pre-read archive bound and generation/lock/error handling, and replaced the
+unbounded duplicated decoder with shared strict bounded base64 decoding. Codex
+also removed the browser-global test entry point and expanded acceptance to exact
+asset bytes, reviewer import, oversized/duplicate data recovery, viewport bounds,
+environment attachments and controlled completion without a timed sleep.
+
+| Command | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Node 26.10.0, TypeScript | Passed |
+| `npm test` | Node-only | 355/355 |
+| `npm run test:e2e` | macOS 27.2 arm64 (Darwin 27.2.0), Chromium 156.0.8078.4 | 47/47 |
+| `npm run test:e2e:chrome` | Same OS, installed Chrome 154.0.8037.98 | 47/47 |
+
+The 13-spec suite includes all hybrid/inspector regressions. Standalone tests open
+one copied HTML file with no siblings through `file://` in offline contexts,
+with 1280×900 and 390×844 layout evidence. Codex inspected the final Chrome
+screenshots: project identity, measured footprints, exact-mm review and controls
+are visible and unobscured; horizontal-width assertions pass at both sizes. Every
+browser test checks zero console/page errors and zero HTTP(S) requests. The pure
+packaging-boundary e2e case does not launch a browser; its byte-limit checks are
+also covered in Node tests. Reports and generated artifacts remain local under
+already ignored paths. No live Odoo calls, external uploads or customer data
+were used; no schema was finalized.
+
+New coverage compares embedded bytes with the hybrid's separately emitted issued
+baseline, checks complete saved project/assets against that baseline, edits and
+confirms revision 2, reopens its saved return and imports it into the separate
+reviewer with current confirmation and valid geometry. Zero-placement packages
+load independently. Invalid base64, invalid archives, duplicate blocks and a
+payload above the 64 MiB encoded ceiling fail and then accept a chosen valid
+package. The race test holds the last startup asset digest, installs a different
+project through drop, releases the obsolete digest and waits for its completion;
+the chosen project remains installed. Node tests include noncanonical padding,
+HTML termination strings, encoder chunk boundaries and size rejection.
+
+Rebuilding under `TZ=UTC` and `TZ=Europe/Amsterdam` produced identical bytes for
+self-contained HTML, customer/reviewer HTML, issued baseline and both ZIPs.
+The generated self-contained file is 249,904 bytes; the hybrid editor is 247,200
+bytes and the issued project is 1,992 bytes. The base64 payload is 2,656 bytes
+(33⅓% above the archive), and replacing the marker increases HTML by 2,704 bytes.
+The self-contained SHA-256 is
+`3d0268b1d40c3adad6df50d3081794663c6556dbd538c0e3fa852900bc010f3b`.
+
+This is synthetic provisional Phase 9 evidence. Windows Chrome/Edge offline
+`file://` remains an untested release gate, and no Edge run is claimed. Real
+calibration/artwork/curved mapping, production output/PDF and authenticated review
+remain pending. Repo-local Playwright provided the required acceptance; no
+supplementary Browser inspection was performed in this run.

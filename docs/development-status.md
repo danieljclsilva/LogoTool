@@ -13,7 +13,7 @@
 
 - [ ] Phase 7 — Variant transfer (PARTIAL 2026-10-11: provisional pure kernel `src/core/variant-transfer` with 50 Node tests — absolute/normalized/proportional/override, rotation copy, 0..N/multi-region, stale/forged currentness, concave/exclusion verdicts, determinism/immutability, malformed/limits; standalone pending-review contracts, canonical schemas untouched. PLUS offline inspector panel `src/ui/variant-transfer` (2026-10-11): frozen source capture via `buildPlacementBundle`, explicit current-target context incl. committed draft in the result signature, operator-declared rules starting `[]` with illustrative +Y-up examples, atomic draft run with full-precision numbers and read-only preview, deterministic pending-review export; 10 Playwright tests in `e2e/variant-transfer.spec.ts` covering absolute/normalized/override, multi/zero/unsafe, source-survives-replacement, cross-region and independently calibrated variant transfer, unchanged target drafts, drag locks/cancellation, obsolete reads, and atomic/busy/invalidation flows. Real calibration, production mapping, and customer packaging still pending.)
 - [ ] Phase 8 — Hybrid project package (PARTIAL 2026-10-14: deterministic `.logo-project` transport plus a synthetic offline planar customer editor and separate baseline-based return reviewer. Integrated Node and offline DOM verification is recorded below; the Windows release gate remains pending. Real calibration/artwork mapping, production export and finalized schemas are out of scope; see `docs/project-packaging.md`.)
-- [ ] Phase 9 — Self-contained HTML (pending)
+- [ ] Phase 9 — Self-contained HTML (PARTIAL 2026-10-14: reusable browser-independent `src/packaging/self-contained-html` module embeds the same binary `.logo-project` into a single HTML file; the customer editor auto-loads the embedded package on startup through the same atomic parse pipeline, preserves Choose Project/drop, and exports the identical editable `.logo-project` return. Node tests cover determinism, round-trip, size limits, and injection resistance; a new Playwright spec exercises auto-load, edit/confirm/save/reopen, zero-placement, malformed embedded data, obsolete-startup replacement, and desktop/mobile viewports. The Windows `file://` release gate remains untested.)
 - [ ] Phase 10 — Production export (pending)
 - [ ] Phase 11 — Internal Builder (pending)
 
@@ -67,15 +67,16 @@ Odoo attachment functionality are not implemented yet.
 
 Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain and
 production contracts still need evidence review. Real physical calibration,
-curved mapping, production export/PDF, authenticated review, self-contained issued
-HTML and the internal Builder remain pending. The hybrid editor/reviewer is only
+curved mapping, production export/PDF, authenticated review and the internal
+Builder remain pending. Hybrid and self-contained editors/reviewer are only
 a synthetic workflow prototype; Windows Chrome/Edge delivery remains unverified.
-The maintained offline Playwright suite now has 12 specs / 41 tests, passing on
+The maintained offline Playwright suite now has 13 specs / 47 tests, passing on
 macOS 27.2 arm64 in bundled Chromium 156.0.8078.4 and installed Chrome 154.0.8037.98.
-`npm run typecheck`, `npm test` (338 Node tests), `npm run test:e2e` and
+`npm run typecheck`, `npm test` (355 Node tests), `npm run test:e2e` and
 `npm run test:e2e:chrome` passed. Package acceptance opens the extracted hybrid
-ZIP through offline `file://` at 1280×900 and 390×844, including both customer
-and internal-review pages. Every test asserts zero console/page errors and HTTP(S) requests.
-Windows Chrome/Edge delivery remains untested. See `docs/offline-testing.md`.
+ZIP and the self-contained HTML through offline `file://` at 1280×900 and
+390×844, including both customer and internal-review pages. Every browser test asserts
+zero console/page errors and HTTP(S) requests. Windows Chrome/Edge delivery
+remains untested. See `docs/offline-testing.md`.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.

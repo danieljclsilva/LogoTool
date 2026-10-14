@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { zipSync } from 'fflate';
 import { createProjectPackage } from '../dist/src/packaging/project-package/index.js';
+import { createSelfContainedHtml } from '../dist/src/packaging/self-contained-html/index.js';
 
 const root = process.cwd();
 const outputDir = resolve(root, 'dist');
@@ -80,11 +81,16 @@ const zeroProjectPackage = await createProjectPackage(
   { project: zeroProject, assets: [] },
   { sha256 },
 );
+const selfContainedHtmlBytes = await createSelfContainedHtml({
+  html: customerHtmlBytes,
+  projectPackage: issuedProjectPackage,
+});
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(resolve(outputDir, 'project-package-inspector.html'), htmlBytes);
 await writeFile(resolve(outputDir, 'synthetic-zero-placement.logo-project'), zeroProjectPackage);
 await writeFile(resolve(outputDir, 'customer-configurator.html'), customerHtmlBytes);
+await writeFile(resolve(outputDir, 'synthetic-customer-self-contained.html'), selfContainedHtmlBytes);
 await writeFile(resolve(outputDir, 'customer-return-review.html'), returnReviewHtmlBytes);
 await writeFile(resolve(outputDir, 'trusted-issued.logo-project'), issuedProjectPackage);
 const hybridEntries = [
@@ -106,7 +112,7 @@ const customerHybridZip = zipSync(Object.fromEntries(customerHybridEntries), {
 });
 await writeFile(resolve(outputDir, 'synthetic-customer-prototype.zip'), customerHybridZip);
 console.log(
-  'Built ignored dist transport preview, inline synthetic customer editor/reviewer, hybrid customer prototype ZIP, and trusted issued baseline.',
+  'Built ignored dist transport preview, inline synthetic customer editor/reviewer, self-contained customer HTML, hybrid customer prototype ZIP, and trusted issued baseline.',
 );
 
 function comparePaths(left, right) {

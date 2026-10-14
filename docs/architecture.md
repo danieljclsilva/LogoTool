@@ -103,7 +103,13 @@ emits `dist/customer-configurator.html`, `dist/customer-return-review.html`,
 `dist/synthetic-customer-prototype.zip`, and development-only
 `dist/trusted-issued.logo-project`. The issue project is a clean revision-1 clone
 of a synthetic source fixture; source examples and binary assets are unchanged.
-Real calibration, curved/3D mapping, production output, self-contained issued
-HTML, Windows delivery and internal Builder remain outside this prototype.
+Phase 9 adds `src/packaging/self-contained-html`, a browser-independent wrapper
+that inserts the issued package as bounded inert base64 into the inline editor.
+`self-contained-bootstrap.ts` decodes the data and uses the same atomic source
+loader as files, including editor limits and obsolete-load rejection. Both modes
+save the same project transport; `src/core` and canonical schemas are unchanged.
+The build emits `dist/synthetic-customer-self-contained.html` alongside the hybrid
+artifacts. Real calibration, curved/3D mapping, production output, Windows delivery
+and internal Builder remain outside this prototype.
 Transport format, path/decompression limits and ZIP restrictions are documented
 in [project packaging](project-packaging.md).
