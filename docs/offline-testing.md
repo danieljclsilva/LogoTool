@@ -536,3 +536,57 @@ and artwork/garment rendering, authenticated review, finalized domain/production
 schemas and Odoo attachment integration. No Edge acceptance is claimed.
 The prior full-suite Chrome failure remains documented: this focused Chrome
 result does not replace the full Chrome gate. No commits or pushes were made.
+
+## Private jacket test-model acceptance — 2026-10-15
+
+Windows validation is deferred at the user's request. The user selected the
+retained private jacket test asset and explicitly approved a clearly labelled
+synthetic scale for this development run. This is a one-off local test-model
+assessment, separate from the synthetic-only maintained regression suite.
+Original model/source/provenance bytes were preserved; no uploads or provider
+calls were made. No production dimensions or approvals are inferred.
+
+Environment: macOS 27.2 arm64 (Darwin 27.2.0), Chromium 156.0.8078.4 and installed
+Chrome 154.0.8037.98. Repo-local Playwright opened built
+`dist/asset-inspector.html` directly through `file://`, offline, at 1280×900 and
+390×844. Both runs recorded zero console/page errors and HTTP(S) requests.
+
+| Check | Chromium | Chrome |
+| --- | --- | --- |
+| Original hash matches retained manifest; self-contained ingestion/validator | Pass | Pass |
+| Textured model visible; orbit/fit/reset/wireframe controls | Pass | Pass |
+| Original GLB download preserves exact bytes; provenance remains uncalibrated | Pass | Pass |
+| Three surface-picked anchors and synthetic scale fit | Pass | Pass |
+| Planar region, two distinct logos, numeric footprints and synthetic obstacle rejection | Pass | Pass |
+| Camera changes preserve exported bytes; fresh-page reload/restore is byte-identical | Pass | Pass |
+| Desktop/mobile content/layout; no horizontal overflow | Pass | Pass |
+| Logos visibly conform to the jacket's curved surface | Not established; expected logos not visible in inspected default view | Same |
+| Builder → customer model/placement package → return | Not implemented | Not implemented |
+
+Scale evidence: A→B is assigned **100 mm solely for testing**, yielding
+291.93177248010517 mm per model unit. Product/variant/calibration/anchor labels
+explicitly identify synthetic evidence. The arbitrary planar 100×100 mm area
+and square exclusion are test inputs, not observed garment constraints. Two
+placements (30×15 mm at (40,40), 15°; 20×10 mm at (70,70), -20°) save/reload
+exactly and stay pending review/unapproved. Moving the second into the synthetic
+obstacle produces `fits:false`. Camera and viewport changes leave the saved
+physical numbers unchanged.
+
+Visual finding: the model renders and picked anchors/axes are visible; the two
+expected logo previews are not visibly seated on the jacket in the inspected
+front view, despite both planar footprint checks returning `fits:true`. The
+current viewer draws depth-tested flat quads from the calibrated plane; curvature
+occlusion is a plausible explanation, not a verified surface-mapping result.
+This run therefore does not pass garment-logo visual acceptance. It establishes
+that the synthetic planar data path works on the loaded asset, while exposing
+the need for explicit garment-surface mapping/rendering acceptance. The Builder
+still has no product-model/calibration-to-project bridge, so its previously
+passing schematic package roundtrip is not end-to-end jacket evidence.
+
+Scripts, JSON results, exact synthetic session/placement bundles and screenshots
+are retained privately under
+`private/development-assets/jacket/validation-2026-10-15/` (ignored by Git).
+Initial script expectations were corrected to match successful anchor auto-add;
+that was a test-authoring error, not an application regression. Final scripts
+and records reproduce the checks locally with the retained private model.
+Public automated tests continue to use only synthetic tracked fixtures.

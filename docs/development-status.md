@@ -32,6 +32,16 @@ Chromium suite 70/70; final focused Builder 10/10 in Chromium and 10/10 in
 installed Chrome. See `docs/offline-testing.md` for versions, viewports and scope.
 Windows delivery and the existing full Chrome gate remain unresolved.
 
+## Current validation priority — 2026-10-15
+
+Per the user's latest direction, Windows validation is deferred. The retained
+private jacket development model has been tested using an explicitly synthetic
+scale (user-authorized), with no claim of measured garment dimensions or
+production approval. The inspector/placement draft and the
+Builder/customer package are still separate flows: no model/calibration-to-project
+bridge has been implemented. See the jacket test-model acceptance record in
+`docs/offline-testing.md` before treating package tests as model-based acceptance.
+
 ## Dependencies
 
 Codex discovery → `docs/odoo-discovery.md` → domain schemas. Final schemas must

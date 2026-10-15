@@ -86,9 +86,13 @@ For manual development inspection, use
 `private/development-assets/jacket/model.glb`. Its preview, source GLBs/photos,
 SHA-256 manifest and texture-transfer report are beside it. This ignored asset
 is for development only, has no measured physical calibration and retains
-sleeve/side color defects. It has not passed the inspector/offline acceptance
-suite; filesystem geometry/UV and embedded-texture checks alone are not delivery
-validation. Do not replace synthetic automated-test fixtures with this asset.
+sleeve/side color defects. It now has a local offline inspector acceptance run
+on macOS Chromium/Chrome
+(2026-10-15), including surface-picked synthetic calibration and placement
+save/restore; see `docs/offline-testing.md`. This is development evidence only:
+planar placement checks do not validate appearance on the curved jacket, and
+there is no Builder/customer model bridge. Do not replace synthetic automated-test
+fixtures with this asset.
 
 Local inference experiments have been retired and model creation is deferred.
 Their compact private evidence archive is retained; model weights and the old
