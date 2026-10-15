@@ -15,7 +15,22 @@
 - [ ] Phase 8 — Hybrid project package (PARTIAL 2026-10-14: deterministic `.logo-project` transport plus a synthetic offline planar customer editor and separate baseline-based return reviewer. Integrated Node and offline DOM verification is recorded below; the Windows release gate remains pending. Real calibration/artwork mapping, production-ready export and finalized schemas are out of scope; see `docs/project-packaging.md`.)
 - [ ] Phase 9 — Self-contained HTML (PARTIAL 2026-10-14: reusable browser-independent `src/packaging/self-contained-html` module embeds the same binary `.logo-project` into a single HTML file; the customer editor auto-loads the embedded package on startup through the same atomic parse pipeline, preserves Choose Project/drop, and exports the identical editable `.logo-project` return. Node tests cover determinism, round-trip, size limits, and injection resistance; a new Playwright spec exercises auto-load, edit/confirm/save/reopen, zero-placement, malformed embedded data, obsolete-startup replacement, and desktop/mobile viewports. The Windows `file://` release gate remains untested.)
 - [ ] Phase 10 — Production export (PARTIAL 2026-10-15: internal return reviewer shows an operational candidate preview and downloads deterministic JSON through the existing `buildCandidateExport`/`serializeExport` contract. A browser-printable pending-review operation-document preview now derives from the same canonical snapshot, includes project/revision/digest, all configurations including zero placements, consistent placement numbering, exact unrounded mm dimensions/centre/rotation, frame axes/origin, calibration identity/version, artwork asset references as inert text, method and project/placement instructions, and dimensioned planar SVG positioning diagrams with safe polygons/exclusions and rotated bbox footprints. Status is always `candidate-pending-review`, including after internal workflow approval. Canonical schemas remain provisional; production-ready PDF output, real artwork/product rendering and Odoo attachment remain pending.)
-- [ ] Phase 11 — Internal Builder (pending)
+- [ ] Phase 11 — Internal Builder (PARTIAL 2026-10-15: local validated source selection of products/variants/artwork, clean revision-1 issues with explicit identity, both delivery formats, deterministic bytes and exact saved-baseline restoration, return comparison, candidate JSON and operation-document Print / Save as PDF. Separate full reviewer downloadable for decisions/reproposal. Synthetic calibration and Windows release gates remain pending; see `docs/internal-builder.md`.)
+
+## Phase 11 — Internal Builder (Codex-validated 2026-10-15)
+
+The pure `src/core/project-builder` kernel selects source snapshots and creates
+clean revision-1 issues with explicit project identity; missing default variant
+configurations start empty. `src/ui/internal-builder` builds to
+`dist/internal-builder.html`, with the inline customer editor and full reviewer
+embedded once. It generates both formats, saves/restores exact issued baselines,
+compares returns and prepares pending candidate JSON/operation-document handoff.
+Usage and limits are in `docs/internal-builder.md`.
+
+Independent validation: typecheck passed; 379/379 Node tests; full offline
+Chromium suite 70/70; final focused Builder 10/10 in Chromium and 10/10 in
+installed Chrome. See `docs/offline-testing.md` for versions, viewports and scope.
+Windows delivery and the existing full Chrome gate remain unresolved.
 
 ## Dependencies
 
@@ -30,10 +45,9 @@ workflow; the browser bridge to async Web Crypto keeps the core's sync digest
 contract strict. All schemas and workflow rules remain provisional. See
 `docs/customer-project-workflow.md`.
 
-The internal Builder will also preview/export an operation PDF for ticket and
-BoM attachments, enriching the discovered proof layouts with physical placement
-details and revision/review information. See `docs/operation-pdf.md`; export and
-Odoo attachment functionality are not implemented yet.
+The Internal Builder previews operation documents with browser Print / Save as PDF
+and prepares ticket/BoM attachment details. Direct production PDF generation and
+Odoo attachment functionality remain pending. See `docs/operation-pdf.md`.
 
 ## Gaps (Phase 1 unresolved)
 
@@ -67,10 +81,10 @@ Odoo attachment functionality are not implemented yet.
 
 Schemas remain `0.1.0-provisional`; Phase 1 is not complete. Final domain and
 production contracts still need evidence review. Real physical calibration,
-curved mapping, production-ready export/PDF, authenticated review and the internal
-Builder remain pending. Hybrid and self-contained editors/reviewer are only
+curved mapping, production-ready export/PDF and authenticated review remain pending.
+The Internal Builder is a provisional local-source prototype. Hybrid and self-contained editors/reviewer are only
 a synthetic workflow prototype; Windows Chrome/Edge delivery remains unverified.
-The maintained offline Playwright suite now has 15 specs / 60 tests. On
+Before Phase 11, the maintained offline Playwright suite had 15 specs / 60 tests. On
 macOS 27.2 arm64, `npm run typecheck`, `npm test` (363 Node tests) and
 `npm run test:e2e` (60/60 in Chromium 156.0.8078.4) passed, including the new
 operation-document preview spec. Focused installed Chrome acceptance passed

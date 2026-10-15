@@ -39,6 +39,26 @@ const returnReviewHtmlBytes = await buildInlineHtml(
   'src/ui/customer-return-review/template.html',
   'customer return review',
 );
+const builderTemplateRaw = await readFile(
+  'src/ui/internal-builder/template.html',
+  'utf8',
+);
+const editorMarker = '<!-- CUSTOMER_EDITOR_HTML -->';
+if (builderTemplateRaw.split(editorMarker).length !== 2) {
+  throw new Error('Internal builder template must contain one CUSTOMER_EDITOR_HTML marker');
+}
+const reviewerMarker = '<!-- CUSTOMER_REVIEWER_HTML -->';
+if (builderTemplateRaw.split(reviewerMarker).length !== 2) {
+  throw new Error('Internal builder template must contain one CUSTOMER_REVIEWER_HTML marker');
+}
+const embeddedEditor = `<script id="__logoCustomerEditorHtml" type="text/plain">${Buffer.from(customerHtmlBytes).toString('base64')}</script>`;
+const embeddedReviewer = `<script id="__logoCustomerReviewerHtml" type="text/plain">${Buffer.from(returnReviewHtmlBytes).toString('base64')}</script>`;
+const builderTemplate = builderTemplateRaw.replace(editorMarker, () => embeddedEditor).replace(reviewerMarker, () => embeddedReviewer);
+const builderHtmlBytes = await buildInlineHtmlFromTemplate(
+  'src/ui/internal-builder/main.ts',
+  builderTemplate,
+  'internal builder',
+);
 
 const sha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 const project = JSON.parse(
@@ -92,6 +112,7 @@ await writeFile(resolve(outputDir, 'synthetic-zero-placement.logo-project'), zer
 await writeFile(resolve(outputDir, 'customer-configurator.html'), customerHtmlBytes);
 await writeFile(resolve(outputDir, 'synthetic-customer-self-contained.html'), selfContainedHtmlBytes);
 await writeFile(resolve(outputDir, 'customer-return-review.html'), returnReviewHtmlBytes);
+await writeFile(resolve(outputDir, 'internal-builder.html'), builderHtmlBytes);
 await writeFile(resolve(outputDir, 'trusted-issued.logo-project'), issuedProjectPackage);
 const hybridEntries = [
   ['OPEN_LOGO_CONFIGURATOR.html', htmlBytes],
@@ -119,6 +140,10 @@ function comparePaths(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 async function buildInlineHtml(entryPoint, templatePath, label) {
+  const template = await readFile(templatePath, 'utf8');
+  return buildInlineHtmlFromTemplate(entryPoint, template, label);
+}
+async function buildInlineHtmlFromTemplate(entryPoint, template, label) {
   const bundle = await build({
     entryPoints: [entryPoint],
     bundle: true,
@@ -129,7 +154,6 @@ async function buildInlineHtml(entryPoint, templatePath, label) {
     minify: true,
     legalComments: 'inline',
   });
-  const template = await readFile(templatePath, 'utf8');
   const marker = '<!-- APP_SCRIPT -->';
   if (template.split(marker).length !== 2) {
     throw new Error(`${label} template must contain one APP_SCRIPT marker`);

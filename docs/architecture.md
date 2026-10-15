@@ -29,7 +29,7 @@ src/viewer       Three.js model inspection/picking and planar synthetic-logo pre
 src/assets       offline external GLB import (generation providers future)
 src/packaging    provisional binary project ZIP transport and inline package builds
 src/platform     file/download/storage interfaces, browser and Tauri adapters (future)
-src/ui           internal calibration, transport inspector, synthetic customer editor/reviewer; Builder future
+src/ui           internal calibration, transport inspector, synthetic customer editor/reviewer and provisional Internal Builder
 ```
 
 Viewers derive geometry from mm data; inverse calibrated surface mapping translates
@@ -114,6 +114,6 @@ loader as files, including editor limits and obsolete-load rejection. Both modes
 save the same project transport; `src/core` and canonical schemas are unchanged.
 The build emits `dist/synthetic-customer-self-contained.html` alongside the hybrid
 artifacts. Real calibration, curved/3D mapping, production output, Windows delivery
-and internal Builder remain outside this prototype.
+remain outside this prototype. Phase 11 adds a local-source Internal Builder; see `internal-builder.md`.
 Transport format, path/decompression limits and ZIP restrictions are documented
 in [project packaging](project-packaging.md).

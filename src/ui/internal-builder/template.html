@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogoTool · Internal Builder</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172a38; background: #f1f5f7; }
+    body { margin: 0; font-size: 15px; line-height: 1.45; }
+    main { max-width: 1120px; padding: 22px; margin: 0 auto; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+    h2 { margin: 0 0 12px; font-size: 1.15rem; }
+    h3 { margin: 0 0 8px; font-size: 1rem; }
+    p { margin: 8px 0; overflow-wrap: anywhere; }
+    button, input, select, textarea { color: inherit; font: inherit; }
+    button { border: 1px solid #aab8c2; border-radius: 6px; padding: 8px 12px; background: #fff; cursor: pointer; }
+    button:hover:not(:disabled) { background: #eaf2f6; }
+    button:disabled { opacity: .48; cursor: default; }
+    button:focus-visible, input:focus-visible, [data-builder-hook="source-drop"]:focus-visible { outline: 3px solid #14759a; outline-offset: 2px; }
+    input[type="text"] { min-width: 0; width: 100%; border: 1px solid #aab8c2; border-radius: 5px; padding: 7px 8px; background: #fff; }
+    input[type="file"] { max-width: 100%; }
+    input[type="file"][data-builder-hook="source-file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+    input[type="file"][data-builder-hook="baseline-file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+    input[type="checkbox"], input[type="radio"] { width: 1.05rem; height: 1.05rem; accent-color: #14759a; flex: none; }
+    label { display: grid; gap: 4px; font-weight: 650; }
+    small, .muted { color: #536775; font-size: .9rem; }
+    fieldset { border: 1px solid #ccd6dc; border-radius: 7px; padding: 10px 12px; margin: 12px 0 0; }
+    fieldset label { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 6px 0; }
+    legend { font-weight: 650; padding: 0 6px; }
+    .banner { border-left: 5px solid #a36c18; background: #fff5df; padding: 12px 15px; margin: 14px 0; }
+    .panel { min-width: 0; border: 1px solid #ccd6dc; border-radius: 9px; background: #fff; padding: 16px; margin-bottom: 16px; }
+    [data-builder-hook="source-drop"] { border: 2px dashed #8ba4b2; border-radius: 8px; background: #f7fafb; text-align: center; padding: 14px; cursor: pointer; }
+    [data-builder-hook="source-drop"].is-dragging { border-color: #137397; background: #e8f4f8; }
+    .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+    .check-list { display: grid; gap: 6px; max-height: 320px; overflow: auto; border: 1px solid #d2dce1; border-radius: 7px; padding: 10px; background: #fbfdfd; }
+    .check-list label { display: flex; align-items: flex-start; gap: 8px; font-weight: 500; overflow-wrap: anywhere; }
+    .check-list .variants { display: grid; gap: 6px; margin: 2px 0 4px 26px; }
+    [data-builder-hook="source-status"], [data-builder-hook="generate-status"], [data-builder-hook="baseline-load-status"], [data-builder-hook="return-status"] { min-height: 1.5em; }
+    [data-builder-hook="review-panel"] { margin-top: 12px; border-top: 1px solid #ccd6dc; padding-top: 12px; }
+    [data-builder-hook="review-panel"] pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f7f9; border-radius: 6px; padding: 10px; }
+    [hidden] { display: none !important; }
+    .operation-document-preview-host { margin: 0 auto; max-width: 1120px; padding: 24px; }
+    @media print {
+      body > main { display: none !important; }
+      body > .operation-document-preview-host:not([hidden]) { display: block !important; max-width: none; margin: 0; padding: 0; }
+    }
+    @media (max-width: 600px) { main { padding: 14px; } .actions > * { flex: 1 1 100%; } }
+  </style>
+</head>
+<body>
+  <main id="internal-builder">
+    <h1>LogoTool · Internal Builder</h1>
+    <p class="banner" role="note"><strong>Provisional local builder — no live catalogue or Odoo.</strong> This page runs fully offline in this browser and issues customer projects from a locally loaded source file. The supplied examples use synthetic calibration. Nothing is uploaded, published, or sent to manufacturing. Real product calibration and production release remain separate review gates.</p>
+
+    <section class="panel" aria-label="Load a source project">
+      <h2>Source project</h2>
+      <div data-builder-hook="source-drop" tabindex="0" role="button" aria-label="Drop a source .logo-project archive here"><strong>Drop a source .logo-project archive here</strong><br><span class="muted">or choose one from this device. The current source is replaced only after the complete package validates.</span></div>
+      <div class="actions"><button data-builder-hook="source-choose" type="button">Choose source project</button><input data-builder-hook="source-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a source project package"></div>
+      <p data-builder-hook="source-status" role="status" aria-live="polite">Choose or drop a source .logo-project package to begin.</p>
+    </section>
+
+    <section class="panel" aria-label="Issue selection">
+      <h2>Issue selection</h2>
+      <p class="muted">Untick anything the customer must not receive. Leaving all configurations checked includes every selected variant; variants without defaults start with zero placements. An explicit configuration subset includes only those configurations.</p>
+      <div class="lists">
+        <div>
+          <h3>Products and variants</h3>
+          <div class="check-list" data-builder-hook="product-list"><p class="muted">No source loaded.</p></div>
+        </div>
+        <div>
+          <h3>Logos</h3>
+          <div class="check-list" data-builder-hook="logo-list"><p class="muted">No source loaded.</p></div>
+        </div>
+        <div>
+          <h3>Configurations</h3>
+          <div class="check-list" data-builder-hook="configuration-list"><p class="muted">No source loaded.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Customer issue identity and format">
+      <h2>Customer issue identity</h2>
+      <label>Customer label<input data-builder-hook="customer-name" type="text" autocomplete="off"></label>
+      <label>Job reference<input data-builder-hook="job-ref" type="text" autocomplete="off"></label>
+      <label>Issued by<input data-builder-hook="issued-by" type="text" autocomplete="off"></label>
+      <label>Issued project ID<input data-builder-hook="project-id" type="text" autocomplete="off" placeholder="e.g. CUST-PROJ-001 — unique per issue"></label>
+      <p class="muted">The issued project ID becomes the new project's <code>projectId</code> (required, 1..256 characters; surrounding whitespace is trimmed). It must be unique per issue so customer returns bind the right baseline. <span data-builder-hook="project-id-suggestion">Source ID shown after load as a suggestion only — it is never carried over automatically.</span> <button data-builder-hook="project-id-use-source" type="button">Use source ID as a starting point</button></p>
+      <fieldset>
+        <legend>Package format</legend>
+        <label><input data-builder-hook="format-self" type="radio" name="builder-format" value="self" checked> Self-contained HTML (configurator with the issued project embedded)</label>
+        <label><input data-builder-hook="format-hybrid" type="radio" name="builder-format" value="hybrid"> Hybrid ZIP (configurator HTML plus a separate project file)</label>
+      </fieldset>
+      <div class="actions"><button data-builder-hook="generate" type="button" disabled>Generate issued package</button></div>
+      <p data-builder-hook="generate-status" role="status" aria-live="polite">Load a source project to begin.</p>
+      <p data-builder-hook="size-estimate">No issued package generated yet.</p>
+    </section>
+
+    <section class="panel" aria-label="Issued outputs">
+      <h2>Issued outputs</h2>
+      <div class="actions">
+        <button data-builder-hook="download-package" type="button" disabled>Download issued package</button>
+        <button data-builder-hook="download-html" type="button" disabled>Download configurator HTML</button>
+        <button data-builder-hook="download-baseline" type="button" disabled>Download retained baseline</button>
+        <button data-builder-hook="download-reviewer" type="button">Download reviewer HTML</button>
+      </div>
+      <p data-builder-hook="baseline-status">No issued baseline retained; generate a package first.</p>
+      <p class="muted">Save the exact retained baseline file before closing this page: the browser keeps no memory of it, and return review after a reload starts from an explicitly loaded baseline. There is no Odoo upload here — handoff is manual file attachment.</p>
+    </section>
+
+    <section class="panel" aria-label="Saved issued baseline">
+      <h2>Saved issued baseline</h2>
+      <p class="muted">Loading a saved issued baseline (<code>-issued-baseline.logo-project</code>) enables return review without generating — for example after reopening this page. It never creates or pretends a customer delivery exists.</p>
+      <div class="actions"><button data-builder-hook="baseline-choose" type="button">Choose saved issued baseline</button><input data-builder-hook="baseline-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a saved issued baseline package"></div>
+      <p data-builder-hook="baseline-load-status" role="status" aria-live="polite">No saved baseline loaded.</p>
+    </section>
+
+    <section class="panel" aria-label="Customer return review">
+      <h2>Customer return review</h2>
+      <p class="muted">The return is compared against the active baseline: the retained issued baseline from the last generation, or an explicitly loaded saved baseline. Returned review fields are never trusted as internal authority. Local only; no Odoo. This page previews the pending-review candidate; full decision/reproposal support lives in the standalone reviewer (download it below, or open <code>dist/customer-return-review.html</code> offline via <code>file://</code>).</p>
+      <div class="actions"><input data-builder-hook="return-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a returned project package"></div>
+      <p data-builder-hook="return-status" role="status" aria-live="polite">Load a returned .logo-project file to review it.</p>
+      <p data-builder-hook="handoff-summary" class="muted">No return imported.</p>
+      <section data-builder-hook="review-panel" hidden aria-label="Return review">
+        <h3>Return checks</h3>
+        <p data-builder-hook="ticket-summary">No return imported.</p>
+        <div class="actions">
+          <button data-builder-hook="candidate-download" type="button">Download candidate JSON</button>
+          <button data-builder-hook="operation-print" type="button">Print operation document</button>
+        </div>
+      </section>
+    </section>
+  </main>
+  <div data-builder-hook="operation-container" class="operation-document-preview-host" hidden></div>
+  <!-- CUSTOMER_EDITOR_HTML -->
+  <!-- CUSTOMER_REVIEWER_HTML -->
+  <script><!-- APP_SCRIPT --></script>
+</body>
+</html>

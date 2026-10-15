@@ -467,3 +467,72 @@ authenticated review, finalized Odoo mapping and direct production PDFs. The
 prior full-suite Chrome failures remain documented above; this focused run does
 not replace that full gate. No Edge acceptance is claimed. No Odoo calls, uploads,
 commits or pushes were made. Documents always remain `candidate-pending-review`.
+
+## Internal Builder acceptance — Phase 11 (2026-10-15)
+
+OMP (Muse Spark 1.3 Contributor) delivered the initial kernel/UI/test slices.
+Codex independently reviewed and corrected read-before-limit handling, obsolete
+operation cancellation, stale downloads after edits, explicit per-issue project
+identity, zero artwork, saved-baseline restoration and context switching,
+missing-variant empty configurations, print identity, asset/ID lookups,
+Windows-portable generated filenames and mobile summary wrapping. The OMP
+correction pass hit its time limit without an integrated report; these final
+results are Codex validation of the resulting working tree.
+
+The flow under test is: select local source/products/variants/artwork → issue
+both formats → open extracted hybrid or standalone HTML offline → edit/confirm
+and save a return → reopen a saved issued baseline in a fresh Builder page →
+compare return → download candidate/preview operation document → open the
+separate downloaded full reviewer.
+
+| Command | Scope/environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain, browser and e2e TypeScript | Pass |
+| `npm test` | Node-only, build first | 379/379 (16 Builder checks) |
+| `npm run test:e2e` | Full suite, Chromium 156.0.8078.4 | 70/70 |
+| `npx playwright test --project=chromium e2e/internal-builder.spec.ts` | Final Builder including filename/status adjustments | 10/10 |
+| `npx playwright test --project=chrome e2e/internal-builder.spec.ts` | Final Builder, installed Chrome 154.0.8037.98 | 10/10 |
+
+OS: macOS 27.2 arm64, build 26B5112a. Entry points are built
+`dist/internal-builder.html`, extracted generated hybrid HTML, standalone
+self-contained HTML and downloaded full reviewer, all directly over `file://`
+with networking disabled. Viewports: 1280×900 and 390×844. Every Builder case
+asserts zero console/page errors and zero HTTP(S) requests, including new pages.
+The spec attaches actual OS/browser/version/viewport/offline metadata. No server,
+live Odoo calls, customer data or external runtime dependency is used.
+
+The ten cases cover selection rendering; asset-pruned hybrid generation and
+actual offline editing/saving; standalone self-contained loading; zero logos
+and zero placements; invalid source preservation; source replacement clearing;
+exact baseline bytes, edited/confirmed return, fresh-page baseline recovery,
+explicit saved-baseline switching, wrong-issue rejection preserving prior valid
+review, candidate/operation revision agreement and full reviewer loading;
+selection/identity/format invalidation and deterministic HTML/ZIP regeneration;
+pre-read size rejection, caught read failure, controlled obsolete read completion
+and a no-artwork source; and controlled pending generation cancellation,
+input locks, hash failure and retry. Controlled races use released promises and
+state checks, never timed sleeps. A reserved Windows job name (`CON`) produces
+portable `_CON` filenames. Candidate JSON always remains pending review.
+
+Codex inspected desktop/mobile generated-issue and restored-return screenshots.
+Pages are identified, nonblank, readable and free of framework overlays; controls
+and measured diagrams render, and mobile horizontal-width assertions pass.
+Print media hides Builder controls, exposes the operation document and uses the
+returned candidate's revision in the footer. Native print dialogs and actual
+printer scaling were not tested. Shared operation-document PDF layout evidence
+is recorded in the previous section; no new production-PDF claim is made here.
+Screenshots remain in ignored per-test `test-results/` paths; inspected viewport
+crops are `/tmp/logotool-phase11-desktop.png`,
+`/tmp/logotool-phase11-mobile.png` and `/tmp/logotool-phase11-return-mobile.png`.
+The final inline Builder is 927,110 bytes, including inert editor/reviewer HTML.
+
+The supplementary in-app Browser capability was verified, but its URL policy
+rejected `file://`. That refusal was honored. The independently required
+repo-local Playwright suite supplied acceptance; no server, indirect navigation
+or Browser-policy workaround was used.
+
+Remaining gates: actual Windows Chrome/Edge offline delivery, real calibration
+and artwork/garment rendering, authenticated review, finalized domain/production
+schemas and Odoo attachment integration. No Edge acceptance is claimed.
+The prior full-suite Chrome failure remains documented: this focused Chrome
+result does not replace the full Chrome gate. No commits or pushes were made.
