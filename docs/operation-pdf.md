@@ -1,7 +1,13 @@
 # Operation PDF from the internal Builder
 
-Target requirement added on 2026-10-10. This specifies the planned export;
-the renderer, Builder and Odoo attachment integration are not implemented yet.
+Target requirement added on 2026-10-10. Updated 2026-10-15: a bounded
+pending-review operation-document preview is implemented in the internal
+customer-return reviewer. It uses the same canonical `buildCandidateExport` /
+`serializeExport` snapshot as the JSON download and is rendered to the browser
+for user-initiated Print / Save as PDF. It is not a direct PDF download and is
+not production-ready.
+
+A direct production PDF renderer, full Builder and Odoo attachment integration remain pending.
 
 ## Purpose and source
 
@@ -61,6 +67,40 @@ match. Earlier revisions remain historical, with the current approved revision
 clearly identified. The Builder previews and downloads the PDF locally; manual
 attachment is the initial handoff. Automatic Odoo attachment is a separate write
 integration requiring authorization, outside current read-only discovery grants.
+
+## Current bounded implementation (2026-10-15)
+
+The internal customer-return reviewer now previews a pending-review operation
+document alongside the candidate JSON download:
+
+- `src/core/operation-document/index.ts` builds a pure view model from the same
+  `ResultCandidate` snapshot used for the JSON download. It preserves exact,
+  unrounded mm dimensions, centre, rotation, frame axes/origin, calibration
+  identity and artwork asset references.
+- `src/ui/shared/operation-document/renderer.ts` renders the view model to DOM,
+  escaping all text. It produces one section per configuration, including
+  explicit zero-placement configurations, and a planar SVG positioning diagram
+  per placement showing the safe polygon, exclusions and rotated logo footprint.
+- `src/ui/customer-return-review/main.ts` integrates the preview and a
+  "Print operation document (browser PDF)" button. Print CSS hides the reviewer
+  chrome and shows only the document. Physical diagrams use a Y-up frame and
+  the actual datum; dashed lines show the centre offsets. Long instructions
+  retain line breaks and paginate; project/revision/pending status and page
+  numbers repeat in print margin footers.
+- The document always states `candidate-pending-review`, even after a local
+  internal workflow approval. It separately shows any local customer
+  confirmation and internal review evidence, clearly labelled as unauthenticated
+  workflow data.
+- Limitations are printed on the document: diagrams are illustrative/not to
+  scale; only logo footprints are shown; product views, SKU, colour, thread and
+  ticket data are absent; calibration and physical validation are unresolved.
+
+Codex rendered and visually inspected all pages of synthetic A4 browser PDFs
+(6-page normal and 9-page long-instruction cases), checking legibility,
+clipping, diagram direction, pagination and repeated identity/status. The long
+case preserves 85 project-instruction lines and 45 placement-note lines.
+This is macOS Chromium development evidence; native print-dialog settings and
+Windows Chrome/Edge still require delivery validation. See `offline-testing.md`.
 
 ## Acceptance criteria
 

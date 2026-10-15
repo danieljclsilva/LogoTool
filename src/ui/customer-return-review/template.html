@@ -27,6 +27,7 @@
     textarea { min-height: 88px; resize: vertical; }
     .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; }
     .summary-grid > div { min-width: 0; padding: 12px; border: 1px solid #cbd4da; border-radius: 8px; background: #fff; }
+    [data-review-hook="candidate-preview-container"] dd { white-space: pre-wrap; }
     dt { color: #52616d; font-size: .9rem; font-weight: 700; }
     dd { margin: 4px 0 0; overflow-wrap: anywhere; }
     [data-review-hook="status"] { min-height: 1.5em; margin: 12px 0 0; }
@@ -38,6 +39,11 @@
     pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
     .trust { color: #52616d; font-size: .92rem; }
     [hidden] { display: none !important; }
+    .operation-document-preview-host { margin: 0 auto; max-width: 1120px; padding: 24px; }
+    @media print {
+      body > main { display: none !important; }
+      body > .operation-document-preview-host:not([hidden]) { display: block !important; max-width: none; margin: 0; padding: 0; }
+    }
     @media (max-width: 600px) { main { padding: 16px; } .actions > * { flex: 1 1 100%; } }
   </style>
 </head>
@@ -73,6 +79,20 @@
           <div><dt>Internal review</dt><dd data-review-hook="internal-review">—</dd></div>
         </dl>
         <p class="trust">Returned review fields are discarded by the import boundary. Imported confirmation is customer-supplied evidence, not authenticated identity.</p>
+
+        <h2>Candidate preview</h2>
+        <p class="trust">Synthetic/provisional candidate preview; independent of customer confirmation and internal review states. Always candidate-pending-review, including after an internal workflow approval. Real calibration, manufacturing readiness and the final production contract remain unverified.</p>
+        <div data-review-hook="candidate-preview-container" class="panel">
+          <p data-review-hook="candidate-status"></p>
+          <div data-review-hook="candidate-summary"></div>
+          <div data-review-hook="candidate-configurations"></div>
+          <div class="actions">
+            <button data-review-hook="candidate-download" type="button">Download candidate JSON</button>
+            <button data-review-hook="operation-document-print" type="button">Print operation document (browser PDF)</button>
+          </div>
+        </div>
+
+        <p><a href="#operation-document">View printable operation document below</a></p>
 
         <h2>Differences from the issued baseline</h2>
         <pre data-review-hook="differences">No comparison yet.</pre>
@@ -117,6 +137,7 @@
       </section>
     </section>
   </main>
+  <div id="operation-document" data-review-hook="operation-document-container" class="operation-document-preview-host" hidden></div>
   <script><!-- APP_SCRIPT --></script>
 </body>
 </html>

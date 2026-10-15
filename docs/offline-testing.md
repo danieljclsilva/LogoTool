@@ -80,6 +80,7 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   zero placements, malformed/duplicate/oversized embedded data and chooser
   recovery, and deterministically releases an obsolete startup digest after
   replacement. Desktop/mobile screenshots and environment metadata are attached.
+- `operational-candidate-preview.spec.ts` — baseline-based internal reviewer candidate preview/download, canonical byte agreement, zero/repeated placements, approval-independent pending status, failed-load preservation, revised proposal refresh, inert instruction text, controlled obsolete hashing and hash-failure recovery. Desktop/mobile screenshots and offline environment metadata are attached.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. ZIP/unzip transport-preview acceptance is covered separately
@@ -331,3 +332,138 @@ This is synthetic provisional Phase 9 evidence. Windows Chrome/Edge offline
 calibration/artwork/curved mapping, production output/PDF and authenticated review
 remain pending. Repo-local Playwright provided the required acceptance; no
 supplementary Browser inspection was performed in this run.
+
+
+## Operational candidate preview/export acceptance — 2026-10-14
+
+The OMP run ended at its 20-minute limit with UI and test changes but no
+integration report. Codex independently reviewed them, removed redundant async
+preview hashing, made preview ordering follow canonical export bytes, guarded
+obsolete download errors/status and busy operations, and added revision, inert
+text and controlled export-race/recovery coverage. No canonical schema or core
+export contract changed. No Odoo calls, uploads, commits or pushes were made.
+
+The flow under test is: select a locally held issued baseline and customer
+return → import through the existing trust boundary → inspect physical candidate
+data → download canonical JSON → revise instructions/measurements → verify the
+preview and saved project/export agree at the new revision. Candidate status is
+always `candidate-pending-review`, including after workflow approval.
+
+| Command | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Node 26.10.0 / TypeScript | Passed |
+| `npm test` | Node-only | 355/355 |
+| `npm run test:e2e` | macOS 27.2 arm64, Chromium 156.0.8078.4 | 55/55 |
+| `npm run test:e2e:chrome` | Same OS, Chrome 154.0.8037.98 | 52/55; browser closed during three existing variant-transfer cases |
+| `npm run test:e2e:chrome -- --workers=2` | Same installed Chrome | 54/55; browser closed during teardown of existing transfer-atomic-failures case |
+
+All eight new candidate cases passed on both Chrome runs and in Chromium.
+Failures reported closed page/context/browser, with macOS
+`CVDisplayLinkCreateWithCGDisplay` and GPU mailbox diagnostics in browser-process
+logs. The second failure was at `context.close()` after the transfer case's
+assertions. This is evidence of browser/host instability, not proof of its root
+cause; the full Chrome gate remains failing. No assertion was removed, no test
+skipped, and no browser launch flags or application changes masked these failures.
+Initial Chrome report was preserved locally at
+`/tmp/logotool-chrome-initial-report`; the latest report remains under ignored
+`playwright-report/` and `test-results/`.
+
+Acceptance contexts opened built `dist/customer-return-review.html` directly
+through `file://`, offline, at 1280×900 and 390×844. They attach OS/release/arch,
+project/browser version, viewport, entry point and offline state. Every new case
+asserts zero console/page errors and zero HTTP(S) requests. Existing extracted
+hybrid and standalone package tests remain in the full regression runs.
+
+The eight candidate tests cover canonical byte agreement with the existing core
+export, all physical values and conventions, multiple/repeated artwork and zero
+placements, independent internal approval/pending candidate status, failed-load
+preservation, absent-pair clearing, exact revision refresh after a numeric and
+instruction proposal (also checking the binary saved project), inert HTML-like
+instructions, controlled obsolete hashing without download/status mutation, and
+hash-failure unlock/retry. The preview uses `textContent` and preserves instruction
+line breaks; artwork references are displayed as text, not fetched or rendered.
+
+Codex inspected desktop/mobile summary and desktop measurement screenshots: the
+page is identified and nonblank, there is no framework error overlay, text is
+readable and unobscured, and the mobile width assertion passes. Screenshot
+attachments are `candidate-desktop`, `candidate-desktop-measurements` and
+`candidate-mobile`; inspected Chrome copies are also local at
+`/tmp/logotool-candidate-desktop.png`,
+`/tmp/logotool-candidate-desktop-measurements.png` and
+`/tmp/logotool-candidate-mobile.png`.
+
+The supplementary in-app Browser was available but rejected the local URL:
+its URL policy allows only HTTP(S). That refusal was honored without a
+workaround; the explicitly required repo-local Playwright suite remains the
+primary offline acceptance route. Windows Chrome/Edge and real calibration
+remain untested. This slice is a provisional operational candidate preview/JSON
+export; production-ready output, operation PDFs, artwork/product rendering and
+final Odoo mapping remain pending.
+
+## Operation-document preview/print acceptance — 2026-10-15
+
+OMP delivered the bounded operation-document view model, DOM/SVG renderer and
+reviewer integration. Codex independently reviewed and corrected physical Y-up
+rendering (clockwise rotation), the actual frame datum, diagram bounds including
+exclusions/axes, label/value grouping, frame ID and rotation convention,
+confirmation/review notes and timestamps, long-instruction pagination, and print
+identity/status/page footers. The existing candidate JSON slice was preserved.
+Canonical schemas and the core candidate export contract remain unchanged.
+
+The flow under test is: select a separate issued baseline and return → compare
+against that baseline → inspect the operation document from the canonical
+candidate snapshot → revise physical values/instructions or record a review →
+verify the refreshed document and JSON agree → invoke browser printing. This is
+browser Print / Save as PDF, not a direct PDF download or production release.
+
+| Check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Node 26.10.0, macOS 27.2 arm64 | Passed |
+| `npm test` | Node-only; build first | 363/363 passed |
+| `npm run test:e2e` | Chromium 156.0.8078.4 | 60/60 passed |
+| `npm run test:e2e:chrome -- e2e/operation-document-preview.spec.ts e2e/operational-candidate-preview.spec.ts` | Installed Chrome 154.0.8037.98 | 13/13 passed |
+| Final `npx playwright test --project=chromium e2e/operation-document-preview.spec.ts` | Built final print layout, same Chromium | 5/5 passed |
+| Final `npx playwright test --project=chrome e2e/operation-document-preview.spec.ts` | Built final print layout, same installed Chrome | 5/5 passed |
+| Browser PDF capture and Poppler rendering | Chromium, A4, offline | All 6 normal and 9 long-instruction pages visually inspected |
+
+Every acceptance context opens built `dist/customer-return-review.html` through
+`file://` with networking disabled. Desktop 1280×900 and mobile 390×844 are
+covered. The operation spec attaches actual OS/release/architecture, browser
+version/project, viewport, offline state and entry point; it asserts zero console
+errors, page errors and HTTP(S) requests. It covers exact values and candidate
+identity, physical SVG orientation, explicit zero placements, print-media hiding
+of reviewer controls, revision refresh with decimal measurements and inert
+HTML-like instructions, mobile width, print-button invocation, review notes,
+and clearing the document/print control when a fresh page has no valid pair.
+The Node tests also check clockwise rotated corners, true datum, bounds including
+an outlying exclusion and deterministic, non-mutating view-model construction.
+
+Codex additionally generated two synthetic PDFs through Playwright's browser
+print engine, rendered every page with `pdftoppm`, and inspected desktop/mobile
+screenshots and every PDF page for readability, clipping, overlap and diagram
+orientation. Page/revision/pending status and page counts were verified on every
+page with `pypdf`. The long case preserves all 85 numbered project-instruction
+lines and 45 numbered placement notes. PDF text extraction supplements visual
+review; it is not the sole layout evidence. The print identity is CSS-string
+escaped and kept in the head stylesheet; controls and unrelated reviewer content
+are excluded by print CSS. Configuration details may span several pages.
+
+Local reproducible QA script and evidence are under
+`/tmp/logotool-operation-review.t7DUf2/`: `visual-qa.mjs`,
+`visual-environment.json`, `operation-review.pdf`, `operation-review-long.pdf`,
+`head-normal-*.png`, `head-long-*.png`, `document-desktop.png`,
+`document-mobile.png` and `final-*.log`. These are temporary development evidence,
+not tracked deliverables. The maintained test sources are in `tests-ts/` and
+`e2e/`. No extra runtime dependency was added.
+
+The supplementary in-app Browser was available but rejected `file://` because
+its URL policy permits HTTP(S) only. The refusal was honored. The separately
+required repo-local Playwright offline suite supplied acceptance evidence, as
+specified by AGENTS.md; no server or Browser-policy workaround was introduced.
+
+Remaining gaps: native OS print-dialog choices/printer scaling, actual Windows
+Chrome/Edge `file://` delivery, real calibration and garment/artwork rendering,
+authenticated review, finalized Odoo mapping and direct production PDFs. The
+prior full-suite Chrome failures remain documented above; this focused run does
+not replace that full gate. No Edge acceptance is claimed. No Odoo calls, uploads,
+commits or pushes were made. Documents always remain `candidate-pending-review`.

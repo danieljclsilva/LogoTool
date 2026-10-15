@@ -84,7 +84,7 @@ draft transfer and deterministic pending-review export — see
 `.logo-project` transport, an editable offline synthetic planar customer editor,
 and a separate internal return-review harness now exercise the issue/edit/
 confirm/save/reopen/import/revise/reconfirm workflow. No real product calibration,
-artwork rendering, 3D/curved mapping, production export/PDF, Odoo write path or
+artwork rendering, 3D/curved mapping, production-ready export/PDF, Odoo write path or
 Windows release is claimed. Schemas remain provisional. See
 [project packaging](docs/project-packaging.md) and
 [customer workflow](docs/customer-project-workflow.md).
@@ -92,7 +92,11 @@ The maintained offline Playwright suite covers the internal asset inspector,
 transport preview, customer editor and return reviewer. macOS Chromium/Chrome
 results are engineering evidence only. Windows Chrome/Edge over `file://` with
 networking disabled remains untested. See [offline testing](docs/offline-testing.md).
-Operation PDFs and the internal Builder remain pending.
+The internal return reviewer now previews and downloads deterministic
+pending-review operational candidate JSON and a printable operation document
+with physical footprint diagrams (Phase 10 partial). Use the browser print
+dialog to print or save as PDF. Direct production PDF generation,
+production-ready output and the internal Builder remain pending.
 
 For draft variant transfer, capture the current calibrated placements as the
 source, then author or restore the target variant using the existing inspector

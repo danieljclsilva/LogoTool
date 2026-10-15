@@ -81,7 +81,15 @@ trust-establishment operations; use the import boundary for customer returns.
 
 `hasCurrentInternalApproval` checks only a valid current workflow decision/digest.
 It does not establish measured calibration, safe fit, artwork suitability or
-production readiness. Production exports remain a later gated milestone.
+production readiness. Production-ready exports remain a later gated milestone.
+
+The internal return reviewer now renders the existing candidate result and
+downloads its canonical JSON from the imported/current project revision.
+Customer confirmation and internal review are shown separately; neither changes
+candidate status. Candidate configuration and placement ordering follows canonical
+serialization, with numbering local to each configuration. Preview and download
+retain the exact mm values, frame conventions, calibration versions, artwork
+references and instructions. No schema fields or Odoo mappings were added.
 
 ## Serialization and assets
 

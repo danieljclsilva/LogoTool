@@ -65,9 +65,13 @@ issued baseline and discards supplied internal approval. Candidate output carrie
 physical context but never claims production approval/readiness. Internal review is
 local workflow state, not authenticated identity. UI flows must use this boundary.
 
-Operation PDFs, previews and later production output must derive from the same
-selected project revision. PDF generation and Odoo uploads/writes are separate
-future layers and authorization; no live Odoo tests or integration is included.
+Operation documents, previews and later production output must derive from the
+same selected project revision. The return reviewer shares its canonical candidate
+snapshot with a pure `src/core/operation-document` view model and a DOM/SVG print
+renderer in `src/ui/shared/operation-document`. Browser Print / Save as PDF is
+local and always pending review; direct production PDF generation and Odoo
+uploads/writes remain separate future layers. No live Odoo tests or integration
+is included.
 
 
 ## Phase 4 partial implementation

@@ -1,11 +1,16 @@
 import {
+  buildCandidateExport,
   canonicalize,
   importCustomerReturn,
   newRevision,
   recordInternalReview,
+  serializeExport,
   validateProject,
 } from '../../core/index.js';
-import type { Configuration, Placement, ProjectDocument, ReviewDecision } from '../../core/index.js';
+import type { Configuration, Placement, ProjectDocument, ResultCandidate, ReviewDecision } from '../../core/index.js';
+import type { OperationIdentity } from '../../core/operation-document/types.js';
+import { buildOperationDocument } from '../../core/operation-document/index.js';
+import { renderOperationDocument, operationDocumentStyles } from '../shared/operation-document/index.js';
 import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import {
   createProjectPackage,
@@ -54,6 +59,12 @@ const heightInput = hook<HTMLInputElement>('height');
 const rotationInput = hook<HTMLInputElement>('rotation');
 const instructionsInput = hook<HTMLTextAreaElement>('instructions');
 const saveProposalButton = hook<HTMLButtonElement>('save-proposal');
+const candidateStatus = hook<HTMLElement>('candidate-status');
+const candidateSummary = hook<HTMLElement>('candidate-summary');
+const candidateConfigurations = hook<HTMLElement>('candidate-configurations');
+const candidateDownload = hook<HTMLButtonElement>('candidate-download');
+const operationDocumentContainer = hook<HTMLElement>('operation-document-container');
+const operationDocumentPrint = hook<HTMLButtonElement>('operation-document-print');
 
 const hasher = createWebCryptoProjectHasher();
 let baseline: LoadedArchive | null = null;
@@ -83,6 +94,8 @@ function updateControls(): void {
   recordButton.disabled = !ready || !validReviewer || (decision === 'approved' && (!currentFit || !hasCurrentConfirmation()));
   saveReviewedButton.disabled = !ready || !hasCurrentInternalReview();
   saveProposalButton.disabled = !ready;
+  candidateDownload.disabled = !ready;
+  operationDocumentPrint.disabled = !ready;
   const hasSelectedPlacement = selectedPlacement() !== null;
   for (const input of [xInput, yInput, widthInput, heightInput, rotationInput]) {
     input.disabled = !ready || !hasSelectedPlacement;
@@ -173,6 +186,12 @@ function currentFitSummary(): string {
 function renderProject(): void {
   if (!imported || !baseline) {
     panel.hidden = true;
+    candidateStatus.textContent = '';
+    candidateSummary.textContent = '';
+    candidateConfigurations.textContent = '';
+    operationDocumentContainer.textContent = '';
+    operationDocumentContainer.hidden = true;
+    document.getElementById('operation-document-styles')?.remove();
     updateControls();
     return;
   }
@@ -186,11 +205,36 @@ function renderProject(): void {
       : 'No customer confirmation; draft only.';
   geometrySummary.textContent = currentFitSummary();
   reviewSummary.textContent = imported.review
-    ? `${imported.review.decision} for revision ${imported.review.revision}, by ${imported.review.reviewer} (self-entered; workflow data only).`
+    ? `${hasCurrentInternalReview() ? "Current" : "Stale"}: ${imported.review.decision} for revision ${imported.review.revision}, by ${imported.review.reviewer} at ${imported.review.at} (self-entered; workflow data only).${imported.review.note === undefined ? "" : `\nReview note: ${imported.review.note}`}`
     : `No current internal review. Returned review fields were discarded. Preserved trusted-baseline review history: ${imported.reviewHistory?.length ?? 0}.`;
   renderDifferences(baseline.project, imported);
   renderEditorChoices();
+  const candidate = JSON.parse(serializeExport(buildCandidateExport(imported, hasher.sha256Hex))) as ResultCandidate;
+  renderCandidatePreview(candidate);
+  renderOperationDocumentPreview(candidate);
   updateControls();
+}
+
+function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  return element;
+}
+
+function createTextElement<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, className?: string): HTMLElementTagNameMap[K] {
+  const element = createElement(tag, className);
+  element.textContent = text;
+  return element;
+}
+
+function appendDefinitionList(parent: HTMLElement, items: { term: string; details: string }[]): void {
+  const dl = createElement('dl');
+  for (const item of items) {
+    const dt = createTextElement('dt', item.term);
+    const dd = createTextElement('dd', item.details);
+    dl.append(dt, dd);
+  }
+  parent.append(dl);
 }
 
 function appendOption(select: HTMLSelectElement, value: string, label: string): void {
@@ -198,6 +242,186 @@ function appendOption(select: HTMLSelectElement, value: string, label: string): 
   option.value = value;
   option.textContent = label;
   select.append(option);
+}
+
+function renderCandidatePreview(candidate: ResultCandidate): void {
+  candidateStatus.textContent = `Status: ${candidate.status} · Schema: ${candidate.schemaVersion}`;
+
+  candidateSummary.replaceChildren();
+  const summaryGrid = createElement('div', 'summary-grid');
+  const summaryItems = [
+    { term: 'Project ID', details: candidate.projectId },
+    { term: 'Revision', details: String(candidate.revision) },
+    { term: 'Digest', details: candidate.digest },
+    { term: 'Instructions', details: candidate.instructions ?? '(none)' },
+  ];
+  for (const item of summaryItems) {
+    const cell = createElement('div');
+    appendDefinitionList(cell, [item]);
+    summaryGrid.append(cell);
+  }
+  candidateSummary.append(summaryGrid);
+
+  candidateConfigurations.replaceChildren();
+  if (candidate.configurations.length === 0) {
+    candidateConfigurations.textContent = 'No configurations.';
+    return;
+  }
+
+  for (const configuration of candidate.configurations) {
+    const card = createElement('div', 'panel');
+    const header = createTextElement('h3', `${configuration.productId} / ${configuration.variantId}`);
+    card.append(header);
+
+    const configMeta: { term: string; details: string }[] = [
+      { term: 'Configuration ID', details: configuration.id },
+      { term: 'Product ID', details: configuration.productId },
+      { term: 'Variant ID', details: configuration.variantId },
+    ];
+    if (configuration.productName) configMeta.push({ term: 'Product name', details: configuration.productName });
+    if (configuration.variantName) configMeta.push({ term: 'Variant name', details: configuration.variantName });
+    configMeta.push({ term: 'Placements', details: String(configuration.placements.length) });
+    appendDefinitionList(card, configMeta);
+
+    if (configuration.placements.length === 0) {
+      const zero = createTextElement('p', '0 placements');
+      zero.className = 'trust';
+      card.append(zero);
+    } else {
+      for (const [index, placement] of configuration.placements.entries()) {
+        const placementCard = createElement('div', 'panel');
+        const placementHeader = createTextElement('h4', `${index + 1}. Placement ${placement.id ?? index + 1}`);
+        placementCard.append(placementHeader);
+
+        const placementMeta: { term: string; details: string }[] = [
+          { term: 'Configuration ID', details: placement.configurationId },
+          { term: 'Product ID', details: placement.productId },
+          { term: 'Variant ID', details: placement.variantId },
+          { term: 'Logo ID', details: placement.logoId },
+          { term: 'Region ID', details: placement.regionId },
+          { term: 'Method', details: placement.method },
+          { term: 'Centre X', details: `${placement.pos.xMm} mm` },
+          { term: 'Centre Y', details: `${placement.pos.yMm} mm` },
+          { term: 'Width', details: `${placement.widthMm} mm` },
+          { term: 'Height', details: `${placement.heightMm} mm` },
+          { term: 'Clockwise rotation', details: `${placement.rotationDeg}°` },
+        ];
+        if (placement.instructions !== undefined) {
+          placementMeta.push({ term: 'Placement instructions', details: placement.instructions });
+        }
+        appendDefinitionList(placementCard, placementMeta);
+
+        const frameSection = createTextElement('h5', 'Frame');
+        placementCard.append(frameSection);
+        appendDefinitionList(placementCard, [
+          { term: 'Frame ID', details: placement.frame.frameId },
+          { term: 'Origin description', details: placement.frame.originDescription },
+          { term: 'X-positive axis', details: placement.frame.axes.xPositive },
+          { term: 'Y-positive axis', details: placement.frame.axes.yPositive },
+          { term: 'Unit', details: placement.frame.unit },
+          { term: 'Reference point', details: placement.frame.referencePoint },
+          { term: 'Rotation convention', details: placement.frame.rotationConvention },
+        ]);
+
+        const calibrationSection = createTextElement('h5', 'Calibration');
+        placementCard.append(calibrationSection);
+        appendDefinitionList(placementCard, [
+          { term: 'Calibration ID', details: placement.calibration.calibrationId },
+          { term: 'Version', details: placement.calibration.version },
+        ]);
+
+        const logo = candidate.logos.find((item) => item.id === placement.logoId);
+        if (logo?.name !== undefined) appendDefinitionList(placementCard, [{ term: 'Logo name', details: logo.name }]);
+        const artworkSection = createTextElement('h5', `Artwork — logo ${placement.artwork.logoId}`);
+        placementCard.append(artworkSection);
+        if (placement.artwork.role) {
+          appendDefinitionList(placementCard, [{ term: 'Artwork role', details: placement.artwork.role }]);
+        }
+        if (placement.artwork.assets.length === 0) {
+          const noAssets = createTextElement('p', 'No assets.');
+          noAssets.className = 'trust';
+          placementCard.append(noAssets);
+        } else {
+          for (const [assetIndex, asset] of placement.artwork.assets.entries()) {
+            const assetCard = createElement('div');
+            assetCard.className = 'panel';
+            const assetHeader = createTextElement('h6', `Asset ${assetIndex + 1}`);
+            assetCard.append(assetHeader);
+            appendDefinitionList(assetCard, [
+              { term: 'Role', details: asset.role },
+              { term: 'URI', details: asset.uri },
+              { term: 'Media type', details: asset.mediaType },
+              { term: 'SHA-256', details: asset.sha256Hex ?? '(not recorded)' },
+            ]);
+            if (asset.description !== undefined) appendDefinitionList(assetCard, [{ term: 'Description', details: asset.description }]);
+            placementCard.append(assetCard);
+          }
+        }
+
+        card.append(placementCard);
+      }
+    }
+
+    candidateConfigurations.append(card);
+  }
+}
+
+function ensureOperationDocumentStyles(identity: OperationIdentity): void {
+  const id = 'operation-document-styles';
+  let style = document.getElementById(id) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = id;
+    document.head.append(style);
+  }
+  style.textContent = operationDocumentStyles(identity);
+}
+
+function renderOperationDocumentPreview(candidate: ResultCandidate): void {
+  operationDocumentContainer.hidden = false;
+  operationDocumentContainer.replaceChildren();
+  const customerConfirmation = imported && imported.confirmation
+    ? imported.confirmation.revision === imported.revision && imported.confirmation.digest === currentDigest
+      ? `Current for revision ${imported.confirmation.revision}; confirmed by ${imported.confirmation.confirmedBy} at ${imported.confirmation.confirmedAt} (unverified identity).`
+      : `Stale confirmation for revision ${imported.confirmation.revision}; not trusted.`
+    : 'No current customer confirmation.';
+  const internalReview = imported && imported.review
+    ? `${hasCurrentInternalReview() ? "Current" : "Stale"}: ${imported.review.decision} for revision ${imported.review.revision}, by ${imported.review.reviewer} at ${imported.review.at} (self-entered; workflow data only).${imported.review.note === undefined ? "" : `\nReview note: ${imported.review.note}`}`
+    : 'No current internal review. Returned review fields were discarded.';
+  const doc = buildOperationDocument({ candidate, customerConfirmation, internalReview });
+  ensureOperationDocumentStyles(doc.identity);
+  operationDocumentContainer.append(renderOperationDocument(doc, document));
+}
+
+async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {
+  const generation = operationGeneration;
+  if (busy || imported !== snapshot) return;
+  setBusy(true);
+  try {
+    await hasher.prepareProject(snapshot);
+    if (generation !== operationGeneration || imported !== snapshot) {
+      return;
+    }
+    const candidate = buildCandidateExport(snapshot, hasher.sha256Hex);
+    const serialized = serializeExport(candidate);
+    const blob = new Blob([serialized], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${safeFilePart(snapshot.projectId)}-candidate-r${snapshot.revision}.json`;
+    anchor.style.display = 'none';
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    setStatus(`Downloaded ${anchor.download}.`);
+  } catch (error) {
+    if (generation === operationGeneration && imported === snapshot) {
+      setStatus(`Candidate download failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  } finally {
+    if (generation === operationGeneration) setBusy(false);
+  }
 }
 
 function renderEditorChoices(): void {
@@ -520,6 +744,11 @@ decisionInput.addEventListener('change', updateControls);
 recordButton.addEventListener('click', () => void recordReview());
 saveReviewedButton.addEventListener('click', () => void saveReviewed());
 saveProposalButton.addEventListener('click', () => void saveProposal());
+candidateDownload.addEventListener('click', () => { if (imported) void downloadCandidateJson(imported); });
+operationDocumentPrint.addEventListener('click', () => {
+  if (!imported || busy) return;
+  globalThis.print();
+});
 configInput.addEventListener('change', () => { renderEditorChoices(); updateControls(); });
 placementInput.addEventListener('change', () => { renderEditorChoices(); updateControls(); });
 updateControls();
