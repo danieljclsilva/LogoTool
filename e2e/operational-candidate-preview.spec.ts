@@ -85,6 +85,24 @@ async function setArchive(page: Page, role: 'baseline' | 'return', name: string,
   });
 }
 
+async function openTechnicalDetails(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const details = document.querySelector<HTMLDetailsElement>('[data-review-hook="technical-details"]');
+    if (details) details.open = true;
+  });
+  await expect(page.locator('[data-review-hook="technical-details"]')).toHaveAttribute('open', '');
+}
+
+async function openProposalEditor(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const summaries = Array.from(document.querySelectorAll('details > summary'));
+    const match = summaries.find((item) => item.textContent?.includes('Suggest a revised layout'));
+    const disclosure = match?.closest('details');
+    if (disclosure) disclosure.open = true;
+  });
+  await expect(page.locator('[data-review-hook="save-proposal"]')).toBeEnabled();
+}
+
 function attachProbe(page: Page): Probe {
   const probe: Probe = { consoleErrors: [], pageErrors: [], httpRequests: [] };
   page.on('console', (message) => { if (message.type() === 'error') probe.consoleErrors.push(message.text()); });
@@ -113,12 +131,12 @@ async function openReviewer(browser: Browser, viewport: { width: number; height:
   const page = await context.newPage();
   const probe = attachProbe(page);
   await page.goto(REVIEW_HTML);
-  await expect(page.locator('h1')).toHaveText('LogoTool · Customer Return Review');
+  await expect(page.locator('h1')).toHaveText('Review a customer return');
   await expect(page.locator('#customer-return-review')).toBeVisible();
   return { context, page, probe };
 }
-
 async function readCandidateJson(page: Page): Promise<string> {
+  await openTechnicalDetails(page);
   return downloadText(page, () => page.locator('[data-review-hook="candidate-download"]').click());
 }
 
@@ -140,11 +158,12 @@ test('preview matches core export after import (desktop 1280×900)', async ({ br
   const { context, page, probe } = await openReviewer(browser, viewport);
   try {
     await setArchive(page, 'baseline', 'issued-baseline.logo-project', baseline.bytes);
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
 
     await setArchive(page, 'return', 'customer-return.logo-project', returnBytes);
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeVisible();
+    await openTechnicalDetails(page);
 
     await expect(candidateStatusLocator(page)).toContainText('candidate-pending-review');
     await expect(candidateStatusLocator(page)).toContainText('0.1.0-provisional');
@@ -217,6 +236,7 @@ test('zero placements and repeated artwork (desktop 1280×900)', async ({ browse
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
     await setArchive(page, 'return', 'zero-repeated-return.logo-project', returnBytes);
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeVisible();
+    await openTechnicalDetails(page);
 
     const imported = importCustomerReturn(returnProject, baseline.project, sha256Text);
     if (!imported.ok) throw new Error(imported.errors.map((e) => e.message).join('; '));
@@ -264,6 +284,7 @@ test('pending status survives internal approval (desktop 1280×900)', async ({ b
     await page.locator('[data-review-hook="record-review"]').click();
 
     await expect(page.locator('[data-review-hook="internal-review"]')).toContainText('approved');
+    await openTechnicalDetails(page);
     await expect(candidateStatusLocator(page)).toContainText('candidate-pending-review');
 
     const downloadedText = await readCandidateJson(page);
@@ -292,7 +313,7 @@ test('failed load preserves last valid candidate and atomic download (mobile 390
     await setArchive(page, 'baseline', 'issued-baseline.logo-project', baseline.bytes);
     await setArchive(page, 'return', 'valid-return.logo-project', validBytes);
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeVisible();
-
+    await openTechnicalDetails(page);
     const imported = importCustomerReturn(validReturn, baseline.project, sha256Text);
     if (!imported.ok) throw new Error(imported.errors.map((e) => e.message).join('; '));
     const expected = buildCandidateExport(imported.project, sha256Text);
@@ -334,18 +355,18 @@ test('preview clears when no valid pair (desktop 1280×900)', async ({ browser }
   const { context, page, probe } = await openReviewer(browser, viewport);
   try {
     await setArchive(page, 'baseline', 'issued-baseline.logo-project', baseline.bytes);
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
-
     await setArchive(page, 'return', 'customer-return.logo-project', returnBytes);
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeVisible();
+    await openTechnicalDetails(page);
     await expect(candidateStatusLocator(page)).toContainText('candidate-pending-review');
 
     // Reset the reviewer so no valid pair exists, then load only a return file.
     await page.goto(REVIEW_HTML);
-    await expect(page.locator('h1')).toHaveText('LogoTool · Customer Return Review');
+    await expect(page.locator('h1')).toHaveText('Review a customer return');
     await setArchive(page, 'return', 'customer-return.logo-project', returnBytes);
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded return');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the returned file');
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
     await expect(candidateStatusLocator(page)).toBeEmpty();
 
@@ -364,6 +385,8 @@ test('revised proposal refreshes exact preview and export, safely displaying ins
   try {
     await setArchive(page, 'baseline', 'issued.logo-project', baseline.bytes);
     await setArchive(page, 'return', 'return.logo-project', await pack(returned, baseline.assets));
+    await openTechnicalDetails(page);
+    await openProposalEditor(page);
     await expect(page.locator('[data-review-hook="candidate-download"]')).toBeEnabled();
     const instructions = '<img src="https://example.invalid/never-fetch" onerror="throw 1">\nKeep both lines.';
     await page.locator('[data-review-hook="x"]').fill('21.125');
@@ -400,6 +423,7 @@ test('obsolete candidate hashing is discarded without overwriting replacement st
   try {
     await setArchive(page, 'baseline', 'issued.logo-project', baseline.bytes);
     await setArchive(page, 'return', 'return.logo-project', await pack(returned, baseline.assets));
+    await openTechnicalDetails(page);
     await expect(page.locator('[data-review-hook="candidate-download"]')).toBeEnabled();
     await page.evaluate(() => {
       const original = crypto.subtle.digest.bind(crypto.subtle);
@@ -451,6 +475,7 @@ test('candidate hash failure unlocks controls and allows an unchanged retry', as
   try {
     await setArchive(page, 'baseline', 'issued.logo-project', baseline.bytes);
     await setArchive(page, 'return', 'return.logo-project', await pack(returned, baseline.assets));
+    await openTechnicalDetails(page);
     await expect(page.locator('[data-review-hook="candidate-download"]')).toBeEnabled();
     await page.evaluate(() => {
       const original = crypto.subtle.digest.bind(crypto.subtle);
@@ -460,7 +485,7 @@ test('candidate hash failure unlocks controls and allows an unchanged retry', as
       };
     });
     await page.locator('[data-review-hook="candidate-download"]').click();
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Candidate download failed: Synthetic digest failure');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Export data download failed: Synthetic digest failure');
     await expect(page.locator('[data-review-hook="candidate-download"]')).toBeEnabled();
     expect(await readCandidateJson(page)).toBe(serializeExport(buildCandidateExport(returned, sha256Text)));
     assertCleanProbe(probe);

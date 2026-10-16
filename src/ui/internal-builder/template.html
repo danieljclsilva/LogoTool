@@ -40,6 +40,9 @@
     [data-builder-hook="source-status"], [data-builder-hook="generate-status"], [data-builder-hook="baseline-load-status"], [data-builder-hook="return-status"] { min-height: 1.5em; }
     [data-builder-hook="review-panel"] { margin-top: 12px; border-top: 1px solid #ccd6dc; padding-top: 12px; }
     [data-builder-hook="review-panel"] pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f7f9; border-radius: 6px; padding: 10px; }
+    details { margin-top: 12px; padding: 10px 12px; border: 1px solid #ccd6dc; border-radius: 7px; background: #f7fafb; }
+    summary { cursor: pointer; font-weight: 650; }
+    summary:focus-visible { outline: 3px solid #14759a; outline-offset: 2px; }
     [hidden] { display: none !important; }
     .operation-document-preview-host { margin: 0 auto; max-width: 1120px; padding: 24px; }
     @media print {
@@ -48,88 +51,108 @@
     }
     @media (max-width: 600px) { main { padding: 14px; } .actions > * { flex: 1 1 100%; } }
   </style>
+  <style><!-- STATION_BRAND_STYLES --></style>
 </head>
 <body>
+  <header class="station-header"><img data-station-brand alt="FlexiTog"><span>Logo Station</span></header>
   <main id="internal-builder">
-    <h1>LogoTool · Internal Builder</h1>
-    <p class="banner" role="note"><strong>Provisional local builder — no live catalogue or Odoo.</strong> This page runs fully offline in this browser and issues customer projects from a locally loaded source file. The supplied examples use synthetic calibration. Nothing is uploaded, published, or sent to manufacturing. Real product calibration and production release remain separate review gates.</p>
+    <h1>Prepare a customer project</h1>
+    <p class="banner" role="note"><strong>Provisional local builder — draft only, no live catalogue or Odoo.</strong> Works fully offline in this browser; examples use synthetic data. Nothing is uploaded — attach files to your normal handoff yourself.</p>
 
-    <section class="panel" aria-label="Load a source project">
-      <h2>Source project</h2>
-      <div data-builder-hook="source-drop" tabindex="0" role="button" aria-label="Drop a source .logo-project archive here"><strong>Drop a source .logo-project archive here</strong><br><span class="muted">or choose one from this device. The current source is replaced only after the complete package validates.</span></div>
+    <section class="panel" aria-label="Step 1: Load a source project">
+      <h2>1. Load the source project</h2>
+      <p>Choose the project file supplied for this job. Your current project stays in place unless the new file is valid.</p>
+      <div data-builder-hook="source-drop" tabindex="0" role="button" aria-label="Drop a source .logo-project archive here"><strong>Drop a source project file here</strong><br><span class="muted">or choose one from this device. Nothing is uploaded.</span></div>
       <div class="actions"><button data-builder-hook="source-choose" type="button">Choose source project</button><input data-builder-hook="source-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a source project package"></div>
-      <p data-builder-hook="source-status" role="status" aria-live="polite">Choose or drop a source .logo-project package to begin.</p>
+      <p data-builder-hook="source-status" role="status" aria-live="polite">Choose or drop a source project file to begin.</p>
     </section>
 
-    <section class="panel" aria-label="Issue selection">
-      <h2>Issue selection</h2>
-      <p class="muted">Untick anything the customer must not receive. Leaving all configurations checked includes every selected variant; variants without defaults start with zero placements. An explicit configuration subset includes only those configurations.</p>
+    <section class="panel" aria-label="Step 2: Choose what to include">
+      <h2>2. Choose what to include</h2>
+      <p>Choose the products, variants, and logos the customer should receive. Everything is included by default; untick anything to leave it out.</p>
       <div class="lists">
         <div>
           <h3>Products and variants</h3>
-          <div class="check-list" data-builder-hook="product-list"><p class="muted">No source loaded.</p></div>
+          <div class="check-list" data-builder-hook="product-list"><p class="muted">No project loaded yet.</p></div>
         </div>
         <div>
           <h3>Logos</h3>
-          <div class="check-list" data-builder-hook="logo-list"><p class="muted">No source loaded.</p></div>
-        </div>
-        <div>
-          <h3>Configurations</h3>
-          <div class="check-list" data-builder-hook="configuration-list"><p class="muted">No source loaded.</p></div>
+          <div class="check-list" data-builder-hook="logo-list"><p class="muted">No project loaded yet.</p></div>
         </div>
       </div>
+      <p class="muted">Normally leave everything ticked — the customer gets every standard setup.</p>
+      <details>
+        <summary>Choose specific setups (advanced, optional)</summary>
+        <p class="muted">Only use this if the customer should not see every setup. Unticking a setup leaves it out of the customer package.</p>
+        <div class="check-list" data-builder-hook="configuration-list"><p class="muted">No project loaded yet.</p></div>
+      </details>
+      <details>
+        <summary>How selections and placements work</summary>
+        <p class="muted">When every setup is included, each chosen variant is covered. Variants without saved defaults start with zero logo placements. A customer can add zero or more placements later.</p>
+      </details>
     </section>
 
-    <section class="panel" aria-label="Customer issue identity and format">
-      <h2>Customer issue identity</h2>
-      <label>Customer label<input data-builder-hook="customer-name" type="text" autocomplete="off"></label>
+    <section class="panel" aria-label="Step 3: Enter issue details">
+      <h2>3. Enter issue details</h2>
+      <p>These details identify this customer delivery. Fill in all four fields before making the package.</p>
+      <label>Customer name<input data-builder-hook="customer-name" type="text" autocomplete="off"></label>
       <label>Job reference<input data-builder-hook="job-ref" type="text" autocomplete="off"></label>
       <label>Issued by<input data-builder-hook="issued-by" type="text" autocomplete="off"></label>
-      <label>Issued project ID<input data-builder-hook="project-id" type="text" autocomplete="off" placeholder="e.g. CUST-PROJ-001 — unique per issue"></label>
-      <p class="muted">The issued project ID becomes the new project's <code>projectId</code> (required, 1..256 characters; surrounding whitespace is trimmed). It must be unique per issue so customer returns bind the right baseline. <span data-builder-hook="project-id-suggestion">Source ID shown after load as a suggestion only — it is never carried over automatically.</span> <button data-builder-hook="project-id-use-source" type="button">Use source ID as a starting point</button></p>
+      <label>New project ID for this issue<input data-builder-hook="project-id" type="text" autocomplete="off" placeholder="e.g. CUST-PROJ-001 — unique per issue"></label>
+      <p class="muted"><strong>Use a new, unique project ID for each customer issue.</strong> It links any returned file to the correct saved baseline. <span data-builder-hook="project-id-suggestion">A source project ID will appear here as a suggestion only; it is never filled in automatically.</span> <button data-builder-hook="project-id-use-source" type="button">Use source ID as a starting point</button></p>
       <fieldset>
-        <legend>Package format</legend>
-        <label><input data-builder-hook="format-self" type="radio" name="builder-format" value="self" checked> Self-contained HTML (configurator with the issued project embedded)</label>
-        <label><input data-builder-hook="format-hybrid" type="radio" name="builder-format" value="hybrid"> Hybrid ZIP (configurator HTML plus a separate project file)</label>
+        <legend>Customer package format</legend>
+        <label><input data-builder-hook="format-self" type="radio" name="builder-format" value="self" checked> One file the customer opens directly <strong>(Recommended)</strong></label>
+        <label><input data-builder-hook="format-hybrid" type="radio" name="builder-format" value="hybrid"> ZIP file with the setup files inside</label>
       </fieldset>
-      <div class="actions"><button data-builder-hook="generate" type="button" disabled>Generate issued package</button></div>
+      <details>
+        <summary>What each format means</summary>
+        <p class="muted">One file: the customer opens it directly, nothing to unzip. ZIP: holds the configurator plus a separate project file the customer loads with Choose Project or drag and drop.</p>
+        <p class="muted">The issued project ID is required (1–256 characters after trimming). It becomes the project's project ID and must be unique for return matching.</p>
+      </details>
+      <div class="actions"><button data-builder-hook="generate" type="button" disabled>Make customer package</button></div>
       <p data-builder-hook="generate-status" role="status" aria-live="polite">Load a source project to begin.</p>
-      <p data-builder-hook="size-estimate">No issued package generated yet.</p>
+      <p data-builder-hook="size-estimate">No customer package made yet.</p>
     </section>
 
-    <section class="panel" aria-label="Issued outputs">
-      <h2>Issued outputs</h2>
-      <div class="actions">
-        <button data-builder-hook="download-package" type="button" disabled>Download issued package</button>
-        <button data-builder-hook="download-html" type="button" disabled>Download configurator HTML</button>
-        <button data-builder-hook="download-baseline" type="button" disabled>Download retained baseline</button>
-        <button data-builder-hook="download-reviewer" type="button">Download reviewer HTML</button>
-      </div>
-      <p data-builder-hook="baseline-status">No issued baseline retained; generate a package first.</p>
-      <p class="muted">Save the exact retained baseline file before closing this page: the browser keeps no memory of it, and return review after a reload starts from an explicitly loaded baseline. There is no Odoo upload here — handoff is manual file attachment.</p>
-    </section>
-
-    <section class="panel" aria-label="Saved issued baseline">
-      <h2>Saved issued baseline</h2>
-      <p class="muted">Loading a saved issued baseline (<code>-issued-baseline.logo-project</code>) enables return review without generating — for example after reopening this page. It never creates or pretends a customer delivery exists.</p>
-      <div class="actions"><button data-builder-hook="baseline-choose" type="button">Choose saved issued baseline</button><input data-builder-hook="baseline-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a saved issued baseline package"></div>
-      <p data-builder-hook="baseline-load-status" role="status" aria-live="polite">No saved baseline loaded.</p>
+    <section class="panel" aria-label="Step 4: Download and hand off">
+      <h2>4. Download and hand off</h2>
+      <p>Download the customer package and attach it manually to your normal handoff. This page does not upload or send files.</p>
+      <div class="actions"><button data-builder-hook="download-package" type="button" disabled>Download customer package</button><button data-builder-hook="download-baseline" type="button" disabled>Download saved review copy</button></div>
+      <p data-builder-hook="baseline-status">No issued baseline retained; make a package first.</p>
+      <p class="muted">Keep this review copy file — the browser forgets it on reload. You need it to review the customer's return.</p>
+      <details>
+        <summary>Other files and technical details</summary>
+        <div class="actions">
+          <button data-builder-hook="download-html" type="button" disabled>Download project file only (advanced)</button>
+          <button data-builder-hook="download-reviewer" type="button">Download standalone return reviewer</button>
+        </div>
+        <p class="muted">The extra file is the configurator alone when the package is a ZIP, or the project file alone when the package is one HTML file. It is for special cases only — the customer package above is the normal handoff. Save the exact review copy above before closing this page: it is held only in browser memory and is lost on reload. Return review after reopening starts from an explicitly loaded saved baseline.</p>
+      </details>
     </section>
 
     <section class="panel" aria-label="Customer return review">
-      <h2>Customer return review</h2>
-      <p class="muted">The return is compared against the active baseline: the retained issued baseline from the last generation, or an explicitly loaded saved baseline. Returned review fields are never trusted as internal authority. Local only; no Odoo. This page previews the pending-review candidate; full decision/reproposal support lives in the standalone reviewer (download it below, or open <code>dist/customer-return-review.html</code> offline via <code>file://</code>).</p>
+      <h2>Review a customer return</h2>
+      <p>Choose the returned project file to compare it with the active issued baseline. Review is local to this browser; returned review fields are not trusted as internal authority. This shows a pending-review candidate, not an approval. The standalone reviewer supports the full decision and reproposal workflow.</p>
+      <p class="banner" role="note"><strong>Keep the exact issued baseline.</strong> Return checks compare against that retained file. If this page was reopened, load the saved baseline below before selecting a return.</p>
       <div class="actions"><input data-builder-hook="return-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a returned project package"></div>
-      <p data-builder-hook="return-status" role="status" aria-live="polite">Load a returned .logo-project file to review it.</p>
+      <p data-builder-hook="return-status" role="status" aria-live="polite">Load a returned project file to review it.</p>
       <p data-builder-hook="handoff-summary" class="muted">No return imported.</p>
       <section data-builder-hook="review-panel" hidden aria-label="Return review">
         <h3>Return checks</h3>
         <p data-builder-hook="ticket-summary">No return imported.</p>
         <div class="actions">
-          <button data-builder-hook="candidate-download" type="button">Download candidate JSON</button>
+          <button data-builder-hook="candidate-download" type="button">Download review candidate JSON</button>
           <button data-builder-hook="operation-print" type="button">Print operation document</button>
         </div>
       </section>
+      <details>
+        <summary>Load a saved baseline or use reviewer tools</summary>
+        <p class="muted">Load a saved issued baseline file (ending in -issued-baseline.logo-project) to review returns after reopening this page. Loading it does not create or imply that a customer delivery exists.</p>
+        <div class="actions"><button data-builder-hook="baseline-choose" type="button">Choose saved issued baseline</button><input data-builder-hook="baseline-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a saved issued baseline package"></div>
+        <p data-builder-hook="baseline-load-status" role="status" aria-live="polite">No saved baseline loaded.</p>
+        <p class="muted">For full decision and reproposal support, download the standalone reviewer above or open <code>dist/customer-return-review.html</code> offline via <code>file://</code>.</p>
+      </details>
     </section>
   </main>
   <div data-builder-hook="operation-container" class="operation-document-preview-host" hidden></div>

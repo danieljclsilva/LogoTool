@@ -414,10 +414,10 @@ async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {
     anchor.click();
     anchor.remove();
     globalThis.setTimeout(() => URL.revokeObjectURL(url), 1500);
-    setStatus(`Downloaded ${anchor.download}.`);
+    setStatus(`Saved ${anchor.download} to your downloads.`);
   } catch (error) {
     if (generation === operationGeneration && imported === snapshot) {
-      setStatus(`Candidate download failed: ${error instanceof Error ? error.message : String(error)}`);
+      setStatus(`Export data download failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   } finally {
     if (generation === operationGeneration) setBusy(false);
@@ -495,7 +495,7 @@ async function validatePair(
 async function loadArchive(role: 'baseline' | 'return', file: File): Promise<void> {
   const generation = ++operationGeneration;
   setBusy(true);
-  setStatus(`Reading ${role === 'baseline' ? 'issued baseline' : 'customer return'}…`);
+  setStatus(`Reading ${role === 'baseline' ? 'saved copy' : 'returned file'}…`);
   try {
     if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
       throw new Error(`archive size ${file.size} exceeds ${PROJECT_PACKAGE_LIMITS.maxArchiveBytes} bytes; rejected before reading`);
@@ -524,8 +524,8 @@ async function loadArchive(role: 'baseline' | 'return', file: File): Promise<voi
       currentFit = result.fit;
       renderProject();
       setStatus(result.fit
-        ? 'Return imported against the separately selected issued baseline. Review remains pending; importing did not approve it.'
-        : 'Return definitions and assets match, but geometry is invalid. Internal review is blocked until every measured footprint fits.');
+        ? 'Return checked against the saved copy. Review is still pending; opening the file did not approve it.'
+        : 'File contents match, but some sizes or positions fall outside their safe areas. Approval is blocked until every logo fits.');
       return;
     }
     baseline = nextBaseline;
@@ -535,10 +535,10 @@ async function loadArchive(role: 'baseline' | 'return', file: File): Promise<voi
     imported = null;
     returnedAssets = [];
     renderProject();
-    setStatus(`Loaded ${role}. Select the other project file to compare the return.`);
+    setStatus(`Opened the ${role === 'baseline' ? 'saved copy' : 'returned file'}. Open the other file to run the comparison.`);
   } catch (error) {
     if (generation === operationGeneration) {
-      setStatus(`Could not load ${role}: ${error instanceof Error ? error.message : String(error)}. The last valid selection remains unchanged.`);
+      setStatus(`Could not open the ${role === 'baseline' ? 'saved copy' : 'returned file'}: ${error instanceof Error ? error.message : String(error)}. The last valid selection is unchanged.`);
     }
   } finally {
     if (generation === operationGeneration) setBusy(false);
@@ -560,11 +560,11 @@ async function recordReview(): Promise<void> {
   const decision = decisionInput.value as ReviewDecision;
   const note = noteInput.value;
   if (!reviewer) {
-    setStatus('Enter a reviewer identity before recording a decision.');
+    setStatus('Type your reviewer name before recording a decision.');
     return;
   }
   if (decision === 'approved' && (!currentFit || !hasCurrentConfirmation())) {
-    setStatus('Internal approval is blocked: the customer confirmation must match the current revision and digest, and every footprint must fit.');
+    setStatus('Approval is blocked: the customer confirmation must match this exact update, and every logo must fit its safe area.');
     return;
   }
   setBusy(true);
@@ -573,7 +573,7 @@ async function recordReview(): Promise<void> {
     if (generation !== operationGeneration || imported !== snapshot) return;
     const fit = evaluateProjectGeometry(snapshot).ok;
     if (digest !== currentDigest || !validateProject(snapshot).ok || (decision === 'approved' && !fit)) {
-      setStatus('Review blocked: the current digest, structural validation, or required approval geometry verdict changed.');
+      setStatus('Review blocked: the project changed while you were reviewing. Check the latest values and try again.');
       return;
     }
     const outcome = recordInternalReview(snapshot, {
@@ -590,8 +590,8 @@ async function recordReview(): Promise<void> {
     currentDigest = digest;
     renderProject();
     setStatus(decision === 'changesRequested' && !fit
-      ? `Recorded changesRequested for revision ${imported.revision}. Geometry remains invalid; internal approval is still blocked.`
-      : `Recorded ${decision} for revision ${imported.revision}. This is internal workflow bookkeeping, not a production release.`);
+      ? `Recorded changesRequested for update ${imported.revision}. Some sizes or positions still fall outside their safe areas; approval stays blocked.`
+      : `Recorded ${decision} for update ${imported.revision}. This is internal workflow bookkeeping, not a production release.`);
   } catch (error) {
     setStatus(`Review failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -637,7 +637,7 @@ async function downloadProject(snapshot: ProjectDocument, filename: string): Pro
     anchor.click();
     anchor.remove();
     globalThis.setTimeout(() => URL.revokeObjectURL(url), 1500);
-    setStatus(`Saved ${filename}. Original project asset bytes were retained.`);
+    setStatus(`Saved ${filename} to your downloads. The original artwork bytes are unchanged.`);
   } catch (error) {
     setStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -670,7 +670,7 @@ async function saveProposal(): Promise<void> {
   const configuration = project.configurations.find((item) => item.id === configurationId);
   const priorPlacement = configuration && Number.isInteger(placementIndex) ? configuration.placements[placementIndex] : undefined;
   if (!configuration) {
-    setStatus('Choose a configuration before preparing a revised proposal.');
+    setStatus('Choose a configuration before preparing a revised suggestion.');
     return;
   }
   try {
@@ -687,7 +687,7 @@ async function saveProposal(): Promise<void> {
     );
     const instructionsChanged = project.instructions !== (nextInstructions === '' ? undefined : nextInstructions);
     if (!placementChanged && !instructionsChanged) {
-      setStatus('No proposal changes; revision and approvals remain unchanged.');
+      setStatus('Nothing to suggest: no numbers or instructions changed, so the update number and approvals stay as they are.');
       return;
     }
     const next = newRevision(project, (draft) => {
@@ -713,7 +713,7 @@ async function saveProposal(): Promise<void> {
     if (!fit.ok) {
       const failures = fit.placements.filter((item) => !item.ok)
         .map((item) => `${item.configurationId}/${item.placementId ?? `Placement ${item.placementIndex + 1}`}: ${item.reason}`).join('; ');
-      setStatus(`Revised proposal rejected: ${failures}. Every full measured footprint must fit its safe region and avoid exclusions. Adjust the numeric proposal and try again.`);
+      setStatus(`Revised suggestion rejected: ${failures}. Every logo must fit its safe area and avoid exclusion zones. Adjust the numbers and try again.`);
       return;
     }
     setBusy(true);

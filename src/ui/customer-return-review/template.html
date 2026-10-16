@@ -38,6 +38,9 @@
     td { overflow-wrap: anywhere; }
     pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
     .trust { color: #52616d; font-size: .92rem; }
+    details { margin-top: 12px; padding: 10px 12px; border: 1px solid #ccd6dc; border-radius: 7px; background: #f7fafb; }
+    summary { cursor: pointer; font-weight: 650; }
+    summary:focus-visible { outline: 3px solid #14759a; outline-offset: 2px; }
     [hidden] { display: none !important; }
     .operation-document-preview-host { margin: 0 auto; max-width: 1120px; padding: 24px; }
     @media print {
@@ -46,61 +49,50 @@
     }
     @media (max-width: 600px) { main { padding: 16px; } .actions > * { flex: 1 1 100%; } }
   </style>
+  <style><!-- STATION_BRAND_STYLES --></style>
 </head>
 <body>
+  <header class="station-header"><img data-station-brand alt="FlexiTog"><span>Logo Station</span></header>
   <main>
-    <h1>LogoTool · Customer Return Review</h1>
-    <p class="banner"><strong>Synthetic planar workflow prototype.</strong> No manufacturing approval or authentication is established. Select the issued baseline separately from the returned archive. A local baseline and self-entered reviewer identity are workflow data only; neither proves authenticity or manufacturing authority.</p>
+    <h1>Review a customer return</h1>
+    <p class="banner"><strong>Draft review only — nothing here approves production.</strong> Compare the saved copy from issue time with the file the customer sent back. Enter your reviewer name yourself; this page does not check identities.</p>
     <section id="customer-return-review" aria-label="Review a returned LogoTool project">
       <section class="panel" aria-labelledby="load-title">
-        <h2 id="load-title">Select both project files</h2>
+        <h2 id="load-title">Step 1 — Open both project files</h2>
+        <p>Open the saved copy first, then the returned file. The checks run automatically once both are loaded.</p>
         <div class="picker-grid">
           <div class="picker">
-            <p><strong>Trusted issued baseline</strong> — choose the copy held internally when the project was issued.</p>
+            <p><strong>Saved copy from issue time</strong> — the file kept internally when the project was issued.</p>
             <input data-review-hook="baseline-file" type="file" accept=".logo-project,application/zip" aria-label="Choose issued baseline project">
-            <p data-review-hook="baseline-name">No issued baseline selected.</p>
+            <p data-review-hook="baseline-name">No saved copy selected.</p>
           </div>
           <div class="picker">
-            <p><strong>Customer return</strong> — choose the archive received for review. It is not used as its own baseline.</p>
+            <p><strong>Returned file</strong> — the file received back for review. It is never treated as its own reference.</p>
             <input data-review-hook="return-file" type="file" accept=".logo-project,application/zip" aria-label="Choose returned project">
-            <p data-review-hook="return-name">No returned project selected.</p>
+            <p data-review-hook="return-name">No returned file selected.</p>
           </div>
         </div>
-        <p data-review-hook="status" role="status" aria-live="polite">Select an issued baseline and a returned .logo-project archive.</p>
+        <p data-review-hook="status" role="status" aria-live="polite">Open the saved copy and the returned project file.</p>
       </section>
 
       <section data-review-hook="review-panel" class="panel" hidden aria-labelledby="result-title">
-        <h2 id="result-title">Return checks</h2>
+        <h2 id="result-title">Step 2 — Check the return</h2>
         <dl class="summary-grid">
           <div><dt>Project</dt><dd data-review-hook="project-id">—</dd></div>
-          <div><dt>Issued / returned revision</dt><dd data-review-hook="revisions">—</dd></div>
+          <div><dt>Saved copy / returned update number</dt><dd data-review-hook="revisions">—</dd></div>
           <div><dt>Customer confirmation</dt><dd data-review-hook="confirmation">—</dd></div>
-          <div><dt>Geometry verdict</dt><dd data-review-hook="geometry">—</dd></div>
+          <div><dt>Sizes and positions check</dt><dd data-review-hook="geometry">—</dd></div>
           <div><dt>Internal review</dt><dd data-review-hook="internal-review">—</dd></div>
         </dl>
-        <p class="trust">Returned review fields are discarded by the import boundary. Imported confirmation is customer-supplied evidence, not authenticated identity.</p>
+        <p class="trust">Review notes sent back inside the file are ignored by this check. A customer confirmation is customer-supplied evidence, not a verified identity.</p>
 
-        <h2>Candidate preview</h2>
-        <p class="trust">Synthetic/provisional candidate preview; independent of customer confirmation and internal review states. Always candidate-pending-review, including after an internal workflow approval. Real calibration, manufacturing readiness and the final production contract remain unverified.</p>
-        <div data-review-hook="candidate-preview-container" class="panel">
-          <p data-review-hook="candidate-status"></p>
-          <div data-review-hook="candidate-summary"></div>
-          <div data-review-hook="candidate-configurations"></div>
-          <div class="actions">
-            <button data-review-hook="candidate-download" type="button">Download candidate JSON</button>
-            <button data-review-hook="operation-document-print" type="button">Print operation document (browser PDF)</button>
-          </div>
-        </div>
-
-        <p><a href="#operation-document">View printable operation document below</a></p>
-
-        <h2>Differences from the issued baseline</h2>
+        <h2>What changed since the saved copy</h2>
         <pre data-review-hook="differences">No comparison yet.</pre>
 
-        <h2>Record a Logo Station review</h2>
-        <p>Approval requires a current customer confirmation and a fitting, structurally valid project. Changes requested may be recorded for a structurally valid non-fitting draft; that decision never approves production.</p>
+        <h2>Step 3 — Record a Logo Station review</h2>
+        <p>Approval needs a current customer confirmation for this exact update, and every logo must fit its safe area. Asking for changes never approves production.</p>
         <div class="fields">
-          <label>Reviewer identity (self-entered, unauthenticated)
+          <label>Reviewer name (typed by you, not verified)
             <input data-review-hook="reviewer" type="text" autocomplete="off">
           </label>
           <label>Decision
@@ -114,26 +106,44 @@
           <button data-review-hook="record-review" type="button">Record internal review</button>
           <button data-review-hook="save-reviewed" type="button">Download reviewed project</button>
         </div>
+        <p><a href="#operation-document">View printable operation document below</a></p>
 
-        <h2>Prepare a revised customer proposal</h2>
-        <p>Numeric edits apply as a new revision. That revision retains superseded confirmation/review in history and clears current approval. The customer must review and confirm it again.</p>
-        <div class="fields">
-          <label>Configuration
-            <select data-review-hook="configuration"></select>
-          </label>
-          <label>Placement
-            <select data-review-hook="placement"></select>
-          </label>
-          <label>X centre (mm)<input data-review-hook="x" type="number" step="0.1"></label>
-          <label>Y centre (mm)<input data-review-hook="y" type="number" step="0.1"></label>
-          <label>Width (mm)<input data-review-hook="width" type="number" min="0.1" step="0.1"></label>
-          <label>Height (mm)<input data-review-hook="height" type="number" min="0.1" step="0.1"></label>
-          <label>Clockwise rotation (°)<input data-review-hook="rotation" type="number" min="-179.9" max="180" step="0.1"></label>
-        </div>
-        <label style="margin-top:10px">Project instructions<textarea data-review-hook="instructions"></textarea></label>
-        <div class="actions">
-          <button data-review-hook="save-proposal" type="button">Create revised proposal and download</button>
-        </div>
+        <details>
+          <summary>Suggest a revised layout (optional)</summary>
+          <p>Number edits create a new update. Earlier confirmations and reviews stay in history, but the new update is unapproved — the customer must check and confirm it again.</p>
+          <div class="fields">
+            <label>Configuration
+              <select data-review-hook="configuration"></select>
+            </label>
+            <label>Placement
+              <select data-review-hook="placement"></select>
+            </label>
+            <label>X centre (mm)<input data-review-hook="x" type="number" step="0.1"></label>
+            <label>Y centre (mm)<input data-review-hook="y" type="number" step="0.1"></label>
+            <label>Width (mm)<input data-review-hook="width" type="number" min="0.1" step="0.1"></label>
+            <label>Height (mm)<input data-review-hook="height" type="number" min="0.1" step="0.1"></label>
+            <label>Clockwise rotation (°)<input data-review-hook="rotation" type="number" min="-179.9" max="180" step="0.1"></label>
+          </div>
+          <label style="margin-top:10px">Project instructions<textarea data-review-hook="instructions"></textarea></label>
+          <div class="actions">
+            <button data-review-hook="save-proposal" type="button">Create revised proposal and download</button>
+          </div>
+        </details>
+
+        <details data-review-hook="technical-details">
+          <summary>Technical details: export data</summary>
+          <h2>Export data preview</h2>
+          <p class="trust">Provisional export preview; independent of customer confirmation and internal review states. Always pending review, including after an internal workflow approval. Real calibration, manufacturing readiness and the final production contract remain unverified.</p>
+          <div data-review-hook="candidate-preview-container" class="panel">
+            <p data-review-hook="candidate-status"></p>
+            <div data-review-hook="candidate-summary"></div>
+            <div data-review-hook="candidate-configurations"></div>
+            <div class="actions">
+              <button data-review-hook="candidate-download" type="button">Download export data JSON</button>
+              <button data-review-hook="operation-document-print" type="button">Print operation document (browser PDF)</button>
+            </div>
+          </div>
+        </details>
       </section>
     </section>
   </main>

@@ -590,3 +590,97 @@ Initial script expectations were corrected to match successful anchor auto-add;
 that was a test-authoring error, not an application regression. Final scripts
 and records reproduce the checks locally with the retained private model.
 Public automated tests continue to use only synthetic tracked fixtures.
+
+## Plain-language and progressive-disclosure acceptance — 2026-10-15
+
+Muse Spark 1.3 Contributor OMP passes supplied the UI changes. Codex independently
+reviewed and completed integration: restored the early invalid-fit confirmation
+guard, corrected reference-point/axis wording, kept required calibration inputs
+and baseline saving visible, retained comparison before review decisions, restored
+truncated inspector CSS and missing test baseline setup, separated exact customer
+measurements from advanced frame/calibration IDs, and placed the mobile preview
+before the review/confirmation sections. Core, schema and packaging modules are
+unchanged. The Builder's primary customer download now supplies the selected
+complete delivery (HTML or ZIP); the project-only file is a secondary download.
+
+| Check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain, viewer and acceptance TypeScript | Pass |
+| `npm test` | Node-only, build first | 379/379 |
+| `npm run test:e2e -- --workers=4` | Chromium 156.0.8078.4 | 71/71 |
+| `npm run test:e2e:chrome -- --workers=2 e2e/customer-editor.spec.ts e2e/self-contained-customer.spec.ts e2e/internal-builder.spec.ts e2e/customer-return-review.spec.ts e2e/inspector-smoke.spec.ts` | Installed Chrome 154.0.8037.98 | 27/27 |
+| Independent generated-package journey | Chromium, offline `file://` | Pass |
+
+OS: macOS 27.2 arm64 / Darwin 27.2.0. Desktop 1280×900 and narrow 390×844
+viewports. The maintained suites open built or extracted local HTML through
+`file://`, with networking disabled, synthetic fixtures, and error/network probes.
+The new customer case verifies collapsed advanced sections, basic editing and
+confirmation without opening them, visible invalid-fit warnings, keyboard access
+to fine tuning, and desktop/mobile preview ordering. Inspector smoke verifies
+keyboard disclosure while required measurement fields remain visible. Existing
+numeric/drag, zero/multiple-placement, round-trip, stale-confirmation, deterministic
+export and obsolete-operation checks are retained.
+
+Independent QA generated a standalone customer delivery and exact baseline,
+opened the delivery offline, changed the logo width without advanced controls,
+confirmed and downloaded the return, and compared it in the Builder. No console
+errors, page errors or HTTP(S) requests occurred. All four UI entry points also
+passed desktop/narrow screenshot and horizontal-overflow checks. Codex visually
+inspected the screenshots. Development evidence, scripts and command logs are
+under `/tmp/logotool-ux-review/`; maintained test artifacts remain ignored.
+
+Intermediate integration runs failed on stale text expectations, closed controls,
+missing test baselines and inspector styling; these were corrected before the
+passing final runs. No test was skipped and baseline byte equality remains tested.
+The supplementary in-app Browser was available but refused `file://`; its refusal
+was honored. The repository-required Playwright suite supplied acceptance.
+
+Actual Windows Chrome/Edge, Edge on this host, real calibration/artwork rendering,
+and native print-dialog behavior were not validated in this UX pass. The focused
+Chrome run does not replace a full Chrome suite gate. Production approval and
+Odoo integration remain separate. No uploads, Odoo calls, commits or pushes.
+
+## Branded B+C proof-desk acceptance — 2026-10-16
+
+Muse Spark 1.3 Contributor supplied the OMP implementation pass. Its process
+stopped without a final integrated report; Codex independently completed review
+and integration, corrected the controller/layout, replaced unwired test skips
+with executable assertions and performed final validation. Prior uncommitted
+work was preserved. The domain and production schemas remain unchanged.
+
+| Check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain, viewer and acceptance TypeScript | Pass |
+| `npm test` | Node-only; build first | 382/382, zero skipped |
+| `npm run test:e2e -- --workers=3 --max-failures=5` | Chromium 156.0.8078.4 | 78/78, zero skipped |
+| `npm run test:e2e:chrome -- --workers=2 e2e/customer-editor.spec.ts e2e/self-contained-customer.spec.ts e2e/internal-builder.spec.ts e2e/customer-return-review.spec.ts e2e/presentation-assets.spec.ts` | Installed Chrome 154.0.8037.98 | 33/33, zero skipped |
+| Private standalone proof + all public entry points | Offline Chromium; 1536×1024, 1280×900 and 390×844 | Pass; zero horizontal overflow/errors/HTTP(S) |
+
+OS: macOS 27.2 / Darwin 27.2.0 arm64. Tests open bundled/extracted HTML directly
+through `file://` in offline browser contexts, with synthetic fixtures and probes
+for console/page errors and network requests. New cases cover minimal single
+choices, guided primary actions from zero through repeated placements, exact
+reference-view byte preservation, valid/invalid bounded raster assets, stale
+decoding, keyboard view-switch drag cancellation, and Builder/self-contained
+return review with selected reference assets. Existing mutation, confirmation,
+fit, async-race and deterministic package assertions remain.
+
+Codex compared the accepted combined ImageGen concept with native-size desktop
+screenshots and inspected narrow layouts. `ui-design.md` records eight comparison
+points and intentional differences, including original asset framing and the
+separate measurement diagram. Private reference images are not public fixtures.
+The demonstration uses explicitly synthetic test geometry; image pixels never
+supply physical calibration. Source byte preservation and unchanged physical
+exports on view changes are asserted.
+
+Command logs and private visual evidence are retained under
+`/tmp/logotool-bc-implementation/`; eight public-entrypoint captures and probes
+are under `/tmp/logotool-ux-review/bc-final/`. The supplementary in-app Browser
+was available but refused `file://`; that refusal was honored. Repository-required
+Playwright supplied acceptance without a server or network workaround.
+
+Actual Windows Chrome/Edge offline delivery remains a release gate. Edge on this
+host, native print settings, real garment calibration and physically mapped
+artwork were not validated. The focused Chrome run is development evidence,
+not a complete Chrome/Edge matrix. No Odoo calls, uploads, publishing, commits
+or pushes were performed.

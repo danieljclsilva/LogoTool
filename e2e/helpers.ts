@@ -77,6 +77,18 @@ export async function ingestGlb(page: Page, glb: Buffer): Promise<void> {
   );
 }
 
+/** Open only the disclosures that contain the control this flow needs. */
+export async function revealControl(page: Page, selector: string): Promise<void> {
+  const ancestors = page.locator(selector).locator('xpath=ancestor::details');
+  for (let index = 0; index < await ancestors.count(); index += 1) {
+    const details = ancestors.nth(index);
+    if (!await details.evaluate((element) => (element as HTMLDetailsElement).open)) {
+      await details.locator(':scope > summary').focus();
+      await page.keyboard.press('Enter');
+    }
+  }
+}
+
 export async function restoreSession(page: Page, sessionText: string): Promise<void> {
   await hook(page, 'calibration', 'restore-file').setInputFiles({
     name: 'session.json',
@@ -88,6 +100,7 @@ export async function restoreSession(page: Page, sessionText: string): Promise<v
 }
 
 export async function restoreAreaBundle(page: Page, areaText: string): Promise<void> {
+  await revealControl(page, '[data-calibration-hook="area-restore-button"]');
   await hook(page, 'calibration', 'area-restore-file').setInputFiles({
     name: 'area-bundle.json',
     mimeType: 'application/json',
@@ -101,6 +114,7 @@ export async function restorePlacementBundle(
   page: Page,
   bundleText: string,
 ): Promise<void> {
+  await revealControl(page, '[data-calibration-hook="placement-restore-button"]');
   await hook(page, 'calibration', 'placement-restore-file').setInputFiles({
     name: 'placement-bundle.json',
     mimeType: 'application/json',
@@ -141,6 +155,7 @@ export async function downloadText(
 }
 
 export async function savePlacementBundle(page: Page): Promise<string> {
+  await revealControl(page, '[data-calibration-hook="placement-export-button"]');
   return downloadText(page, () =>
     hook(page, 'calibration', 'placement-export-button').click(),
   );
@@ -190,4 +205,27 @@ export async function addPlacement(
 ): Promise<void> {
   await setPlacementEditor(page, options);
   await hook(page, 'placement', 'placement-add').click();
+}
+
+/** Navigate only to the step/disclosure containing the requested customer control. */
+export async function revealCustomerControl(page: Page, name: string): Promise<void> {
+  const selector = `[data-customer-hook="${name}"]`;
+  const control = page.locator(selector);
+  const step = await control.evaluate((element) => element.closest('[data-step-panel]')?.getAttribute('data-step-panel'));
+  if (step && !await page.locator(`[data-step-panel="${step}"]`).isVisible()) {
+    await page.locator(`[data-customer-hook="step-${step}"]`).click();
+    await page.locator(`[data-step-panel="${step}"]`).waitFor({ state: 'visible' });
+  }
+  await revealControl(page, selector);
+}
+
+export async function selectCustomerOption(page: Page, name: string, value: string): Promise<void> {
+  if (name === 'placement' && value === '') {
+    await page.locator('[data-customer-hook="add-another"]').click();
+    return;
+  }
+  await revealCustomerControl(page, name);
+  const select = page.locator(`[data-customer-hook="${name}"]`);
+  if (await select.isVisible()) await select.selectOption(value);
+  else if (await select.inputValue() !== value) throw new Error(`Fixed ${name} does not offer ${value}`);
 }

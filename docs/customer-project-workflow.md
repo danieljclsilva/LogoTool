@@ -69,7 +69,8 @@ The prototype supports multiple configurations and variants, 0..N placements,
 mm position/dimensions, clockwise-positive rotation, allowed methods,
 instructions, fit feedback, direct 2D movement, draft saves, confirmation and
 reopen. Measured boxes are labelled footprints over schematic safe/exclusion
-outlines. Original artwork is preserved as inert bytes and is not rendered.
+outlines. Original artwork bytes are preserved. Bounded PNG/JPEG/WebP thumbnails
+can display separately; SVG and other production files remain unrendered.
 
 Placement centre coordinates use the selected region's declared physical frame
 and calibration reference; frame origin and axis labels are shown from that
@@ -79,14 +80,94 @@ curved-surface placement claim.
 
 `dist/customer-return-review.html` is a separate internal harness with two
 explicit file pickers: a locally selected trusted-issued baseline and a separate
-customer return. It imports through `importCustomerReturn`, compares project
-identity/definitions/revision and exact asset bytes, discards returned review
-fields, and gates review decisions on current structural, method and geometry
-checks. Internal reviewer identity is self-entered and unauthenticated. A
-customer-visible proposal is a new revision; previous confirmation/review stays
-in history, current approval is cleared, and the customer must reconfirm.
+customer return. The page guides opening both files, checking the return and
+recording a review. Differences stay visible before the decision. Optional
+layout changes and export data use separate collapsed sections; the printable
+operation document remains linked from the review. It imports through `importCustomerReturn`,
+compares project identity/definitions/revision and exact asset bytes, discards
+returned review fields, and gates review decisions on current structural, method
+and geometry checks. Internal reviewer identity is self-entered and
+unauthenticated. A customer-visible proposal is a new revision; previous
+confirmation/review stays in history, current approval is cleared, and the
+customer must reconfirm.
 Neither a file's review field nor this synthetic local workflow proves
 manufacturing authority.
+
+## Guided Position, Size, Review flow
+
+The customer page is a guided proof desk: a white top bar with the FlexiTog
+mark, Logo Station wordmark and a small **Save draft** action; a Position /
+Size / Review step nav; a large measured-placement canvas on the left and a
+single open task rail on the right. One main task shows at a time, separated
+by thin rules. Step tabs and Back preserve pending form edits without changing
+the project. The primary Continue / Review layout action applies pending edits
+atomically before advancing; invalid edits keep the customer on the current task.
+An explicit **Apply my changes** action also appears when edits are pending.
+Undo and Start-over restore content as new revisions. Add another logo starts
+a new placement through the same guided steps; opening a step alone adds nothing.
+
+The job opens preconfigured. The rail shows the prepared product, variant,
+logo area and artwork as readable context; a selector appears only when
+meaningful alternatives exist, so a fixed single option never shows a
+redundant dropdown. Multi-configuration, multi-product, multi-variant,
+repeated and zero-placement projects all stay supported.
+
+Position offers the named approved area choices; exact X/Y offsets live in an
+optional precise section. Size offers width first with an aspect-ratio lock
+defaulting on where the starting ratio is valid; height and rotation live in
+its precise section but independent width/height remain a domain capability,
+so unlocking (or typing a height) always sticks. Review exposes the exact
+all-configuration artwork, areas, exact mm dimensions, methods, fit and supplied
+notes. Each placement has a Position and rotation disclosure with its exact
+offsets, reference point, axis directions and rotation. Empty configurations
+remain explicit. Schema IDs, frame IDs and calibration versions sit behind
+the advanced reference section.
+Customer name, confirm and save-return stay clearly separated from internal
+approval. **Save draft file** (also in the top bar) is always available when
+edits are applied; **Save confirmed return file** needs a fresh confirmation
+and all-fit geometry. Downloads remain manual files the customer attaches to
+their email.
+
+## Presentation-only boundary
+
+The canonical domain has no garment-photo calibrated placement mapping, so no
+reference photo ever gets a pretend live physically mapped logo overlay: the
+measured placement diagram is driven by exact domain millimetres. A valid
+product reference photo opens automatically when supplied; otherwise the page
+opens the diagram. An explicit Product reference / Placement diagram toggle
+keeps both views accessible; the diagram is the
+source of truth and switching views never changes saved physical values.
+Safe logo thumbnails may render from bounded, allowlisted raster bytes already
+inside the package; hostile, oversized or non-raster inputs fail safe (hidden
+thumbnail, diagram stays visible) and original artwork bytes stay preserved
+and untouched.
+
+An optional provisional presentation manifest (for example
+`presentation/preview.json` plus raster images) travels inside
+`.logo-project` strictly external to the canonical production/domain schema:
+only explicitly referenced, product/variant-matched assets render, never URL
+fetches or filename-inferred choices, and invalid presentation metadata is
+ignored for display with a concise reference warning (customer saves preserve
+the opened package assets). Reference photos and thumbnails are
+visual aids only — Logo Station rechecks every measurement separately, and
+neither a reference image nor a thumbnail proves manufacturing authority.
+
+The adapter currently reads this provisional additional asset format:
+
+```json
+{"version":1,"references":[{"productId":"SYN-PRODUCT","variantId":"SYN-VARIANT","image":"presentation/product.png","label":"Product reference"}]}
+```
+
+`variantId` and `label` are optional; variant-specific references take precedence
+over product-wide references. The manifest is limited to 64 KiB and 32 entries.
+Images must be package-local PNG/JPEG/WebP, at most 2 MiB, 16 megapixels and
+8192 pixels per edge. Header dimensions are checked before native decoding;
+decoded dimensions must agree. Remote URLs, traversal and disguised SVG are
+rejected. Obsolete asynchronous loads cannot replace the current selection.
+Switching views cancels an unfinished drag and leaves committed bytes unchanged.
+The Builder retains only references matching issued selections, rewrites the
+manifest deterministically and excludes unrelated additional assets. This is
+presentation metadata, not a calibrated photo mapping or production schema.
 
 ## Loading and saving offline
 

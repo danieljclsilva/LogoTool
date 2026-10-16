@@ -16,7 +16,8 @@ network disabled. For a synthetic demonstration, choose the generated
 2. Select products, their variants and the artwork to supply. All start selected.
    Unselected artwork removes its default placements; selecting no artwork is
    valid. Measurements, frames, safe areas and calibration remain from source.
-3. The configuration list optionally selects specific prepared configurations.
+3. **Choose specific setups (advanced, optional)** reveals the configuration
+   list for selecting specific prepared configurations.
    Leaving all checked uses automatic selection: only selected products/variants
    survive, and variants without a default receive an empty editable
    configuration. Explicit configuration subsets keep only those configurations.
@@ -32,16 +33,21 @@ The issue starts at revision 1 with the explicitly entered project ID. Source
 confirmation, internal review and their histories are cleared; original source
 files are unchanged. Customer/job/issuer labels are descriptive local data,
 not authenticated identities. Only artwork referenced by selected logos ships;
-additional source assets are omitted. The current schema has no product-model
+unrelated additional source assets are omitted. Selected bounded product-reference
+images and their provisional `presentation/preview.json` manifest also travel
+with the delivery and retained baseline; see `customer-project-workflow.md`. The current schema has no product-model
 binary references; no real product asset mapping is claimed.
 
 Hybrid delivery is `<JOB>.zip` containing `OPEN_LOGO_CONFIGURATOR.html` and
 `<JOB>.logo-project`. After extraction, customers open the HTML and choose/drop
 that project. Self-contained delivery is `OPEN_LOGO_CONFIGURATOR.html` with the
-same project bytes embedded and automatically loaded. Both save editable
-`.logo-project` returns. The separate retained baseline download is byte-identical
-to the issued project in either format. Regenerating identical input produces
-identical project, HTML and ZIP bytes.
+same project bytes embedded and automatically loaded. The primary **Download
+customer package** button delivers the selected format: the ready-to-open HTML
+in self-contained mode, the ZIP in hybrid mode. A secondary download offers the
+other file (project-only in self-contained mode, HTML-only in hybrid mode).
+Both save editable `.logo-project` returns. The separate retained baseline
+download is byte-identical to the issued project in either format. Regenerating
+identical input produces identical project, HTML and ZIP bytes.
 
 Changing a selection, identity or format clears generated downloads and the
 return preview. Inputs lock during asynchronous work; operation tokens discard
@@ -79,8 +85,9 @@ The Builder's embedded preview itself does not record internal decisions.
 
 ## Remaining gates
 
-All fixtures/calibrations are synthetic. Real calibration, garment/artwork
-rendering, curved mapping, authenticated review, finalized production/Odoo
+All fixtures/calibrations are synthetic. Optional raster reference photos and
+artwork thumbnails are visual aids. Real calibration, physically mapped garment
+artwork rendering, curved mapping, authenticated review, finalized production/Odoo
 contracts and direct production PDF generation remain pending. Browser Print /
 Save as PDF is the current document export. Actual Windows Chrome/Edge offline
 `file://` delivery remains untested. See `offline-testing.md` for development

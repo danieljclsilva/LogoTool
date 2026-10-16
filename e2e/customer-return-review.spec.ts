@@ -1,3 +1,4 @@
+import { revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -140,9 +141,28 @@ async function openReviewer(browser: Browser, viewport: { width: number; height:
   const page = await context.newPage();
   const probe = attachProbe(page);
   await page.goto(REVIEW_HTML);
-  await expect(page.locator('h1')).toHaveText('LogoTool · Customer Return Review');
+  await expect(page.locator('h1')).toHaveText('Review a customer return');
   await expect(page.locator('#customer-return-review')).toBeVisible();
+  await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
   return { context, page, probe };
+}
+
+async function openTechnicalDetails(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const details = document.querySelector<HTMLDetailsElement>('[data-review-hook="technical-details"]');
+    if (details) details.open = true;
+  });
+  await expect(page.locator('[data-review-hook="technical-details"]')).toHaveAttribute('open', '');
+}
+
+async function openProposalEditor(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const summaries = Array.from(document.querySelectorAll('details > summary'));
+    const match = summaries.find((item) => item.textContent?.includes('Suggest a revised layout'));
+    const disclosure = match?.closest('details');
+    if (disclosure) disclosure.open = true;
+  });
+  await expect(page.locator('[data-review-hook="save-proposal"]')).toBeEnabled();
 }
 
 async function setArchive(page: Page, role: 'baseline' | 'return', name: string, bytes: Uint8Array): Promise<void> {
@@ -199,7 +219,7 @@ test('internal review imports a confirmed return, discards forged reviews, and s
   const { context, page, probe } = await openReviewer(browser, viewport);
   try {
     await setArchive(page, 'baseline', 'issued-baseline.logo-project', issued.bytes);
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeHidden();
     await setArchive(page, 'return', 'customer-return.logo-project', returnBytes);
     await expect(page.locator('[data-review-hook="review-panel"]')).toBeVisible();
@@ -207,6 +227,7 @@ test('internal review imports a confirmed return, discards forged reviews, and s
     await expect(page.locator('[data-review-hook="geometry"]')).toContainText('Valid:');
     await expect(page.locator('[data-review-hook="internal-review"]')).toContainText('Returned review fields were discarded');
     await expect(page.locator('[data-review-hook="internal-review"]')).not.toContainText('forged-customer-reviewer');
+    await expect(page.locator('[data-review-hook="differences"]')).toBeVisible();
     await expect(page.locator('[data-review-hook="differences"]')).toContainText('ISSUED');
     await expect(page.locator('[data-review-hook="differences"]')).toContainText('RETURNED');
     await expect(page.locator('[data-review-hook="differences"]')).toContainText('PROJECT INSTRUCTIONS');
@@ -229,6 +250,7 @@ test('internal review imports a confirmed return, discards forged reviews, and s
     await page.locator('[data-review-hook="record-review"]').click();
     await expect(page.locator('[data-review-hook="internal-review"]')).toContainText('changesRequested');
 
+    await openProposalEditor(page);
     const currentX = Number(await page.locator('[data-review-hook="x"]').inputValue());
     await page.locator('[data-review-hook="x"]').fill(String(currentX + 2));
     await page.locator('[data-review-hook="instructions"]').fill('Revised synthetic proposal instructions.');
@@ -266,11 +288,11 @@ test('return review rejects tampering, stale confirmation, and old revisions wit
   const { context, page, probe } = await openReviewer(browser, viewport);
   try {
     await setArchive(page, 'baseline', 'issued-baseline-no-art-digest.logo-project', issuedBytes);
-    await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     expect(await rejectOversizedFileBeforeRead(page, PROJECT_PACKAGE_LIMITS.maxArchiveBytes)).toBe(false);
     await expect(page.locator('[data-review-hook="status"]')).toContainText('rejected before reading');
     await expect(page.locator('[data-review-hook="baseline-name"]')).toContainText('issued-baseline-no-art-digest.logo-project');
-    await expect(page.locator('[data-review-hook="return-name"]')).toContainText('No returned project selected');
+    await expect(page.locator('[data-review-hook="return-name"]')).toContainText('No returned file selected');
     const unconfirmed = newRevision(issuedProject, (draft) => {
       draft.instructions = 'Synthetic draft without customer confirmation.';
     });
@@ -369,7 +391,7 @@ test('issued hybrid project returns through review, revised customer confirmatio
   let customerProbe: ReturnType<typeof attachProbe> | null = null;
   try {
     await setArchive(reviewPage, 'baseline', 'locally-issued-baseline.logo-project', issued.bytes);
-    await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
 
     const customerPage = await context.newPage();
     customerProbe = attachProbe(customerPage);
@@ -386,18 +408,23 @@ test('issued hybrid project returns through review, revised customer confirmatio
       }, null, 2),
     });
     await customerPage.goto(customerUrl);
-    await expect(customerPage.locator('#customer-editor h1')).toHaveText('LogoTool · Synthetic Customer Editor');
+    await expect(customerPage.locator('.wordmark')).toHaveText('Logo Station');
     await customerPage.locator('[data-customer-hook="file-input"]').setInputFiles(customerApp.projectPath);
-    await expect(customerPage.locator('[data-customer-hook="status"]')).toContainText('Loaded SYNTHETIC-CUSTOMER.logo-project');
+    await expect(customerPage.locator('[data-customer-hook="status"]')).toContainText('Opened SYNTHETIC-CUSTOMER.logo-project');
     await expect(customerPage.locator('[data-customer-hook="revision"]')).toHaveText('1');
+    await revealCustomerControl(customerPage, 'x-mm');
     await customerPage.locator('[data-customer-hook="x-mm"]').fill('2');
+    await revealCustomerControl(customerPage, 'instructions');
     await customerPage.locator('[data-customer-hook="instructions"]').fill('Initial synthetic customer instructions.');
+    await revealCustomerControl(customerPage, 'update');
     await customerPage.locator('[data-customer-hook="update"]').click();
     await expect(customerPage.locator('[data-customer-hook="revision"]')).toHaveText('2');
-    await expect(customerPage.locator('[data-customer-hook="review"]')).toContainText('Project instructions: Initial synthetic customer instructions.');
+    await expect(customerPage.locator('[data-customer-hook="review"]')).toContainText('Notes for the whole project: Initial synthetic customer instructions.');
+    await revealCustomerControl(customerPage, 'confirmed-by');
     await customerPage.locator('[data-customer-hook="confirmed-by"]').fill('Synthetic Customer');
+    await revealCustomerControl(customerPage, 'confirm');
     await customerPage.locator('[data-customer-hook="confirm"]').click();
-    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     const initialReturn = await readDownload(customerPage, () => customerPage.locator('[data-customer-hook="submit"]').click());
     const parsedInitialReturn = await parseProjectPackage(initialReturn.bytes, { sha256: sha256Bytes });
     expect(parsedInitialReturn.project.revision).toBe(2);
@@ -415,6 +442,7 @@ test('issued hybrid project returns through review, revised customer confirmatio
     await reviewPage.locator('[data-review-hook="note"]').fill('Move the synthetic mark two millimetres.');
     await reviewPage.locator('[data-review-hook="record-review"]').click();
     await expect(reviewPage.locator('[data-review-hook="internal-review"]')).toContainText('changesRequested');
+    await openProposalEditor(reviewPage);
     const currentX = Number(await reviewPage.locator('[data-review-hook="x"]').inputValue());
     await reviewPage.locator('[data-review-hook="x"]').fill(String(currentX + 2));
     await reviewPage.locator('[data-review-hook="instructions"]').fill('Revised synthetic instructions for customer confirmation.');
@@ -432,10 +460,12 @@ test('issued hybrid project returns through review, revised customer confirmatio
       buffer: Buffer.from(proposal.bytes),
     });
     await expect(customerPage.locator('[data-customer-hook="revision"]')).toHaveText('3');
-    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('Previous confirmation');
+    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('no longer counts');
+    await revealCustomerControl(customerPage, 'confirmed-by');
     await customerPage.locator('[data-customer-hook="confirmed-by"]').fill('Synthetic Customer Again');
+    await revealCustomerControl(customerPage, 'confirm');
     await customerPage.locator('[data-customer-hook="confirm"]').click();
-    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(customerPage.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     const reconfirmed = await readDownload(customerPage, () => customerPage.locator('[data-customer-hook="submit"]').click());
     const parsedReconfirmed = await parseProjectPackage(reconfirmed.bytes, { sha256: sha256Bytes });
     expect(parsedReconfirmed.project.revision).toBe(3);

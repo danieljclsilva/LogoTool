@@ -29,10 +29,20 @@ import {
 import type { ProjectPackageAsset } from '../../packaging/project-package/index.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { runCustomerSelfContainedBootstrap } from './self-contained-bootstrap.js';
+import {
+  decodePresentationRaster,
+  parsePresentationManifest,
+  PRESENTATION_MANIFEST_PATH,
+  PRESENTATION_MAX_IMAGE_BYTES,
+  selectPresentationReference,
+} from './presentation-assets.js';
+import type { PresentationManifest } from './presentation-assets.js';
 
 interface EditorPackage {
   project: ProjectDocument;
   assets: ProjectPackageAsset[];
+  presentationManifest: PresentationManifest | null;
+  presentationManifestPresent: boolean;
 }
 
 interface DragState {
@@ -90,11 +100,325 @@ const canvas = hook<SVGSVGElement>('canvas');
 const canvasLayer = hook<SVGGElement>('canvas-layer');
 const frameSummary = hook<HTMLElement>('frame');
 const exactReview = hook<HTMLElement>('review');
+const referenceReview = hook<HTMLElement>('review-reference');
 const confirmedByInput = hook<HTMLInputElement>('confirmed-by');
 const confirmButton = hook<HTMLButtonElement>('confirm');
 const confirmationSummary = hook<HTMLElement>('confirmation');
 const hasher = createWebCryptoProjectHasher();
 
+// ---- Guided Position -> Size -> Review workflow (B+C proof-desk shell) ----
+// The template worker owns template.html. Every new hook below is looked up
+// with document.querySelector + null checks (never required()), so this file
+// keeps working before and after the new shell lands. document scope (not
+// #customer-editor) because the new shell places step-nav/save-draft-top
+// outside <main>.
+type GuideStep = 'position' | 'size' | 'review';
+const STEP_ORDER: GuideStep[] = ['position', 'size', 'review'];
+let guideStep: GuideStep = 'position';
+
+const optionalHook = <T extends Element>(name: string): T | null =>
+  document.querySelector<T>(`[data-customer-hook="${name}"]`);
+const brandMark = optionalHook<HTMLImageElement>('brand-mark');
+const saveDraftTop = optionalHook<HTMLButtonElement>('save-draft-top');
+const stepNav = optionalHook<HTMLElement>('step-nav');
+const stepPositionButton = optionalHook<HTMLButtonElement>('step-position');
+const stepSizeButton = optionalHook<HTMLButtonElement>('step-size');
+const stepReviewButton = optionalHook<HTMLButtonElement>('step-review');
+const taskRail = optionalHook<HTMLElement>('task-rail');
+const canvasPane = optionalHook<HTMLElement>('canvas-pane');
+const contextLine = optionalHook<HTMLElement>('context-line');
+const logoThumb = optionalHook<HTMLImageElement>('logo-thumb');
+const viewReferenceButton = optionalHook<HTMLButtonElement>('view-reference');
+const viewDiagramButton = optionalHook<HTMLButtonElement>('view-diagram');
+const referenceImg = optionalHook<HTMLImageElement>('reference-img');
+const referenceWarning = optionalHook<HTMLElement>('reference-warning');
+const ratioLock = optionalHook<HTMLInputElement>('ratio-lock');
+const precisePosition = optionalHook<HTMLElement>('precise-position');
+const preciseSize = optionalHook<HTMLElement>('precise-size');
+const primaryNext = optionalHook<HTMLButtonElement>('primary-next');
+const backStep = optionalHook<HTMLButtonElement>('back-step');
+const addAnotherButton = optionalHook<HTMLButtonElement>('add-another');
+const prototypeNote = optionalHook<HTMLElement>('prototype-note');
+const unsavedWarning = optionalHook<HTMLElement>('unsaved-warning');
+// Owned by the template/build only; queried above so a missing hook can
+// never throw here.
+void brandMark; void stepNav; void canvasPane; void precisePosition; void preciseSize; void prototypeNote;
+
+const UNSAVED_STEP_MESSAGE = 'You have changes that are not applied yet — press “Apply my changes” to keep them before moving on. (Switching the logo area above discards unsaved edits.)';
+
+function hasUnsavedEdits(): boolean {
+  return placementFormDirty || projectInstructionsDirty;
+}
+
+function updateUnsavedWarning(): void {
+  if (!unsavedWarning) return;
+  if (loaded && hasUnsavedEdits()) {
+    unsavedWarning.hidden = false;
+    unsavedWarning.textContent = UNSAVED_STEP_MESSAGE;
+  } else {
+    unsavedWarning.hidden = true;
+  }
+}
+
+function stepNeighbor(step: GuideStep, delta: 1 | -1): GuideStep {
+  const next = STEP_ORDER[Math.min(STEP_ORDER.length - 1, Math.max(0, STEP_ORDER.indexOf(step) + delta))];
+  return next ?? step;
+}
+
+function requestStep(target: GuideStep): void {
+  if (!loaded || loading || saving || confirming || drag) return;
+  guideStep = target;
+  // Navigation preserves pending form values. Only Apply/Continue mutates a revision.
+  renderGuideStep();
+  updateUnsavedWarning();
+  updateButtons();
+}
+
+function renderGuideStep(): void {
+  for (const panel of document.querySelectorAll<HTMLElement>('[data-step-panel]')) {
+    panel.hidden = panel.getAttribute('data-step-panel') !== guideStep;
+  }
+  const stepButtons: Array<[GuideStep, HTMLButtonElement | null]> = [
+    ['position', stepPositionButton],
+    ['size', stepSizeButton],
+    ['review', stepReviewButton],
+  ];
+  for (const [name, button] of stepButtons) {
+    if (!button) continue;
+    if (name === guideStep) button.setAttribute('aria-current', 'step');
+    else button.removeAttribute('aria-current');
+  }
+  if (primaryNext) {
+    primaryNext.hidden = guideStep === 'review';
+    primaryNext.textContent = guideStep === 'position'
+      ? 'Continue to size'
+      : guideStep === 'size' ? 'Review layout' : 'Save confirmed return';
+  }
+  const panel = root.querySelector<HTMLElement>(`[data-step-panel="${guideStep}"]`);
+  if (panel) panel.insertBefore(geometryStatus, panel.querySelector(':scope > details') ?? null);
+  const heading = taskRail?.querySelector('h2') ?? null;
+  if (heading) {
+    heading.textContent = guideStep === 'position'
+      ? 'Place the logo'
+      : guideStep === 'size' ? 'Set the logo size' : 'Review and confirm';
+  }
+  const lede = taskRail?.querySelector('.lede') ?? null;
+  if (lede) {
+    lede.textContent = guideStep === 'position'
+      ? (currentPlacement() ? 'Choose where this logo goes.' : 'Choose a logo and its position.')
+      : guideStep === 'size'
+        ? 'Choose the width. The shape stays the same.'
+        : 'Check every number, then confirm and save your return file.';
+    if (guideStep === 'size' && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
+  }
+}
+
+function setSelectVisibility(select: HTMLSelectElement, visible: boolean): void {
+  const label = select.closest('label');
+  if (label) label.hidden = !visible;
+}
+
+function renderContextLine(): void {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const product = project && configuration && productForConfiguration(project, configuration);
+  const variant = product?.variants.find((item) => item.id === configuration?.variantId);
+  const region = regionForSelection();
+  const logo = project?.logos.find((item) => item.id === selectedLogoId);
+  if (contextLine) contextLine.textContent = product ? `${product.name ?? product.id} · ${variant?.name ?? variant?.id ?? ''}` : 'Open a project to begin';
+  const caption = optionalHook<HTMLElement>('product-caption');
+  if (caption) caption.textContent = product?.name ?? product?.id ?? 'Your product';
+  const artwork = optionalHook<HTMLElement>('artwork-name');
+  if (artwork) artwork.textContent = logo?.name ?? logo?.id ?? 'No artwork supplied';
+  const placementContext = optionalHook<HTMLElement>('placement-context');
+  if (placementContext) placementContext.textContent = [region?.name ?? region?.id, methodSelect.value].filter(Boolean).join(' · ');
+  if (prototypeNote) prototypeNote.textContent = project?.synthetic
+    ? 'Synthetic draft. Visual reference only. Final checks by Logo Station.'
+    : 'Visual reference only. Final checks by Logo Station.';
+}
+
+let thumbObjectUrl: string | null = null;
+let thumbGeneration = 0;
+let thumbBytes: Uint8Array | undefined;
+function revokeThumbUrl(): void {
+  if (thumbObjectUrl) URL.revokeObjectURL(thumbObjectUrl);
+  thumbObjectUrl = null;
+}
+async function renderLogoThumb(): Promise<void> {
+  if (!logoThumb) return;
+  const project = loaded?.project;
+  const logo = project?.logos.find((item) => item.id === selectedLogoId);
+  const extensions: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+  const ref = logo?.assets.find((asset) => extensions[asset.mediaType]);
+  const bytes = ref ? loaded?.assets.find((asset) => asset.path === ref.uri)?.bytes : undefined;
+  if (bytes && bytes === thumbBytes && thumbObjectUrl) return;
+  const token = ++thumbGeneration;
+  thumbBytes = bytes;
+  revokeThumbUrl();
+  logoThumb.hidden = true;
+  logoThumb.removeAttribute('src');
+  if (!ref || !bytes) return;
+  const decoded = await decodePresentationRaster(bytes, extensions[ref.mediaType]!);
+  if (token !== thumbGeneration) { if (decoded) URL.revokeObjectURL(decoded.url); return; }
+  if (!decoded) return;
+  thumbObjectUrl = decoded.url;
+  logoThumb.src = decoded.url;
+  logoThumb.alt = `Artwork preview: ${logo?.name ?? logo?.id ?? 'logo'}`;
+  logoThumb.hidden = false;
+}
+
+// ---- Presentation reference (lead-owned adapter, controller-wired) ----
+// The domain has no garment-photo calibrated placement mapping, so the
+// measured placement diagram stays the default view. An optional bounded
+// presentation manifest in the package (presentation/preview.json + raster
+// images) may supply a product reference photo; it is shown as a plain
+// <img> and NEVER gets a mapped logo overlay. Nothing here depends on
+// jacket-specific behavior.
+let referenceAsset: { imagePath: string; label: string | null } | null = null;
+let referenceView: 'diagram' | 'reference' = 'diagram';
+let referenceNotice = '';
+let referenceObjectUrl: string | null = null;
+let referenceGeneration = 0;
+let referenceBytes: Uint8Array | undefined;
+let preferredReferenceOnLoad = true;
+
+function revokeReferenceUrl(): void {
+  if (referenceObjectUrl !== null) {
+    try { URL.revokeObjectURL(referenceObjectUrl); } catch { /* already gone */ }
+    referenceObjectUrl = null;
+  }
+}
+
+function currentPresentationSelection() {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) {
+    return { imagePath: null as string | null, label: null as string | null, warning: null as string | null };
+  }
+  return selectPresentationReference(
+    loaded.presentationManifest,
+    loaded.presentationManifestPresent,
+    configuration.productId,
+    configuration.variantId,
+    (path) => loaded?.assets.find((entry) => entry.path === path)?.bytes,
+  );
+}
+
+function renderReferenceView(): void {
+  const showing = referenceView === 'reference' && referenceAsset !== null;
+  if (referenceImg) {
+    if (showing && referenceAsset) {
+      referenceImg.src = referenceObjectUrl ?? '';
+      referenceImg.alt = referenceAsset.label ?? 'Product reference photo';
+      referenceImg.hidden = false;
+    } else {
+      referenceImg.hidden = true;
+      referenceImg.removeAttribute('src');
+    }
+  }
+  const diagramWrap = canvas.closest<HTMLElement>('.stage');
+  const photoWrap = referenceImg?.closest<HTMLElement>('.reference-wrap');
+  if (diagramWrap) diagramWrap.hidden = showing;
+  if (photoWrap) photoWrap.hidden = !showing;
+  if (showing) canvas.setAttribute('hidden', '');
+  else canvas.removeAttribute('hidden');
+  if (viewReferenceButton) {
+    viewReferenceButton.setAttribute('aria-pressed', showing ? 'true' : 'false');
+    viewReferenceButton.disabled = referenceAsset === null;
+  }
+  if (viewDiagramButton) viewDiagramButton.setAttribute('aria-pressed', showing ? 'false' : 'true');
+  const caption = optionalHook<HTMLElement>('view-caption');
+  if (caption) caption.textContent = showing ? 'Product reference · not to scale' : 'Placement diagram · millimetres';
+  if (referenceWarning) {
+    const text = showing ? '' : referenceNotice;
+    if (text) {
+      referenceWarning.hidden = false;
+      referenceWarning.textContent = text;
+    } else {
+      referenceWarning.hidden = true;
+    }
+  }
+}
+
+async function updateReferenceForSelection(): Promise<void> {
+  const token = ++referenceGeneration;
+  const selection = currentPresentationSelection();
+  if (!selection.imagePath || !loaded) {
+    // Presentation-only: warning text only, never a fake overlay.
+    referenceBytes = undefined;
+    referenceNotice = selection.warning ?? '';
+    referenceAsset = null;
+    if (referenceView === 'reference') referenceView = 'diagram';
+    revokeReferenceUrl();
+    renderReferenceView();
+    return;
+  }
+  const bytes = loaded.assets.find((entry) => entry.path === selection.imagePath)?.bytes;
+  if (!bytes) {
+    referenceNotice = selection.warning ?? 'Reference image is missing from the package; showing the measured diagram instead.';
+    referenceAsset = null;
+    if (referenceView === 'reference') referenceView = 'diagram';
+    revokeReferenceUrl();
+    renderReferenceView();
+    return;
+  }
+  if (bytes === referenceBytes && referenceAsset?.imagePath === selection.imagePath && referenceObjectUrl) { renderReferenceView(); return; }
+  referenceBytes = bytes;
+  referenceAsset = null;
+  revokeReferenceUrl();
+  renderReferenceView();
+  const extension = selection.imagePath.slice(selection.imagePath.lastIndexOf('.'));
+  const decoded = await decodePresentationRaster(bytes, extension);
+  if (token !== referenceGeneration || !loaded) { if (decoded) URL.revokeObjectURL(decoded.url); return; }
+  if (!decoded) {
+    referenceNotice = selection.warning ?? `Reference image “${selection.imagePath}” could not be shown; showing the measured diagram instead.`;
+    referenceAsset = null;
+    if (referenceView === 'reference') referenceView = 'diagram';
+    revokeReferenceUrl();
+    renderReferenceView();
+    return;
+  }
+  revokeReferenceUrl();
+  referenceObjectUrl = decoded.url;
+  referenceAsset = { imagePath: selection.imagePath, label: selection.label };
+  referenceNotice = '';
+  if (preferredReferenceOnLoad) { referenceView = 'reference'; preferredReferenceOnLoad = false; }
+  renderReferenceView();
+}
+
+interface LogoPresentationApi {
+  getReferenceState: () => { imagePath: string | null; view: 'diagram' | 'reference'; warning: string | null };
+}
+declare global {
+  interface Window {
+    __logoPresentation?: LogoPresentationApi;
+  }
+}
+window.__logoPresentation = {
+  getReferenceState: () => {
+    const selection = currentPresentationSelection();
+    return {
+      imagePath: referenceAsset?.imagePath ?? null,
+      view: referenceView === 'reference' && referenceAsset ? 'reference' : 'diagram',
+      warning: referenceNotice || selection.warning,
+    };
+  },
+};
+
+// Aspect-ratio lock for the Size step. The lock only mirrors width into
+// height in the form; independent width/height stay a domain capability and
+// unlocking (or typing a height) always sticks.
+let lockedRatio: number | null = null;
+
+function refreshLockedRatio(): void {
+  lockedRatio = null;
+  if (!ratioLock?.checked) return;
+  const width = Number(widthInput.value);
+  const height = Number(heightInput.value);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    lockedRatio = width / height;
+  }
+}
 let loaded: EditorPackage | null = null;
 let baseline: ProjectDocument | null = null;
 let activeConfigurationId = '';
@@ -118,6 +442,7 @@ let geometryLookup: Map<string, Map<number, PlacementGeometryResult>> | null = n
 
 function setStatus(message: string): void {
   status.textContent = message;
+  status.hidden = /^Opened |^Applied your changes|^Nothing changed/.test(message);
 }
 
 function cloneProject(project: ProjectDocument): ProjectDocument {
@@ -184,11 +509,11 @@ function replaceOptions(select: HTMLSelectElement, values: Array<{ value: string
 }
 
 function displayName(id: string, name?: string): string {
-  return name ? `${name} (${id})` : id;
+  return name ?? id;
 }
 
 function invalidateUiContext(): void {
-  cancelDrag('Drag cancelled because the editing context changed.');
+  cancelDrag('Moving stopped because you switched to something else. Your saved logo is unchanged.');
   stateGeneration += 1;
 }
 
@@ -211,6 +536,27 @@ function updateButtons(): void {
   for (const control of [configurationSelect, productSelect, variantSelect, regionSelect, logoSelect, placementSelect,
     xInput, yInput, widthInput, heightInput, rotationInput, methodSelect, placementInstructions, projectInstructions,
     confirmedByInput]) control.disabled = !usable;
+  // Guided shell mirrors: top draft button tracks save; step navigation and
+  // the primary/back actions stay enabled whenever a project is usable so
+  // the Position -> Size -> Review progression never strands the user.
+  if (saveDraftTop) saveDraftTop.disabled = saveButton.disabled;
+  if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null;
+  if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || guideStep === 'position';
+  if (addAnotherButton) addAnotherButton.disabled = addButton.disabled;
+  const stepBlocked = !usable || loading || saving || confirming || drag !== null;
+  if (stepPositionButton) stepPositionButton.disabled = stepBlocked;
+  if (stepSizeButton) stepSizeButton.disabled = stepBlocked;
+  if (stepReviewButton) stepReviewButton.disabled = stepBlocked;
+  if (ratioLock) ratioLock.disabled = !usable || !currentPlacement();
+  if (viewReferenceButton) viewReferenceButton.disabled = referenceAsset === null;
+  if (viewDiagramButton) viewDiagramButton.disabled = !usable;
+  updateButton.hidden = !hasPendingEdits;
+  confirmButton.hidden = confirmationFresh && !hasPendingEdits;
+  submitButton.hidden = !confirmationFresh || hasPendingEdits;
+  saveButton.hidden = false;
+  if (addAnotherButton) addAnotherButton.hidden = !project?.logos.length;
+  const jobChoices = optionalHook<HTMLElement>('job-choices');
+  if (jobChoices) jobChoices.hidden = !project || !(project.configurations.length > 1 || project.products.length > 1 || (configuration ? productForConfiguration(project, configuration)?.variants.length ?? 0 : 0) > 1 || project.logos.length > 1);
 }
 function isGeometryValid(project: ProjectDocument): boolean {
   try {
@@ -221,8 +567,10 @@ function isGeometryValid(project: ProjectDocument): boolean {
 }
 
 function setGeometry(message: string, valid: boolean): void {
-  geometryStatus.textContent = message;
+  geometryStatus.textContent = message.startsWith('Fits: yes') ? 'Fits: yes — within the logo area.' : message;
+  geometryStatus.title = message;
   geometryStatus.classList.toggle('invalid', !valid);
+  geometryStatus.classList.toggle('ok', valid);
 }
 
 function updateConfirmationState(): void {
@@ -230,27 +578,27 @@ function updateConfirmationState(): void {
   const confirmation = project?.confirmation;
   if (!project) {
     confirmationFresh = false;
-    confirmationSummary.textContent = 'No project loaded.';
+    confirmationSummary.textContent = 'No project open yet.';
     return;
   }
   if (!confirmation) {
     confirmationFresh = false;
     const prior = project.history?.[project.history.length - 1];
     confirmationSummary.textContent = prior
-      ? `No current customer confirmation. Previous confirmation from revision ${prior.revision} is stale; confirm the current revision before submit.`
-      : 'No current customer confirmation. Confirm the reviewed revision before submit.';
+      ? `Nothing confirmed for this version yet. An older confirmation from version ${prior.revision} no longer counts — check the sizes above, then confirm again.`
+      : 'Nothing confirmed yet. Check the sizes above, then type your name and confirm.';
     return;
   }
   if (!confirmationFresh) {
-    confirmationSummary.textContent = `Checking confirmation for revision ${confirmation.revision}; imported confirmation is untrusted until its digest is checked.`;
+    confirmationSummary.textContent = `Checking what was confirmed for version ${confirmation.revision}. A file you just opened is not trusted until it is checked.`;
     return;
   }
   if (confirmation.revision !== project.revision) {
     confirmationFresh = false;
-    confirmationSummary.textContent = `Stale confirmation from revision ${confirmation.revision}; current revision is ${project.revision}. Re-review and confirm again.`;
+    confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision}; this is version ${project.revision}. Check the sizes above, then confirm again.`;
     return;
   }
-  confirmationSummary.textContent = `Current confirmation for revision ${confirmation.revision}, by ${confirmation.confirmedBy} at ${confirmation.confirmedAt}. Customer-supplied evidence only; not internal approval.`;
+  confirmationSummary.textContent = `Confirmed: version ${confirmation.revision}, by ${confirmation.confirmedBy} at ${confirmation.confirmedAt}. This is your own record — not Logo Station approval.`;
 }
 
 function renderSelectorOptions(): void {
@@ -271,7 +619,11 @@ function renderSelectorOptions(): void {
   const placement = currentPlacement();
   if (!project.logos.some((logo) => logo.id === selectedLogoId)) selectedLogoId = project.logos[0]?.id ?? '';
 
-  replaceOptions(configurationSelect, project.configurations.map((item) => ({ value: item.id, label: item.id })), configuration.id);
+  replaceOptions(configurationSelect, project.configurations.map((item) => {
+    const itemProduct = productForConfiguration(project, item);
+    const itemVariant = itemProduct?.variants.find((candidate) => candidate.id === item.variantId);
+    return { value: item.id, label: `${itemProduct?.name ?? item.productId} · ${itemVariant?.name ?? item.variantId}` };
+  }), configuration.id);
   replaceOptions(productSelect, project.products.map((item) => ({ value: item.id, label: displayName(item.id, item.name) })), configuration.productId);
   replaceOptions(variantSelect, (product?.variants ?? []).map((item) => ({ value: item.id, label: displayName(item.id, item.name) })), configuration.variantId);
   replaceOptions(regionSelect, regions.map((item) => ({ value: item.id, label: displayName(item.id, item.name) })), selectedRegionId);
@@ -287,6 +639,16 @@ function renderSelectorOptions(): void {
   const methods = regionForSelection()?.allowedMethods ?? [];
   const currentMethod = placement?.method ?? methods[0] ?? '';
   replaceOptions(methodSelect, methods.map((method) => ({ value: method, label: method })), currentMethod);
+  // Guided shell: hide single-choice selects (never required inputs, never
+  // the placement selector which doubles as the zero-placement empty
+  // state). Readable product/SKU + artwork context moves to context-line.
+  setSelectVisibility(configurationSelect, project.configurations.length > 1);
+  setSelectVisibility(productSelect, project.products.length > 1);
+  setSelectVisibility(variantSelect, (product?.variants.length ?? 0) > 1);
+  setSelectVisibility(regionSelect, regions.length > 1);
+  setSelectVisibility(logoSelect, project.logos.length > 1);
+  setSelectVisibility(methodSelect, methods.length > 1);
+  setSelectVisibility(placementSelect, configuration.placements.length > 1);
 }
 
 function placementLabel(configuration: ProjectDocument['configurations'][number], index: number): string {
@@ -298,14 +660,21 @@ function readNumeric(input: HTMLInputElement, label: string): number {
   return value;
 }
 
+let placementFormKey = '';
 function populatePlacementForm(): void {
   const placement = currentPlacement();
   if (!placement) {
-    xInput.value = '';
-    yInput.value = '';
-    widthInput.value = '';
-    heightInput.value = '';
-    rotationInput.value = '';
+    const logo = loaded?.project.logos.find((item) => item.id === selectedLogoId);
+    const asset = logo?.assets.find((item) => item.widthPx && item.heightPx);
+    const width = logo?.knownWidthMm ?? 40;
+    const height = logo?.knownHeightMm ?? (asset ? width * asset.heightPx! / asset.widthPx! : 40);
+    xInput.value = '0';
+    yInput.value = '0';
+    widthInput.value = String(width);
+    heightInput.value = String(height);
+    rotationInput.value = '0';
+    if (ratioLock) ratioLock.checked = true;
+    refreshLockedRatio();
     placementInstructions.value = '';
     return;
   }
@@ -316,6 +685,16 @@ function populatePlacementForm(): void {
   rotationInput.value = String(placement.rotationDeg);
   placementInstructions.value = placement.instructions ?? '';
   methodSelect.value = placement.method;
+  // Size-step ratio lock defaults to checked where the starting ratio is
+  // valid; populate always re-seeds it from the loaded placement.
+  const key = JSON.stringify([loaded?.project.projectId, activeConfigurationId, selectedPlacementIndex, selectedLogoId]);
+  if (ratioLock && key !== placementFormKey) {
+    placementFormKey = key;
+    const width = Number(widthInput.value);
+    const height = Number(heightInput.value);
+    ratioLock.checked = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+  }
+  refreshLockedRatio();
 }
 
 
@@ -326,8 +705,8 @@ function renderCanvas(): void {
   canvasLayer.replaceChildren();
   if (!project || !configuration || !region) {
     canvas.setAttribute('viewBox', '-120 -100 240 200');
-    frameSummary.textContent = 'No region selected.';
-    setGeometry('Load a project to evaluate the placement footprint.', true);
+    frameSummary.textContent = 'No logo area chosen yet.';
+    setGeometry('Open a project to see whether your logo fits.', true);
     return;
   }
 
@@ -395,7 +774,7 @@ function renderCanvas(): void {
     polygon.setAttribute('tabindex', '0');
     polygon.setAttribute('role', 'button');
     const logo = project.logos.find((candidate) => candidate.id === item.logoId);
-    polygon.setAttribute('aria-label', `Inert footprint for ${logo?.name ?? item.logoId}; ${item.widthMm} by ${item.heightMm} millimetres`);
+    polygon.setAttribute('aria-label', `Logo box for ${logo?.name ?? item.logoId}; ${item.widthMm} by ${item.heightMm} millimetres`);
     polygon.addEventListener('pointerdown', (event) => beginDrag(event, index));
     polygon.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -417,67 +796,98 @@ function renderCanvas(): void {
   frameSummary.textContent = `Region ${displayName(region.id, region.name)} · frame ${region.frame.frameId}; origin: ${region.frame.originDescription}; +x ${region.frame.axes.xPositive}, +y ${region.frame.axes.yPositive}; calibration ${region.calibrationRef.calibrationId} ${region.calibrationRef.version}. Units: mm.`;
   const selected = currentPlacement();
   if (!selected) {
-    setGeometry(`${configuration.placements.length} placement(s) in this configuration. Select a region and logo to add a footprint.`, true);
+    setGeometry(`${configuration.placements.length} placed logo(s) in this product set. Choose a logo area and logo to add one.`, true);
   } else {
     const verdict = selectedPlacementGeometry(project, configuration.id, selectedPlacementIndex!);
-    setGeometry(verdict?.ok ? `Fit: yes — ${verdict.reason}` : `Fit: no — ${verdict?.reason ?? 'footprint unavailable'}`, verdict?.ok === true);
+    setGeometry(verdict?.ok ? `Fits: yes — ${verdict.reason}` : `Fits: no — ${verdict?.reason ?? 'Size is unavailable.'}`, verdict?.ok === true);
   }
 }
 
 function renderReview(): void {
   const project = loaded?.project;
   if (!project) {
-    exactReview.textContent = 'Load a project to review its physical placement values.';
+    exactReview.textContent = 'Open a project to check the exact sizes here.';
+    referenceReview.textContent = 'Open a project to see its measurement references.';
     return;
   }
-  const rows = [`Project: ${project.projectId}`, `Revision: ${project.revision}`, 'Coordinate units: mm'];
+  exactReview.replaceChildren();
+  const references: string[] = [`Project: ${project.projectId}`, `Version: ${project.revision}`];
+  function line(parent: HTMLElement, text: string, tag = 'p'): HTMLElement {
+    const element = document.createElement(tag);
+    element.textContent = text;
+    parent.append(element);
+    return element;
+  }
   for (const configuration of project.configurations) {
     const product = productForConfiguration(project, configuration);
     const variant = product?.variants.find((item) => item.id === configuration.variantId);
-    rows.push('', `Configuration: ${configuration.id}`, `Product / variant: ${displayName(configuration.productId, product?.name)} / ${displayName(configuration.variantId, variant?.name)}`);
-    const regionIds = variant?.regionIds ?? [];
-    for (const regionId of regionIds) {
+    const group = document.createElement('section');
+    group.className = 'review-product';
+    exactReview.append(group);
+    line(group, `${displayName(configuration.productId, product?.name)} · ${displayName(configuration.variantId, variant?.name)}`, 'h3');
+    references.push('', `Product set: ${configuration.id}`);
+    for (const regionId of variant?.regionIds ?? []) {
       const region = product?.regions.find((item) => item.id === regionId);
-      if (region) rows.push(
-        `Region frame: ${displayName(region.id, region.name)}`,
+      if (region) references.push(
+        `Logo area frame: ${displayName(region.id, region.name)}`,
         `Frame: ${region.frame.frameId}; origin ${region.frame.originDescription}`,
         `Axes: +x ${region.frame.axes.xPositive}; +y ${region.frame.axes.yPositive}`,
         `Calibration: ${region.calibrationRef.calibrationId} ${region.calibrationRef.version}`,
       );
     }
-    if (configuration.placements.length === 0) rows.push('Placements: 0');
+    if (configuration.placements.length === 0) line(group, 'Placed logos: 0');
     for (const [index, placement] of configuration.placements.entries()) {
       const region = product?.regions.find((item) => item.id === placement.regionId);
+      const logo = project.logos.find(item => item.id === placement.logoId);
       const fit = selectedPlacementGeometry(project, configuration.id, index);
-      rows.push(
-        `Placement ${placementLabel(configuration, index)}: logo ${placement.logoId}; region ${displayName(placement.regionId, region?.name)}; method ${placement.method}`,
-        `Frame: ${region?.frame.frameId ?? 'unknown'}; origin ${region?.frame.originDescription ?? 'unknown'}`,
-        `Axes: +x ${region?.frame.axes.xPositive ?? 'unknown'}; +y ${region?.frame.axes.yPositive ?? 'unknown'}`,
-        `Calibration: ${region?.calibrationRef.calibrationId ?? 'unknown'} ${region?.calibrationRef.version ?? ''}`,
-        `Center: ${placement.pos.xMm} mm, ${placement.pos.yMm} mm (bounding-box center, offsets along +x and +y from the frame origin)`,
-        `Width × height: ${placement.widthMm} mm × ${placement.heightMm} mm`,
-        `Clockwise rotation: ${placement.rotationDeg}°`,
-        `Footprint fit: ${fit?.ok ? 'yes' : 'no'}${fit ? ` — ${fit.reason}` : ''}`,
-        `Placement instructions: ${placement.instructions ?? '(none)'}`,
-      );
+      const item = document.createElement('div');
+      item.className = 'review-placement';
+      group.append(item);
+      line(item, `${displayName(placement.logoId, logo?.name)} · ${displayName(placement.regionId, region?.name)} · ${placement.method}`, 'h4');
+      line(item, `Width × height: ${placement.widthMm} mm × ${placement.heightMm} mm`);
+      const fitLine = line(item, fit?.ok ? 'Fits: yes — within the logo area.' : `Fits: no — ${fit?.reason ?? 'Size is unavailable.'}`);
+      fitLine.className = fit?.ok ? 'review-fit' : 'review-fit invalid';
+      const measurements = document.createElement('details');
+      measurements.className = 'review-measurements';
+      item.append(measurements);
+      line(measurements, 'Position and rotation', 'summary');
+      line(measurements, `Reference point: ${region?.frame.originDescription ?? 'unknown'}`);
+      line(measurements, `Directions: +x ${region?.frame.axes.xPositive ?? 'unknown'}; +y ${region?.frame.axes.yPositive ?? 'unknown'}`);
+      line(measurements, `Center: ${placement.pos.xMm} mm, ${placement.pos.yMm} mm (logo middle, offsets along the area's +x and +y from its reference point)`);
+      line(measurements, `Turn clockwise: ${placement.rotationDeg}°`);
+      if (placement.instructions) line(item, `Note about this logo: ${placement.instructions}`);
+      references.push(`Logo ${placementLabel(configuration, index)}: ${placement.logoId}; area ${placement.regionId}`);
     }
   }
-  rows.push('', `Project instructions: ${project.instructions ?? '(none)'}`);
-  exactReview.textContent = rows.join('\n');
+  if (project.instructions) line(exactReview, `Notes for the whole project: ${project.instructions}`);
+  referenceReview.textContent = references.join('\n');
 }
 
 function renderAll(): void {
   const project = loaded?.project;
+  root.classList.toggle('is-empty', !project);
+  dropzone.hidden = project !== undefined;
+  chooseButton.textContent = project ? 'Choose another project' : 'Choose project';
   if (!project) {
     projectId.textContent = 'Not loaded';
     revisionLabel.textContent = '—';
     assetCount.textContent = '—';
     projectInstructions.value = '';
+    guideStep = 'position';
+    referenceView = 'diagram';
+    referenceNotice = '';
+    referenceAsset = null;
     updateConfirmationState();
     renderSelectorOptions();
     populatePlacementForm();
+    refreshLockedRatio();
     renderCanvas();
     renderReview();
+    renderGuideStep();
+    renderContextLine();
+    renderLogoThumb();
+    updateUnsavedWarning();
+    void updateReferenceForSelection();
     updateButtons();
     return;
   }
@@ -489,8 +899,14 @@ function renderAll(): void {
   projectInstructions.value = project.instructions ?? '';
   renderSelectorOptions();
   populatePlacementForm();
+  refreshLockedRatio();
   renderCanvas();
   renderReview();
+  renderGuideStep();
+  renderContextLine();
+  renderLogoThumb();
+  updateUnsavedWarning();
+  void updateReferenceForSelection();
   updateConfirmationState();
   updateButtons();
 }
@@ -506,14 +922,14 @@ function installMutation(next: ProjectDocument, success: string, recordUndo = tr
     placementFormDirty = false;
     projectInstructionsDirty = false;
     renderAll();
-    setStatus('No changes to save; the project revision is unchanged.');
+    setStatus('Nothing changed, so no new version was made.');
     return;
   }
   try {
     assertProjectEditorLimits(next);
     geometryFor(next);
   } catch (error) {
-    setStatus(`Edit rejected before installation: ${error instanceof Error ? error.message : String(error)}`);
+    setStatus(`That change was rejected: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
   if (recordUndo) takeUndoSnapshot(loaded.project);
@@ -532,9 +948,9 @@ function installMutation(next: ProjectDocument, success: string, recordUndo = tr
 function formPlacement(): Omit<Placement, 'id'> {
   const region = regionForSelection();
   const logoId = logoSelect.value;
-  if (!region || !logoId) throw new Error('Choose a product, variant, region, and logo before editing a placement.');
-  const rotationDeg = readNumeric(rotationInput, 'Rotation');
-  if (!(rotationDeg > -180 && rotationDeg <= 180)) throw new Error('Clockwise rotation must be greater than −180° and at most 180°.');
+  if (!region || !logoId) throw new Error('Choose a product, variant, logo area, and logo above before placing a logo.');
+  const rotationDeg = readNumeric(rotationInput, 'Turn');
+  if (!(rotationDeg > -180 && rotationDeg <= 180)) throw new Error('Turn must be more than −180° and at most 180°.');
   return {
     logoId,
     regionId: region.id,
@@ -553,7 +969,7 @@ function applyPendingEdits(): void {
   const configuration = selectedConfiguration(project);
   const placement = currentPlacement();
   if (placementFormDirty && (!configuration || selectedPlacementIndex === null || !placement)) {
-    setStatus('Choose an existing placement or add the edited measurements as a new placement before applying.');
+    setStatus('Pick a placed logo below (or add your numbers as a new logo) before applying.');
     return;
   }
   try {
@@ -577,7 +993,7 @@ function applyPendingEdits(): void {
       placementFormDirty = false;
       projectInstructionsDirty = false;
       renderAll();
-      setStatus('No placement or instruction changes; the project revision is unchanged.');
+      setStatus('Nothing changed, so no new version was made.');
       return;
     }
     const configurationId = configuration?.id;
@@ -598,9 +1014,9 @@ function applyPendingEdits(): void {
         else draft.instructions = nextInstructions;
       }
     });
-    installMutation(next, `Applied committed placement and instruction edits as revision ${next.revision}.`);
+    installMutation(next, `Applied your changes as version ${next.revision}.`);
   } catch (error) {
-    setStatus(`Could not apply pending edits: ${error instanceof Error ? error.message : String(error)}`);
+    setStatus(`Could not save your changes: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -638,7 +1054,7 @@ async function checkImportedConfirmation(snapshot: { project: ProjectDocument; g
     if (!snapshotIsCurrent(snapshot)) return;
     confirmationFresh = confirmation.revision === snapshot.revision && confirmation.digest === digest;
     if (!confirmationFresh) {
-      confirmationSummary.textContent = `Stale confirmation for revision ${confirmation.revision}; its digest does not match current revision ${snapshot.revision}. Review and confirm again.`;
+      confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision} and does not match this version ${snapshot.revision}. Check the sizes above, then confirm again.`;
     } else {
       updateConfirmationState();
     }
@@ -661,7 +1077,7 @@ async function loadProjectSource(
   const fileName = source.name;
   const generation = ++loadGeneration;
   stateGeneration += 1;
-  cancelDrag('Drag cancelled because a project load started.');
+  cancelDrag('Moving stopped because opening a file started. Your saved logo is unchanged.');
   if (source.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
     loading = false;
     updateButtons();
@@ -671,7 +1087,7 @@ async function loadProjectSource(
   }
   loading = true;
   updateButtons();
-  setStatus(`Reading ${fileName}… The current project remains visible until package validation succeeds.`);
+  setStatus(`Opening ${fileName}… What you already have stays on screen until the new file checks out.`);
   const loadToken = stateGeneration;
   try {
     const bytes = await source.read();
@@ -680,8 +1096,12 @@ async function loadProjectSource(
     if (generation !== loadGeneration || loadToken !== stateGeneration) return;
     assertProjectEditorLimits(parsed.project);
     geometryFor(parsed.project);
-    const candidate: EditorPackage = { project: parsed.project, assets: parsed.assets };
+    const manifestBytes = parsed.assets.find((entry) => entry.path === PRESENTATION_MANIFEST_PATH && entry.kind === 'additional')?.bytes;
+    const candidate: EditorPackage = { project: parsed.project, assets: parsed.assets, presentationManifest: parsePresentationManifest(manifestBytes), presentationManifestPresent: manifestBytes !== undefined };
     loaded = candidate;
+    placementFormKey = '';
+    preferredReferenceOnLoad = true;
+    referenceBytes = undefined;
     placementFormDirty = false;
     projectInstructionsDirty = false;
     baseline = cloneProject(parsed.project);
@@ -699,8 +1119,10 @@ async function loadProjectSource(
     loading = false;
     stateGeneration += 1;
     confirmationFresh = false;
+    const variant = firstProduct?.variants.find((item) => item.id === firstConfiguration?.variantId);
+    guideStep = selectedPlacementIndex !== null && variant?.regionIds.length === 1 ? 'size' : 'position';
     renderAll();
-    setStatus(`Loaded ${fileName}. Project metadata and all asset bytes passed package validation.`);
+    setStatus(`Opened ${fileName}. The file passed its checks.`);
     const snapshot = currentSnapshot();
     if (snapshot) void checkImportedConfirmation(snapshot);
   } catch (error) {
@@ -717,10 +1139,10 @@ async function loadFiles(files: readonly File[]): Promise<void> {
   if (files.length !== 1) {
     loadGeneration += 1;
     stateGeneration += 1;
-    cancelDrag('Drag cancelled because a project load started.');
+    cancelDrag('Moving stopped because opening a file started. Your saved logo is unchanged.');
     loading = false;
     updateButtons();
-    setStatus('Choose or drop exactly one .logo-project file. The currently loaded project is unchanged.');
+    setStatus('Open exactly one .logo-project file. What you already have is unchanged.');
     refreshCurrentConfirmation();
     return;
   }
@@ -738,34 +1160,34 @@ async function savePackage(submit = false): Promise<void> {
   const projectPackage = loaded;
   if (!snapshot || !projectPackage || loading || saving || confirming) return;
   if (submit && drag) {
-    setStatus('Submission is blocked until the active drag is committed or cancelled. A draft save still uses only committed project values.');
+    setStatus('Wait until the logo you are dragging is placed or cancelled, then try again.');
     return;
   }
   if (placementFormDirty || projectInstructionsDirty) {
-    setStatus('Commit or discard the uncommitted form edits before saving a package.');
+    setStatus('Press “Apply my changes” first, so nothing unsaved is left out of the file.');
     return;
   }
   if (submit && (!confirmationFresh || !projectPackage.project.confirmation || !isGeometryValid(snapshot.project))) {
-    setStatus('Submit is blocked: this revision needs a fresh confirmation and every placement footprint must fit.');
+    setStatus('Before the confirmed return file: confirm the exact version above, and make sure every logo fits inside its logo area.');
     return;
   }
   if (!validateProject(snapshot.project).ok) {
-    setStatus('This project is not structurally valid and cannot be packaged.');
+    setStatus('This file has a problem and cannot be saved yet.');
     return;
   }
   saving = true;
   updateButtons();
-  setStatus(submit ? 'Preparing the locally saved, confirmed customer-return package…' : 'Preparing a validated draft package download…');
+  setStatus(submit ? 'Getting your confirmed return file ready to download…' : 'Getting your draft file ready to download…');
   try {
     const references = projectPackage.assets.filter((asset) => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes }));
     const additional = projectPackage.assets.filter((asset) => asset.kind === 'additional').map(({ path, bytes }) => ({ path, bytes }));
     const bytes = await createProjectPackage({ project: snapshot.project, assets: references, additionalAssets: additional }, { sha256: hasher.sha256Bytes });
     if (!snapshotIsCurrent(snapshot) || loaded !== projectPackage) {
-      setStatus('Package download cancelled because the project changed while it was being prepared.');
+      setStatus('Saving stopped because something changed while the file was being made.');
       return;
     }
     if (submit && (!confirmationFresh || !snapshot.project.confirmation || !isGeometryValid(snapshot.project))) {
-      setStatus('Submit cancelled because the fresh confirmation or valid-fit gate is no longer satisfied.');
+      setStatus('Saving stopped because the confirmation or logo fit is no longer up to date.');
       return;
     }
     const objectUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }));
@@ -777,9 +1199,9 @@ async function savePackage(submit = false): Promise<void> {
     link.click();
     link.remove();
     globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
-    setStatus(submit ? 'Saved the confirmed customer-return package locally. Nothing was uploaded or published.' : 'Saved the editable draft package locally. Nothing was uploaded or published.');
+    setStatus(submit ? 'Saved your confirmed return file. Now send it back yourself as an email attachment — nothing was sent automatically.' : 'Saved your draft file. Nothing was sent anywhere.');
   } catch (error) {
-    if (snapshotIsCurrent(snapshot)) setStatus(`Could not create the project package. ${error instanceof Error ? error.message : String(error)}`);
+    if (snapshotIsCurrent(snapshot)) setStatus(`Could not make the file: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     saving = false;
     updateButtons();
@@ -791,46 +1213,46 @@ async function confirmCurrentRevision(): Promise<void> {
   const projectPackage = loaded;
   const confirmedBy = confirmedByInput.value.trim();
   if (drag) {
-    setStatus('Confirmation is blocked until the active drag is committed or cancelled.');
+    setStatus('Wait until the logo you are dragging is placed or cancelled, then confirm.');
     return;
   }
   if (!snapshot || !projectPackage || !confirmedBy || loading || confirming || saving) return;
   if (placementFormDirty || projectInstructionsDirty) {
-    setStatus('Save placement and project instruction edits as revisions before customer confirmation.');
+    setStatus('Press “Apply my changes” first, then confirm.');
     return;
   }
   if (!validateProject(snapshot.project).ok) {
-    setStatus('This project is not structurally valid and cannot be confirmed.');
+    setStatus('This file has a problem and cannot be confirmed yet.');
     return;
   }
   if (!isGeometryValid(snapshot.project)) {
-    setStatus('This project cannot be confirmed until every measured footprint fits its safe area and exclusions. It can still be saved as a draft.');
+    setStatus('At least one logo does not fit inside its logo area. Move or resize it first — you can still save a draft.');
     return;
   }
   confirming = true;
   confirmationFresh = false;
   updateButtons();
   updateConfirmationState();
-  setStatus(`Preparing the exact revision ${snapshot.revision} content digest for review…`);
+  setStatus(`Checking the exact contents of version ${snapshot.revision}…`);
   try {
     const digest = await hasher.prepareProject(snapshot.project);
     if (!snapshotIsCurrent(snapshot) || loaded !== projectPackage || confirmedByInput.value.trim() !== confirmedBy) {
-      setStatus('Confirmation cancelled because the project or review input changed while the digest was being prepared. Review and confirm again.');
+      setStatus('Confirmation stopped because something changed while checking. Look over the sizes again, then confirm.');
       return;
     }
     const confirmCandidate = cloneProject(snapshot.project);
     const result = confirmRevision(confirmCandidate, { confirmedBy, digestOf: digest }, hasher.sha256Hex);
     if (!result.ok) {
-      setStatus(`Could not confirm this revision: ${result.errors.map((entry) => entry.message).join('; ')}`);
+      setStatus(`Could not record your confirmation: ${result.errors.map((entry) => entry.message).join('; ')}`);
       return;
     }
     loaded = { ...projectPackage, project: result.project };
     stateGeneration += 1;
     confirmationFresh = true;
     renderAll();
-    setStatus(`Confirmed revision ${result.project.revision} for the exact reviewed content digest. This is not internal approval.`);
+    setStatus(`Confirmed version ${result.project.revision} — exactly as reviewed above. This is your record, not Logo Station approval.`);
   } catch (error) {
-    if (snapshotIsCurrent(snapshot)) setStatus(`Could not prepare customer confirmation: ${error instanceof Error ? error.message : String(error)}`);
+    if (snapshotIsCurrent(snapshot)) setStatus(`Could not record your confirmation: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     confirming = false;
     updateButtons();
@@ -838,7 +1260,7 @@ async function confirmCurrentRevision(): Promise<void> {
 }
 
 function contextChanged(): void {
-  if (placementFormDirty || projectInstructionsDirty) setStatus('Uncommitted form edits were discarded because the editing context changed.');
+  if (placementFormDirty || projectInstructionsDirty) setStatus('You typed something that was not applied yet — it was discarded because you switched to something else.');
   placementFormDirty = false;
   projectInstructionsDirty = false;
   invalidateUiContext();
@@ -867,7 +1289,7 @@ function chooseProductOrVariant(productId: string, variantId: string): void {
   const product = productForConfiguration(next, next.configurations.find((item) => item.id === configId)!);
   selectedRegionId = product?.variants.find((variant) => variant.id === variantId)?.regionIds[0] ?? '';
   selectedLogoId = next.logos[0]?.id ?? '';
-  installMutation(next, `Created an empty ${productId} / ${variantId} configuration as revision ${next.revision}.`);
+  installMutation(next, `Added an empty ${productId} / ${variantId} product set as version ${next.revision}.`);
 }
 
 function setSelectedPlacement(index: number | null): void {
@@ -892,7 +1314,7 @@ function renderDragPreview(current: DragState): void {
   const label = canvasLayer.querySelector<SVGTextElement>(`.footprint-label[data-placement-index="${current.placementIndex}"]`);
   if (Math.abs(current.previewX) > PROJECT_EDITOR_LIMITS.maxCoordinateMm || Math.abs(current.previewY) > PROJECT_EDITOR_LIMITS.maxCoordinateMm) {
     polygon.classList.add('invalid');
-    setGeometry(`Drag preview exceeds the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm runtime geometry bound; release will be rejected.`, false);
+    setGeometry(`Too far out — past the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm edge. Letting go here will not save it.`, false);
     return;
   }
   try {
@@ -903,10 +1325,10 @@ function renderDragPreview(current: DragState): void {
     if (label) { label.setAttribute('x', String(current.previewX)); label.setAttribute('y', String(-current.previewY)); }
     xInput.value = String(current.previewX);
     yInput.value = String(current.previewY);
-    setGeometry(`Drag preview — fit: ${verdict.ok ? 'yes' : 'no'}; ${verdict.reason}. Release commits the center as a new revision; cancel to discard.`, verdict.ok);
+    setGeometry(`Moving… fits: ${verdict.ok ? 'yes' : 'no'}; ${verdict.reason}. Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok);
   } catch (error) {
     polygon.classList.add('invalid');
-    setGeometry(`Drag preview rejected: ${error instanceof Error ? error.message : String(error)}`, false);
+    setGeometry(`That spot was rejected: ${error instanceof Error ? error.message : String(error)}`, false);
   }
 }
 
@@ -993,20 +1415,20 @@ function finishDrag(event: PointerEvent, commit: boolean): void {
   }
   if (!commit || !event.isPrimary || event.button !== 0 || loaded?.project !== current.project || stateGeneration !== current.generation) {
     if (loaded) renderAll();
-    if (!commit || !event.isPrimary || event.button !== 0) setStatus('Drag cancelled. The committed placement remains unchanged.');
+    if (!commit || !event.isPrimary || event.button !== 0) setStatus('Move cancelled. Your saved logo stays where it was.');
     return;
   }
   const endpoint = canvasPoint(event, current.screenToRegion);
   if (!endpoint) {
     renderAll();
-    setStatus('Drag cancelled because the pointer endpoint could not be mapped.');
+    setStatus('Move cancelled — that spot could not be read. Your saved logo stays where it was.');
     return;
   }
   const xMm = endpoint.x + current.grabOffsetX;
   const yMm = endpoint.y + current.grabOffsetY;
   if (Math.abs(xMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm || Math.abs(yMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm) {
     renderAll();
-    setStatus(`Drag rejected beyond the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm runtime geometry bound.`);
+    setStatus(`That spot is past the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm edge, so it was not saved.`);
     return;
   }
   const configuration = current.project.configurations.find((item) => item.id === current.configurationId);
@@ -1015,10 +1437,10 @@ function finishDrag(event: PointerEvent, commit: boolean): void {
   const selector = placementSelector(placement, current.placementIndex);
   try {
     const next = updatePlacement(current.project, current.configurationId, selector, { pos: { xMm, yMm } });
-    installMutation(next, `Drag committed as revision ${next.revision}; position and footprint dimensions remain in millimetres.`);
+    installMutation(next, `Moved the logo — saved as version ${next.revision}. All sizes stay in millimetres.`);
   } catch (error) {
     renderAll();
-    setStatus(`Could not commit drag: ${error instanceof Error ? error.message : String(error)}`);
+    setStatus(`Could not move the logo there: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -1063,12 +1485,25 @@ variantSelect.addEventListener('change', () => {
   if (configuration) chooseProductOrVariant(configuration.productId, variantSelect.value);
 });
 regionSelect.addEventListener('change', () => {
-  contextChanged();
+  cancelDrag('Move cancelled because the logo area changed.');
   selectedRegionId = regionSelect.value;
-  if (currentPlacement()?.regionId !== selectedRegionId) selectedPlacementIndex = null;
-  renderAll();
+  const methods = regionForSelection()?.allowedMethods ?? [];
+  const method = methods.includes(methodSelect.value) ? methodSelect.value : methods[0] ?? '';
+  replaceOptions(methodSelect, methods.map((value) => ({ value, label: value })), method);
+  placementFormDirty = currentPlacement() !== undefined;
+  stateGeneration += 1;
+  renderCanvas(); renderContextLine(); updateUnsavedWarning(); updateButtons();
 });
 logoSelect.addEventListener('change', () => {
+  // Switching logos never loses applied edits: block the switch while
+  // edits are pending and point at the apply action instead.
+  if (placementFormDirty || projectInstructionsDirty) {
+    logoSelect.value = selectedLogoId;
+    updateUnsavedWarning();
+    setStatus(UNSAVED_STEP_MESSAGE);
+    updateButtons();
+    return;
+  }
   contextChanged();
   selectedLogoId = logoSelect.value;
   renderAll();
@@ -1082,17 +1517,18 @@ for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, p
   const markFormChanged = (): void => {
     const value = control.value;
     if (drag) {
-      cancelDrag('Drag cancelled because a form field changed.');
+      cancelDrag('Moving stopped because you typed below. Your saved logo is unchanged.');
       control.value = value;
     }
     if (control === projectInstructions) {
       projectInstructionsDirty = true;
-      setStatus('Project instructions have pending edits; apply them with the placement fields before confirmation or package saving.');
+      setStatus('You changed the project notes — press “Apply my changes” to save them into a new version.');
     } else if (control !== confirmedByInput) {
       placementFormDirty = true;
-      setStatus('Placement fields have pending edits; apply them with project instructions before confirmation or package saving.');
+      setStatus('You changed numbers below — press “Apply my changes” to save them into a new version.');
     }
     stateGeneration += 1;
+    updateUnsavedWarning();
     updateButtons();
     const snapshot = currentSnapshot();
     if (snapshot?.project.confirmation) void checkImportedConfirmation(snapshot);
@@ -1100,12 +1536,30 @@ for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, p
   control.addEventListener('input', markFormChanged);
   control.addEventListener('change', markFormChanged);
 }
+widthInput.addEventListener('input', () => {
+  if (!ratioLock?.checked || lockedRatio === null) return;
+  const width = Number(widthInput.value);
+  if (!Number.isFinite(width) || width <= 0) return;
+  heightInput.value = String(width / lockedRatio);
+  placementFormDirty = true;
+  updateUnsavedWarning();
+});
+heightInput.addEventListener('input', () => {
+  // Typing a height keeps independent width/height: unlock so the typed
+  // value sticks instead of being mirrored back.
+  if (ratioLock?.checked) ratioLock.checked = false;
+  lockedRatio = null;
+});
+ratioLock?.addEventListener('change', () => {
+  if (ratioLock.checked) refreshLockedRatio();
+  else lockedRatio = null;
+});
 
 addButton.addEventListener('click', () => {
   if (!loaded) return;
   try {
     const configuration = selectedConfiguration();
-    if (!configuration) throw new Error('Choose a configuration first.');
+    if (!configuration) throw new Error('Pick a product set first.');
     const placement: Placement = { id: uniqueId('CUSTOM-PLACEMENT'), ...formPlacement() };
     let next: ProjectDocument;
     if (projectInstructionsDirty) {
@@ -1121,8 +1575,8 @@ addButton.addEventListener('click', () => {
     assertProjectEditorLimits(next);
     geometryFor(next);
     selectedPlacementIndex = next.configurations.find((item) => item.id === configuration.id)!.placements.length - 1;
-    installMutation(next, `Added editable placement as revision ${next.revision}. Geometric fit is evaluated separately.`);
-  } catch (error) { setStatus(`Could not add placement: ${error instanceof Error ? error.message : String(error)}`); }
+    installMutation(next, `Added the logo as version ${next.revision}. Fit is shown separately below.`);
+  } catch (error) { setStatus(`Could not add the logo: ${error instanceof Error ? error.message : String(error)}`); }
 });
 updateButton.addEventListener('click', applyPendingEdits);
 removeButton.addEventListener('click', () => {
@@ -1134,8 +1588,8 @@ removeButton.addEventListener('click', () => {
   try {
     const next = removePlacement(loaded.project, configuration.id, selector);
     selectedPlacementIndex = configuration.placements.length > 1 ? Math.min(selectedPlacementIndex, configuration.placements.length - 2) : null;
-    installMutation(next, `Removed placement as revision ${next.revision}.`);
-  } catch (error) { setStatus(`Could not remove placement: ${error instanceof Error ? error.message : String(error)}`); }
+    installMutation(next, `Removed the logo as version ${next.revision}.`);
+  } catch (error) { setStatus(`Could not remove the logo: ${error instanceof Error ? error.message : String(error)}`); }
 });
 undoButton.addEventListener('click', () => {
   if (!loaded || undoHistory.length === 0) return;
@@ -1147,7 +1601,7 @@ undoButton.addEventListener('click', () => {
       draft.configurations = cloneProject(previous).configurations;
       if (previous.instructions === undefined) delete draft.instructions; else draft.instructions = previous.instructions;
     });
-    installMutation(next, `Undo restored prior content as new revision ${next.revision}; prior confirmation was invalidated.`, false);
+    installMutation(next, `Undid the last change as new version ${next.revision}; anything confirmed before no longer counts.`, false);
   } catch (error) { undoHistory.push(previous); setStatus(`Could not undo: ${error instanceof Error ? error.message : String(error)}`); }
 });
 resetButton.addEventListener('click', () => {
@@ -1161,7 +1615,7 @@ resetButton.addEventListener('click', () => {
     placementFormDirty = false;
     projectInstructionsDirty = false;
     renderAll();
-    setStatus('The project already matches the opened package; no reset revision was created.');
+    setStatus('Already the same as the opened file — no new version was made.');
     return;
   }
   try {
@@ -1172,21 +1626,58 @@ resetButton.addEventListener('click', () => {
       draft.configurations = cloneProject(original).configurations;
       if (original.instructions === undefined) delete draft.instructions; else draft.instructions = original.instructions;
     });
-    installMutation(next, `Reset to the opened package content as new revision ${next.revision}; prior confirmation was invalidated.`);
-  } catch (error) { setStatus(`Could not reset project: ${error instanceof Error ? error.message : String(error)}`); }
+    installMutation(next, `Started over from the opened file as new version ${next.revision}; anything confirmed before no longer counts.`);
+  } catch (error) { setStatus(`Could not start over: ${error instanceof Error ? error.message : String(error)}`); }
 });
 confirmButton.addEventListener('click', () => void confirmCurrentRevision());
 saveButton.addEventListener('click', () => void savePackage(false));
 submitButton.addEventListener('click', () => void savePackage(true));
+saveDraftTop?.addEventListener('click', () => void savePackage(false));
+stepPositionButton?.addEventListener('click', () => requestStep('position'));
+stepSizeButton?.addEventListener('click', () => requestStep('size'));
+stepReviewButton?.addEventListener('click', () => requestStep('review'));
+backStep?.addEventListener('click', () => requestStep(stepNeighbor(guideStep, -1)));
+primaryNext?.addEventListener('click', () => {
+  if (!loaded || loading || saving || confirming || drag) return;
+  if (hasUnsavedEdits() && currentPlacement()) {
+    applyPendingEdits();
+    if (hasUnsavedEdits()) return;
+  }
+  if (guideStep === 'size' && !currentPlacement()) {
+    addButton.click();
+    if (!currentPlacement()) return;
+  }
+  requestStep(stepNeighbor(guideStep, 1));
+});
+addAnotherButton?.addEventListener('click', () => {
+  if (!loaded || loading || saving || confirming || drag) return;
+  if (hasUnsavedEdits()) { applyPendingEdits(); if (hasUnsavedEdits()) return; }
+  selectedPlacementIndex = null;
+  guideStep = 'position';
+  renderAll();
+  const choices = optionalHook<HTMLDetailsElement>('job-choices');
+  if (choices && logoSelect.options.length > 1) choices.open = true;
+});
+viewReferenceButton?.addEventListener('click', () => {
+  if (!referenceAsset) return;
+  cancelDrag('Move cancelled because the view changed. Your saved logo is unchanged.');
+  referenceView = 'reference';
+  renderReferenceView();
+});
+viewDiagramButton?.addEventListener('click', () => {
+  cancelDrag('Move cancelled because the view changed. Your saved logo is unchanged.');
+  referenceView = 'diagram';
+  renderReferenceView();
+});
 
 canvas.addEventListener('pointermove', moveDrag);
 canvas.addEventListener('pointerup', (event) => finishDrag(event, true));
 canvas.addEventListener('pointercancel', (event) => finishDrag(event, false));
 canvas.addEventListener('lostpointercapture', (event) => finishDrag(event as PointerEvent, false));
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && drag) { event.preventDefault(); cancelDrag('Drag cancelled with Escape. The placement remains unchanged.'); }
+  if (event.key === 'Escape' && drag) { event.preventDefault(); cancelDrag('Move cancelled with Escape. Your saved logo is unchanged.'); }
 });
-window.addEventListener('blur', () => cancelDrag('Drag cancelled because the window lost focus.'));
+window.addEventListener('blur', () => cancelDrag('Move cancelled because the window lost focus. Your saved logo is unchanged.'));
 
 renderAll();
 updateButtons();

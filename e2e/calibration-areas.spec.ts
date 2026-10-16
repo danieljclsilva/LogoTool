@@ -11,7 +11,11 @@ import {
 } from './helpers.js';
 import { loadFixtures, mutateAreaBundle, parseAreaBundle } from './fixtures.js';
 
+async function openLabelsDetails(page: Parameters<typeof restoreSession>[0]): Promise<void> {
+  await expect(page.locator('[data-calibration-hook="product-id"]')).toBeVisible();
+}
 async function authorRegionsAndAreas(page: Parameters<typeof restoreSession>[0]) {
+  await openLabelsDetails(page);
   const addRegion = async (id: string) => {
     await hook(page, 'calibration', 'region-id').fill(id);
     await hook(page, 'calibration', 'region-frame-id').fill(`${id}-frame`);

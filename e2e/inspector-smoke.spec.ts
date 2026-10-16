@@ -22,6 +22,17 @@ test('inspector smoke: identity, ingest, offline cleanliness, layout', async ({
       /Webpack Error|Vite Error|Unhandled Runtime Error/,
     );
 
+    const tools = page.locator('details').filter({ has: hook(page, 'inspector', 'wireframe-button') });
+    await expect(tools).not.toHaveAttribute('open', '');
+    await expect(hook(page, 'inspector', 'wireframe-button')).toBeHidden();
+    await expect(hook(page, 'calibration', 'product-id')).toBeVisible();
+    await expect(hook(page, 'calibration', 'region-frame-id')).toBeVisible();
+    await tools.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(hook(page, 'inspector', 'wireframe-button')).toBeVisible();
+    await tools.locator('summary').click();
+    await expect(hook(page, 'inspector', 'wireframe-button')).toBeHidden();
+
     const { glbBuffer } = await loadFixtures();
     await ingestGlb(page, glbBuffer);
     await expect(hook(page, 'inspector', 'status')).toContainText(/^Showing/);

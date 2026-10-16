@@ -1,24 +1,19 @@
 <section data-transfer-hook="transfer-panel" aria-label="Variant transfer (provisional offline draft)">
-  <h2>Variant transfer (provisional)</h2>
+  <h2>Copy a layout to another variant</h2>
   <p role="note">
     <strong>Offline draft only — pending review, never approved.</strong>
-    Transfer results below are preview/export only; they are never applied to
-    the target placements. Frame conventions are declared strings and are
-    never guessed, normalized, or coerced. Reference rects are
-    caller-supplied millimetre rectangles, never inferred from polygons,
-    bounds, pixels, artwork size, or model geometry. The source is a frozen
-    snapshot: it survives target asset replacement, and recapturing is always
-    explicit.
+    Freeze the current layout, describe how each area maps to the target variant,
+    and preview the copy. The copy is preview/export only; the target variant's own
+    layout is never changed.
   </p>
   <p role="note">
-    Mirrored (opposite-handed) frames are an unresolved risk:
-    absolute-position requires an exact convention match and fails otherwise,
-    while normalized-position never mirrors, rotates, or re-axes frames — it
-    maps the numbers across as declared.
+    Watch out for mirrored areas: exact copy needs the area conventions to
+    match exactly and fails otherwise; proportional copy maps the numbers
+    across as written without mirroring, rotating, or re-axising.
   </p>
 
   <fieldset>
-    <legend>Source (frozen snapshot)</legend>
+    <legend>1. Freeze this layout</legend>
     <p data-transfer-hook="transfer-source-status" aria-live="polite"></p>
     <div>
       <button data-transfer-hook="transfer-capture-button" type="button">Capture source snapshot</button>
@@ -27,27 +22,25 @@
   </fieldset>
 
   <fieldset>
-    <legend>Target (live context from the host)</legend>
+    <legend>2. Target variant (read from this page)</legend>
     <p data-transfer-hook="transfer-target-summary" aria-live="polite"></p>
   </fieldset>
 
   <fieldset>
-    <legend>Region rules (JSON array, millimetres)</legend>
+    <legend>3. How areas map across (list of rules, in mm)</legend>
     <p>
-      One rule maps one source region to one target region.
-      <code>absolute-position</code> copies the source centre verbatim into
-      the target region frame and requires the declared frame conventions to
-      match exactly. <code>normalized-position</code> maps through
-      caller-supplied <code>sourceRef</code>/<code>targetRef</code> rectangles
-      (both required); without <code>proportionalDimensions</code> the logo
-      keeps its fixed size, with <code>"proportionalDimensions": true</code>
-      it scales proportionally. A placement with no matching rule and no
-      override fails the whole transfer atomically. The operator must declare
-      every frame convention explicitly: the rules box starts empty
-      (<code>[]</code>), nothing is inferred, and the examples below are
-      illustrative only — not calibrated for this asset.
+      Write one rule per area pair. An <code>absolute-position</code> rule
+      copies the layout position verbatim and needs the declared conventions
+      to match exactly. A <code>normalized-position</code> rule maps through
+      your <code>sourceRef</code>/<code>targetRef</code> rectangles (both
+      required): the logo keeps its size unless you add
+      <code>"proportionalDimensions": true</code>, which scales it
+      proportionally. A layout with no matching rule and no override fails
+      the whole copy. You must declare every convention yourself: the box
+      starts empty (<code>[]</code>), nothing is guessed, and the examples
+      below are illustrative only — not tuned for this model.
     </p>
-    <label>Rules JSON (array of rule objects)
+    <label>Rules (one rule per source to target-variant area pair)
       <textarea data-transfer-hook="transfer-rules-text" rows="6" cols="64" spellcheck="false" placeholder='[] — declare one rule per source→target region pair'>[]</textarea>
     </label>
     <details>
@@ -92,40 +85,47 @@
   </fieldset>
 
   <fieldset>
-    <legend>Placement overrides (JSON array, millimetres)</legend>
+    <legend>Single-logo exceptions (optional, in mm)</legend>
     <p>
-      Optional explicit per-placement mappings. Each override supplies the
-      target region and centre; width, height, and rotation default to the
-      source placement values when absent. Use <code>[]</code> for none.
+      Optional per-logo overrides. Each override names the target area and
+      centre; size and turn fall back to the frozen layout when absent.
+      Use <code>[]</code> for none.
     </p>
-    <label>Overrides JSON (array of override objects)
+    <label>Overrides (one per logo)
       <textarea data-transfer-hook="transfer-overrides-text" rows="4" cols="64" spellcheck="false">[]</textarea>
     </label>
   </fieldset>
 
   <fieldset>
-    <legend>Run (preview only, never applied)</legend>
+    <legend>4. Run the copy (preview only)</legend>
     <div>
       <button data-transfer-hook="transfer-run-button" type="button">Run transfer (preview only)</button>
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Status</legend>
+    <legend>Did the copy work?</legend>
     <p data-transfer-hook="transfer-status" role="status" aria-live="polite"></p>
   </fieldset>
 
   <fieldset>
-    <legend>Results (per-transfer numbers plus target verdicts)</legend>
+    <legend>Copied positions and fit verdicts</legend>
     <div data-transfer-hook="transfer-result-list" aria-live="polite"></div>
   </fieldset>
 
-  <fieldset>
-    <legend>Preview (read-only target footprints, mm)</legend>
-    <div data-transfer-hook="transfer-preview" role="group" aria-label="Read-only millimetre preview of transferred target footprints"></div>
-  </fieldset>
-
-  <div>
-    <button data-transfer-hook="transfer-export-button" type="button">Download transfer bundle JSON (pending review)</button>
-  </div>
+  <section aria-label="Copy preview and download">
+    <fieldset>
+      <legend>Sketch of the copy (read-only, mm)</legend>
+      <div data-transfer-hook="transfer-preview" role="group" aria-label="Read-only millimetre preview of transferred target footprints"></div>
+    </fieldset>
+    <div>
+      <button data-transfer-hook="transfer-export-button" type="button">Download transfer bundle JSON (pending review)</button>
+    </div>
+    <p role="note">
+      The frozen source survives replacing the target file; re-freezing is
+      always explicit. Frame conventions are declared strings and are never
+      guessed. Reference rectangles are caller-supplied millimetre rectangles,
+      never inferred from shapes, bounds, pixels, artwork, or model geometry.
+    </p>
+  </section>
 </section>

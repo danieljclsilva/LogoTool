@@ -1,15 +1,14 @@
 <section data-placement-hook="placement-panel" aria-label="Logo placements (provisional offline draft)">
-  <h2>Logo placements (provisional)</h2>
+  <h2>Place logos</h2>
   <p role="note">
     <strong>Offline draft only — pending review.</strong>
-    Placements are millimetre rectangles in the selected region frame. The
-    mesh is never authoritative; numbers are recomputed from the fields
-    below on every render.
+    Add logos below, then position each one inside a marked area using
+    millimetre sizes. The numbers you enter are what gets saved.
   </p>
   <p data-placement-hook="placement-context" aria-live="polite"></p>
 
   <fieldset>
-    <legend>Logos (independent catalogue)</legend>
+    <legend>1. Logos</legend>
     <ul data-placement-hook="logo-list"></ul>
     <div>
       <label>Logo id
@@ -25,13 +24,13 @@
   </fieldset>
 
   <fieldset>
-    <legend>Placement editor (mm, clockwise degrees)</legend>
+    <legend>2. Position each logo (mm, turn in degrees clockwise)</legend>
     <ul data-placement-hook="placement-list"></ul>
     <div>
       <label>Logo
         <select data-placement-hook="placement-logo"></select>
       </label>
-      <label>Region
+      <label>Area
         <select data-placement-hook="placement-region"></select>
       </label>
     </div>
@@ -50,7 +49,7 @@
       <label>Height (mm)
         <input data-placement-hook="placement-h" type="text" inputmode="decimal" autocomplete="off" />
       </label>
-      <label>Rotation, clockwise (deg, in (-180, 180])
+      <label>Turn, clockwise (degrees, in (-180, 180])
         <input data-placement-hook="placement-rot" type="text" inputmode="decimal" autocomplete="off" />
       </label>
     </div>
@@ -62,18 +61,26 @@
   </fieldset>
 
   <fieldset>
-    <legend>Status (recomputed per placement)</legend>
+    <legend>Does each logo fit?</legend>
     <div data-placement-hook="placement-status" aria-live="polite"></div>
   </fieldset>
 
   <fieldset>
-    <legend>Preview (mm, not to scale with the 3D view)</legend>
+    <legend>Layout sketch (mm, not to scale with the 3D view)</legend>
     <div data-placement-hook="placement-preview2d" role="group" aria-label="Millimetre preview of safe polygons, exclusions, and placement footprints"></div>
-    <p>Drag a footprint to move its centre in millimetres. Press Escape to cancel a drag. The centre x/y fields provide keyboard editing.</p>
+    <p>Drag a logo outline to move its centre in millimetres. Press Escape to cancel a drag. The centre x/y boxes above work with a keyboard.</p>
+  </fieldset>
+
+  <details>
+    <summary>3D overlay refresh (power tool)</summary>
+    <p role="note">
+      The sketch above updates from the numbers on every keystroke; the 3D
+      overlay only refreshes when you ask it to.
+    </p>
     <div>
       <button data-placement-hook="placement-sync3d" type="button">Refresh 3D overlay</button>
     </div>
-  </fieldset>
+  </details>
 
   <p data-placement-hook="placement-note" role="status" aria-live="polite"></p>
 </section>

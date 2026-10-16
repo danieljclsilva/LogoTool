@@ -1,0 +1,7 @@
+/* Shared FlexiTog identity for local project-preparation and review tools. */
+:root { --station-red:#d20a2e; --station-ink:#192d3d; --station-line:#e4e8ec; }
+.station-header { display:flex; align-items:center; gap:28px; height:78px; padding:0 max(22px,3.5vw); border-bottom:1px solid var(--station-line); background:#fff; color:var(--station-ink); font:650 25px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:-.6px; }
+.station-header img { width:155px; height:52px; object-fit:cover; object-position:center; display:block; }
+.station-header span { border-left:1px solid #c6ced6; padding-left:28px; }
+@media(max-width:500px) { .station-header { height:65px; padding:0 16px; gap:15px; font-size:20px; } .station-header img { width:110px; height:40px; } .station-header span { padding-left:15px; } }
+@media print { body>.station-header { display:none!important; } }

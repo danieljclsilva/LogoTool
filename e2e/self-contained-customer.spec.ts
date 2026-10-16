@@ -1,3 +1,4 @@
+import { revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -70,6 +71,7 @@ async function openOfflineEditor(browser: Browser, viewport = { width: 1280, hei
 
 async function choosePackage(page: Page, path: string): Promise<void> {
   const chooserPromise = page.waitForEvent('filechooser');
+  await revealCustomerControl(page, 'choose');
   await page.locator('[data-customer-hook="choose"]').click();
   const chooser = await chooserPromise;
   await chooser.setFiles(path);
@@ -87,7 +89,7 @@ async function dropPackage(page: Page, bytes: Uint8Array, fileName: string): Pro
     target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
     target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, { base64: Buffer.from(bytes).toString('base64'), name: fileName });
-  await expect(page.locator('[data-customer-hook="status"]')).toContainText(`Loaded ${fileName}`);
+  await expect(page.locator('[data-customer-hook="status"]')).toContainText(`Opened ${fileName}`);
 }
 
 async function saveDownloadedFile(page: Page, outputPath: string, trigger: () => Promise<void>): Promise<Buffer> {
@@ -105,7 +107,7 @@ async function captureBothViewports(page: Page, info: TestInfo): Promise<void> {
   const directory = info.outputPath('self-contained-customer-screenshots');
   await fs.mkdir(directory, { recursive: true });
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(page.locator('#customer-editor h1')).toBeVisible();
+  await expect(page.locator('.wordmark')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const desktopPath = join(directory, 'self-contained-1280x900.png');
   await page.screenshot({ path: desktopPath, fullPage: true });
@@ -127,7 +129,18 @@ function expectOfflineClean(probe: Probe): void {
 }
 
 async function setNumber(page: Page, hook: string, value: number): Promise<void> {
+  await revealCustomerControl(page, hook);
   await page.locator(`[data-customer-hook="${hook}"]`).fill(String(value));
+}
+
+async function openAdvancedDetails(page: Page, hook: string): Promise<void> {
+  await revealCustomerControl(page, hook);
+  const control = page.locator(`[data-customer-hook="${hook}"]`);
+  const details = control.locator('xpath=ancestor::details[1]');
+  if ((await details.count()) === 0) return;
+  if (await details.getAttribute('open') !== null) return;
+  await details.locator('summary').click();
+  await expect(control).toBeVisible();
 }
 
 async function readProjectJson(name: string): Promise<ProjectDocument> {
@@ -179,14 +192,14 @@ test('auto-loads the exact embedded project, revision, and asset count', async (
   try {
     expect(await fs.readdir(directory)).toEqual(['synthetic customer self-contained.html']);
     await page.goto(pathToFileURL(htmlPath).href);
-    await expect(page).toHaveTitle(/Synthetic Customer Editor/);
+    await expect(page).toHaveTitle(/logo layout/i);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-MULTI-001');
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('1');
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('2');
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Loaded embedded-issued.logo-project');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Opened embedded-issued.logo-project');
     await expect(page.locator('[data-customer-hook="configuration"] option')).toHaveCount(2);
     const draftPath = join(directory, 'initial draft.logo-project');
-    const savedBytes = await saveDownloadedFile(page, draftPath, () => page.locator('[data-customer-hook="save"]').click());
+    const savedBytes = await saveDownloadedFile(page, draftPath, () => page.locator('[data-customer-hook="save-draft-top"]').click());
     const issuedBytes = await fs.readFile(resolve('dist/trusted-issued.logo-project'));
     const embeddedBytes = extractEmbeddedProjectPackage(await fs.readFile(htmlPath));
     expect(Buffer.from(embeddedBytes!)).toEqual(issuedBytes);
@@ -206,7 +219,7 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
   const { context, page, probe } = await openOfflineEditor(browser);
   try {
     await page.goto(pathToFileURL(htmlPath).href);
-    await expect(page).toHaveTitle(/Synthetic Customer Editor/);
+    await expect(page).toHaveTitle(/logo layout/i);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-MULTI-001');
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('1');
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('2');
@@ -215,19 +228,27 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     await setNumber(page, 'y-mm', 12);
     await setNumber(page, 'width-mm', 76);
     await setNumber(page, 'height-mm', 38);
+    await openAdvancedDetails(page, 'rotation');
     await setNumber(page, 'rotation', 15);
+    await revealCustomerControl(page, 'placement-instructions');
     await page.locator('[data-customer-hook="placement-instructions"]').fill('Keep the seam clear.');
+    await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Self-contained edit instructions.');
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('2');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
 
+    await revealCustomerControl(page, 'confirmed-by');
+
     await page.locator('[data-customer-hook="confirmed-by"]').fill('self-contained reviewer');
+    await revealCustomerControl(page, 'confirm');
     await page.locator('[data-customer-hook="confirm"]').click();
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
 
     const savedPath = join(directory, 'self-contained return.logo-project');
     const savedBytes = await saveDownloadedFile(page, savedPath, async () => {
+      await revealCustomerControl(page, 'submit');
       await page.locator('[data-customer-hook="submit"]').click();
     });
 
@@ -251,7 +272,7 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     await page.locator('[data-customer-hook="file-input"]').setInputFiles(savedPath);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-MULTI-001');
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('2');
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
     await expect(page.locator('[data-customer-hook="instructions"]')).toHaveValue('Self-contained edit instructions.');
 
@@ -260,7 +281,7 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     reviewPage.on('console', (message) => { if (message.type() === 'error') probe.consoleErrors.push(message.text()); });
     await reviewPage.goto(pathToFileURL(resolve('dist/customer-return-review.html')).href);
     await reviewPage.locator('[data-review-hook="baseline-file"]').setInputFiles(resolve('dist/trusted-issued.logo-project'));
-    await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Loaded baseline');
+    await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await reviewPage.locator('[data-review-hook="return-file"]').setInputFiles(savedPath);
     await expect(reviewPage.locator('[data-review-hook="confirmation"]')).toContainText('Current for revision 2');
     await expect(reviewPage.locator('[data-review-hook="geometry"]')).toContainText('Valid:');
@@ -283,7 +304,7 @@ test('zero-placement self-contained HTML loads with no placements and usable cho
   const { context, page, probe } = await openOfflineEditor(browser);
   try {
     await page.goto(pathToFileURL(htmlPath).href);
-    await expect(page).toHaveTitle(/Synthetic Customer Editor/);
+    await expect(page).toHaveTitle(/logo layout/i);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-EMPTY-001');
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('1');
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('0');
@@ -310,7 +331,7 @@ test('malformed embedded data shows a useful error and leaves the chooser usable
     const { context, page, probe } = await openOfflineEditor(browser);
     try {
       await page.goto(pathToFileURL(htmlPath).href);
-      await expect(page).toHaveTitle(/Synthetic Customer Editor/);
+      await expect(page).toHaveTitle(/logo layout/i);
       if (variant === 'duplicate') {
         await expect(page.locator('[data-customer-hook="status"]')).toContainText('invalid or duplicated');
       } else if (variant === 'oversized') {
@@ -323,7 +344,7 @@ test('malformed embedded data shows a useful error and leaves the chooser usable
       await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('Not loaded');
       await expect(page.locator('[data-customer-hook="choose"]')).toBeEnabled();
       await choosePackage(page, resolve('dist/trusted-issued.logo-project'));
-      await expect(page.locator('[data-customer-hook="status"]')).toContainText('Loaded trusted-issued.logo-project');
+      await expect(page.locator('[data-customer-hook="status"]')).toContainText('Opened trusted-issued.logo-project');
       expectOfflineClean(probe);
     } finally {
       await context.close();
@@ -378,7 +399,7 @@ test('deterministic obsolete startup replacement wins over a delayed embedded di
       };
     `);
     await page.goto(pathToFileURL(htmlPath).href);
-    await expect(page).toHaveTitle(/Synthetic Customer Editor/);
+    await expect(page).toHaveTitle(/logo layout/i);
     await page.waitForFunction(() => window.__deferredDigestState?.started() === true);
     await dropPackage(page, replacementBytes, 'replacement logo-project.logo-project');
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-REPLACEMENT-001');

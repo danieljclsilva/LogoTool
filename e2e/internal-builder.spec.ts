@@ -1,3 +1,4 @@
+import { revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -19,14 +20,18 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 // - source-status: `Loaded <file>: project <id> revision <rev>, …` on success;
 //   `Could not load <file>: <detail>.` on failure (previous source kept).
 // - product-list rows are top-level product checkboxes plus nested variant
-//   checkboxes (`[data-product]`); logo/configuration lists are flat. All
-//   checked by default on source load.
+//   checkboxes (`[data-product]`); logo list is flat; configuration-list lives
+//   inside a collapsed advanced <details>. All checked by default on source load.
 // - generate-status after generate: `Issued <job> revision 1 …`; the stable
 //   wait is baseline-status `Retained issued baseline: <job> revision 1 …`.
-// - Hybrid download-package is `<JOB>.zip` (OPEN_LOGO_CONFIGURATOR.html +
-//   `<JOB>.logo-project`); download-html is always OPEN_LOGO_CONFIGURATOR.html;
-//   download-baseline is `<JOB>-issued-baseline.logo-project`, byte-identical
-//   to the generated package.
+// - Primary download-package is format-aware: single-file mode delivers
+//   OPEN_LOGO_CONFIGURATOR.html (customer opens it directly, nothing to
+//   unzip); hybrid mode delivers `<JOB>.zip` (OPEN_LOGO_CONFIGURATOR.html +
+//   `<JOB>.logo-project`). download-html is the secondary advanced file
+//   (configurator alone in hybrid mode, project file alone in single-file
+//   mode); download-baseline is `<JOB>-issued-baseline.logo-project`,
+//   byte-identical to the generated package, and its button stays visible
+//   outside any disclosure.
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -89,7 +94,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
   });
   await page.goto(BUILDER_HTML);
   await expect(page).toHaveTitle('LogoTool · Internal Builder');
-  await expect(page.locator('h1')).toHaveText('LogoTool · Internal Builder');
+  await expect(page.locator('h1')).toHaveText('Prepare a customer project');
   await expect(page.locator('[data-builder-hook="source-file"]')).toBeAttached();
   await expect(page.locator('[data-builder-hook="generate"]')).toBeVisible();
   return { context, page, probe };
@@ -123,7 +128,18 @@ async function variantIds(page: Page, productId: string): Promise<string[]> {
   }, productId);
 }
 
+async function ensureListVisible(page: Page, listHook: string): Promise<void> {
+  // The configurations checklist lives inside a collapsed advanced
+// <details>; open the enclosing disclosure before touching its boxes.
+  await page.evaluate((hook: string): void => {
+    const root = document.querySelector(`[data-builder-hook="${hook}"]`);
+    const disclosure = root?.closest('details');
+    if (disclosure) disclosure.open = true;
+  }, listHook);
+}
+
 async function setListSelection(page: Page, listHook: string, ids: string[]): Promise<void> {
+  await ensureListVisible(page, listHook);
   const boxes = page.locator(`[data-builder-hook="${listHook}"] input[type="checkbox"]`);
   const count = await boxes.count();
   const seen: string[] = [];
@@ -222,11 +238,23 @@ test('loads the trusted source and renders product, logo, and configuration sele
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(FULL_PRODUCTS);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(FULL_LOGOS);
     expect(await checkedTopLevelIds(page, 'configuration-list')).toEqual(FULL_CONFIGURATIONS);
+    // Advanced setups start collapsed; the format choice and the saved review
+    // copy button stay visible without opening anything.
+    const setupsDisclosure = page.locator('details', { has: page.locator('summary', { hasText: 'Choose specific setups' }) });
+    await expect(setupsDisclosure).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-builder-hook="format-self"]')).toBeVisible();
+    await expect(page.locator('[data-builder-hook="format-hybrid"]')).toBeVisible();
+    await expect(page.locator('[data-builder-hook="format-self"]')).toBeChecked();
+    await expect(page.locator('fieldset')).toContainText('(Recommended)');
+    await expect(page.locator('[data-builder-hook="download-baseline"]')).toBeVisible();
+    await expect(page.locator('.banner').first()).toBeVisible();
+    await expect(page.locator('main#internal-builder')).toContainText('Keep this review copy file');
     await expect(page.locator('[data-builder-hook="generate-status"]')).toContainText(
       'Selection valid: 2 products, 2 logos, 2 source configurations.',
     );
     await expect(page.locator('[data-builder-hook="product-list"]')).toContainText('Synthetic Tee (SYN-TEE-001)');
     await expect(page.locator('[data-builder-hook="logo-list"]')).toContainText('SYN-LOGO-B');
+    await setupsDisclosure.locator('summary').click();
     await expect(page.locator('[data-builder-hook="configuration-list"]')).toContainText('SYN-CFG-TR-REG');
     await expect(page.locator('[data-builder-hook="size-estimate"]')).toHaveText('No issued package generated yet.');
     await fillIdentity(page, CUSTOMER, 'BUILDER-PREVIEW', ISSUED_BY);
@@ -284,7 +312,9 @@ test('issues a subset hybrid package at revision 1 with approvals cleared', asyn
       await editor.goto(pathToFileURL(htmlPath).href);
       await editor.locator('[data-customer-hook="file-input"]').setInputFiles({ name: projectEntry, mimeType: 'application/zip', buffer: Buffer.from(entries[projectEntry]!) });
       await expect(editor.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
+      await revealCustomerControl(editor, 'instructions');
       await editor.locator('[data-customer-hook="instructions"]').fill('Hybrid customer change');
+      await revealCustomerControl(editor, 'update');
       await editor.locator('[data-customer-hook="update"]').click();
       const saved = await readDownload(editor, 'hybrid-edited.logo-project', () => editor.locator('[data-customer-hook="save"]').click());
       expect((await parseProjectPackage(saved.bytes, { sha256 })).project.instructions).toBe('Hybrid customer change');
@@ -310,12 +340,20 @@ test('issues self-contained HTML that opens standalone and auto-loads the projec
     await fillIdentity(page, CUSTOMER, jobRef, ISSUED_BY, issuedProjectId);
     await chooseFormat(page, 'self');
     await generate(page, issuedProjectId);
-    await expect(page.locator('[data-builder-hook="download-html"]')).toBeEnabled();
-
+    await expect(page.locator('[data-builder-hook="download-package"]')).toBeEnabled();
+    // Single-file mode: the primary download delivers the self-contained HTML
+    // the customer opens directly.
     const html = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
-      page.locator('[data-builder-hook="download-html"]').click(),
+      page.locator('[data-builder-hook="download-package"]').click(),
     );
     expect(html.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
+    await expect(page.locator('[data-builder-hook="size-estimate"]')).toContainText('nothing to unzip');
+    await page.evaluate(() => { document.querySelector('[data-builder-hook="download-html"]')?.closest('details')?.setAttribute('open', ''); });
+    await expect(page.locator('[data-builder-hook="download-html"]')).toBeEnabled();
+    const extra = await readDownload(page, 'extra.logo-project', () =>
+      page.locator('[data-builder-hook="download-html"]').click(),
+    );
+    expect(extra.name).toBe(`${jobRef}.logo-project`);
     const embedded = extractEmbeddedProjectPackage(html.bytes);
     assert.ok(embedded, 'generated self-contained HTML should embed the issued project package');
     const embeddedParsed = await parseProjectPackage(embedded, { sha256 });
@@ -453,18 +491,24 @@ test('keeps baseline bytes identical and reviews a customer-edited return', asyn
     await fillIdentity(page, CUSTOMER, jobRef, ISSUED_BY, issuedProjectId);
     await generate(page, issuedProjectId);
 
+    // The saved review copy button stays visible without opening disclosures.
+    await expect(page.locator('[data-builder-hook="download-baseline"]')).toBeVisible();
+    await expect(page.locator('main#internal-builder')).toContainText('Keep this review copy file');
+    await expect(page.locator('[data-builder-hook="download-baseline"]')).toBeEnabled();
+    await expect(page.locator('details', { has: page.locator('summary', { hasText: 'Other files and technical details' }) })).not.toHaveAttribute('open', '');
+    await expect(page.locator('section[aria-label="Customer return review"] .banner')).toBeVisible();
     const baseline = await readDownload(page, `${jobRef}-issued-baseline.logo-project`, () =>
       page.locator('[data-builder-hook="download-baseline"]').click(),
     );
     expect(baseline.name).toBe(`${jobRef}-issued-baseline.logo-project`);
+    // Default single-file mode: primary download is the self-contained HTML.
     const html = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
-      page.locator('[data-builder-hook="download-html"]').click(),
+      page.locator('[data-builder-hook="download-package"]').click(),
     );
     expect(html.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
     const embedded = extractEmbeddedProjectPackage(html.bytes);
     assert.ok(embedded, 'generated self-contained HTML should embed the issued project package');
     expect(Buffer.from(baseline.bytes)).toEqual(Buffer.from(embedded));
-
     directory = await mkdtemp(join(tmpdir(), 'logotool-builder-return-'));
     const htmlPath = join(directory, 'issued-for-return.html');
     await writeFile(htmlPath, html.bytes);
@@ -472,12 +516,16 @@ test('keeps baseline bytes identical and reviews a customer-edited return', asyn
     attachPageProbe(editorPage, probe);
     await editorPage.goto(pathToFileURL(htmlPath).href);
     await expect(editorPage.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
+    await revealCustomerControl(editorPage, 'instructions');
     await editorPage.locator('[data-customer-hook="instructions"]').fill('Builder return instructions.');
+    await revealCustomerControl(editorPage, 'update');
     await editorPage.locator('[data-customer-hook="update"]').click();
     await expect(editorPage.locator('[data-customer-hook="revision"]')).toHaveText('2');
+    await revealCustomerControl(editorPage, 'confirmed-by');
     await editorPage.locator('[data-customer-hook="confirmed-by"]').fill('Builder accept tester');
+    await revealCustomerControl(editorPage, 'confirm');
     await editorPage.locator('[data-customer-hook="confirm"]').click();
-    await expect(editorPage.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(editorPage.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     const returned = await readDownload(editorPage, 'builder-return.logo-project', () =>
       editorPage.locator('[data-customer-hook="submit"]').click(),
     );
@@ -517,16 +565,17 @@ test('keeps baseline bytes identical and reviews a customer-edited return', asyn
     await fresh.emulateMedia({ media: 'screen' });
     await expect(fresh.locator('[data-builder-hook="handoff-summary"]')).toContainText(candidateFile.name);
     await expect(fresh.locator('[data-builder-hook="handoff-summary"]')).toContainText('builder-return.logo-project');
+    await fresh.locator('details').filter({ has: fresh.locator('[data-builder-hook="download-reviewer"]') }).locator('summary').click();
     const reviewer = await readDownload(fresh, 'reviewer.html', () => fresh.locator('[data-builder-hook="download-reviewer"]').click());
     const reviewerPath = join(directory, 'separate-reviewer.html');
     await writeFile(reviewerPath, reviewer.bytes);
     const reviewerPage = await context.newPage();
     attachPageProbe(reviewerPage, probe);
     await reviewerPage.goto(pathToFileURL(reviewerPath).href);
-    await expect(reviewerPage.locator('h1')).toHaveText('LogoTool · Customer Return Review');
+    await expect(reviewerPage.locator('h1')).toHaveText('Review a customer return');
     await reviewerPage.locator('[data-review-hook="baseline-file"]').setInputFiles({ name: baseline.name, mimeType: 'application/zip', buffer: Buffer.from(baseline.bytes) });
     await reviewerPage.locator('[data-review-hook="return-file"]').setInputFiles({ name: 'builder-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returned.bytes) });
-    await expect(reviewerPage.locator('[data-review-hook="status"]')).toContainText('Return imported');
+    await expect(reviewerPage.locator('[data-review-hook="status"]')).toContainText('Return checked');
     await fresh.screenshot({ path: test.info().outputPath('builder-return-desktop.png'), fullPage: true });
     await fresh.setViewportSize({ width: 390, height: 844 });
     expect(await fresh.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -556,9 +605,14 @@ test('invalidates downloads on edits and regenerates deterministic delivery byte
     for (const format of ['self', 'hybrid'] as const) {
       await chooseFormat(page, format);
       await generate(page, ISSUED_PROJECT_ID);
-      const first = await readDownload(page, `first-${format}`, () => page.locator(`[data-builder-hook="${format === 'self' ? 'download-html' : 'download-package'}"]`).click());
+      const first = await readDownload(page, `first-${format}`, () => page.locator('[data-builder-hook="download-package"]').click());
       await generate(page, ISSUED_PROJECT_ID);
-      const second = await readDownload(page, `second-${format}`, () => page.locator(`[data-builder-hook="${format === 'self' ? 'download-html' : 'download-package'}"]`).click());
+      const second = await readDownload(page, `second-${format}`, () => page.locator('[data-builder-hook="download-package"]').click());
+      if (format === 'self') {
+        expect(second.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
+        const embedded = extractEmbeddedProjectPackage(second.bytes);
+        assert.ok(embedded, 'single-file primary download should embed the issued project package');
+      }
       if (format === 'hybrid') {
         expect(second.name).toBe('_CON.zip');
         expect(Object.keys(unzipSync(second.bytes)).sort()).toEqual(['OPEN_LOGO_CONFIGURATOR.html', '_CON.logo-project']);

@@ -7,6 +7,7 @@ import {
   openOfflineContext,
   restoreAreaBundle,
   restoreSession,
+  revealControl,
 } from './helpers.js';
 import { loadFixtures } from './fixtures.js';
 
@@ -14,6 +15,7 @@ async function checkFootprint(
   page: Parameters<typeof gotoInspector>[0],
   polygon: string,
 ) {
+  await revealControl(page, '[data-area-hook="area-footprint-text"]');
   await hook(page, 'area', 'area-footprint-text').fill(polygon);
   await hook(page, 'area', 'area-footprint-check').click();
   return hook(page, 'area', 'area-footprint-verdict').innerText();

@@ -1,70 +1,78 @@
 <section data-calibration-hook="panel" aria-label="Calibration (provisional offline draft)">
-  <h2>Calibration draft (provisional)</h2>
+  <h2>Measure the model in millimetres</h2>
   <p role="note">
-    <strong>Offline draft only.</strong>
-    Anchor coordinates come only from surface picks on the preview canvas.
-    Nothing here is production-approved; every fit stays pending review.
+    <strong>Offline draft only — needs review before production.</strong>
+    Pick points on the model, enter a few known distances, and the tool works
+    out the scale. Everything stays pending review.
   </p>
   <p data-calibration-hook="status" role="status" aria-live="polite"></p>
 
-  <fieldset>
-    <legend>Calibration identity</legend>
-    <label>
-      Product
-      <input data-calibration-hook="product-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Variant
-      <input data-calibration-hook="variant-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Calibration ID
-      <input data-calibration-hook="calibration-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Frame ID
-      <input data-calibration-hook="frame-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Provisional version
-      <input data-calibration-hook="version" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Absolute tolerance (mm)
-      <input data-calibration-hook="tolerance-mm" type="number" min="0" step="any" value="0.5" />
-    </label>
-    <label>
-      Relative tolerance (fraction, not %)
-      <input data-calibration-hook="tolerance-relative" type="number" min="0" step="any" value="0.01" />
-    </label>
-  </fieldset>
+  <section aria-label="Draft identity and measurement limits">
+    <p>Enter the product and draft references before working out the scale.</p>
+    <fieldset>
+      <legend>Labels for this draft</legend>
+      <label>
+        Product
+        <input data-calibration-hook="product-id" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Variant
+        <input data-calibration-hook="variant-id" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Calibration ID
+        <input data-calibration-hook="calibration-id" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Frame ID
+        <input data-calibration-hook="frame-id" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Provisional version
+        <input data-calibration-hook="version" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Absolute tolerance (mm)
+        <input data-calibration-hook="tolerance-mm" type="number" min="0" step="any" value="0.5" />
+      </label>
+      <label>
+        Relative tolerance (fraction, not %)
+        <input data-calibration-hook="tolerance-relative" type="number" min="0" step="any" value="0.01" />
+      </label>
+
+
+    </fieldset>
+  </section>
 
   <fieldset>
-    <legend>Anchors (from surface picks only)</legend>
+    <legend>1. Mark points on the model</legend>
     <label>
-      Anchor ID
+      Point ID
       <input data-calibration-hook="anchor-id" type="text" autocomplete="off" />
     </label>
     <label>
-      Semantic role (generic free text, optional)
+      Meaning of this point (optional)
       <input data-calibration-hook="anchor-role" type="text" autocomplete="off" />
     </label>
     <div>
-      <button data-calibration-hook="arm-pick" type="button">Pick anchor on model</button>
+      <button data-calibration-hook="arm-pick" type="button">Pick point on model</button>
       <button data-calibration-hook="cancel-pick" type="button">Cancel pick</button>
-      <button data-calibration-hook="add-anchor" type="button">Add anchor from last pick</button>
+      <button data-calibration-hook="add-anchor" type="button">Add point from last pick</button>
     </div>
     <ul data-calibration-hook="anchor-list"></ul>
   </fieldset>
 
   <fieldset>
-    <legend>Known distances (mm, straight-line spans)</legend>
+    <legend>2. Enter known distances (mm)</legend>
+    <p role="note">
+      Measure a straight-line span between two marked points and enter it here.
+    </p>
     <label>
-      Anchor A
+      Point A
       <select data-calibration-hook="measure-a"></select>
     </label>
     <label>
-      Anchor B
+      Point B
       <select data-calibration-hook="measure-b"></select>
     </label>
     <label>
@@ -77,128 +85,141 @@
     <ul data-calibration-hook="measurement-list"></ul>
   </fieldset>
 
+  <div>
+    <button data-calibration-hook="fit-button" type="button">Work out the scale</button>
+  </div>
+  <div data-calibration-hook="fit-result" aria-live="polite"></div>
+
   <fieldset>
-    <legend>Restore provisional session JSON</legend>
+    <legend>3. Mark flat areas for logos</legend>
+    <p role="note">
+      Choose three marked points to define each flat area. Needs a current
+      consistent scale; consistency never approves production.
+    </p>
     <label>
-      Session JSON file (local file only)
+      Area ID
+      <input data-calibration-hook="region-id" type="text" autocomplete="off" />
+    </label>
+    <label>
+      Reference point (zero)
+      <select data-calibration-hook="region-origin"></select>
+    </label>
+    <label>
+      Point in the X direction
+      <select data-calibration-hook="region-x"></select>
+    </label>
+    <label>
+      Point on the Y side
+      <select data-calibration-hook="region-y"></select>
+    </label>
+      <label>
+        Region frame ID
+        <input data-calibration-hook="region-frame-id" type="text" autocomplete="off" />
+      </label>
+      <label>
+        Off-plane tolerance (mm, explicit prototype setting)
+        <input data-calibration-hook="region-tolerance" type="number" min="0" step="any" />
+      </label>
+    <div>
+      <button data-calibration-hook="region-add" type="button">Add flat area</button>
+    </div>
+    <ul data-calibration-hook="region-list"></ul>
+    <label>
+      Active area
+      <select data-calibration-hook="region-active"></select>
+    </label>
+    <div data-calibration-hook="region-frame" aria-live="polite"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Reload a saved draft</legend>
+    <label>
+      Session file (stays on this computer)
       <input data-calibration-hook="restore-file" type="file" accept=".json,application/json" />
     </label>
     <div>
       <button data-calibration-hook="restore-button" type="button">Load calibration session JSON</button>
     </div>
     <p role="note">
-      Local file only; nothing is uploaded. The file must match this asset's
-      exact SHA-256. Any imported fit is ignored: scale is recomputed locally
+      Local file only; nothing is uploaded. The file must match this model
+      exactly. Any imported scale is ignored: scale is recomputed locally
       and stays pending review, never approved.
     </p>
   </fieldset>
 
-  <fieldset>
-    <legend>Planar region frames (provisional draft)</legend>
+
+
+  <details>
+    <summary>Area geometry checks and downloads (power tools)</summary>
     <p role="note">
-      Oriented planar frames from existing anchors only; no canvas picking here.
-      Origin anchor O is physical (0,0). X runs O to the +X-side anchor; Y is the
-      orthogonal projection of O to the Y-side anchor pointing toward that anchor
-      (the third anchor chooses the Y side, axes are not assumed orthogonal);
-      normal is X cross Y. Requires a current CONSISTENT fit; consistency never
-      approves production. The calibration session download does NOT include regions.
+      How areas work, in detail: the reference point is physical (0,0). The X direction
+      runs from that point toward the +X-side point; the other axis is the
+      orthogonal projection toward the +Y-side point (the third point chooses
+      the Y side; the picked spans need not be perpendicular); the normal is X cross Y.
+      Oriented frames come from existing marked points only; there is no
+      canvas picking here. The calibration download does NOT include areas.
     </p>
-    <label>
-      Region ID
-      <input data-calibration-hook="region-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Region frame ID
-      <input data-calibration-hook="region-frame-id" type="text" autocomplete="off" />
-    </label>
-    <label>
-      Origin anchor (O)
-      <select data-calibration-hook="region-origin"></select>
-    </label>
-    <label>
-      +X-side anchor
-      <select data-calibration-hook="region-x"></select>
-    </label>
-    <label>
-      +Y-side anchor
-      <select data-calibration-hook="region-y"></select>
-    </label>
-    <label>
-      Off-plane tolerance (mm, explicit prototype setting)
-      <input data-calibration-hook="region-tolerance" type="number" min="0" step="any" />
-    </label>
     <div>
-      <button data-calibration-hook="region-add" type="button">Add planar region</button>
-    </div>
-    <ul data-calibration-hook="region-list"></ul>
-    <label>
-      Active region
-      <select data-calibration-hook="region-active"></select>
-    </label>
-    <div data-calibration-hook="region-frame" aria-live="polite"></div>
-    <label>
-      Probe anchor through active frame
-      <select data-calibration-hook="region-probe"></select>
-    </label>
-    <div>
-      <button data-calibration-hook="region-probe-button" type="button">Probe anchor</button>
+      <label>
+        Check a point through the active area
+        <select data-calibration-hook="region-probe"></select>
+      </label>
+      <button data-calibration-hook="region-probe-button" type="button">Check point</button>
     </div>
     <div data-calibration-hook="region-probe-result" aria-live="polite"></div>
     <div>
       <button data-calibration-hook="region-export-button" type="button">Download planar region bundle JSON</button>
     </div>
-  </fieldset>
-  <fieldset>
-    <legend>Restore provisional area bundle JSON</legend>
-    <label>
-      Area bundle JSON file (local file only)
-      <input data-calibration-hook="area-restore-file" type="file" accept=".json,application/json" />
-    </label>
-    <div>
-      <button data-calibration-hook="area-restore-button" type="button">Load area bundle JSON</button>
-    </div>
-    <p role="note">
-      Local file only; nothing is uploaded. The file must match this asset's
-      exact SHA-256. Any imported fit is ignored: scale is recomputed locally
-      and stays pending review, never approved. Restored areas are an unapproved draft.
-    </p>
-  </fieldset>
-  <fieldset>
-    <legend>Export provisional placement bundle JSON</legend>
-    <div>
-      <button data-calibration-hook="placement-export-button" type="button">Download placement bundle JSON</button>
-    </div>
-    <p role="note">
-      Pending review, never approved. The fit is re-verified and every
-      footprint and status recomputed from the placement numbers at export
-      time; geometrically-invalid-but-wellformed placements export with
-      explicit non-fitting statuses.
-    </p>
-  </fieldset>
-  <fieldset>
-    <legend>Restore provisional placement bundle JSON</legend>
-    <label>
-      Placement bundle JSON file (local file only)
-      <input data-calibration-hook="placement-restore-file" type="file" accept=".json,application/json" />
-    </label>
-    <div>
-      <button data-calibration-hook="placement-restore-button" type="button">Load placement bundle JSON</button>
-    </div>
-    <p role="note">
-      Local file only; nothing is uploaded. The file must match this asset's
-      exact SHA-256. Any imported fit, footprint, status or approval is
-      ignored: everything is recomputed locally and stays pending review,
-      never approved. Malformed or reference-invalid files fail atomically
-      with no state changed.
-    </p>
-  </fieldset>
+  </details>
+
+  <details>
+    <summary>Saved logo-layout and safe-shape files</summary>
+    <fieldset>
+      <legend>Reload saved safe shapes</legend>
+      <label>
+        Safe-shape file (stays on this computer)
+        <input data-calibration-hook="area-restore-file" type="file" accept=".json,application/json" />
+      </label>
+      <div>
+        <button data-calibration-hook="area-restore-button" type="button">Load area bundle JSON</button>
+      </div>
+      <p role="note">
+        Local file only; nothing is uploaded. The file must match this model
+        exactly. Any imported scale is ignored: scale is recomputed locally
+        and stays pending review, never approved. Restored shapes are an unapproved draft.
+      </p>
+    </fieldset>
+    <fieldset>
+      <legend>Save this logo layout</legend>
+      <div>
+        <button data-calibration-hook="placement-export-button" type="button">Download placement bundle JSON</button>
+      </div>
+      <p role="note">
+        Pending review, never approved. Everything is recomputed from the
+        layout numbers at export time; layouts that do not fit still export
+        with explicit non-fitting statuses.
+      </p>
+    </fieldset>
+    <fieldset>
+      <legend>Reload a saved logo layout</legend>
+      <label>
+        Layout file (stays on this computer)
+        <input data-calibration-hook="placement-restore-file" type="file" accept=".json,application/json" />
+      </label>
+      <div>
+        <button data-calibration-hook="placement-restore-button" type="button">Load placement bundle JSON</button>
+      </div>
+      <p role="note">
+        Local file only; nothing is uploaded. The file must match this model
+        exactly. Any imported fit, footprint, status or approval is
+        ignored: everything is recomputed locally and stays pending review,
+        never approved. Bad files fail atomically with no state changed.
+      </p>
+    </fieldset>
+  </details>
 
 <!-- REGION_AREAS_FRAGMENT --><!-- VARIANT_TRANSFER_FRAGMENT -->
 
-  <div>
-    <button data-calibration-hook="fit-button" type="button">Fit uniform scale</button>
-  </div>
-  <div data-calibration-hook="fit-result" aria-live="polite"></div>
   <div>
     <button data-calibration-hook="export-button" type="button">Download calibration session JSON</button>
   </div>

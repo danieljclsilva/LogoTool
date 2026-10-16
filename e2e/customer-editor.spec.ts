@@ -1,3 +1,4 @@
+import { revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -93,13 +94,14 @@ async function openOfflineEditor(browser: Browser, viewport = { width: 1280, hei
 
 async function openPage(page: Page, prototype: LocalPrototype): Promise<void> {
   await page.goto(pathToFileURL(prototype.htmlPath).href);
-  await expect(page).toHaveTitle(/Synthetic Customer Editor/);
-  await expect(page.locator('#customer-editor h1')).toHaveText('LogoTool · Synthetic Customer Editor');
+  await expect(page).toHaveTitle(/logo layout/i);
+  await expect(page.locator('.wordmark')).toHaveText('Logo Station');
   await expect(page.locator('[data-customer-hook="choose"]')).toBeVisible();
 }
 
 async function choosePackage(page: Page, path: string): Promise<void> {
   const chooserPromise = page.waitForEvent('filechooser');
+  await revealCustomerControl(page, 'choose');
   await page.locator('[data-customer-hook="choose"]').click();
   const chooser = await chooserPromise;
   await chooser.setFiles(path);
@@ -117,7 +119,7 @@ async function dropPackage(page: Page, bytes: Uint8Array, fileName: string): Pro
     target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
     target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, { base64: Buffer.from(bytes).toString('base64'), name: fileName });
-  await expect(page.locator('[data-customer-hook="status"]')).toContainText(`Loaded ${fileName}`);
+  await expect(page.locator('[data-customer-hook="status"]')).toContainText(`Opened ${fileName}`);
 }
 
 async function createEmptyReplacementPackage(sourceBytes: Uint8Array): Promise<Uint8Array> {
@@ -192,7 +194,18 @@ function expectOfflineClean(probe: Probe): void {
 }
 
 async function setNumber(page: Page, hook: string, value: number): Promise<void> {
+  await revealCustomerControl(page, hook);
   await page.locator(`[data-customer-hook="${hook}"]`).fill(String(value));
+}
+
+async function openAdvancedDetails(page: Page, hook: string): Promise<void> {
+  await revealCustomerControl(page, hook);
+  const control = page.locator(`[data-customer-hook="${hook}"]`);
+  const details = control.locator('xpath=ancestor::details[1]');
+  if ((await details.count()) === 0) return;
+  if (await details.getAttribute('open') !== null) return;
+  await details.locator('summary').click();
+  await expect(control).toBeVisible();
 }
 
 async function startDrag(page: Page, polygonIndex = 0): Promise<{ startX: number; startY: number; pointerId: number }> {
@@ -225,73 +238,88 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText(/SYN-PROJ-/);
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('2');
     const issuedRevision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
+    await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('initial synthetic reviewer');
+    await revealCustomerControl(page, 'confirm');
     await page.locator('[data-customer-hook="confirm"]').click();
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     await expect(page.locator('[data-customer-hook="configuration"] option')).toHaveCount(2);
     await expect(page.locator('[data-customer-hook="canvas"] polygon.safe-area')).toHaveCount(1);
     await expect(page.locator('[data-customer-hook="canvas"] image, [data-customer-hook="canvas"] img')).toHaveCount(0);
 
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TEE-M');
-    await page.locator('[data-customer-hook="region"]').selectOption('SYN-TEE-CHEST');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
+    await selectCustomerOption(page, 'region', 'SYN-TEE-CHEST');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
     await setNumber(page, 'x-mm', 4);
     await setNumber(page, 'y-mm', 12);
     await setNumber(page, 'width-mm', 76);
     await setNumber(page, 'height-mm', 38);
+    await openAdvancedDetails(page, 'rotation');
     await setNumber(page, 'rotation', 15);
+    await revealCustomerControl(page, 'placement-instructions');
     await page.locator('[data-customer-hook="placement-instructions"]').fill('Keep the seam clear.');
+    await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Both measurement and project instructions change in one revision.');
-    await page.locator('[data-customer-hook="method"]').selectOption('embroidery');
+    await selectCustomerOption(page, 'method', 'embroidery');
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 1));
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76 mm × 38 mm');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Clockwise rotation: 15°');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Frame: FRAME-SYN-CHEST');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Axes: +x right; +y up');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Calibration: CAL-SYN-001 v1');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('SYN-CFG-TR-REG');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Placement instructions: Keep the seam clear.');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Project instructions: Both measurement and project instructions change in one revision.');
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/Previous confirmation.*stale/i);
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Turn clockwise: 15°');
+    await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Frame: FRAME-SYN-CHEST');
+    await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Axes: +x right; +y up');
+    await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Calibration: CAL-SYN-001 v1');
+    await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('SYN-CFG-TR-REG');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Note about this logo: Keep the seam clear.');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Notes for the whole project: Both measurement and project instructions change in one revision.');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/no longer counts|Nothing confirmed/i);
 
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TR-REG');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TR-REG');
+    await revealCustomerControl(page, 'remove');
     await page.locator('[data-customer-hook="remove"]').click();
     await expect(page.locator('[data-customer-hook="placement"] option')).toHaveCount(1);
-    await page.locator('[data-customer-hook="logo"]').selectOption('SYN-LOGO-B');
+    await selectCustomerOption(page, 'logo', 'SYN-LOGO-B');
     await setNumber(page, 'x-mm', 0);
     await setNumber(page, 'y-mm', 0);
     await setNumber(page, 'width-mm', 52);
     await setNumber(page, 'height-mm', 24);
+    await openAdvancedDetails(page, 'rotation');
     await setNumber(page, 'rotation', 0);
-    await page.locator('[data-customer-hook="method"]').selectOption('print');
+    await revealCustomerControl(page, 'add');
     await page.locator('[data-customer-hook="add"]').click();
     await expect(page.locator('[data-customer-hook="placement"] option')).toHaveCount(2);
+    await revealCustomerControl(page, 'add');
     await page.locator('[data-customer-hook="add"]').click();
     await expect(page.locator('[data-customer-hook="placement"] option')).toHaveCount(3);
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TEE-M');
-    await page.locator('[data-customer-hook="variant"]').selectOption('SYN-TEE-XL');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
+    await selectCustomerOption(page, 'variant', 'SYN-TEE-XL');
     await expect(page.locator('[data-customer-hook="configuration"] option')).toHaveCount(3);
     await expect(page.locator('[data-customer-hook="variant"]')).toHaveValue('SYN-TEE-XL');
-    await page.locator('[data-customer-hook="product"]').selectOption('SYN-TR-001');
+    await selectCustomerOption(page, 'product', 'SYN-TR-001');
     await expect(page.locator('[data-customer-hook="variant"]')).toHaveValue('SYN-TR-REG');
-    await page.locator('[data-customer-hook="region"]').selectOption('SYN-TR-THIGH-R');
+    await selectCustomerOption(page, 'region', 'SYN-TR-THIGH-R');
+    await openAdvancedDetails(page, 'frame');
     await expect(page.locator('[data-customer-hook="frame"]')).toContainText('FRAME-SYN-THIGH-R');
-    await page.locator('[data-customer-hook="variant"]').selectOption('SYN-TR-SHORT');
+    await selectCustomerOption(page, 'variant', 'SYN-TR-SHORT');
     await expect(page.locator('[data-customer-hook="configuration"] option')).toHaveCount(4);
     await expect(page.locator('[data-customer-hook="region"]')).toHaveValue('SYN-TR-THIGH-L');
 
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TEE-M');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
+    await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Synthetic customer instruction: use the updated centered placement.');
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/Previous confirmation.*stale/i);
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/no longer counts|does not match|Nothing confirmed/i);
+    await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('offline prototype reviewer');
+    await revealCustomerControl(page, 'confirm');
     await page.locator('[data-customer-hook="confirm"]').click();
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     await expect(page.locator('[data-customer-hook="submit"]')).toBeEnabled();
 
     const savedBytes = await saveDownloadedFile(page, join(prototype.directory, 'confirmed customer return.logo-project'), async () => {
+      await revealCustomerControl(page, 'submit');
       await page.locator('[data-customer-hook="submit"]').click();
     });
     const original = await parseProjectPackage(new Uint8Array(prototype.projectBytes), { sha256 });
@@ -312,8 +340,8 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
     await fs.writeFile(returnedPath, savedBytes);
     await page.locator('[data-customer-hook="file-input"]').setInputFiles(returnedPath);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText(saved.project.projectId);
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Current confirmation');
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TEE-M');
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76 mm × 38 mm');
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('2');
@@ -333,10 +361,12 @@ test('drop accepts a geometric-invalid editable draft but blocks confirmation an
     const exclusionBytes = await createExclusionPackage(new Uint8Array(prototype.projectBytes));
     await dropPackage(page, exclusionBytes, 'dropped exclusion fixture.logo-project');
     await expect(page.locator('[data-customer-hook="canvas"] polygon.exclusion-area')).toHaveCount(1);
+    await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('should remain unconfirmed');
     await setNumber(page, 'y-mm', 0);
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
-    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('Fit: no');
+    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('Fits: no');
     await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
     await expect(page.locator('[data-customer-hook="confirm"]')).toBeDisabled();
     await expect(page.locator('[data-customer-hook="submit"]')).toBeDisabled();
@@ -351,6 +381,7 @@ test('drop accepts a geometric-invalid editable draft but blocks confirmation an
     await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
 
     const draftBytes = await saveDownloadedFile(page, join(prototype.directory, 'invalid fit draft.logo-project'), async () => {
+      await revealCustomerControl(page, 'save');
       await page.locator('[data-customer-hook="save"]').click();
     });
     const draft = await parseProjectPackage(new Uint8Array(draftBytes), { sha256 });
@@ -412,7 +443,7 @@ test('footprint drag preserves its grab offset and physical box, while Escape ca
     };
     const gesture = await startDrag(page);
     const dragSaveBytes = await saveDownloadedFile(page, join(prototype.directory, 'committed baseline during drag.logo-project'), async () => {
-      await page.locator('[data-customer-hook="save"]').press('Enter');
+      await page.locator('[data-customer-hook="save-draft-top"]').press('Enter');
     });
     const savedDuringDrag = await parseProjectPackage(new Uint8Array(dragSaveBytes), { sha256 });
     expect(savedDuringDrag.project.revision).toBe(before.revision);
@@ -465,7 +496,7 @@ test('footprint drag preserves its grab offset and physical box, while Escape ca
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(committedRevision));
     await expect(page.locator('[data-customer-hook="x-mm"]')).toHaveValue(String(moved.x));
     await expect(page.locator('[data-customer-hook="y-mm"]')).toHaveValue(String(moved.y));
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Drag cancelled');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Move cancelled with Escape');
     const cancelledPointer = await startDrag(page);
     await page.evaluate(({ pointerId }) => {
       const canvas = document.querySelector<SVGSVGElement>('[data-customer-hook="canvas"]');
@@ -474,7 +505,7 @@ test('footprint drag preserves its grab offset and physical box, while Escape ca
     }, cancelledPointer);
     await page.mouse.up();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(committedRevision));
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Drag cancelled');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Move cancelled');
 
     const lostCapture = await startDrag(page);
     await page.evaluate(({ pointerId }) => {
@@ -482,7 +513,7 @@ test('footprint drag preserves its grab offset and physical box, while Escape ca
       if (!canvas?.hasPointerCapture(pointerId)) throw new Error('Expected the gesture surface to hold pointer capture.');
       canvas.releasePointerCapture(pointerId);
     }, lostCapture);
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Drag cancelled');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Move cancelled');
     await page.mouse.up();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(committedRevision));
 
@@ -493,10 +524,10 @@ test('footprint drag preserves its grab offset and physical box, while Escape ca
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(committedRevision));
     expect(blurred.pointerId).toBeGreaterThan(0);
     await startDrag(page);
-    await page.locator('[data-customer-hook="configuration"]').selectOption('SYN-CFG-TR-REG');
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TR-REG');
     await page.mouse.up();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(committedRevision));
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Drag cancelled because the editing context changed');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Moving stopped because you switched');
 
     await captureBothViewports(page, info);
     expectOfflineClean(probe);
@@ -550,6 +581,8 @@ test('superseded load, confirmation digest, and draft-save completion cannot ins
     });
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-ASYNC-NEW');
 
+    await revealCustomerControl(page, 'confirmed-by');
+
     await page.locator('[data-customer-hook="confirmed-by"]').fill('async review');
     await page.evaluate(() => {
       const deferred: DeferredDigest = { started: false };
@@ -569,17 +602,18 @@ test('superseded load, confirmation digest, and draft-save completion cannot ins
         },
       });
     });
+    await revealCustomerControl(page, 'confirm');
     await page.locator('[data-customer-hook="confirm"]').click();
     await page.waitForFunction(() => (window as Window & { __deferredCustomerDigest?: DeferredDigest }).__deferredCustomerDigest?.started === true);
     const otherConfiguration = await page.locator('[data-customer-hook="configuration"] option').nth(1).getAttribute('value');
     if (!otherConfiguration) throw new Error('Expected a second configuration for stale confirmation context switching.');
-    await page.locator('[data-customer-hook="configuration"]').selectOption(otherConfiguration);
+    await selectCustomerOption(page, 'configuration', otherConfiguration);
     await page.evaluate(() => {
       const deferred = (window as Window & { __deferredCustomerDigest?: DeferredDigest }).__deferredCustomerDigest;
       if (!deferred?.release) throw new Error('The delayed confirmation digest was not ready.');
       deferred.release();
     });
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Confirmation cancelled');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Confirmation stopped because something changed');
     await expect(page.locator('[data-customer-hook="submit"]')).toBeDisabled();
 
     await page.evaluate(() => {
@@ -602,17 +636,18 @@ test('superseded load, confirmation digest, and draft-save completion cannot ins
     });
     let downloaded = false;
     page.on('download', () => { downloaded = true; });
+    await revealCustomerControl(page, 'save');
     await page.locator('[data-customer-hook="save"]').click();
     await page.waitForFunction(() => (window as Window & { __deferredSaveDigest?: DeferredDigest }).__deferredSaveDigest?.started === true);
     const currentConfiguration = await page.locator('[data-customer-hook="configuration"] option').first().getAttribute('value');
     if (!currentConfiguration) throw new Error('Expected a configuration to switch while draft save is pending.');
-    await page.locator('[data-customer-hook="configuration"]').selectOption(currentConfiguration);
+    await selectCustomerOption(page, 'configuration', currentConfiguration);
     await page.evaluate(() => {
       const deferred = (window as Window & { __deferredSaveDigest?: DeferredDigest }).__deferredSaveDigest;
       if (!deferred?.release) throw new Error('The delayed package asset digest was not ready.');
       deferred.release();
     });
-    await expect(page.locator('[data-customer-hook="status"]')).toContainText('cancelled because the project changed');
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('Saving stopped because something changed');
     expect(downloaded).toBe(false);
     await captureBothViewports(page, info);
     expectOfflineClean(probe);
@@ -629,19 +664,26 @@ test('undo and reset restore package content as new revisions', async ({ browser
     await openPage(page, prototype);
     await choosePackage(page, prototype.projectPath);
     const issuedRevision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
+    await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('Synthetic undo reviewer');
+    await revealCustomerControl(page, 'confirm');
     await page.locator('[data-customer-hook="confirm"]').click();
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(`Current confirmation for revision ${issuedRevision}`);
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(`Confirmed: version ${issuedRevision}`);
     await setNumber(page, 'x-mm', 25);
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 1));
 
     await setNumber(page, 'x-mm', 15);
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 2));
+    await revealCustomerControl(page, 'undo');
     await page.locator('[data-customer-hook="undo"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 3));
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 25 mm, 10 mm');
+
+    await revealCustomerControl(page, 'undo');
 
     await page.locator('[data-customer-hook="undo"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 4));
@@ -649,17 +691,70 @@ test('undo and reset restore package content as new revisions', async ({ browser
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
 
     await setNumber(page, 'x-mm', 40);
+    await revealCustomerControl(page, 'update');
     await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 5));
+    await openAdvancedDetails(page, 'reset');
+    await revealCustomerControl(page, 'reset');
     await page.locator('[data-customer-hook="reset"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 6));
     await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
     await expect(page.locator('[data-customer-hook="instructions"]')).toHaveValue(/Synthetic fixture instructions/);
-    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/No current customer confirmation|stale/i);
+    await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/no longer counts|does not match|Nothing confirmed/i);
     await captureBothViewports(page, info);
     expectOfflineClean(probe);
   } finally {
     await context.close();
     await fs.rm(prototype.directory, { recursive: true, force: true });
+  }
+});
+
+test('guided journey shows one decision at a time and works without precise settings', async ({ browser }, info) => {
+  for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844 }]) {
+    const prototype = await unpackPrototype();
+    const { context, page, probe } = await openOfflineEditor(browser, viewport);
+    try {
+      await openPage(page, prototype);
+      await choosePackage(page, prototype.projectPath);
+      const revision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
+      await expect(page.locator('[data-step-panel="position"]')).toBeVisible();
+      await expect(page.locator('[data-step-panel="size"]')).toBeHidden();
+      await expect(page.locator('[data-step-panel="review"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="job-choices"]')).not.toHaveAttribute('open', '');
+      await expect(page.locator('[data-customer-hook="product"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="x-mm"]')).toBeHidden();
+      await page.locator('[data-customer-hook="primary-next"]').click();
+      await expect(page.locator('[data-customer-hook="width-mm"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="height-mm"]')).toBeHidden();
+      await page.locator('[data-customer-hook="width-mm"]').fill('64');
+      await page.locator('[data-customer-hook="primary-next"]').click();
+      await expect(page.locator('[data-step-panel="review"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(revision + 1));
+      await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 64 mm × 32 mm');
+      for (const hook of ['precise-position','precise-size']) await expect(page.locator(`[data-customer-hook="${hook}"]`)).not.toHaveAttribute('open', '');
+      await page.locator('[data-customer-hook="confirmed-by"]').fill('Synthetic guided reviewer');
+      await page.locator('[data-customer-hook="confirm"]').click();
+      const bytes = await saveDownloadedFile(page, join(prototype.directory, 'guided.logo-project'), () => page.locator('[data-customer-hook="submit"]').click());
+      const saved = await parseProjectPackage(new Uint8Array(bytes), { sha256 });
+      expect(saved.project.confirmation?.revision).toBe(revision + 1);
+      expect(saved.project.configurations[0]?.placements[0]?.widthMm).toBe(64);
+      expect(saved.project.configurations[0]?.placements[0]?.heightMm).toBe(32);
+      await expect(page.locator('[data-customer-hook="status"]')).toContainText('email attachment');
+      await page.locator('[data-customer-hook="step-size"]').click();
+      const precise = page.locator('[data-customer-hook="precise-size"]');
+      await precise.locator('summary').focus(); await page.keyboard.press('Enter');
+      await expect(precise).toHaveAttribute('open', '');
+      await page.locator('[data-customer-hook="height-mm"]').fill('15');
+      await expect(page.locator('[data-customer-hook="ratio-lock"]')).not.toBeChecked();
+      await page.locator('[data-customer-hook="update"]').click();
+      await page.locator('[data-customer-hook="width-mm"]').fill('60');
+      await expect(page.locator('[data-customer-hook="height-mm"]')).toHaveValue('15');
+      await page.locator('[data-customer-hook="primary-next"]').click();
+      await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('no longer counts');
+      await expect(page.locator('[data-customer-hook="submit"]')).toBeDisabled();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`guided-${viewport.width}.png`) });
+      expectOfflineClean(probe);
+    } finally { await context.close(); await fs.rm(prototype.directory, { recursive: true, force: true }); }
   }
 });

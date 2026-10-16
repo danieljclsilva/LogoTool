@@ -1,3 +1,4 @@
+import { selectPresentationPackageAssets } from '../customer-editor/presentation-assets.js';
 import {
   buildIssuedProject,
   selectIssuedAssets,
@@ -179,6 +180,9 @@ function updateControls(): void {
   const hasOutput = generated !== null && !blocked;
   downloadPackage.disabled = !hasOutput;
   downloadHtml.disabled = !hasOutput;
+  downloadHtml.textContent = generated !== null && generated.format === 'hybrid'
+    ? 'Download configurator HTML only (advanced)'
+    : 'Download project file only (advanced)';
   downloadBaseline.disabled = activeBaseline() === null || blocked;
   downloadReviewer.disabled = blocked;
   projectIdUseSource.disabled = source === null || blocked;
@@ -429,8 +433,11 @@ async function generateIssued(): Promise<void> {
       snapshot.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })),
       issued.project,
     );
+    // Presentation-only passthrough: optional presentation/ reference assets
+    // travel as additional entries. Validated at render; never production.
+    const presentationAssets = selectPresentationPackageAssets(snapshot.assets, issued.project.configurations);
     const packageBytes = await createProjectPackage(
-      { project: issued.project, assets: issuedAssets },
+      { project: issued.project, assets: issuedAssets, additionalAssets: presentationAssets },
       { sha256: hasher.sha256Bytes },
     );
     if (generation !== generateGeneration) return;
@@ -452,11 +459,18 @@ async function generateIssued(): Promise<void> {
       htmlBytes = new Uint8Array(await createSelfContainedHtml({ html: editorBytes, projectPackage: packageBytes }));
     }
     if (generation !== generateGeneration) return;
-    const retainedAssets: ProjectPackageAsset[] = issuedAssets.map((asset) => ({
-      path: asset.path,
-      bytes: asset.bytes,
-      kind: 'referenced' as const,
-    }));
+    const retainedAssets: ProjectPackageAsset[] = [
+      ...issuedAssets.map((asset) => ({
+        path: asset.path,
+        bytes: asset.bytes,
+        kind: 'referenced' as const,
+      })),
+      ...presentationAssets.map((asset) => ({
+        path: asset.path,
+        bytes: asset.bytes,
+        kind: 'additional' as const,
+      })),
+    ];
     generated = {
       format: hybrid ? 'hybrid' : 'self-contained',
       jobPart,
@@ -469,10 +483,10 @@ async function generateIssued(): Promise<void> {
     clearReturnReview();
     if (hybrid) {
       sizeEstimate.textContent =
-        `Format: hybrid; package ${packageBytes.length} bytes; configurator HTML ${editorBytes.length} bytes; zip ${zipBytes!.length} bytes.`;
+        `Format: hybrid ZIP (${zipBytes!.length} bytes) with the configurator plus ${jobPart}.logo-project. The customer unzips it, then opens the configurator and loads the project file.`;
     } else {
       sizeEstimate.textContent =
-        `Format: self-contained; package ${packageBytes.length} bytes; self-contained HTML ${htmlBytes.length} bytes.`;
+        `Format: one file (${htmlBytes.length} bytes). The customer opens OPEN_LOGO_CONFIGURATOR.html directly, nothing to unzip.`;
     }
     baselineStatus.textContent =
       `Retained issued baseline: ${identity.projectId} revision 1 (${packageBytes.length} bytes). Save this exact file before closing the page; memory is lost on reload.`;
@@ -510,17 +524,22 @@ function downloadPackageFile(): void {
   if (generated === null || loading || generating || returnBusy || baselineBusy) return;
   if (generated.format === 'hybrid' && generated.zipBytes !== null) {
     downloadBytes(generated.zipBytes, `${generated.jobPart}.zip`, 'application/zip');
-    generateStatus.textContent = `Downloaded ${generated.jobPart}.zip (${generated.zipBytes.length} bytes).`;
+    generateStatus.textContent = `Downloaded ${generated.jobPart}.zip (${generated.zipBytes.length} bytes). Attach it to your normal handoff yourself.`;
   } else {
-    downloadBytes(generated.packageBytes, `${generated.jobPart}.logo-project`, 'application/zip');
-    generateStatus.textContent = `Downloaded ${generated.jobPart}.logo-project (${generated.packageBytes.length} bytes).`;
+    downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
+    generateStatus.textContent = `Downloaded OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes). The customer opens this file directly, nothing to unzip.`;
   }
 }
 
 function downloadHtmlFile(): void {
   if (generated === null || loading || generating || returnBusy || baselineBusy) return;
-  downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
-  generateStatus.textContent = `Downloaded OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes).`;
+  if (generated.format === 'hybrid') {
+    downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
+    generateStatus.textContent = `Downloaded OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes) on its own.`;
+  } else {
+    downloadBytes(generated.packageBytes, `${generated.jobPart}.logo-project`, 'application/zip');
+    generateStatus.textContent = `Downloaded ${generated.jobPart}.logo-project (${generated.packageBytes.length} bytes) on its own.`;
+  }
 }
 
 function downloadBaselineFile(): void {

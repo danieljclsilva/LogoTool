@@ -3,121 +3,186 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LogoTool · Synthetic Customer Editor</title>
+  <title>Logo Station · Review your logo layout</title>
   <style>
-    * { box-sizing: border-box; }
-    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172a38; background: #f1f5f7; }
-    body { margin: 0; font-size: 15px; line-height: 1.45; }
-    main { max-width: 1420px; padding: 22px; margin: 0 auto; }
-    h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
-    h2 { margin: 0 0 12px; font-size: 1.15rem; }
-    p { margin: 8px 0; }
-    button, input, select, textarea { color: inherit; font: inherit; }
-    button { border: 1px solid #aab8c2; border-radius: 6px; padding: 8px 12px; background: #fff; cursor: pointer; }
-    button:hover:not(:disabled) { background: #eaf2f6; }
-    button:disabled { opacity: .48; cursor: default; }
-    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [data-customer-hook="dropzone"]:focus-visible { outline: 3px solid #14759a; outline-offset: 2px; }
-    input, select, textarea { min-width: 0; width: 100%; border: 1px solid #aab8c2; border-radius: 5px; padding: 7px 8px; background: #fff; }
-    textarea { min-height: 74px; resize: vertical; }
-    label { display: grid; gap: 4px; font-weight: 650; }
-    small, .muted { color: #536775; font-size: .9rem; }
-    .banner { border-left: 5px solid #a36c18; background: #fff5df; padding: 12px 15px; margin: 14px 0; }
-    .panel { min-width: 0; border: 1px solid #ccd6dc; border-radius: 9px; background: #fff; padding: 16px; }
-    .load-panel { margin-bottom: 16px; }
-    [data-customer-hook="dropzone"] { border: 2px dashed #8ba4b2; border-radius: 8px; background: #f7fafb; text-align: center; padding: 14px; cursor: pointer; }
-    [data-customer-hook="dropzone"].is-dragging { border-color: #137397; background: #e8f4f8; }
-    .actions, .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-    [data-customer-hook="status"] { min-height: 1.5em; }
-    .workspace { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(340px, 1.15fr); gap: 16px; align-items: start; }
-    .left-stack, .right-stack { display: grid; gap: 16px; min-width: 0; }
-    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-    .identity { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
-    .identity strong { overflow-wrap: anywhere; }
-    .canvas-wrap { width: 100%; overflow: hidden; border: 1px solid #d2dce1; border-radius: 7px; background: #f9fbfc; }
-    svg { display: block; width: 100%; min-height: 260px; height: min(44vw, 470px); touch-action: none; user-select: none; }
-    .safe-area { fill: #e4f1e8; stroke: #3a7852; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
-    .exclusion-area { fill: #f5d7d4; stroke: #a6443d; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
-    .footprint { fill: #b8dbea; fill-opacity: .9; stroke: #176988; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: grab; }
-    .footprint.invalid { fill: #edc3bf; stroke: #a52922; }
-    .footprint.selected { stroke-width: 2.5; }
-    .footprint:active { cursor: grabbing; }
-    .origin { stroke: #627886; stroke-width: .75; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; pointer-events: none; }
-    .footprint-label { fill: #183b4b; font-size: 4px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
-    .geometry { padding: 9px 11px; border-radius: 6px; background: #edf5ef; overflow-wrap: anywhere; }
-    .geometry.invalid { background: #fff0ed; color: #7d211b; }
-    .review { padding: 10px; background: #f3f7f9; border-radius: 6px; overflow-wrap: anywhere; }
-    .review pre { white-space: pre-wrap; font: inherit; margin: 0; }
-    .asset-note { overflow-wrap: anywhere; }
-    [hidden] { display: none !important; }
-    @media (max-width: 800px) { main { padding: 14px; } .workspace { grid-template-columns: 1fr; } svg { height: 68vw; min-height: 250px; max-height: 430px; } }
-    @media (max-width: 460px) { main { padding: 10px; } .panel { padding: 12px; } .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } button { padding: 8px 10px; } }
+    :root { color-scheme: light; font: 16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#192d3d; background:#fff; --brand:#d20a2e; --line:#e4e8ec; --muted:#657183; }
+    * { box-sizing:border-box; } body { margin:0; } [hidden] { display:none!important; }
+    button,input,select,textarea { font:inherit; color:inherit; } button { cursor:pointer; border:1px solid #d4dbe2; border-radius:5px; background:#fff; padding:10px 16px; font-size:14px; }
+    button:hover:not(:disabled) { background:#f4f6f8; } button:disabled { opacity:.45; cursor:default; }
+    :focus-visible { outline:3px solid #25739b; outline-offset:3px; }
+    input,select,textarea { width:100%; min-width:0; border:1px solid #cfd6df; border-radius:5px; padding:11px 13px; background:#fff; }
+    label { display:grid; gap:8px; font-size:14px; font-weight:500; } textarea { resize:vertical; min-height:84px; }
+    p { margin:0 0 14px; overflow-wrap:anywhere; } h1,h2 { margin:0; } .muted { color:var(--muted); } .small { font-size:12px; }
+    .topbar { display:flex; align-items:center; height:78px; padding:0 3.5%; gap:24px; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:28px; } .brand img { display:block; width:155px; height:52px; object-fit:cover; object-position:center; }
+    .divider { height:40px; border-left:1px solid #c6ced6; } .wordmark { font-size:25px; font-weight:650; letter-spacing:-.6px; }
+    .spacer { flex:1; } .save-top { border:0; color:var(--muted); padding:8px 0; display:flex; gap:10px; align-items:center; font-size:15px; }
+    .icon { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+    .stepnav { height:60px; display:flex; align-items:stretch; justify-content:center; gap:28px; border-bottom:1px solid var(--line); background:#fafbfc; }
+    .stepnav button { border:0; border-bottom:3px solid transparent; border-radius:0; background:none; padding:0 8px; font-size:16px; color:var(--muted); }
+    .stepnav button[aria-current=step] { color:var(--brand); border-bottom-color:var(--brand); font-weight:650; } .stepnav .rule { width:30px; height:1px; background:#b8c2cd; align-self:center; }
+    main { max-width:1800px; margin:auto; } .loadbar { padding:8px 3.5%; display:flex; align-items:center; gap:18px; border-bottom:1px solid var(--line); }
+    .loadbar>button { border:0; padding:3px 0; color:var(--muted); font-size:12px; } .loadbar details { margin-left:auto; font-size:12px; color:var(--muted); }
+    .identity { padding:12px 0; display:grid; gap:6px; } summary { cursor:pointer; } [data-customer-hook=status] { padding:10px 3.5%; color:#536779; font-size:13px; margin:0; background:#f6f8fa; }
+    [data-customer-hook=dropzone] { padding:16px; border:1px dashed #c3cdd6; border-radius:5px; color:var(--muted); font-size:13px; } input[type=file] { position:absolute; width:1px; height:1px; clip:rect(0,0,0,0); overflow:hidden; }
+    .desk { display:grid; grid-template-columns:minmax(0,65.5fr) minmax(350px,34.5fr); min-height:calc(100vh - 180px); }
+    .canvas-pane { border-right:1px solid var(--line); padding:22px 4% 24px; display:flex; flex-direction:column; min-width:0; align-self:start; position:sticky; top:0; height:calc(100vh - 180px); min-height:640px; }
+    [data-customer-hook=context-line] { color:var(--muted); font-size:13px; margin:0 0 10px; }
+    .job-choices { margin:0 0 22px!important; padding:10px 0!important; border-top:0!important; }
+    .stage { display:flex; align-items:center; justify-content:center; flex:1; min-height:320px; }
+    .stage svg { width:100%; height:min(58vw,690px); max-height:calc(100vh - 380px); min-height:320px; touch-action:none; user-select:none; }
+    .reference-wrap { display:flex; justify-content:center; align-items:center; flex:1; min-height:0; }
+    [data-customer-hook=reference-img] { display:block; width:100%; height:min(58vw,730px); max-height:calc(100vh - 380px); object-fit:contain; }
+    .safe-area { fill:#f0f5f2; stroke:#6b9782; stroke-width:1; vector-effect:non-scaling-stroke; } .exclusion-area { fill:#fbe9e8; stroke:#bd716d; stroke-width:1; vector-effect:non-scaling-stroke; }
+    .footprint { fill:#d8e8ed; fill-opacity:.9; stroke:#35738a; stroke-width:1.5; vector-effect:non-scaling-stroke; cursor:grab; } .footprint.selected { stroke-width:2.5; } .footprint.invalid { fill:#f3d7d4; stroke:#ab4238; }
+    .origin { stroke:#91a4ae; stroke-width:.7; stroke-dasharray:2 2; vector-effect:non-scaling-stroke; pointer-events:none; } .footprint-label { fill:#224555; font-size:4px; text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+    .canvas-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:14px; } .sku { margin:0; font-weight:650; font-size:18px; }
+    .view-caption { font-size:13px; color:var(--muted); margin:3px 0 0; } .view-toggle { display:flex; border:1px solid var(--line); border-radius:24px; padding:3px; }
+    .view-toggle button { border:0; border-radius:20px; padding:9px 16px; font-size:13px; color:var(--muted); } .view-toggle button[aria-pressed=true] { background:#edf1f5; color:#192d3d; font-weight:600; }
+    .canvas-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; } .quiet-button { background:none; border:0; padding:6px 0; color:var(--muted); font-size:13px; }
+    .task-rail { padding:38px 7% 24px; display:flex; flex-direction:column; align-self:stretch; min-width:0; }
+    .rail-context { display:flex; align-items:center; gap:20px; min-height:104px; margin-bottom:32px; }
+    [data-customer-hook=logo-thumb] { width:160px; max-width:45%; height:94px; object-fit:contain; padding:12px; border-radius:5px; background:#f4f6f8; }
+    .where { font-size:14px; min-width:0; overflow-wrap:anywhere; } .artwork-name { display:block; font-weight:600; margin-bottom:4px; } .task-rail h2 { font-size:clamp(27px,2.45vw,38px); letter-spacing:-1px; line-height:1.15; margin:0 0 12px; font-weight:650; }
+    .lede { color:var(--muted); font-size:16px; margin-bottom:30px; } .field-row { display:grid; gap:18px; margin:18px 0; } .mm-field { display:grid; grid-template-columns:1fr 84px; max-width:320px; }
+    .mm-field input { font-size:22px; border-radius:5px 0 0 5px; border-right:0; padding:12px 16px; } .unit { display:flex; align-items:center; justify-content:center; border:1px solid #cfd6df; border-radius:0 5px 5px 0; background:#f2f4f7; color:var(--muted); font-size:17px; }
+    .geometry { font-size:14px; color:#227443; margin:20px 0; } .geometry.invalid { color:#a53a32; } .geometry:empty { display:none; }
+    details.precise,details.more-actions,details.job-choices { border-top:1px solid var(--line); padding:18px 0; margin-top:24px; color:var(--muted); font-size:14px; }
+    details>summary { list-style:none; display:flex; align-items:center; gap:12px; } details>summary::-webkit-details-marker { display:none; }
+    details>summary::before { content:""; width:8px; height:8px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); }
+    details[open]>summary::before { transform:rotate(-135deg); } .ratio-row { display:flex; gap:9px; align-items:center; margin:20px 0; font-weight:400; } input[type=checkbox] { width:16px; height:16px; accent-color:var(--brand); }
+    .rail-actions { display:flex; gap:18px; margin-top:auto; padding-top:40px; } .btn-primary { background:var(--brand); border-color:var(--brand); color:white; font-weight:650; font-size:16px; border-radius:5px; padding:15px 24px; min-height:56px; flex:1; }
+    .btn-primary:hover:not(:disabled) { background:#b40727; } .btn-back { padding:12px 24px; color:var(--muted); } .link-btn { margin-top:20px; border:0; padding:8px 0; background:none; color:var(--brand); font-size:15px; text-align:left; }
+    .canvas-tools .more-actions { border:0; padding:0; margin:0; position:relative; }
+    .canvas-tools .more-actions[open] .manage-row { padding:12px; border:1px solid var(--line); background:white; }
+    .manage-row { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; } .manage-row button { font-size:13px; } [data-customer-hook=update] { margin-top:16px; border-color:var(--brand); color:var(--brand); }
+    [data-customer-hook=unsaved-warning] { font-size:13px; color:#8a6227; margin:14px 0; } [data-customer-hook=prototype-note] { font-size:11px; text-align:right; color:var(--muted); margin:28px 0 0; }
+    .review { font-size:14px; line-height:1.6; overflow-wrap:anywhere; margin-bottom:24px; } .review h3 { font-size:16px; margin:0 0 14px; } .review h4 { font-size:14px; margin:0 0 8px; font-weight:600; } .review p { margin:0 0 8px; } .review-product+.review-product { border-top:1px solid var(--line); padding-top:20px; margin-top:20px; } .review-placement+.review-placement { margin-top:20px; } .review-fit { color:#227443; } .review-fit.invalid { color:#a53a32; } .review-measurements { color:var(--muted); font-size:13px; margin:12px 0; } .review-measurements[open]>summary { margin-bottom:12px; } .reference-review { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; } .save-row { display:flex; gap:10px; margin:20px 0; }
+    [data-step-panel=review] .btn-primary { width:100%; } .is-empty .desk { opacity:.35; pointer-events:none; } .is-empty .loadbar { padding-block:24px; }
+    @media(max-width:900px) { .desk { grid-template-columns:1fr; min-height:0; } .canvas-pane { position:static; height:auto; min-height:0; border-right:0; border-bottom:1px solid var(--line); padding:18px 20px; } .task-rail { padding:28px 24px; } .stage svg,[data-customer-hook=reference-img] { height:58vw; max-height:440px; min-height:200px; } .rail-context { margin-bottom:22px; min-height:70px; } .task-rail h2 { font-size:28px; } .rail-actions { padding-top:24px; } [data-customer-hook=prototype-note] { text-align:left; } }
+    @media(max-width:500px) { .topbar { padding:0 14px; height:65px; gap:12px; } .brand { gap:12px; } .brand img { width:95px; height:36px; } .divider { height:28px; } .wordmark { font-size:18px; } .save-top { font-size:12px; gap:5px; } .save-top .icon { width:15px; } .stepnav { gap:18px; height:54px; } .stepnav button { font-size:14px; } .stepnav .rule { width:18px; } .loadbar { padding:7px 16px; gap:12px; } .view-toggle button { font-size:11px; padding:7px 9px; } .canvas-foot { gap:8px; } .sku { font-size:15px; } .task-rail { padding:24px 20px; } .lede { font-size:14px; } .identity { max-width:300px; } }
   </style>
 </head>
 <body>
+  <header class="topbar">
+    <div class="brand">
+      <img data-customer-hook="brand-mark" alt="FlexiTog">
+      <span class="divider" aria-hidden="true"></span>
+      <h1 class="wordmark">Logo Station</h1>
+    </div>
+    <span class="spacer"></span>
+    <button class="save-top" data-customer-hook="save-draft-top" type="button" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12l3 3v15H4V3h1Z"/><path d="M8 3v7h8V3M8 21v-7h8v7"/></svg>Save draft</button>
+  </header>
+  <nav class="stepnav" data-customer-hook="step-nav" aria-label="Progress">
+    <button data-customer-hook="step-position" type="button" aria-current="step">Position</button>
+    <span class="rule" aria-hidden="true"></span>
+    <button data-customer-hook="step-size" type="button">Size</button>
+    <span class="rule" aria-hidden="true"></span>
+    <button data-customer-hook="step-review" type="button">Review</button>
+  </nav>
   <main id="customer-editor">
-    <h1>LogoTool · Synthetic Customer Editor</h1>
-    <p class="banner" role="note"><strong>Offline synthetic prototype — not production approval.</strong> This local editor changes synthetic project drafts only. Customer confirmation is not internal approval. No project or artwork is uploaded, published, or rendered as artwork.</p>
-    <section class="panel load-panel" aria-label="Open a project">
-      <div data-customer-hook="dropzone" tabindex="0" role="button" aria-label="Drop a .logo-project archive here"><strong>Drop a .logo-project archive here</strong><br><span class="muted">or choose one from this device. The project is replaced only after the complete package validates.</span></div>
-      <div class="actions"><button data-customer-hook="choose" type="button">Choose project</button><input data-customer-hook="file-input" type="file" accept=".logo-project,application/zip" aria-label="Choose a project package"><button data-customer-hook="save" type="button" disabled>Save draft package</button><button data-customer-hook="submit" type="button" disabled>Submit confirmed draft</button></div>
-      <p data-customer-hook="status" role="status" aria-live="polite">Choose or drop a synthetic .logo-project package to begin.</p>
-      <div class="identity"><span>Project: <strong data-customer-hook="project-id">Not loaded</strong></span><span>Revision: <strong data-customer-hook="revision">—</strong></span><span>Package assets: <strong data-customer-hook="asset-count">—</strong> (bytes remain inert)</span></div>
-    </section>
+    <div class="loadbar">
+      <div data-customer-hook="dropzone" tabindex="0" role="button" aria-label="Drop a .logo-project file here">Drop .logo-project file here</div>
+      <button data-customer-hook="choose" type="button">Choose project</button>
+      <input data-customer-hook="file-input" type="file" accept=".logo-project,application/zip" aria-label="Choose a project package">
 
-    <div class="workspace">
-      <div class="left-stack">
-        <section class="panel" aria-label="Configuration and placement selection">
-          <h2>Configuration</h2>
-          <div class="grid-2">
-            <label>Configuration<select data-customer-hook="configuration" disabled></select></label>
-            <label>Product<select data-customer-hook="product" disabled></select></label>
-            <label>Variant<select data-customer-hook="variant" disabled></select></label>
-            <label>Region<select data-customer-hook="region" disabled></select></label>
-            <label>Logo<select data-customer-hook="logo" disabled></select></label>
-            <label>Placement<select data-customer-hook="placement" disabled></select></label>
+      <details><summary>Project details</summary><div class="identity"><span>Project: <strong data-customer-hook="project-id">Not loaded</strong></span><span>Version: <strong data-customer-hook="revision">—</strong></span><span>Files in package: <strong data-customer-hook="asset-count">—</strong></span></div></details>
+    </div>
+    <p data-customer-hook="status" role="status" aria-live="polite">Open your .logo-project file to begin.</p>
+    <div class="desk">
+      <section data-customer-hook="canvas-pane" class="canvas-pane" aria-label="Product view">
+        <p data-customer-hook="context-line" class="muted">Open a project to see your product context.</p>
+        <div class="stage">
+          <svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Logo-area diagram with logo boxes"><g data-customer-hook="canvas-layer"></g></svg>
+        </div>
+        <div class="reference-wrap"><img data-customer-hook="reference-img" alt="Product reference photo" hidden></div>
+        <p data-customer-hook="reference-warning" hidden></p>
+        <div class="canvas-foot">
+          <div><p class="sku" data-customer-hook="product-caption">Your product</p><p class="view-caption" data-customer-hook="view-caption">Placement diagram</p></div>
+          <div class="view-toggle" role="group" aria-label="Canvas view">
+            <button data-customer-hook="view-reference" type="button" aria-pressed="false">Product reference</button>
+            <button data-customer-hook="view-diagram" type="button" aria-pressed="true">Placement diagram</button>
           </div>
-        </section>
-        <section class="panel" aria-label="Placement dimensions and position">
-          <h2>Placement in physical millimetres</h2>
-          <p class="muted">Position is the artwork bounding-box center in the region frame. Rotation is clockwise-positive facing the region.</p>
-          <div class="grid-3">
-            <label>Center X (mm)<input data-customer-hook="x-mm" type="number" step="any" disabled></label>
-            <label>Center Y (mm)<input data-customer-hook="y-mm" type="number" step="any" disabled></label>
-            <label>Rotation clockwise (°)<input data-customer-hook="rotation" type="number" min="-179.999999999" max="180" step="any" disabled></label>
-            <label>Width (mm)<input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled></label>
-            <label>Height (mm)<input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled></label>
-            <label>Method<select data-customer-hook="method" disabled></select></label>
-          </div>
-          <label style="margin-top:10px">Placement instructions<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
-          <div class="toolbar"><button data-customer-hook="add" type="button" disabled>Add placement</button><button data-customer-hook="update" type="button" disabled>Apply pending measurement and instruction edits</button><button data-customer-hook="remove" type="button" disabled>Remove placement</button><button data-customer-hook="undo" type="button" disabled>Undo</button><button data-customer-hook="reset" type="button" disabled>Reset to opened package</button></div>
-          <p data-customer-hook="geometry" class="geometry">Load a project to evaluate the placement footprint.</p>
-        </section>
-        <section class="panel" aria-label="Project instructions">
-          <h2>Project instructions</h2>
-          <label>Customer instructions<textarea data-customer-hook="instructions" disabled></textarea></label>
-        </section>
-      </div>
+        </div>
+        <div class="canvas-tools">        <details class="more-actions"><summary>More actions</summary><div class="manage-row">
+          <button data-customer-hook="add" type="button" disabled>Add this logo</button>
+          <button data-customer-hook="remove" type="button" disabled>Remove this logo</button>
+          <button data-customer-hook="reset" type="button" disabled>Start over from opened file</button>
+        </div></details><button class="quiet-button" data-customer-hook="undo" type="button" disabled>Undo last change</button></div>
 
-      <div class="right-stack">
-        <section class="panel" aria-label="Millimetre footprint preview">
-          <h2>2D safe-area and footprint preview</h2>
-          <p class="muted">Millimetre plan view only. Boxes are inert labels for placement footprints; supplied artwork bytes are never opened or displayed.</p>
-          <div class="canvas-wrap"><svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Region safe-area and placement footprint diagram"><g data-customer-hook="canvas-layer"></g></svg></div>
-          <p class="muted">Green outline: safe area. Red outline: exclusion. Blue box: inert measured placement footprint.</p>
-          <p class="muted" data-customer-hook="frame">No region selected.</p>
-        </section>
-        <section class="panel" aria-label="Exact physical review and confirmation">
-          <h2>Exact millimetre review</h2>
-          <div class="review"><pre data-customer-hook="review">Load a project to review its physical placement values.</pre></div>
-          <label style="margin-top:12px">Confirmation name<input data-customer-hook="confirmed-by" type="text" autocomplete="off" disabled></label>
-          <div class="toolbar"><button data-customer-hook="confirm" type="button" disabled>Confirm this revision</button></div>
-          <p data-customer-hook="confirmation" role="status">No project loaded.</p>
-          <p class="muted">Confirmation records customer-supplied evidence for this exact revision and content digest. It is not an authenticated identity or internal approval.</p>
-        </section>
-      </div>
+      </section>
+      <aside data-customer-hook="task-rail" class="task-rail" aria-label="Task">
+        <div class="rail-context">
+          <img data-customer-hook="logo-thumb" alt="Selected logo preview" hidden>
+          <span class="where"><span class="artwork-name" data-customer-hook="artwork-name">Your logo</span><span class="muted" data-customer-hook="placement-context">No logo selected</span></span>
+        </div>
+          <details class="job-choices" data-customer-hook="job-choices"><summary>Choose another product or logo</summary><div class="field-row">
+            <label hidden>Saved layout<select data-customer-hook="configuration" disabled></select></label>
+            <label hidden>Product<select data-customer-hook="product" disabled></select></label>
+            <label hidden>Product option<select data-customer-hook="variant" disabled></select></label>
+            <label hidden>Logo<select data-customer-hook="logo" disabled></select></label>
+          </div></details>
+        <h2>Set the logo size</h2>
+        <p class="lede">Choose the width. The shape stays the same.</p>
+
+        <div data-step-panel="position">
+          <div class="field-row">
+            <label>Logo area<select data-customer-hook="region" disabled></select></label>
+          </div>
+          <label data-customer-hook="placement-choice">Placed logos<select data-customer-hook="placement" disabled></select></label>
+
+          <details class="precise" data-customer-hook="precise-position">
+            <summary>Precise adjustments</summary>
+            <div class="field-row">
+              <label>Middle of logo, X (mm)<input data-customer-hook="x-mm" type="number" step="any" disabled></label>
+              <label>Middle of logo, Y (mm)<input data-customer-hook="y-mm" type="number" step="any" disabled></label>
+            </div>
+          </details>
+        </div>
+
+        <div data-step-panel="size">
+          <div class="field-row">
+            <label>Logo width
+              <span class="mm-field"><input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span>
+            </label>
+          </div>
+          <details class="precise" data-customer-hook="precise-size">
+            <summary>Precise adjustments</summary>
+            <div class="field-row">
+              <label>Logo height (mm)<input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled></label>
+              <label>Turn clockwise (degrees)<input data-customer-hook="rotation" type="number" min="-179.999999999" max="180" step="any" disabled></label>
+              <label>Method<select data-customer-hook="method" disabled></select></label>
+            </div>
+            <label class="ratio-row"><input data-customer-hook="ratio-lock" type="checkbox" checked> Keep shape (link width and height)</label>
+            <label style="margin-top:10px">Note about this logo<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
+          </details>
+        </div>
+
+        <div data-step-panel="review">
+          <div class="review" data-customer-hook="review">Open a project to check the exact sizes here.</div>
+          <label>Notes for the whole project<textarea data-customer-hook="instructions" disabled></textarea></label>
+          <details class="precise">
+            <summary>Reference-point and calibration details (advanced)</summary>
+            <p class="muted" data-customer-hook="frame">No logo area chosen yet.</p>
+            <pre class="reference-review" data-customer-hook="review-reference">Open a project to see its measurement references.</pre>
+          </details>
+          <label style="margin-top:12px">Your name<input data-customer-hook="confirmed-by" type="text" autocomplete="off" disabled></label>
+          <div class="manage-row"><button class="btn-primary" data-customer-hook="confirm" type="button" disabled>Confirm this version</button></div>
+          <p data-customer-hook="confirmation" role="status">No project open yet.</p>
+          <div class="save-row"><button data-customer-hook="save" type="button" disabled>Save draft file</button><button class="btn-primary" data-customer-hook="submit" type="button" disabled>Save confirmed return file</button></div>
+        </div>
+
+        <p data-customer-hook="geometry" class="geometry">Open a project to see whether your logo fits.</p>
+        <button data-customer-hook="update" type="button" disabled hidden>Apply my changes</button>
+
+        <p data-customer-hook="unsaved-warning" hidden></p>
+        <div class="rail-actions">
+          <button class="btn-primary" data-customer-hook="primary-next" type="button">Review layout &#8250;</button>
+          <button class="btn-back" data-customer-hook="back-step" type="button">Back</button>
+        </div>
+        <button class="link-btn" data-customer-hook="add-another" type="button">+ Add another logo</button>
+        <p data-customer-hook="prototype-note">Visual reference. Final checks by Logo Station.</p>
+      </aside>
     </div>
   </main>
   <!-- EMBEDDED_LOGO_PROJECT -->

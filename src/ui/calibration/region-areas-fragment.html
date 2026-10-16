@@ -1,63 +1,67 @@
 <section data-area-hook="area-panel" aria-label="Region safe areas (provisional offline draft)">
-  <h2>Region safe areas (provisional)</h2>
+  <h2>Mark where logos may go</h2>
   <p role="note">
-    <strong>Offline draft only.</strong>
-    Polygons are millimetres in the active region frame.
-    Nothing here is production-approved; exports stay pending review.
+    <strong>Offline draft only — needs review.</strong>
+    Enter the allowed outline for the active area below, all in millimetres.
+    Nothing here is production-approved.
   </p>
   <p data-area-hook="area-active-label" aria-live="polite">No active region.</p>
   <p data-area-hook="area-context" aria-live="polite"></p>
 
   <p data-area-hook="area-dirty-note" aria-live="polite"></p>
   <fieldset>
-    <legend>Safe polygon (mm)</legend>
-    <label>Safe polygon JSON (draft geometry only)
+    <legend>Safe shape (mm)</legend>
+    <label>Safe outline (corner points in mm)
       <textarea data-area-hook="area-safe-text" rows="4" cols="48" spellcheck="false"
         placeholder='[[x,y],[x,y],[x,y]] or [{"x":0,"y":0}, …]'></textarea>
     </label>
     <div>
-      <button data-area-hook="area-safe-set" type="button">Set / replace safe polygon</button>
-      <button data-area-hook="area-safe-clear" type="button">Clear safe polygon</button>
+      <button data-area-hook="area-safe-set" type="button">Save safe shape</button>
+      <button data-area-hook="area-safe-clear" type="button">Clear safe shape</button>
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Named exclusions (mm)</legend>
-    <label>Exclusion id
+    <legend>Keep-out spots, e.g. zip or pocket (mm)</legend>
+    <label>Keep-out id
       <input data-area-hook="area-exclusion-id" type="text" autocomplete="off" />
     </label>
-    <label>Exclusion name
+    <label>Keep-out name
       <input data-area-hook="area-exclusion-name" type="text" autocomplete="off" />
     </label>
-    <label>Exclusion polygon JSON (draft geometry only)
+    <label>Keep-out outline (corner points in mm)
       <textarea data-area-hook="area-exclusion-text" rows="4" cols="48" spellcheck="false"
         placeholder='[[x,y],[x,y],[x,y]] or [{"x":0,"y":0}, …]'></textarea>
     </label>
     <div>
-      <button data-area-hook="area-exclusion-add" type="button">Add exclusion</button>
+      <button data-area-hook="area-exclusion-add" type="button">Add keep-out</button>
     </div>
     <ul data-area-hook="area-exclusion-list"></ul>
   </fieldset>
 
-  <fieldset>
-    <legend>Footprint check (draft geometry only)</legend>
-    <label>Footprint polygon JSON (draft geometry only, never placed on the model)
-      <textarea data-area-hook="area-footprint-text" rows="4" cols="48" spellcheck="false"
-        placeholder='[[x,y],[x,y],[x,y]] or [{"x":0,"y":0}, …]'></textarea>
-    </label>
+  <details>
+    <summary>Try a test outline (advanced)</summary>
+    <fieldset>
+      <legend>Try a test outline (draft only, never placed on the model)</legend>
+      <label>Test outline (corner points in mm)
+        <textarea data-area-hook="area-footprint-text" rows="4" cols="48" spellcheck="false"
+          placeholder='[[x,y],[x,y],[x,y]] or [{"x":0,"y":0}, …]'></textarea>
+      </label>
+      <div>
+        <button data-area-hook="area-footprint-check" type="button">Check whether it fits</button>
+      </div>
+      <div data-area-hook="area-footprint-verdict" aria-live="polite"></div>
+    </fieldset>
+
+  </details>
+
+    <fieldset>
+      <legend>Preview (mm, not to scale with the 3D view)</legend>
+      <div data-area-hook="area-preview" role="img" aria-label="Millimetre preview of safe polygon, exclusions, and draft footprint"></div>
+    </fieldset>
+
     <div>
-      <button data-area-hook="area-footprint-check" type="button">Check footprint fit</button>
+      <button data-area-hook="area-export" type="button">Download area bundle JSON (provisional draft, pending review)</button>
     </div>
-    <div data-area-hook="area-footprint-verdict" aria-live="polite"></div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Preview (mm, not to scale with the 3D view)</legend>
-    <div data-area-hook="area-preview" role="img" aria-label="Millimetre preview of safe polygon, exclusions, and draft footprint"></div>
-  </fieldset>
-
-  <div>
-    <button data-area-hook="area-export" type="button">Download area bundle JSON (provisional draft, pending review)</button>
-  </div>
   <p data-area-hook="area-status" role="status" aria-live="polite"></p>
 </section>

@@ -5,6 +5,19 @@ import { build } from 'esbuild';
 import { zipSync } from 'fflate';
 import { createProjectPackage } from '../dist/src/packaging/project-package/index.js';
 import { createSelfContainedHtml } from '../dist/src/packaging/self-contained-html/index.js';
+// Tracked exact original FlexiTog brand mark (red on white), inlined as a
+// data URL into the customer editor brand-mark img. No network, no customer
+// artwork. Deterministic: same bytes every build.
+const brandMarkBytes = await readFile('src/ui/shared/brand/flexitog-mark.jpg');
+const stationBrandStyles = await readFile('src/ui/shared/brand/station.css', 'utf8');
+const BRAND_MARK_DATA_URL = `data:image/jpeg;base64,${brandMarkBytes.toString('base64')}`;
+function withBrandMark(templateHtml) {
+  const marker = '<img data-customer-hook="brand-mark" alt="FlexiTog">';
+  if (templateHtml.split(marker).length !== 2) {
+    throw new Error('Customer editor template must contain one unadorned brand-mark img');
+  }
+  return templateHtml.replace(marker, () => `<img data-customer-hook="brand-mark" alt="FlexiTog" src="${BRAND_MARK_DATA_URL}">`);
+}
 
 const root = process.cwd();
 const outputDir = resolve(root, 'dist');
@@ -140,10 +153,13 @@ function comparePaths(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 async function buildInlineHtml(entryPoint, templatePath, label) {
-  const template = await readFile(templatePath, 'utf8');
+  let template = await readFile(templatePath, 'utf8');
+  if (templatePath.endsWith('src/ui/customer-editor/template.html')) template = withBrandMark(template);
   return buildInlineHtmlFromTemplate(entryPoint, template, label);
 }
 async function buildInlineHtmlFromTemplate(entryPoint, template, label) {
+  template = template.replace('<!-- STATION_BRAND_STYLES -->', () => stationBrandStyles)
+    .replace('<img data-station-brand alt="FlexiTog">', () => `<img data-station-brand alt="FlexiTog" src="${BRAND_MARK_DATA_URL}">`);
   const bundle = await build({
     entryPoints: [entryPoint],
     bundle: true,

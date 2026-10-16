@@ -72,7 +72,26 @@ async function openReviewer(browser: Browser, viewport: { width: number; height:
 }
 
 async function readCandidateJson(page: Page): Promise<string> {
+  await openTechnicalDetails(page);
   return downloadText(page, () => page.locator('[data-review-hook="candidate-download"]').click());
+}
+
+async function openTechnicalDetails(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const details = document.querySelector<HTMLDetailsElement>('[data-review-hook="technical-details"]');
+    if (details) details.open = true;
+  });
+  await expect(page.locator('[data-review-hook="technical-details"]')).toHaveAttribute('open', '');
+}
+
+async function openProposalEditor(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const summaries = Array.from(document.querySelectorAll('details > summary'));
+    const match = summaries.find((item) => item.textContent?.includes('Suggest a revised layout'));
+    const disclosure = match?.closest('details');
+    if (disclosure) disclosure.open = true;
+  });
+  await expect(page.locator('[data-review-hook="save-proposal"]')).toBeEnabled();
 }
 
 test('operation document preview matches candidate JSON and shows exact mm dimensions', async ({ browser }) => {
@@ -80,6 +99,7 @@ test('operation document preview matches candidate JSON and shows exact mm dimen
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'trusted-issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'trusted-return.logo-project', await pack(project, assets));
+  await openTechnicalDetails(page);
 
   await page.locator('[data-review-hook="operation-document-print"]').waitFor({ state: 'visible' });
   await expect(page.locator('[data-review-hook="operation-document-print"]')).toBeEnabled();
@@ -116,6 +136,7 @@ test('zero-placement configuration is shown explicitly', async ({ browser }) => 
   revised.revision += 1;
   revised.configurations.forEach((configuration) => { configuration.placements = []; });
   await setArchive(page, 'return', 'zero-return.logo-project', await pack(revised, assets));
+  await openTechnicalDetails(page);
 
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await expect(host).toContainText('0 placements');
@@ -129,7 +150,7 @@ test('print media hides main reviewer UI and shows operation document', async ({
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'trusted-issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'trusted-return.logo-project', await pack(project, assets));
-
+  await openTechnicalDetails(page);
   await page.locator('[data-review-hook="operation-document-container"]').waitFor({ state: 'visible' });
   await page.emulateMedia({ media: 'print' });
 
@@ -152,6 +173,8 @@ test('operation document refreshes revision and prints inert long instructions o
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
+  await openTechnicalDetails(page);
+  await openProposalEditor(page);
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await expect(host).toBeVisible();
   const instructions = '<img src="https://invalid.test/logo" onerror="window.bad=true">\n' + 'Synthetic handling instruction. '.repeat(120);
@@ -181,6 +204,7 @@ test('operation document preserves review notes and clears on a fresh incomplete
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
+  await openTechnicalDetails(page);
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await page.locator('[data-review-hook="reviewer"]').fill('Synthetic reviewer');
   await page.locator('[data-review-hook="decision"]').selectOption('changesRequested');
@@ -191,7 +215,7 @@ test('operation document preserves review notes and clears on a fresh incomplete
   await expect(host).toContainText('candidate-pending-review');
   await page.reload();
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
-  await expect(page.locator('[data-review-hook="status"]')).toContainText('Loaded return');
+  await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the returned file');
   await expect(host).toBeHidden();
   await expect(host).toBeEmpty();
   await expect(page.locator('[data-review-hook="operation-document-print"]')).toBeDisabled();
