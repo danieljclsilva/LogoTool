@@ -2,6 +2,9 @@
  * Immutable project editing and provisional geometry evaluation.
  * Structural/reference checks use `validateProject`; geometry is a separate
  * verdict so well-formed non-fitting drafts remain editable.
+ * Preview-only products (no regions, no calibrations) cannot host placements:
+ * `addPlacement`/`updatePlacement` reject such targets with
+ * `preview-only-unprepared-region`.
  */
 import { AREA_LIMITS } from "../region-areas/index.js";
 import { footprintFits, type GeoPoint } from "../geometry/index.js";
@@ -75,6 +78,31 @@ function requireConfiguration(project: ProjectDocument, configurationId: string)
   const configuration = project.configurations.find((entry) => entry.id === configurationId);
   if (configuration === undefined) throw new Error(`unknown configuration "${configurationId}"`);
   return configuration;
+}
+
+/**
+ * Structural preview-only check (mirrors the provisional-product contract):
+ * a product with no regions and no calibrations has no prepared area, so no
+ * placement may target it. Never name-substring heuristics.
+ */
+function isPreviewOnlyTarget(project: ProjectDocument, configurationId: string): boolean {
+  const configuration = project.configurations.find((entry) => entry.id === configurationId);
+  const product = project.products.find((entry) => entry.id === configuration?.productId);
+  return (
+    configuration !== undefined &&
+    product !== undefined &&
+    product.regions.length === 0 &&
+    product.calibrations.length === 0
+  );
+}
+
+function rejectPreviewOnlyTarget(project: ProjectDocument, configurationId: string, action: string): void {
+  if (isPreviewOnlyTarget(project, configurationId)) {
+    throw new Error(
+      `preview-only-unprepared-region: cannot ${action} placement in configuration "${configurationId}": ` +
+        `its product has no prepared regions (preview-only products cannot host placements)`,
+    );
+  }
 }
 
 function assertRingWithinLimits(ring: PointMm[], label: string): number {
@@ -174,6 +202,7 @@ export function addPlacement(
 ): ProjectDocument {
   assertProjectEditorLimits(project);
   requireConfiguration(project, configurationId);
+  rejectPreviewOnlyTarget(project, configurationId, "add");
   const added: Placement = { ...placement, pos: { ...placement.pos } };
   return revisionWithinLimits(project, (draft) => {
     const configuration = draft.configurations.find((entry) => entry.id === configurationId)!;
@@ -190,6 +219,7 @@ export function updatePlacement(
 ): ProjectDocument {
   assertProjectEditorLimits(project);
   const configuration = requireConfiguration(project, configurationId);
+  rejectPreviewOnlyTarget(project, configurationId, "update");
   const currentIndex = placementIndex(configuration.placements, selector);
   const current = configuration.placements[currentIndex];
   if (current === undefined) throw new Error(`unknown placement selector in configuration "${configurationId}"`);
@@ -322,7 +352,7 @@ export function evaluateProjectGeometry(project: ProjectDocument): ProjectGeomet
     for (const [placementIndex, placement] of configuration.placements.entries()) {
       const region = product.regions.find((entry) => entry.id === placement.regionId);
       if (region === undefined) {
-        throw new Error(`cannot evaluate geometry: placement "${placementLabel(placement, placementIndex)}" has no region definition`);
+        throw new Error(`cannot evaluate geometry: placement "${placementLabel(placement, placementIndex)}" has no region definition (preview-only products have no prepared regions)`);
       }
       const verdict = calculatePlacementGeometry(region, placement);
       results.push({

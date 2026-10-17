@@ -126,6 +126,25 @@ export function confirmRevision(
   if (errors.length > 0) {
     return { ok: false, errors };
   }
+  // Defense in depth, checked BEFORE structural validation so it stays
+  // reachable and tested: validation already makes preview-only placements
+  // unrepresentable (any placement on a preview-only product fails), but
+  // never confirm a revision whose selected content includes placements on
+  // preview-only products. Structural check only, never name heuristics.
+  const productById = new Map(project.products.map((entry) => [entry.id, entry]));
+  for (const configuration of project.configurations) {
+    const product = productById.get(configuration.productId);
+    if (
+      product !== undefined &&
+      product.regions.length === 0 &&
+      product.calibrations.length === 0 &&
+      configuration.placements.length > 0
+    ) {
+      throw new Error(
+        `cannot confirm revision with placements on preview-only product "${product.id}": preview-only products have no prepared regions (validation already rejects such placements)`,
+      );
+    }
+  }
   const structural = validateProject(project);
   if (!structural.ok) {
     return {

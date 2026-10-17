@@ -1,5 +1,48 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Multiview development acceptance — 2026-10-17
+
+The internal builder now creates a preview-only product from a single GLB,
+flat raster, or explicitly assigned front/back/left/right raster. Optional
+additional sides and the model travel through both package formats. Customer
+Flat/2D/3D views preserve the physical project; model projections and
+image-only textured planes are labelled. Unprepared products carry no regions,
+calibrations or measurements and cannot host logo placements.
+
+Codex independent final validation: `npm run typecheck`, `npm test` (421 Node
+tests), and `npm run test:e2e -- --workers=1` (119/119). A parallel repeat hit
+30-second timeouts in existing drag tests and was interrupted; the complete
+one-worker run passed without retries. The new model cache regression switches
+between equal-length, same-path GLBs with different material bytes, through an
+image proxy and back, and checks rendered colors. Pixel checks exclude the
+opaque background. Layout tests cover bounded photos/canvases and stable page
+height; obsolete reads, bad/external resources, all single-side inputs, legacy
+reference preservation and package round trips remain covered.
+
+A final decode-cache correction was then checked with the complete viewer
+spec on Chromium and real Chrome: 32/32, including a new controlled pending
+bitmap decode across a mode change on the same image. In the earlier focused
+Chrome run, 34/37 passed; three browser-process closures included macOS
+`CVDisplayLinkCreateWithCGDisplay` failures. The affected checks were rerun
+separately: both remaining Builder/reference checks passed 2/2, and the
+mode/save/reopen check is included in the 32/32 viewer run. No application
+assertion failures remain in those reruns.
+
+Environment: macOS Darwin 27.2.0 arm64; bundled Chromium 156.0.8078.4; default
+1280×900 plus per-spec desktop/mobile sizes recorded in test attachments.
+Maintained tests open built files via `file://` with offline contexts and assert
+zero HTTP(S) requests, console errors and page errors. No Odoo calls.
+
+Local manual acceptance uses the preserved jacket GLB and its front/back/left
+photos: combined input, GLB-only and a single left photo, byte-identical draft
+save/reopen, all four camera sides, rendered model/proxy screenshots and a true
+390×844 mobile viewport. Private originals and acceptance artifacts remain
+under ignored `private/development-assets/jacket/`; no right photo is invented.
+Independent real Chrome 155.0.8059.80 `file://` offline visual checks confirm
+the front and right model renders. Actual Windows Chrome/Edge remains an
+untested delivery gate. True garment unfolding, image-to-mesh reconstruction
+and real physical calibration are not implemented by this presentation slice.
+
 Maintained Playwright acceptance covers the internal asset inspector, the
 transport-only package preview, the synthetic customer editor, and a separate
 internal return-review harness. Hybrid ZIPs are extracted into temporary paths

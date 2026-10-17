@@ -1,4 +1,9 @@
-import { selectPresentationPackageAssets } from '../customer-editor/presentation-assets.js';
+import {
+  PRESENTATION_MANIFEST_PATH,
+  PRESENTATION_MAX_MODEL_BYTES,
+  parsePresentationManifest,
+  selectPresentationPackageAssets,
+} from '../customer-editor/presentation-assets.js';
 import {
   buildIssuedProject,
   selectIssuedAssets,
@@ -39,7 +44,10 @@ import {
   decodeEmbeddedProjectBase64,
 } from '../../packaging/self-contained-html/index.js';
 import { MAX_PREVIEW_BYTES, readRasterHeader } from '../../assets/raster-header.js';
+import { parseGlb } from '../../assets/glb.js';
+import { validateSelfContained } from '../../assets/validate.js';
 import { createProjectFromDefinitions } from '../../core/project-builder/create-project.js';
+import { createProvisionalProduct } from '../../core/project-builder/provisional-product.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { zipSync } from 'fflate';
 
@@ -108,6 +116,28 @@ const catalogueNote = hook<HTMLElement>('catalogue-note');
 const logoAdd = hook<HTMLButtonElement>('logo-add');
 const logoFile = hook<HTMLInputElement>('logo-file');
 const logoStatus = hook<HTMLElement>('logo-status');
+const productName = hook<HTMLInputElement>('product-name');
+const productAdd = hook<HTMLButtonElement>('product-add');
+const productFile = hook<HTMLInputElement>('product-file');
+const productStatus = hook<HTMLElement>('product-status');
+const productViewFile: Record<string, HTMLInputElement> = {
+  front: hook<HTMLInputElement>('product-view-front-file'),
+  back: hook<HTMLInputElement>('product-view-back-file'),
+  left: hook<HTMLInputElement>('product-view-left-file'),
+  right: hook<HTMLInputElement>('product-view-right-file'),
+};
+const productViewButton: Record<string, HTMLButtonElement> = {
+  front: hook<HTMLButtonElement>('product-view-front'),
+  back: hook<HTMLButtonElement>('product-view-back'),
+  left: hook<HTMLButtonElement>('product-view-left'),
+  right: hook<HTMLButtonElement>('product-view-right'),
+};
+const productViewLabel: Record<string, HTMLInputElement> = {
+  front: hook<HTMLInputElement>('product-view-front-label'),
+  back: hook<HTMLInputElement>('product-view-back-label'),
+  left: hook<HTMLInputElement>('product-view-left-label'),
+  right: hook<HTMLInputElement>('product-view-right-label'),
+};
 const productList = hook<HTMLElement>('product-list');
 const logoList = hook<HTMLElement>('logo-list');
 const configurationList = hook<HTMLElement>('configuration-list');
@@ -406,6 +436,16 @@ let generateGeneration = 0;
 let returnGeneration = 0;
 let logoImports: ImportedLogo[] = [];
 let baselineGeneration = 0;
+interface PendingProductView { bytes: Uint8Array; mediaType: 'image/png' | 'image/jpeg' | 'image/webp'; extension: string; widthPx: number; heightPx: number; fileName: string; }
+interface PendingProductModel { bytes: Uint8Array; fileName: string; }
+let pendingPrimaryImage: PendingProductView | null = null;
+let pendingPrimaryModel: PendingProductModel | null = null;
+let pendingViews: Record<string, PendingProductView | null> = { front: null, back: null, left: null, right: null };
+let productImporting = false;
+let productGeneration = 0;
+let productCounter = 0;
+interface AddedProductPresentation { views: Array<{ view: string; image: string; label?: string }>; models: Array<{ model: string; label?: string }>; assets: Array<{ path: string; bytes: Uint8Array }>; }
+let addedPresentations: AddedProductPresentation[] = [];
 
 function activeBaseline(): BaselineState | null {
   if (generated !== null) {
@@ -443,12 +483,20 @@ function invalidateOutputsForEdit(): void {
 }
 
 function updateControls(): void {
-  const blocked = loading || generating || creating || logoImporting || returnBusy || baselineBusy;
+  const blocked = loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy;
   sourceChoose.disabled = blocked;
   sourceFile.disabled = blocked;
   startCreate.disabled = blocked;
   logoAdd.disabled = blocked || source === null;
   logoFile.disabled = blocked || source === null;
+  productAdd.disabled = blocked;
+  productFile.disabled = blocked;
+  productName.disabled = blocked;
+  for (const side of ['front', 'back', 'left', 'right'] as const) {
+    productViewButton[side]!.disabled = blocked;
+    productViewFile[side]!.disabled = blocked;
+    productViewLabel[side]!.disabled = blocked;
+  }
   newSourceButton.disabled = blocked || source === null;
   baselineChoose.disabled = blocked;
   baselineFile.disabled = blocked;
@@ -634,8 +682,10 @@ function readSelection(): BuilderSelection {
   }
   const selection: BuilderSelection = { productIds, logoIds };
   if (narrowed) selection.variantIdsByProduct = variantIdsByProduct;
+  const knownConfigurations = new Set<string>(source?.summary.configurationIds ?? []);
+  const knownSelected = allConfigurations.filter((id) => knownConfigurations.has(id));
   const totalConfigurations = source?.summary.configurationIds.length ?? 0;
-  if (allConfigurations.length !== totalConfigurations) selection.configurationIds = allConfigurations;
+  if (knownSelected.length !== totalConfigurations) selection.configurationIds = knownSelected;
   return selection;
 }
 
@@ -705,10 +755,11 @@ function clearReturnReview(): void {
 async function loadSourceFile(file: File): Promise<void> {
   alertBuilder();
   const generation = ++loadGeneration;
-  createGeneration += 1;
   creating = false;
   logoGeneration += 1;
   logoImporting = false;
+  productGeneration += 1;
+  productImporting = false;
   generateGeneration += 1;
   generating = false;
   returnGeneration += 1;
@@ -727,6 +778,12 @@ async function loadSourceFile(file: File): Promise<void> {
     fromCatalogue = false;
     logoImports = [];
     logoStatus.textContent = '';
+    pendingPrimaryImage = null;
+    pendingPrimaryModel = null;
+    pendingViews = { front: null, back: null, left: null, right: null };
+    addedPresentations = [];
+    productStatus.textContent = '';
+    productName.value = '';
     source = { fileName: file.name, project: parsed.project, assets: parsed.assets, summary };
     renderSelectionLists(summary);
     projectIdSuggestion.textContent = `Source project ID “${summary.projectId}”. Enter a unique ID for this customer issue.`;
@@ -764,7 +821,7 @@ function embeddedEditorBytes(): Uint8Array {
 }
 
 async function generateIssued(): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || baselineBusy || returnBusy) return;
+  if (source === null || loading || generating || creating || logoImporting || productImporting || baselineBusy || returnBusy) return;
   alertBuilder();
   generateStatus.hidden = false;
   const missing = [[customerName, 'customer name'], [jobRef, 'job reference'], [issuedBy, 'prepared by']] as const;
@@ -848,7 +905,17 @@ async function generateIssued(): Promise<void> {
     );
     // Presentation-only passthrough: optional presentation/ reference assets
     // travel as additional entries. Validated at render; never production.
-    const presentationAssets = selectPresentationPackageAssets(snapshot.assets, issued.project.configurations);
+    // Multiview additions made in this session merge with (never replace)
+    // any package-present presentation assets, including the session manifest.
+    const sessionManifest = addedPresentations.length > 0
+      ? source.assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH)?.bytes
+      : undefined;
+    const mergedPresentationInputs = [
+      ...snapshot.assets,
+      ...(sessionManifest ? [{ path: PRESENTATION_MANIFEST_PATH, bytes: sessionManifest, kind: 'additional' as const }] : []),
+      ...addedPresentations.flatMap((entry) => entry.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: 'additional' as const }))),
+    ];
+    const presentationAssets = selectPresentationPackageAssets(mergedPresentationInputs, issued.project.configurations);
     const packageBytes = await createProjectPackage(
       { project: issued.project, assets: issuedAssets, additionalAssets: presentationAssets },
       { sha256: hasher.sha256Bytes },
@@ -1325,6 +1392,7 @@ async function createFromCatalogue(): Promise<void> {
   const generation = ++createGeneration;
   // Starting a new job deliberately supersedes any unfinished artwork import.
   logoGeneration += 1; logoImporting = false;
+  productGeneration += 1; productImporting = false;
   loadGeneration += 1;
   generateGeneration += 1;
   generating = false;
@@ -1351,6 +1419,12 @@ async function createFromCatalogue(): Promise<void> {
     const summary = summarizeSourceProject(checked.project);
     logoImports = [];
     fromCatalogue = true;
+    pendingPrimaryImage = null;
+    pendingPrimaryModel = null;
+    pendingViews = { front: null, back: null, left: null, right: null };
+    addedPresentations = [];
+    productStatus.textContent = '';
+    productName.value = '';
     source = { fileName: 'example-catalogue', project: checked.project, assets: checked.assets, summary };
     renderSelectionLists(summary);
     projectIdSuggestion.textContent = 'A fresh project ID was generated for this new draft. Enter a unique ID for this customer issue.';
@@ -1420,11 +1494,301 @@ function onLogoFileChange(): void {
   logoFile.value = '';
 }
 
+type ProductViewSide = 'front' | 'back' | 'left' | 'right';
+const PRODUCT_VIEW_SIDES: ProductViewSide[] = ['front', 'back', 'left', 'right'];
+
+function safeProductSegment(id: string): string {
+  const cleaned = id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  return cleaned === '' ? 'product' : cleaned;
+}
+
+function pendingSummary(): string {
+  const parts: string[] = [];
+  if (pendingPrimaryModel) parts.push('3D model ready');
+  if (pendingPrimaryImage) parts.push('flat image ready');
+  for (const side of PRODUCT_VIEW_SIDES) {
+    if (pendingViews[side]) parts.push(`${side} view ready`);
+  }
+  return parts.length ? ` Staged: ${parts.join(', ')}.` : '';
+}
+
+function looksRemoteFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:') || lower.startsWith('blob:') || fileName.includes('\\') || fileName.includes(':');
+}
+
+function extensionOfFileName(fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  return dot < 0 ? '' : fileName.slice(dot).toLowerCase();
+}
+
+
+async function decodeAndVerifyRaster(bytes: Uint8Array, isCurrent: () => boolean): Promise<{ mediaType: 'image/png' | 'image/jpeg' | 'image/webp'; width: number; height: number } | null> {
+  const header = readRasterHeader(bytes);
+  if (header === null) return null;
+  const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: header.mediaType }));
+  const width = bitmap.width; const height = bitmap.height; bitmap.close();
+  if (!isCurrent()) return null;
+  if (width !== header.width || height !== header.height) return null;
+  return { mediaType: header.mediaType, width: header.width, height: header.height };
+}
+
+// Staging slots are independent inputs: each has its own token so assigning
+// one side never discards another side's in-flight decode. Re-staging the
+// same slot discards the older read for that slot only.
+const stageTokens: Record<'primary' | ProductViewSide, number> = { primary: 0, front: 0, back: 0, left: 0, right: 0 };
+
+function validateModelBytes(bytes: Uint8Array): string | null {
+  let parsed: { json: unknown };
+  try {
+    parsed = parseGlb(bytes);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  const blocking = validateSelfContained(parsed.json).filter((issue) => !issue.code.endsWith('-advisory'));
+  if (blocking.length > 0) return blocking.map((issue) => `${issue.code} at ${issue.path}`).join('; ');
+  return null;
+}
+
+async function stagePrimaryProductFile(file: File): Promise<void> {
+  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  alertBuilder();
+  const generation = ++productGeneration;
+  const slot = ++stageTokens.primary;
+  const isCurrent = (): boolean => generation === productGeneration && slot === stageTokens.primary;
+  productImporting = true;
+  updateControls();
+  productStatus.textContent = `Reading ${file.name}…`;
+  try {
+    if (looksRemoteFileName(file.name)) throw new Error('file name looks like a remote reference; choose a local .glb/.png/.jpg/.jpeg/.webp file');
+    const ext = extensionOfFileName(file.name);
+    if (ext === '.glb') {
+      if (file.size > PRESENTATION_MAX_MODEL_BYTES) throw new Error(`model exceeds ${PRESENTATION_MAX_MODEL_BYTES} bytes; rejected before reading`);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!isCurrent()) return;
+      if (bytes.length === 0 || bytes.length > PRESENTATION_MAX_MODEL_BYTES) throw new Error('model is empty or exceeds the 16 MB model bound');
+      const problem = validateModelBytes(bytes);
+      if (problem !== null) throw new Error(`invalid 3D model (${problem}); only the self-contained subset is accepted`);
+      pendingPrimaryModel = { bytes: bytes.slice(), fileName: file.name };
+      pendingPrimaryImage = null;
+      productStatus.textContent = `Staged 3D model ${file.name}. Add a product to create it from this single file.${pendingSummary()}`;
+    } else if (ext === '.png' || ext === '.jpg' || ext === '.jpeg' || ext === '.webp') {
+      if (file.size > MAX_PREVIEW_BYTES) throw new Error(`image exceeds ${MAX_PREVIEW_BYTES} bytes; rejected before reading`);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!isCurrent()) return;
+      const decoded = await decodeAndVerifyRaster(bytes, isCurrent);
+      if (!isCurrent()) return;
+      if (decoded === null) throw new Error('unsupported or invalid image; choose a PNG, JPEG or WebP file with verifiable dimensions');
+      pendingPrimaryImage = { bytes: bytes.slice(), mediaType: decoded.mediaType, extension: decoded.mediaType === 'image/jpeg' ? 'jpg' : decoded.mediaType === 'image/webp' ? 'webp' : 'png', widthPx: decoded.width, heightPx: decoded.height, fileName: file.name };
+      pendingPrimaryModel = null;
+      productStatus.textContent = `Staged flat image ${file.name}. Add a product to create it from this single file.${pendingSummary()}`;
+    } else {
+      throw new Error('unsupported file type; choose one .glb model or one .png/.jpg/.jpeg/.webp image');
+    }
+  } catch (error) {
+    if (generation === productGeneration) {
+      productStatus.textContent = `Could not stage ${file.name}: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
+      alertBuilder(`Could not stage ${file.name}. Previous products are unchanged.`);
+    }
+  } finally {
+    if (generation === productGeneration) { productImporting = false; updateControls(); }
+  }
+}
+
+async function stageProductViewFile(side: ProductViewSide, file: File): Promise<void> {
+  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  alertBuilder();
+  const generation = ++productGeneration;
+  const slot = ++stageTokens[side];
+  const isCurrent = (): boolean => generation === productGeneration && slot === stageTokens[side];
+  productImporting = true;
+  updateControls();
+  productStatus.textContent = `Reading ${side} view ${file.name}…`;
+  try {
+    if (looksRemoteFileName(file.name)) throw new Error('file name looks like a remote reference; choose a local PNG, JPEG or WebP image');
+    if (file.size > MAX_PREVIEW_BYTES) throw new Error(`image exceeds ${MAX_PREVIEW_BYTES} bytes; rejected before reading`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!isCurrent()) return;
+    const decoded = await decodeAndVerifyRaster(bytes, isCurrent);
+    if (!isCurrent()) return;
+    if (decoded === null) throw new Error('unsupported or invalid image; choose a PNG, JPEG or WebP file with verifiable dimensions');
+    pendingViews[side] = { bytes: bytes.slice(), mediaType: decoded.mediaType, extension: decoded.mediaType === 'image/jpeg' ? 'jpg' : decoded.mediaType === 'image/webp' ? 'webp' : 'png', widthPx: decoded.width, heightPx: decoded.height, fileName: file.name };
+    productStatus.textContent = `Assigned ${side} view ${file.name}. It attaches to the named side only when you add the product.${pendingSummary()}`;
+  } catch (error) {
+    if (generation === productGeneration) {
+      productStatus.textContent = `Could not assign ${side} view ${file.name}: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
+      alertBuilder(`Could not assign ${side} view ${file.name}. Previous products are unchanged.`);
+    }
+  } finally {
+    if (generation === productGeneration) { productImporting = false; updateControls(); }
+  }
+}
+
+
+async function addProductFromStaged(): Promise<void> {
+  if (source === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) {
+    if (source === null) {
+      productStatus.textContent = 'Create or open a project before adding a product.';
+      alertBuilder('Create or open a project before adding a product.');
+    }
+    return;
+  }
+  alertBuilder();
+  const generation = ++productGeneration;
+  productImporting = true;
+  updateControls();
+  try {
+    const stagedSides = (Object.keys(pendingViews) as ProductViewSide[]).filter((side) => pendingViews[side] !== null);
+    if (pendingPrimaryModel === null && pendingPrimaryImage === null && stagedSides.length === 0) {
+      productStatus.textContent = 'Choose one product file first: a single .glb model, a single flat image, or a single assigned side view suffices.';
+      alertBuilder('Choose one product file first. A single model, image, or assigned side view is enough.');
+      return;
+    }
+    const snapshot = source;
+    const wantedName = productName.value.trim();
+    productCounter += 1;
+    const fallbackFileName = pendingPrimaryModel?.fileName ?? pendingPrimaryImage?.fileName ?? (stagedSides.length === 1 ? pendingViews[stagedSides[0]!]!.fileName : 'product');
+    const candidateId = `provisional-product-${safeProductSegment(wantedName || fallbackFileName)}-${productCounter}-${newLocalId().slice(0, 8)}`;
+    const made = createProvisionalProduct({ id: candidateId, ...(wantedName ? { name: `${wantedName} — provisional uncalibrated` } : {}), kind: 'other' });
+    if (!made.ok) {
+      productStatus.textContent = `Could not add product: ${made.errors.map((error) => error.message).join('; ')}. Previous products are unchanged.`;
+      return;
+    }
+    const productId = made.product.id;
+    const variantId = made.product.variants[0]!.id;
+    const safe = safeProductSegment(productId);
+    const stagedModel = pendingPrimaryModel;
+    const stagedPrimary = pendingPrimaryImage;
+    const stagedViews = { ...pendingViews };
+    if (generation !== productGeneration) return;
+    const assets: Array<{ path: string; bytes: Uint8Array }> = [];
+    const views: Array<{ view: string; image: string; label?: string }> = [];
+    const models: Array<{ model: string; label?: string }> = [];
+    const primaryLabelBase = (wantedName ? `${wantedName} — provisional uncalibrated` : `Provisional uncalibrated product ${productId}`);
+    if (stagedModel) {
+      const modelPath = `presentation/${safe}/model.glb`;
+      assets.push({ path: modelPath, bytes: stagedModel.bytes.slice() });
+      models.push({ model: modelPath, label: `${primaryLabelBase} — 3D model (projection views are model projections, not garment unfoldings)` });
+    }
+    for (const side of PRODUCT_VIEW_SIDES) {
+      // Each staged image attaches to its assigned side only. A lone
+      // back/left/right image stays on that side; it is never duplicated
+      // into front. The primary flat image feeds the front slot only.
+      const staged = side === 'front' ? (stagedViews['front'] ?? stagedPrimary) : stagedViews[side];
+      if (!staged) continue;
+      const imagePath = `presentation/${safe}/${side}.${staged.extension}`;
+      assets.push({ path: imagePath, bytes: staged.bytes.slice() });
+      const typed = productViewLabel[side]!.value.trim();
+      views.push({ view: side, image: imagePath, label: typed !== '' ? typed : `${primaryLabelBase} — ${side} view (flat reference, not calibrated)` });
+    }
+    views.sort((a, b) => (a.view < b.view ? -1 : a.view > b.view ? 1 : 0));
+    if (views.length === 0 && models.length === 0) {
+      productStatus.textContent = 'Nothing staged to add: the staged files did not yield a view or model. Previous products are unchanged.';
+      return;
+    }
+    interface NewViewEntry { productId: string; variantId: string; view: string; image: string; label?: string; }
+    interface NewModelEntry { productId: string; variantId: string; model: string; label?: string; }
+    interface NewManifest { version: 2; views: NewViewEntry[]; models?: NewModelEntry[]; }
+    const manifestValue: NewManifest = models.length > 0
+      ? { version: 2, views: views.map((entry) => ({ productId, variantId, view: entry.view, image: entry.image, ...(entry.label !== undefined ? { label: entry.label } : {}) })), models: models.map((entry) => ({ productId, variantId, model: entry.model, ...(entry.label !== undefined ? { label: entry.label } : {}) })) }
+      : { version: 2, views: views.map((entry) => ({ productId, variantId, view: entry.view, image: entry.image, ...(entry.label !== undefined ? { label: entry.label } : {}) })) };
+    const existingManifestBytes = snapshot.assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH)?.bytes;
+    // Merge with history through the validated parser (never raw JSON): keep
+    // v1 references verbatim alongside the new v2 entries, drop invalid
+    // history with a visible note, and enforce the 32-entry presentation
+    // budget BEFORE committing source state.
+    type MergedView = { productId: string; variantId?: string; view: string; image: string; label?: string };
+    type MergedModel = { productId: string; variantId?: string; model: string; label?: string };
+    type MergedReference = { productId: string; variantId?: string; image: string; label?: string };
+    let mergedManifest: { version: 2; views: MergedView[]; models?: MergedModel[]; references?: MergedReference[] } = { version: 2, views: [...manifestValue.views], ...(manifestValue.models ? { models: [...manifestValue.models] } : {}) };
+    let historyNote = '';
+    if (existingManifestBytes) {
+      const history = parsePresentationManifest(existingManifestBytes);
+      if (history === null) {
+        historyNote = ' The prior presentation manifest was invalid and was replaced.';
+      } else if (history.version === 1) {
+        mergedManifest = { version: 2, views: [...manifestValue.views], ...(manifestValue.models ? { models: [...manifestValue.models] } : {}), references: [...history.references] };
+      } else {
+        mergedManifest = {
+          version: 2,
+          views: [...history.views.map((entry) => ({ ...entry })), ...manifestValue.views],
+          ...(((history.models?.length ?? 0) > 0 || manifestValue.models) ? { models: [...(history.models ?? []).map((entry) => ({ ...entry })), ...(manifestValue.models ?? [])] } : {}),
+          ...(((history.references?.length ?? 0) > 0) ? { references: [...(history.references ?? []).map((entry) => ({ ...entry }))] } : {}),
+        };
+      }
+    }
+    const mergedCount = mergedManifest.views.length + (mergedManifest.models?.length ?? 0) + (mergedManifest.references?.length ?? 0);
+    if (mergedCount > 32) {
+      productStatus.textContent = `Could not add product: the presentation manifest would hold ${mergedCount} entries, over the 32-entry budget. Remove a product or issue first; previous products are unchanged.`;
+      alertBuilder('The presentation budget (32 entries) is full. Previous products are unchanged.');
+      return;
+    }
+    const manifestBytes = new TextEncoder().encode(JSON.stringify(mergedManifest));
+    const priorAdditional = snapshot.assets.filter((asset) => asset.kind === 'additional' && asset.path !== PRESENTATION_MANIFEST_PATH);
+    const combinedAdditional = [...priorAdditional.map((asset) => ({ path: asset.path, bytes: asset.bytes })), ...assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })), { path: PRESENTATION_MANIFEST_PATH, bytes: manifestBytes }];
+    const nextProject: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
+    nextProject.products.push(JSON.parse(JSON.stringify(made.product)) as ProjectDocument['products'][number]);
+    nextProject.configurations.push({ id: `builder-config-${productId}`, productId, variantId, placements: [] });
+    assertProjectEditorLimits(nextProject);
+    if (generation !== productGeneration) return;
+    const packageBytes = await createProjectPackage(
+      { project: nextProject, assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map((asset) => ({ path: asset.path, bytes: asset.bytes })), additionalAssets: combinedAdditional },
+      { sha256: hasher.sha256Bytes },
+    );
+    if (generation !== productGeneration) return;
+    const reparsed = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+    if (generation !== productGeneration) return;
+    const summary = summarizeSourceProject(reparsed.project);
+    source = { fileName: snapshot.fileName, project: reparsed.project, assets: reparsed.assets, summary };
+    addedPresentations.push({ views, models, assets: assets.filter((asset) => asset.path !== PRESENTATION_MANIFEST_PATH) });
+    pendingPrimaryModel = null;
+    pendingPrimaryImage = null;
+    pendingViews = { front: null, back: null, left: null, right: null };
+    for (const side of PRODUCT_VIEW_SIDES) productViewLabel[side]!.value = '';
+    renderSelectionLists(summary, true);
+    // New rows postdate the preserved snapshot, so they would arrive
+    // unchecked; keep the added product, option and setup selected.
+    for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (box.value === productId || box.getAttribute('data-product') === productId) box.checked = true;
+    }
+    for (const box of configurationList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (box.value === `builder-config-${productId}`) box.checked = true;
+    }
+    refreshSelectionValidation();
+    if (generation !== productGeneration) return;
+    productStatus.textContent = `Added preview-only product ${productId} (${views.length} view${views.length === 1 ? '' : 's'}${models.length ? ', 3D model' : ''}). It carries no measurements and cannot host placements; missing sides are absent, never invented.${historyNote}`;
+  } catch (error) {
+    if (generation === productGeneration) {
+      productStatus.textContent = `Could not add product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
+      alertBuilder('The product could not be added. Previous products are unchanged.');
+    }
+  } finally {
+    if (generation === productGeneration) { productImporting = false; updateControls(); }
+  }
+}
+
+function onProductFileChange(): void {
+  const file = productFile.files?.[0];
+  if (file) void stagePrimaryProductFile(file);
+  productFile.value = '';
+}
+
+function onProductViewFileChange(side: ProductViewSide): void {
+  const file = productViewFile[side]!.files?.[0];
+  if (file) void stageProductViewFile(side, file);
+  productViewFile[side]!.value = '';
+}
 sourceChoose.addEventListener('click', () => sourceFile.click());
 sourceFile.addEventListener('change', onSourceFileChange);
 startCreate.addEventListener('click', () => void createFromCatalogue());
 logoAdd.addEventListener('click', () => logoFile.click());
 logoFile.addEventListener('change', onLogoFileChange);
+productAdd.addEventListener('click', () => void addProductFromStaged());
+productFile.addEventListener('change', onProductFileChange);
+for (const side of PRODUCT_VIEW_SIDES) {
+  productViewButton[side]!.addEventListener('click', () => productViewFile[side]!.click());
+  productViewFile[side]!.addEventListener('change', () => onProductViewFileChange(side));
+}
 newSourceButton.addEventListener('click', () => {
   showStep('prepare', 'open');
 });

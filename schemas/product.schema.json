@@ -25,14 +25,15 @@
     },
     "regions": {
       "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/region" }
+      "minItems": 0,
+      "items": { "$ref": "#/$defs/region" },
+      "description": "Logo areas. Empty ONLY as the all-empty preview-only shape (regions [], calibrations [], every variant regionIds []); partial emptiness is rejected in code (see validate.ts)."
     },
     "calibrations": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "items": { "$ref": "#/$defs/calibration" },
-      "description": "Calibration definitions. Ids must be unique within the product; every region.calibrationRef must resolve to one of these. A customer return introducing an unknown calibration id/version must be rejected as tamper."
+      "description": "Calibration definitions. Empty ONLY as the all-empty preview-only shape; partial emptiness is rejected in code. Ids must be unique within the product; every region.calibrationRef must resolve to one of these. A customer return introducing an unknown calibration id/version must be rejected as tamper."
     }
   },
   "$defs": {
@@ -45,9 +46,9 @@
         "name": { "type": "string", "minLength": 1 },
         "regionIds": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "items": { "type": "string", "minLength": 1 },
-          "description": "Subset of the product region ids this variant supports (per-variant applicability)."
+          "description": "Subset of the product region ids this variant supports (per-variant applicability). Empty ONLY as the all-empty preview-only shape; partial emptiness is rejected in code."
         },
         "placementOverrides": {
           "type": "array",

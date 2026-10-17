@@ -34,9 +34,12 @@ import {
   parsePresentationManifest,
   PRESENTATION_MANIFEST_PATH,
   PRESENTATION_MAX_IMAGE_BYTES,
+  selectPresentationModel,
   selectPresentationReference,
+  selectPresentationViews,
 } from './presentation-assets.js';
 import type { PresentationManifest } from './presentation-assets.js';
+import type { ViewerSide } from '../../viewer/model-viewer.js';
 
 interface EditorPackage {
   project: ProjectDocument;
@@ -388,6 +391,18 @@ async function updateReferenceForSelection(): Promise<void> {
 
 interface LogoPresentationApi {
   getReferenceState: () => { imagePath: string | null; view: 'diagram' | 'reference'; warning: string | null };
+  getViewsState: () => {
+    available: boolean;
+    mode: ViewsMode;
+    side: ProductViewSide;
+    sides: ProductViewSide[];
+    modelPath: string | null;
+    caption: string;
+    warning: string | null;
+    failed: boolean;
+    flatFallback: boolean;
+    surface: 'none' | 'raster' | 'model' | 'proxy' | 'failed';
+  };
 }
 declare global {
   interface Window {
@@ -403,8 +418,401 @@ window.__logoPresentation = {
       warning: referenceNotice || selection.warning,
     };
   },
+  getViewsState: () => ({
+    available: showcaseAvailable,
+    mode: showcaseMode,
+    side: showcaseSide,
+    sides: showcaseViews.map((entry) => entry.view).filter((view): view is ProductViewSide => view !== null),
+    modelPath: showcaseModelPath,
+    caption: (document.querySelector<HTMLElement>('[data-customer-hook="views-caption"]')?.textContent ?? describeShowcaseCaption()),
+    warning: showcaseWarning || null,
+    failed: showcaseModelFailed,
+    flatFallback: showcaseMode === 'flat' && pickShowcaseView() === null && showcaseModelPath !== null,
+    surface: showcaseSurface,
+  }),
 };
 
+// ---- Product views showcase (flat / 2D / 3D, per-side) ----
+// Independent of the measured placement diagram: the showcase never takes
+// a mapped logo overlay, never invents a missing side, and never mutates
+// the project. Only package-present views are offered.
+type ViewsMode = 'flat' | '2d' | '3d';
+type ProductViewSide = ViewerSide;
+interface ShowcaseView { view: ProductViewSide | null; imagePath: string; label: string | null }
+const VIEWS_SIDES: ProductViewSide[] = ['front', 'back', 'left', 'right'];
+let showcaseViews: ShowcaseView[] = [];
+let showcaseModelPath: string | null = null;
+let showcaseModelLabel: string | null = null;
+let showcaseAvailable = false;
+let showcaseMode: ViewsMode = 'flat';
+let showcaseSide: ProductViewSide = 'front';
+let showcaseFlatPath: string | null = null;
+let showcaseFlatBytes: Uint8Array | undefined;
+let showcaseFlatUrl: string | null = null;
+let showcaseGeneration = 0;
+let showcaseWarning = '';
+let showcaseModelFailed = false;
+// Last model handed to the viewer: skip redundant showModel on unchanged bytes.
+let showcaseShownModelPath: string | null = null;
+let showcaseShownModelBytes: Uint8Array | null = null;
+// Last successfully painted surface (viewer-ready status for tests/captions).
+let showcaseSurface: 'none' | 'raster' | 'model' | 'proxy' | 'failed' = 'none';
+// Package+configuration scope of the last side snap: the side snaps to the
+// first present photo only when a new package/configuration opens, then
+// free-runs (never reset from photo lists).
+let showcaseScope = '';
+interface ShowcaseViewer {
+  setViewSide: (side: ProductViewSide) => void;
+  setOrbitEnabled: (enabled: boolean) => void;
+  showModel: (bytes: Uint8Array) => Promise<{ kind: string; message?: string }>;
+  showImageProxy: (bytes: Uint8Array, label: string) => Promise<{ kind: string; message?: string }>;
+  clear: () => void;
+  refreshSize: () => void;
+}
+let showcaseViewer: ShowcaseViewer | null = null;
+let showcaseViewerPromise: Promise<ShowcaseViewer | null> | null = null;
+
+function revokeShowcaseFlatUrl(): void {
+  if (showcaseFlatUrl !== null) {
+    try { URL.revokeObjectURL(showcaseFlatUrl); } catch { /* already gone */ }
+    showcaseFlatUrl = null;
+  }
+}
+
+function readShowcaseAssets(): void {
+  const project = loaded?.project;
+  const configuration = project ? selectedConfiguration(project) : undefined;
+  showcaseViews = [];
+  showcaseModelPath = null;
+  showcaseModelLabel = null;
+  showcaseWarning = '';
+  showcaseAvailable = false;
+  if (!loaded || !project || !configuration) return;
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  const viewsSelection = selectPresentationViews(
+    loaded.presentationManifest,
+    loaded.presentationManifestPresent,
+    configuration.productId,
+    configuration.variantId,
+    lookup,
+  );
+  showcaseViews = viewsSelection.views.map((entry) => ({
+    view: entry.view,
+    imagePath: entry.imagePath,
+    label: entry.label,
+  }));
+  const modelSelection = selectPresentationModel(
+    loaded.presentationManifest,
+    loaded.presentationManifestPresent,
+    configuration.productId,
+    configuration.variantId,
+    lookup,
+  );
+  showcaseModelPath = modelSelection.modelPath;
+  showcaseModelLabel = modelSelection.label;
+  showcaseWarning = modelSelection.warning ?? viewsSelection.warning ?? '';
+  showcaseAvailable = showcaseViews.length > 0 || showcaseModelPath !== null;
+  // Side snaps to the first present photo only when a new package or
+  // configuration opens; afterwards it free-runs (never reset from photo
+  // lists). The camera drives directly from showcaseSide; photos gate only
+  // the raster itself. Flat stays enabled with a model (labelled
+  // model-projection fallback) and all four side buttons are offered.
+  const scope = `${loaded.project.projectId} ${loaded.project.revision} ${configuration.id}`;
+  if (scope !== showcaseScope) {
+    showcaseScope = scope;
+    const firstSided = showcaseViews.find((entry) => entry.view !== null);
+    if (firstSided?.view) showcaseSide = firstSided.view;
+  }
+}
+
+function pickShowcaseView(): ShowcaseView | null {
+  if (showcaseViews.length === 0) return null;
+  const sided = showcaseViews.find((entry) => entry.view === showcaseSide);
+  // Never invent a missing photo: an absent side has no raster.
+  return sided ?? null;
+}
+
+function describeShowcaseCaption(): string {
+  if (!showcaseAvailable) return showcaseWarning || 'No product views supplied in this package.';
+  if (showcaseModelFailed) return 'Preview unavailable — model could not be shown';
+  const picked = pickShowcaseView();
+  const sideNote = ` · ${picked?.view ?? showcaseSide} view`;
+  if (showcaseMode === 'flat') {
+    // Model-only flat is an explicitly labelled projection, never an invented photo.
+    if (picked) return `Flat product view${sideNote} · reference only, not to scale`;
+    return `Flat model projection${sideNote} · reference only, not to scale`;
+  }
+  if (showcaseMode === '2d') {
+    if (showcaseModelPath) return `Model projection - not a garment unfolding${sideNote}`;
+    return `Planar view - not a 3D reconstruction${sideNote}`;
+  }
+  if (showcaseModelPath) return `Interactive 3D model${sideNote} · drag to orbit; placement decisions use the measured diagram`;
+  return `Proxy - not reconstructed geometry${sideNote}`;
+}
+
+function paintShowcase(): void {
+  const section = document.querySelector<HTMLElement>('[data-customer-hook="views-showcase"]');
+  if (!section) return;
+  section.hidden = loaded?.project === undefined || loaded === null || !showcaseAvailable;
+  if (section.hidden) return;
+  const uncalibrated = document.querySelector<HTMLElement>('[data-customer-hook="views-uncalibrated"]');
+  if (uncalibrated && loaded?.project) {
+    const configuration = selectedConfiguration(loaded.project);
+    const product = loaded.project.products.find((item) => item.id === configuration?.productId);
+    const haystack = `${product?.id ?? ''} ${product?.name ?? ''}`.toLowerCase();
+    uncalibrated.hidden = !(haystack.includes('provisional') || haystack.includes('uncalibrated'));
+  }
+  const modelOnly = showcaseViews.length === 0 && showcaseModelPath !== null;
+  const modeHooks: Record<ViewsMode, string> = { flat: 'views-mode-flat', '2d': 'views-mode-2d', '3d': 'views-mode-3d' };
+  (Object.keys(modeHooks) as ViewsMode[]).forEach((mode) => {
+    const button = document.querySelector<HTMLButtonElement>(`[data-customer-hook="${modeHooks[mode]}"]`);
+    if (!button) return;
+    button.setAttribute('aria-pressed', showcaseMode === mode ? 'true' : 'false');
+    // Flat stays enabled with a model: model-only flat renders an explicitly
+    // labelled projection, never an invented photo.
+    if (mode === 'flat') button.disabled = showcaseViews.length === 0 && showcaseModelPath === null;
+    if (mode === '2d') button.disabled = showcaseViews.length === 0 && showcaseModelPath === null;
+    if (mode === '3d') button.disabled = showcaseViews.length === 0 && showcaseModelPath === null;
+  });
+  const present: Record<ProductViewSide, boolean> = { front: false, back: false, left: false, right: false };
+  for (const entry of showcaseViews) {
+    if (entry.view !== null) present[entry.view] = true;
+  }
+  const hasUnscoped = showcaseViews.some((entry) => entry.view === null);
+  const missing = VIEWS_SIDES.filter((side) => !present[side] && !hasUnscoped);
+  for (const side of VIEWS_SIDES) {
+    const button = document.querySelector<HTMLButtonElement>(`[data-customer-hook="views-side-${side}"]`);
+    if (!button) continue;
+    // Sides free-run with a model: all four drive the camera directly.
+    // Photos gate only the flat raster itself.
+    const offered = present[side] || (hasUnscoped && showcaseViews.length > 0) || showcaseModelPath !== null;
+    button.setAttribute('aria-pressed', showcaseSide === side ? 'true' : 'false');
+    button.disabled = !offered;
+    button.hidden = !offered && showcaseViews.length > 0 && showcaseModelPath === null;
+  }
+  const missingNote = document.querySelector<HTMLElement>('[data-customer-hook="views-missing"]');
+  if (missingNote) {
+    if (showcaseViews.length > 0 && missing.length > 0 && !hasUnscoped) {
+      missingNote.hidden = false;
+      missingNote.textContent = `${missing.join(', ')} not supplied in this package — no photo invented.`;
+    } else if (modelOnly) {
+      missingNote.hidden = false;
+      missingNote.textContent = 'No product photos in this package — flat shows a labelled model projection.';
+    } else {
+      missingNote.hidden = true;
+      missingNote.textContent = '';
+    }
+  }
+  const failureNote = showcaseModelFailed
+    ? (showcaseFlatUrl ? 'Preview unavailable — model could not be shown · showing flat raster fallback' : 'Preview unavailable — model could not be shown')
+    : '';
+  const warningText = showcaseWarning || failureNote;
+  const warning = document.querySelector<HTMLElement>('[data-customer-hook="views-warning"]');
+  if (warning) {
+    if (warningText) {
+      warning.hidden = false;
+      warning.textContent = warningText;
+    } else {
+      warning.hidden = true;
+      warning.textContent = '';
+    }
+  }
+  const caption = document.querySelector<HTMLElement>('[data-customer-hook="views-caption"]');
+  if (caption) caption.textContent = describeShowcaseCaption();
+  const flatImg = document.querySelector<HTMLImageElement>('[data-customer-hook="views-flat-img"]');
+  const flatWrap = document.querySelector<HTMLElement>('[data-customer-hook="views-flat-wrap"]');
+  const modelWrap = document.querySelector<HTMLElement>('[data-customer-hook="views-model-wrap"]');
+  const flatRasterVisible = showcaseMode === 'flat' && pickShowcaseView() !== null && showcaseFlatUrl !== null;
+  const flatFallbackVisible = showcaseMode === 'flat' && pickShowcaseView() === null && showcaseModelPath !== null;
+  const flat2dVisible = showcaseMode === '2d' && showcaseModelPath === null && showcaseFlatUrl !== null;
+  const rasterVisible = flatRasterVisible || flat2dVisible;
+  const fallbackRaster = showcaseModelFailed && showcaseFlatUrl !== null && pickShowcaseView() !== null;
+  if (flatImg) {
+    if ((rasterVisible || fallbackRaster) && showcaseFlatUrl) {
+      flatImg.src = showcaseFlatUrl;
+      flatImg.alt = pickShowcaseView()?.label ?? 'Product view photo';
+      flatImg.hidden = false;
+    } else {
+      flatImg.hidden = true;
+      flatImg.removeAttribute('src');
+    }
+  }
+  const emptyState = document.querySelector<HTMLElement>('[data-customer-hook="views-empty"]');
+  const emptyVisible = (showcaseMode === 'flat' && !rasterVisible && !flatFallbackVisible) || ((showcaseMode === '2d' || showcaseMode === '3d') && showcaseModelFailed && !fallbackRaster);
+  if (flatWrap) flatWrap.hidden = !(rasterVisible || fallbackRaster);
+  if (modelWrap) modelWrap.hidden = !((showcaseMode === '2d' || showcaseMode === '3d' || flatFallbackVisible) && !emptyVisible);
+  if (emptyState) {
+    emptyState.hidden = !emptyVisible;
+    if (emptyVisible) emptyState.textContent = showcaseModelFailed ? 'Preview unavailable — model could not be shown' : 'No product view available for this side — no photo invented.';
+  }
+  // NOTE: no refreshSize() here. paintShowcase runs on every state change
+  // including side switches; resizing here would refit the camera while the
+  // requested side is being applied in refreshShowcase. Sizing happens only
+  // after the side is set in refreshShowcase.
+}
+
+async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
+  if (showcaseViewer) return showcaseViewer;
+  if (!showcaseViewerPromise) {
+    showcaseViewerPromise = import('../../viewer/model-viewer.js').then((module) => {
+      const canvasElement = document.querySelector<HTMLCanvasElement>('[data-customer-hook="views-model-canvas"]');
+      const wrap = document.querySelector<HTMLElement>('[data-customer-hook="views-model-wrap"]');
+      if (!canvasElement || !wrap) return null;
+      const attached = module.ModelViewer.attach({ canvas: canvasElement, container: wrap });
+      const viewer = attached.viewer;
+      if (!viewer) return null;
+      showcaseViewer = {
+        setViewSide: (side) => viewer.setViewSide(side),
+        setOrbitEnabled: (enabled) => viewer.setOrbitEnabled(enabled),
+        showModel: (bytes) => viewer.showModel(bytes),
+        showImageProxy: (bytes, label) => viewer.showImageProxy(bytes, label),
+        clear: () => viewer.clear(),
+        refreshSize: () => viewer.refreshSize(),
+      };
+      return showcaseViewer;
+    }).catch(() => null);
+  }
+  return showcaseViewerPromise;
+}
+
+async function refreshShowcase(): Promise<void> {
+  const token = ++showcaseGeneration;
+  readShowcaseAssets();
+  // Capture currency AFTER the scope snap inside readShowcaseAssets: a
+  // pre-snap side would mark the first decode stale on non-front packages.
+  const modeAtStart = showcaseMode;
+  const sideAtStart = showcaseSide;
+  const snapshot = loaded;
+  if (!snapshot?.project || !showcaseAvailable) {
+    showcaseFlatPath = null;
+    showcaseFlatBytes = undefined;
+    showcaseModelFailed = false;
+    showcaseShownModelPath = null;
+    showcaseShownModelBytes = null;
+    showcaseSurface = 'none';
+    revokeShowcaseFlatUrl();
+    try { showcaseViewer?.clear(); } catch { /* viewer teardown is best-effort */ }
+    paintShowcase();
+    return;
+  }
+  const live = (): boolean => token === showcaseGeneration && loaded === snapshot && showcaseMode === modeAtStart && showcaseSide === sideAtStart;
+  const picked = pickShowcaseView();
+  const flatPath = picked?.imagePath ?? null;
+  if (flatPath !== showcaseFlatPath) {
+    showcaseFlatPath = flatPath;
+    showcaseFlatBytes = undefined;
+    revokeShowcaseFlatUrl();
+  }
+  paintShowcase();
+  if (picked?.imagePath && loaded) {
+    const bytes = loaded.assets.find((entry) => entry.path === picked.imagePath)?.bytes;
+    if (bytes && bytes !== showcaseFlatBytes) {
+      const extension = picked.imagePath.slice(picked.imagePath.lastIndexOf('.'));
+      const currentPath = picked.imagePath;
+      const decoded = await decodePresentationRaster(bytes, extension);
+      // Stale decode guard: install only when generation, package identity,
+      // mode/side, and raster path are all still current.
+      if (token !== showcaseGeneration || loaded !== snapshot || showcaseMode !== modeAtStart || showcaseSide !== sideAtStart || showcaseFlatPath !== currentPath) {
+        if (decoded) URL.revokeObjectURL(decoded.url);
+        return;
+      }
+      // Cache only a completed decode. A mode switch can invalidate an
+      // in-flight decode without changing its path or bytes; the next mode
+      // must still be able to decode that same image.
+      showcaseFlatBytes = decoded ? bytes : undefined;
+      revokeShowcaseFlatUrl();
+      showcaseFlatUrl = decoded?.url ?? null;
+      if (decoded) showcaseSurface = 'raster';
+      paintShowcase();
+    }
+  }
+  const flatFallbackSurface = showcaseMode === 'flat' && picked === null && showcaseModelPath !== null;
+  const needsSurface = showcaseMode === '2d' || showcaseMode === '3d' || flatFallbackSurface;
+  if (!needsSurface) return;
+  if (showcaseModelPath && loaded) {
+    const bytes = loaded.assets.find((entry) => entry.path === showcaseModelPath)?.bytes;
+    if (!bytes) {
+      showcaseModelFailed = true;
+      showcaseShownModelPath = null;
+      showcaseShownModelBytes = null;
+      showcaseSurface = 'failed';
+      paintShowcase();
+      return;
+    }
+    const viewer = await loadShowcaseViewer();
+    if (viewer === null) {
+      // WebGL unavailable or attach failed: surface, never blank success.
+      if (token !== showcaseGeneration || loaded !== snapshot) return;
+      showcaseModelFailed = true;
+      showcaseSurface = 'failed';
+      paintShowcase();
+      return;
+    }
+    if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
+    // Package buffers are immutable. Identity distinguishes replacement files
+    // even when their path, length and container header bytes are identical.
+    const unchanged = showcaseShownModelPath === showcaseModelPath && showcaseShownModelBytes === bytes && showcaseSurface === 'model';
+    if (!unchanged) {
+      const status = await viewer.showModel(bytes);
+      if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
+      showcaseModelFailed = status.kind !== 'ready';
+      if (status.kind === 'ready') {
+        showcaseShownModelPath = showcaseModelPath;
+        showcaseShownModelBytes = bytes;
+        showcaseSurface = 'model';
+      } else {
+        showcaseShownModelPath = null;
+        showcaseShownModelBytes = null;
+        showcaseSurface = 'failed';
+        if (status.kind === 'parse-failed' && typeof status.message === 'string') showcaseWarning = status.message;
+      }
+    } else if (showcaseModelFailed) {
+      showcaseModelFailed = false;
+    }
+    if (!showcaseModelFailed) showcaseSurface = 'model';
+    paintShowcase();
+    if (!showcaseModelFailed) {
+      // Order matters: set the chosen side FIRST, then resize. refreshSize
+      // preserves the exact current direction, so sizing after the side
+      // keeps the requested view instead of resetting it.
+      viewer.setViewSide(showcaseSide);
+      viewer.setOrbitEnabled(showcaseMode === '3d');
+      viewer.refreshSize();
+    }
+    return;
+  }
+  if (showcaseMode === '3d' && picked?.imagePath && loaded) {
+    const bytes = loaded.assets.find((entry) => entry.path === picked.imagePath)?.bytes;
+    if (!bytes) return;
+    const proxyViewer = await loadShowcaseViewer();
+    if (proxyViewer === null || token !== showcaseGeneration || loaded !== snapshot || !live()) return;
+    showcaseShownModelPath = null;
+    showcaseShownModelBytes = null;
+    const status = await proxyViewer.showImageProxy(bytes, picked.label ?? 'Product view');
+    if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
+    showcaseModelFailed = status.kind !== 'ready';
+    showcaseSurface = showcaseModelFailed ? 'failed' : 'proxy';
+    paintShowcase();
+    if (!showcaseModelFailed) proxyViewer.refreshSize();
+  }
+}
+
+function chooseShowcaseMode(mode: ViewsMode): void {
+  if (showcaseMode === mode) return;
+  cancelDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
+  showcaseMode = mode;
+  showcaseModelFailed = false;
+  paintShowcase();
+  void refreshShowcase();
+}
+
+function chooseShowcaseSide(side: ProductViewSide): void {
+  cancelDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
+  showcaseSide = side;
+  paintShowcase();
+  void refreshShowcase();
+}
 // Aspect-ratio lock for the Size step. The lock only mirrors width into
 // height in the form; independent width/height stay a domain capability and
 // unlocking (or typing a height) always sticks.
@@ -888,6 +1296,7 @@ function renderAll(): void {
     renderLogoThumb();
     updateUnsavedWarning();
     void updateReferenceForSelection();
+    void refreshShowcase();
     updateButtons();
     return;
   }
@@ -907,6 +1316,7 @@ function renderAll(): void {
   renderLogoThumb();
   updateUnsavedWarning();
   void updateReferenceForSelection();
+  void refreshShowcase();
   updateConfirmationState();
   updateButtons();
 }
@@ -1669,6 +2079,13 @@ viewDiagramButton?.addEventListener('click', () => {
   referenceView = 'diagram';
   renderReferenceView();
 });
+for (const mode of ['flat', '2d', '3d'] as const) {
+  document.querySelector<HTMLButtonElement>(`[data-customer-hook="views-mode-${mode}"]`)?.addEventListener('click', () => chooseShowcaseMode(mode));
+}
+for (const side of VIEWS_SIDES) {
+  document.querySelector<HTMLButtonElement>(`[data-customer-hook="views-side-${side}"]`)?.addEventListener('click', () => chooseShowcaseSide(side));
+}
+
 
 canvas.addEventListener('pointermove', moveDrag);
 canvas.addEventListener('pointerup', (event) => finishDrag(event, true));

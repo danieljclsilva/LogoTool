@@ -12,8 +12,10 @@
  *   resolving the actual logo assets (not just an id). Product/logo
  *   snapshots are embedded so frames, calibrations and artwork resolve
  *   without external lookups. All output derives from the same validated
- *   project. Building a candidate never requires approval — the candidate is
- *   the thing under review — and this export never produces production-ready
+ *   project. Preview-only configurations (products with no regions and no
+ *   calibrations) always export with zero placements; a placement somehow
+ *   referencing them throws rather than emitting fictitious frame/calibration
+ *   data. The candidate is the thing under review — and this export never produces production-ready
  *   output: only `"candidate-pending-review"` is supported.
  * - `serializeExport(candidate)`: canonical JSON text; byte-stable across
  *   runs for equal input.
@@ -26,7 +28,6 @@
  *   production readiness.
  * - Customer confirmation alone never counts as internal approval.
  *
- * Pure apart from the injected hasher; no DOM / React / Three.js / Node APIs.
  */
 
 import { canonicalize } from "./canonical.js";
@@ -67,6 +68,23 @@ export function buildCandidateExport(
       `unsupported export status "${requested}": only "candidate-pending-review" can be exported; ` +
         `internal workflow approval is a separate review state (see hasCurrentInternalApproval)`,
     );
+  }
+  // Preview-only guard BEFORE structural validation so the specific refusal
+  // (never fictitious frames) stays reachable and tested: validation rejects
+  // such placements too, but with a generic invalid-content wrapper.
+  const previewProducts = new Map(project.products.map((entry) => [entry.id, entry]));
+  for (const configuration of project.configurations) {
+    const productEntry = previewProducts.get(configuration.productId);
+    if (
+      productEntry !== undefined &&
+      productEntry.regions.length === 0 &&
+      productEntry.calibrations.length === 0 &&
+      configuration.placements.length > 0
+    ) {
+      throw new Error(
+        `candidate export rejected placement on preview-only product "${productEntry.id}": preview-only products have no prepared regions, frames, or calibrations to export (refusing to emit fictitious measurement data)`,
+      );
+    }
   }
   const structural = validateProject(project);
   if (!structural.ok) {

@@ -75,6 +75,9 @@ const FAR_FACTOR = 100;
  *   viewer.setWireframe(true);
  *   viewer.dispose();
  */
+/** Product side presets for multiview showcase framing. */
+export type ViewerSide = 'front' | 'back' | 'left' | 'right';
+
 export class ModelViewer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
@@ -105,7 +108,10 @@ export class ModelViewer {
     background: number,
   ) {
     this.container = container;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // preserveDrawingBuffer lets tests and acceptance scripts read back
+    // rendered pixels for visual proof (no second GL context needed). The
+    // buffer is still presented every frame; cost is one retained frame.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(background);
@@ -216,6 +222,17 @@ export class ModelViewer {
     for (const child of this.wrapper.children) {
       if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) this.applyWireframe(child, this.wireframe);
     }
+    // A parsed-but-empty (or single-point-degenerate) scene paints a blank
+    // canvas: surface it as a failure so the embedding UI never shows blank
+    // success. Flat planes and lines keep a nonzero diagonal and still pass.
+    const extents = this.modelBBox().getSize(new THREE.Vector3());
+    if (extents.length() <= 0) {
+      this.clearModel();
+      return this.setStatus({
+        kind: 'parse-failed',
+        message: 'Could not parse GLB bytes: scene contains no renderable geometry',
+      });
+    }
     this.fitView();
     return this.setStatus({ kind: 'ready' });
   }
@@ -253,6 +270,128 @@ export class ModelViewer {
   /** Restore the default camera framing for the current model. */
   resetView(): void {
     this.fitView();
+  }
+
+  /**
+   * Move the camera to an axis-aligned side preset (front +z, back -z,
+   * left -x, right +x) at the current target distance, looking at the
+   * origin. Wrapper/camera only — the parsed subtree is never mutated.
+   * Invalid input is ignored. Never throws.
+   */
+  setViewSide(side: ViewerSide): void {
+    try {
+      if (this.disposed) return;
+      if (side !== 'front' && side !== 'back' && side !== 'left' && side !== 'right') return;
+      const distance = this.camera.position.distanceTo(this.controls.target);
+      if (!Number.isFinite(distance) || distance <= 0) return;
+      const direction = side === 'front'
+        ? new THREE.Vector3(0, 0, 1)
+        : side === 'back'
+          ? new THREE.Vector3(0, 0, -1)
+          : side === 'left'
+            ? new THREE.Vector3(-1, 0, 0)
+            : new THREE.Vector3(1, 0, 0);
+      this.camera.position.copy(direction.multiplyScalar(distance));
+      this.camera.near = Math.max(distance * NEAR_FACTOR, 0.001);
+      this.camera.far = distance * FAR_FACTOR;
+      this.camera.updateProjectionMatrix();
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    } catch {
+      return;
+    }
+  }
+
+  /**
+   * Enable or disable orbit interaction without touching scene content.
+   * Used to lock the 2D model projection while keeping 3D orbitable.
+   * Never throws.
+   */
+  setOrbitEnabled(enabled: boolean): void {
+    try {
+      if (!this.disposed) this.controls.enabled = enabled === true;
+    } catch {
+      return;
+    }
+  }
+
+  /**
+   * Display a validated raster image as an orbitable textured-plane proxy.
+   * The plane is sized to the image aspect and centered at the origin.
+   * Previous content (model or proxy) is disposed via clearModel, exactly
+   * like showModel; the embedding UI must label this
+   * `Proxy - not reconstructed geometry`. Generation-guarded; failure
+   * yields a parse-failed status, never a throw.
+   */
+  async showImageProxy(bytes: Uint8Array, label: string): Promise<ViewerStatus> {
+    if (this.disposed) return this.status;
+    const generation = ++this.generation;
+    // Exact-length owned copy: the blob below must not retain the caller's
+    // buffer, mirroring the showModel copy pattern.
+    const owned = new Uint8Array(bytes.length);
+    owned.set(bytes);
+    // The human label stays with the embedding UI caption; kept as a
+    // parameter for API symmetry with captioned views.
+    void label;
+    this.setStatus({ kind: 'loading' });
+    let bitmap: ImageBitmap | null = null;
+    try {
+      if (owned.length === 0) throw new Error('empty image bytes');
+      const blob = new Blob([owned as BlobPart]);
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const response = await fetch(objectUrl);
+        if (!response.ok) throw new Error(`proxy fetch failed with status ${response.status}`);
+        bitmap = await createImageBitmap(await response.blob());
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+      if (generation !== this.generation || this.disposed) {
+        if (bitmap !== null) bitmap.close();
+        return this.status;
+      }
+      const width = bitmap.width;
+      const height = bitmap.height;
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        throw new Error('decoded image has no usable dimensions');
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (context === null) throw new Error('2d canvas context unavailable');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      bitmap = null;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 4;
+      const aspect = width / height;
+      const planeWidth = aspect >= 1 ? 2 : 2 * aspect;
+      const planeHeight = aspect >= 1 ? 2 / aspect : 2;
+      const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      this.clearModel();
+      if (generation !== this.generation || this.disposed) {
+        geometry.dispose();
+        texture.dispose();
+        material.dispose();
+        return this.status;
+      }
+      this.wrapper.add(new THREE.Mesh(geometry, material));
+      this.fitView();
+      this.controls.enabled = true;
+      return this.setStatus({ kind: 'ready' });
+    } catch (error) {
+      if (bitmap !== null) {
+        try { bitmap.close(); } catch { /* already closed */ }
+      }
+      if (generation !== this.generation || this.disposed) return this.status;
+      return this.setStatus({
+        kind: 'parse-failed',
+        message: `Could not show image proxy: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   }
 
   /**
@@ -594,6 +733,39 @@ export class ModelViewer {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Re-measure the container and refit the current content. Call after the
+   * canvas wrap becomes visible (e.g. mode switch from flat to 3D) because
+   * a hidden container measures 0x0 and leaves a stale viewport behind.
+   * Never throws.
+   */
+  refreshSize(): void {
+    try {
+      if (this.disposed) return;
+      // Preserve the EXACT view direction across resizes: fitView resets the
+      // camera to its diagonal default, so re-apply the normalized prior
+      // direction at the newly fitted distance instead of snapping to the
+      // nearest side (which loses arbitrary orbit positions and can blank a
+      // side-on view through residual OrbitControls state).
+      const offset = this.camera.position.clone().sub(this.controls.target);
+      const length = offset.length();
+      this.resize();
+      this.fitView();
+      if (!Number.isFinite(length) || length <= 0) return;
+      const fitted = this.camera.position.distanceTo(this.controls.target);
+      if (!Number.isFinite(fitted) || fitted <= 0) return;
+      offset.normalize();
+      this.camera.position.copy(this.controls.target.clone().addScaledVector(offset, fitted));
+      this.camera.near = Math.max(fitted * NEAR_FACTOR, 0.001);
+      this.camera.far = fitted * FAR_FACTOR;
+      this.camera.updateProjectionMatrix();
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    } catch {
+      return;
+    }
   }
 
   private loop = (): void => {

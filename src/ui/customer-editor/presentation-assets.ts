@@ -1,4 +1,7 @@
+/// <reference lib="dom" />
 import { readRasterHeader, MAX_PREVIEW_BYTES, MAX_PREVIEW_PIXELS } from '../../assets/raster-header.js';
+import { parseGlb } from '../../assets/glb.js';
+import { validateSelfContained } from '../../assets/validate.js';
 /**
  * PROVISIONAL presentation-only adapter for optional reference imagery.
  *
@@ -10,10 +13,11 @@ import { readRasterHeader, MAX_PREVIEW_BYTES, MAX_PREVIEW_PIXELS } from '../../a
  * unmapped contextual image and NEVER gets a pretend live logo overlay.
  *
  * Package shape: an optional `presentation/preview.json` manifest plus
- * raster images, stored as `additional` (never `referenced`) entries inside
- * `.logo-project`. Only paths explicitly present in the opened package are
- * used; product/variant ids must match the current selection; no filename
- * inference, no hardcoded product behaviour, no remote URLs.
+ * raster images and optional GLB models, stored as `additional` (never
+ * `referenced`) entries inside `.logo-project`. Only paths explicitly present
+ * in the opened package are used; product/variant ids must match the current
+ * selection; no filename inference, no hardcoded product behaviour, no
+ * remote URLs.
  */
 
 export interface PresentationReferenceEntry {
@@ -23,16 +27,66 @@ export interface PresentationReferenceEntry {
   label?: string;
 }
 
-export interface PresentationManifest {
+export type PresentationViewSide = 'front' | 'back' | 'left' | 'right';
+
+export interface PresentationMultiviewEntry {
+  productId: string;
+  variantId?: string;
+  view: PresentationViewSide;
+  image: string;
+  label?: string;
+}
+
+export interface PresentationModelEntry {
+  productId: string;
+  variantId?: string;
+  model: string;
+  label?: string;
+}
+
+export interface PresentationManifestV1 {
   version: 1;
   references: PresentationReferenceEntry[];
 }
+
+export interface PresentationManifestV2 {
+  version: 2;
+  views: PresentationMultiviewEntry[];
+  models?: PresentationModelEntry[];
+  /**
+   * Preserved v1 references carried forward verbatim when a v2 manifest
+   * upgrades history. v1 entries have no side, so they are kept as-is
+   * (never converted into sided views) and selected as `view: null`.
+   */
+  references?: PresentationReferenceEntry[];
+}
+
+export type PresentationManifest = PresentationManifestV1 | PresentationManifestV2;
 
 export interface PresentationSelection {
   /** Explicit package path of the validated raster image, or null. */
   imagePath: string | null;
   label: string | null;
   /** Concise warning when the manifest existed but yielded no usable image. */
+  warning: string | null;
+}
+
+export interface PresentationViewSelection {
+  view: PresentationViewSide | null;
+  imagePath: string;
+  label: string | null;
+}
+
+export interface PresentationViewsSelection {
+  views: PresentationViewSelection[];
+  warning: string | null;
+}
+
+export interface PresentationModelSelection {
+  /** Explicit package path of the validated GLB model, or null. */
+  modelPath: string | null;
+  label: string | null;
+  /** Concise warning when the manifest existed but yielded no usable model. */
   warning: string | null;
 }
 
@@ -46,24 +100,28 @@ const ALLOWLISTED_MEDIA: Record<string, 'image/png' | 'image/jpeg' | 'image/webp
   '.webp': 'image/webp',
 };
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+const VIEW_SIDE_LOOKUP: Record<string, true> = { front: true, back: true, left: true, right: true };
+const SIDE_ORDER: PresentationViewSide[] = ['front', 'back', 'left', 'right'];
 
 function extensionOf(path: string): string {
   const dot = path.lastIndexOf('.');
   return dot < 0 ? '' : path.slice(dot).toLowerCase();
 }
 
-function isRemoteUrl(value: string): boolean {
+function isValidPresentationPath(value: string): boolean {
+  if (value.length === 0) return false;
   const lower = value.toLowerCase();
-  return (
+  if (
     lower.startsWith('http://') ||
     lower.startsWith('https://') ||
     lower.startsWith('data:') ||
     lower.startsWith('blob:') ||
     lower.startsWith('//')
-  );
+  ) return false;
+  if (!value.startsWith('presentation/')) return false;
+  if (value.includes('\\') || value.includes(':')) return false;
+  if (value.split('/').some((part) => part === '' || part === '.' || part === '..')) return false;
+  return true;
 }
 
 /**
@@ -81,27 +139,98 @@ export function parsePresentationManifest(manifestBytes: Uint8Array | undefined)
   }
   if (typeof raw !== 'object' || raw === null) return null;
   const record = raw as Record<string, unknown>;
-  if (record['version'] !== 1 || !Array.isArray(record['references'])) return null;
-  const references = record['references'] as unknown[];
-  if (references.length > MAX_REFERENCES) return null;
-  const valid: PresentationReferenceEntry[] = [];
-  for (const entry of references) {
-    if (typeof entry !== 'object' || entry === null) return null;
-    const item = entry as Record<string, unknown>;
-    if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
-    if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
-    if (typeof item['image'] !== 'string' || item['image'].length === 0) return null;
-    if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
-    if (isRemoteUrl(item['image']) || !item['image'].startsWith('presentation/') || item['image'].split('/').some((part) => part === '' || part === '.' || part === '..') || item['image'].includes('\\') || item['image'].includes(':')) return null;
-    if (ALLOWLISTED_MEDIA[extensionOf(item['image'])] === undefined) return null;
-    valid.push({
-      productId: item['productId'],
-      ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
-      image: item['image'],
-      ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
-    });
+  if (record['version'] === 1) {
+    if (!Array.isArray(record['references'])) return null;
+    const references = record['references'] as unknown[];
+    if (references.length > MAX_REFERENCES) return null;
+    const valid: PresentationReferenceEntry[] = [];
+    for (const entry of references) {
+      if (typeof entry !== 'object' || entry === null) return null;
+      const item = entry as Record<string, unknown>;
+      if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
+      if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
+      if (typeof item['image'] !== 'string' || item['image'].length === 0) return null;
+      if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
+      if (!isValidPresentationPath(item['image'])) return null;
+      if (ALLOWLISTED_MEDIA[extensionOf(item['image'])] === undefined) return null;
+      valid.push({
+        productId: item['productId'],
+        ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
+        image: item['image'],
+        ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
+      });
+    }
+    return { version: 1, references: valid };
   }
-  return { version: 1, references: valid };
+  if (record['version'] === 2) {
+    if (!Array.isArray(record['views'])) return null;
+    if (record['models'] !== undefined && !Array.isArray(record['models'])) return null;
+    if (record['references'] !== undefined && !Array.isArray(record['references'])) return null;
+    const viewsRaw = record['views'] as unknown[];
+    const modelsRaw = (record['models'] ?? []) as unknown[];
+    const referencesRaw = (record['references'] ?? []) as unknown[];
+    if (viewsRaw.length + modelsRaw.length + referencesRaw.length === 0) return null;
+    if (viewsRaw.length + modelsRaw.length + referencesRaw.length > MAX_REFERENCES) return null;
+    const views: PresentationMultiviewEntry[] = [];
+    for (const entry of viewsRaw) {
+      if (typeof entry !== 'object' || entry === null) return null;
+      const item = entry as Record<string, unknown>;
+      if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
+      if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
+      if (typeof item['view'] !== 'string' || VIEW_SIDE_LOOKUP[item['view']] !== true) return null;
+      if (typeof item['image'] !== 'string' || item['image'].length === 0) return null;
+      if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
+      if (!isValidPresentationPath(item['image'])) return null;
+      if (ALLOWLISTED_MEDIA[extensionOf(item['image'])] === undefined) return null;
+      views.push({
+        productId: item['productId'],
+        ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
+        view: item['view'] as PresentationViewSide,
+        image: item['image'],
+        ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
+      });
+    }
+    const models: PresentationModelEntry[] = [];
+    for (const entry of modelsRaw) {
+      if (typeof entry !== 'object' || entry === null) return null;
+      const item = entry as Record<string, unknown>;
+      if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
+      if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
+      if (typeof item['model'] !== 'string' || item['model'].length === 0) return null;
+      if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
+      if (!isValidPresentationPath(item['model'])) return null;
+      if (extensionOf(item['model']) !== '.glb') return null;
+      models.push({
+        productId: item['productId'],
+        ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
+        model: item['model'],
+        ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
+      });
+    }
+    const references: PresentationReferenceEntry[] = [];
+    for (const entry of referencesRaw) {
+      if (typeof entry !== 'object' || entry === null) return null;
+      const item = entry as Record<string, unknown>;
+      if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
+      if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
+      if (typeof item['image'] !== 'string' || item['image'].length === 0) return null;
+      if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
+      if (!isValidPresentationPath(item['image'])) return null;
+      if (ALLOWLISTED_MEDIA[extensionOf(item['image'])] === undefined) return null;
+      references.push({
+        productId: item['productId'],
+        ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
+        image: item['image'],
+        ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
+      });
+    }
+    if (views.length + models.length + references.length === 0) return null;
+    const out: PresentationManifestV2 = { version: 2, views };
+    if (models.length > 0) out.models = models;
+    if (references.length > 0) out.references = references;
+    return out;
+  }
+  return null;
 }
 
 export interface PresentationAssetLookup {
@@ -122,6 +251,25 @@ export function selectPresentationReference(
 ): PresentationSelection {
   if (!manifestPresent) return { imagePath: null, label: null, warning: null };
   if (!manifest) return { imagePath: null, label: null, warning: 'Reference preview data was invalid and has been ignored.' };
+  if (manifest.version === 2) {
+    const candidates = manifest.views.filter((entry) => entry.productId === productId);
+    if (candidates.length === 0) {
+      return { imagePath: null, label: null, warning: `No reference image supplied for this product in the package.` };
+    }
+    const scoped = candidates.find((entry) => entry.variantId === variantId)
+      ?? candidates.find((entry) => entry.variantId === undefined);
+    if (!scoped) {
+      return { imagePath: null, label: null, warning: `No reference image supplied for this product option in the package.` };
+    }
+    const bytes = lookup(scoped.image);
+    if (!bytes || bytes.length === 0 || bytes.length > PRESENTATION_MAX_IMAGE_BYTES) {
+      return { imagePath: null, label: null, warning: `Reference image “${scoped.image}” is missing or too large; showing the measured diagram instead.` };
+    }
+    if (ALLOWLISTED_MEDIA[extensionOf(scoped.image)] === undefined) {
+      return { imagePath: null, label: null, warning: `Reference image “${scoped.image}” is not a supported raster format; showing the measured diagram instead.` };
+    }
+    return { imagePath: scoped.image, label: scoped.label ?? null, warning: null };
+  }
   const candidates = manifest.references.filter((entry) => entry.productId === productId);
   if (candidates.length === 0) {
     return { imagePath: null, label: null, warning: `No reference image supplied for this product in the package.` };
@@ -141,9 +289,129 @@ export function selectPresentationReference(
   return { imagePath: scoped.image, label: scoped.label ?? null, warning: null };
 }
 
+/**
+ * Select the per-side reference views for the current product/variant.
+ * Exact-id match only; per side, variant-scoped entries win over
+ * product-wide ones. v1 manifests map to a single `view: null` entry with
+ * the same label semantics as `selectPresentationReference`. Views whose
+ * bytes are missing, oversized or undecodable are omitted with a warning;
+ * missing sides are never invented.
+ */
+export function selectPresentationViews(
+  manifest: PresentationManifest | null,
+  manifestPresent: boolean,
+  productId: string,
+  variantId: string,
+  lookup: PresentationAssetLookup,
+): PresentationViewsSelection {
+  if (!manifestPresent) return { views: [], warning: null };
+  if (!manifest) return { views: [], warning: 'Reference preview data was invalid and has been ignored.' };
+  if (manifest.version === 1) {
+    const single = selectPresentationReference(manifest, true, productId, variantId, lookup);
+    if (!single.imagePath) return { views: [], warning: single.warning };
+    return { views: [{ view: null, imagePath: single.imagePath, label: single.label }], warning: null };
+  }
+  const candidates = manifest.views.filter((entry) => entry.productId === productId);
+  // A valid one-input package may simply have no views (model-only) or no
+  // views for this product — that is benign, not a warning.
+  if (candidates.length === 0) {
+    return { views: [], warning: null };
+  }
+  const perSide: Record<PresentationViewSide, PresentationMultiviewEntry | undefined> = { front: undefined, back: undefined, left: undefined, right: undefined };
+  for (const entry of candidates) {
+    if (entry.variantId !== undefined && entry.variantId !== variantId) continue;
+    const current = perSide[entry.view];
+    if (current === undefined || (current.variantId === undefined && entry.variantId === variantId)) {
+      perSide[entry.view] = entry;
+    }
+  }
+  if (perSide.front === undefined && perSide.back === undefined && perSide.left === undefined && perSide.right === undefined) {
+    return { views: [], warning: null };
+  }
+  const views: PresentationViewSelection[] = [];
+  const dropped: string[] = [];
+  for (const side of SIDE_ORDER) {
+    const entry = perSide[side];
+    if (!entry) continue;
+    const bytes = lookup(entry.image);
+    if (!bytes || bytes.length === 0 || bytes.length > PRESENTATION_MAX_IMAGE_BYTES) {
+      dropped.push(entry.image);
+      continue;
+    }
+    if (ALLOWLISTED_MEDIA[extensionOf(entry.image)] === undefined) {
+      dropped.push(entry.image);
+      continue;
+    }
+    if (readRasterHeader(bytes)?.mediaType !== ALLOWLISTED_MEDIA[extensionOf(entry.image)]) {
+      dropped.push(entry.image);
+      continue;
+    }
+    views.push({ view: entry.view, imagePath: entry.image, label: entry.label ?? null });
+  }
+  if (views.length === 0) {
+    return { views: [], warning: `Reference image “${dropped[0] ?? candidates[0]!.image}” is missing or too large; showing the measured diagram instead.` };
+  }
+  if (dropped.length > 0) {
+    return { views, warning: `Reference image “${dropped[0]}” is missing or too large; showing the measured diagram instead.` };
+  }
+  return { views, warning: null };
+}
+
+/**
+ * Select the reference GLB model for the current product/variant. Exact-id
+ * match only; variant-scoped entries win over product-wide ones. The model
+ * must be present, within the model byte bound, `.glb`-suffixed, and pass the
+ * full self-contained subset check (blocking `validateSelfContained` issues;
+ * `-advisory` notes pass). External-URI models are rejected with a warning.
+ * Returns a warning (not a path) otherwise.
+ */
+export function selectPresentationModel(
+  manifest: PresentationManifest | null,
+  manifestPresent: boolean,
+  productId: string,
+  variantId: string,
+  lookup: PresentationAssetLookup,
+): PresentationModelSelection {
+  if (!manifestPresent) return { modelPath: null, label: null, warning: null };
+  if (!manifest) return { modelPath: null, label: null, warning: 'Reference preview data was invalid and has been ignored.' };
+  if (manifest.version !== 2 || !manifest.models || manifest.models.length === 0) {
+    // A valid one-input package may be image-only — benign, not a warning.
+    return { modelPath: null, label: null, warning: null };
+  }
+  const candidates = manifest.models.filter((entry) => entry.productId === productId);
+  if (candidates.length === 0) {
+    return { modelPath: null, label: null, warning: null };
+  }
+  const scoped = candidates.find((entry) => entry.variantId === variantId)
+    ?? candidates.find((entry) => entry.variantId === undefined);
+  if (!scoped) {
+    return { modelPath: null, label: null, warning: null };
+  }
+  const bytes = lookup(scoped.model);
+  if (!bytes || bytes.length === 0 || bytes.length > PRESENTATION_MAX_MODEL_BYTES) {
+    return { modelPath: null, label: null, warning: `Reference model “${scoped.model}” is missing or too large; showing the measured diagram instead.` };
+  }
+  if (extensionOf(scoped.model) !== '.glb') {
+    return { modelPath: null, label: null, warning: `Reference model “${scoped.model}” is not a supported model format; showing the measured diagram instead.` };
+  }
+  let parsed: { json: unknown };
+  try {
+    parsed = parseGlb(bytes);
+  } catch {
+    return { modelPath: null, label: null, warning: `Reference model “${scoped.model}” is not a valid model; showing the measured diagram instead.` };
+  }
+  const blocking = validateSelfContained(parsed.json).filter((issue) => !issue.code.endsWith('-advisory'));
+  if (blocking.length > 0) {
+    const external = blocking.some((issue) => issue.code === 'asset-external-uri');
+    return { modelPath: null, label: null, warning: `Reference model “${scoped.model}” is not a self-contained model${external ? ' (external reference)' : ''}; showing the measured diagram instead.` };
+  }
+  return { modelPath: scoped.model, label: scoped.label ?? null, warning: null };
+}
+
 export const PRESENTATION_MANIFEST_PATH = 'presentation/preview.json';
 export const PRESENTATION_MAX_IMAGE_BYTES = MAX_PREVIEW_BYTES;
 export const PRESENTATION_MAX_IMAGE_PIXELS = MAX_PREVIEW_PIXELS;
+export const PRESENTATION_MAX_MODEL_BYTES = 16 * 1024 * 1024;
 
 /**
  * Decode a validated raster package asset to a blob URL for display.
@@ -191,7 +459,7 @@ export function describePresentationInputs(input: {
       (path) => input.assets.get(path),
     );
   } catch (error) {
-    return { imagePath: null, label: null, warning: `Reference preview unavailable: ${errorMessage(error)}` };
+    return { imagePath: null, label: null, warning: `Reference preview unavailable: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -202,6 +470,44 @@ export function selectPresentationPackageAssets(
 ): Array<{ path: string; bytes: Uint8Array }> {
   const manifest = parsePresentationManifest(assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH && asset.kind === 'additional')?.bytes);
   if (!manifest) return [];
+  if (manifest.version === 2) {
+    const retainedViews = manifest.views.filter((entry) => configurations.some((configuration) =>
+      configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
+      .filter((entry) => {
+        const asset = assets.find((candidate) => candidate.path === entry.image && candidate.kind === 'additional');
+        return asset !== undefined && readRasterHeader(asset.bytes)?.mediaType === ALLOWLISTED_MEDIA[extensionOf(entry.image)];
+      });
+    const retainedModels = (manifest.models ?? []).filter((entry) => configurations.some((configuration) =>
+      configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
+      .filter((entry) => {
+        const asset = assets.find((candidate) => candidate.path === entry.model && candidate.kind === 'additional');
+        if (asset === undefined || asset.bytes.length === 0 || asset.bytes.length > PRESENTATION_MAX_MODEL_BYTES) return false;
+        if (extensionOf(entry.model) !== '.glb') return false;
+        let parsed: { json: unknown };
+        try {
+          parsed = parseGlb(asset.bytes);
+        } catch {
+          return false;
+        }
+        return validateSelfContained(parsed.json).filter((issue) => !issue.code.endsWith('-advisory')).length === 0;
+      });
+    const retainedReferences = (manifest.references ?? []).filter((entry) => configurations.some((configuration) =>
+      configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
+      .filter((entry) => {
+        const asset = assets.find((candidate) => candidate.path === entry.image && candidate.kind === 'additional');
+        return asset !== undefined && readRasterHeader(asset.bytes)?.mediaType === ALLOWLISTED_MEDIA[extensionOf(entry.image)];
+      });
+    if (retainedViews.length === 0 && retainedModels.length === 0 && retainedReferences.length === 0) return [];
+    const sortedViews = [...retainedViews].sort((a, b) => (a.image < b.image ? -1 : a.image > b.image ? 1 : 0));
+    const sortedModels = [...retainedModels].sort((a, b) => (a.model < b.model ? -1 : a.model > b.model ? 1 : 0));
+    const sortedReferences = [...retainedReferences].sort((a, b) => (a.image < b.image ? -1 : a.image > b.image ? 1 : 0));
+    const rewritten: { version: 2; views: typeof sortedViews; models?: typeof sortedModels; references?: typeof sortedReferences } = { version: 2, views: sortedViews };
+    if (sortedModels.length > 0) rewritten.models = sortedModels;
+    if (sortedReferences.length > 0) rewritten.references = sortedReferences;
+    const paths = [...new Set([...sortedViews.map((entry) => entry.image), ...sortedModels.map((entry) => entry.model), ...sortedReferences.map((entry) => entry.image)])].sort();
+    return [{ path: PRESENTATION_MANIFEST_PATH, bytes: new TextEncoder().encode(JSON.stringify(rewritten)) },
+      ...paths.map((path) => ({ path, bytes: assets.find((asset) => asset.path === path)!.bytes }))];
+  }
   const retained = manifest.references.filter((entry) => configurations.some((configuration) =>
     configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
     .filter((entry) => {

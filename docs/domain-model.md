@@ -22,6 +22,16 @@ category population and future Odoo mapping remain unresolved.
 
 - Products contain generalized kinds, variants, regions and calibration records.
   Kinds are descriptive; no category-specific placement behavior is implemented.
+  Provisional preview-only products (internal-builder `Add a product`) carry NO
+  physical measurements: `regions: []`, `calibrations: []`, every variant
+  `regionIds: []`, one default variant. Validation permits only this all-empty
+  shape (`preview-only-shape` rejects partial emptiness); any placement on a
+  preview-only product fails (`dangling-ref`), add/update throws
+  (`preview-only-unprepared-region`), and candidate export and confirmation
+  refuse any attempted placements on these products. Zero-placement drafts
+  remain valid and export no fabricated frames. Their per-side photos and GLB
+  travel as presentation-only `presentation/` package assets, never as domain
+  measurements.
 - Variants list supported region IDs. Different variant calibration can be
   represented by separate regions/calibration references. A standalone draft
   transfer kernel exists; canonical project integration of transfer and placement

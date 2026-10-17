@@ -74,8 +74,12 @@
     input[type="file"] { max-width: 100%; }
     input[type="file"][data-builder-hook="source-file"],
     input[type="file"][data-builder-hook="logo-file"],
-    input[type="file"][data-builder-hook="logo-file"],
-    input[type="file"][data-builder-hook="baseline-file"] {
+    input[type="file"][data-builder-hook="baseline-file"],
+    input[type="file"][data-builder-hook="product-file"],
+    input[type="file"][data-builder-hook="product-view-front-file"],
+    input[type="file"][data-builder-hook="product-view-back-file"],
+    input[type="file"][data-builder-hook="product-view-left-file"],
+    input[type="file"][data-builder-hook="product-view-right-file"] {
       position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0);
     }
     .field { display: grid; gap: 5px; font-weight: 650; margin: 12px 0; max-width: 34rem; }
@@ -205,6 +209,16 @@
             <p class="muted" data-builder-hook="catalogue-note" hidden>Example products — not for production.</p>
             <h3 class="group-title">Products</h3>
             <div class="rows" data-builder-hook="product-list"><p class="muted">No project loaded yet.</p></div>
+            <h3 class="group-title">Add a product</h3>
+            <p class="muted">Add a provisional, uncalibrated product from staged files. One 3D model (.glb), one flat image (PNG, JPEG, WebP), or one assigned side view (front/back/left/right) is enough; each assigned image attaches to its named side only. The product carries no measurements and cannot host placements; missing sides are simply absent, never invented.</p>
+            <label class="field">Product name<input data-builder-hook="product-name" type="text" autocomplete="off" placeholder="e.g. Team jacket — provisional"></label>
+            <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-add">Add product from staged files</button><input data-builder-hook="product-file" type="file" accept=".glb,.png,.jpg,.jpeg,.webp" aria-label="Choose one product file: a 3D model (.glb) or a flat image (PNG, JPEG, WebP)"></div>
+            <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-front">Assign front view image</button><input data-builder-hook="product-view-front-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the front view image"><label class="field">Front view label<input data-builder-hook="product-view-front-label" type="text" autocomplete="off" placeholder="e.g. Front"></label></div>
+            <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-back">Assign back view image</button><input data-builder-hook="product-view-back-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the back view image"><label class="field">Back view label<input data-builder-hook="product-view-back-label" type="text" autocomplete="off" placeholder="e.g. Back"></label></div>
+            <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-left">Assign left side image</button><input data-builder-hook="product-view-left-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the left side image"><label class="field">Left side label<input data-builder-hook="product-view-left-label" type="text" autocomplete="off" placeholder="e.g. Left side"></label></div>
+            <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-right">Assign right side image</button><input data-builder-hook="product-view-right-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the right side image"><label class="field">Right side label<input data-builder-hook="product-view-right-label" type="text" autocomplete="off" placeholder="e.g. Right side"></label></div>
+            <p class="muted">Optional per-view labels are attached to the named side only. Only explicitly assigned sides travel with the product; a lone back, left, or right image stays on that side and is never duplicated into front.</p>
+            <p class="muted" data-builder-hook="product-status" role="status" aria-live="polite"></p>
             <h3 class="group-title">Logos</h3>
             <div class="rows" data-builder-hook="logo-list"><p class="muted">No project loaded yet.</p></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="logo-add">Add a customer logo</button><input data-builder-hook="logo-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose a customer logo image (PNG, JPEG or WebP)"></div>

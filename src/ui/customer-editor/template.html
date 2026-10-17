@@ -26,13 +26,13 @@
     .identity { padding:12px 0; display:grid; gap:6px; } summary { cursor:pointer; } [data-customer-hook=status] { padding:10px 3.5%; color:#536779; font-size:13px; margin:0; background:#f6f8fa; }
     [data-customer-hook=dropzone] { padding:16px; border:1px dashed #c3cdd6; border-radius:5px; color:var(--muted); font-size:13px; } input[type=file] { position:absolute; width:1px; height:1px; clip:rect(0,0,0,0); overflow:hidden; }
     .desk { display:grid; grid-template-columns:minmax(0,65.5fr) minmax(350px,34.5fr); min-height:calc(100vh - 180px); }
-    .canvas-pane { border-right:1px solid var(--line); padding:22px 4% 24px; display:flex; flex-direction:column; min-width:0; align-self:start; position:sticky; top:0; height:calc(100vh - 180px); min-height:640px; }
+    .canvas-pane { border-right:1px solid var(--line); padding:22px 4% 24px; display:flex; flex-direction:column; min-width:0; align-self:start; position:sticky; top:0; height:calc(100vh - 180px); min-height:640px; z-index:0; isolation:isolate; }
     [data-customer-hook=context-line] { color:var(--muted); font-size:13px; margin:0 0 10px; }
     .job-choices { margin:0 0 22px!important; padding:10px 0!important; border-top:0!important; }
     .stage { display:flex; align-items:center; justify-content:center; flex:1; min-height:320px; }
     .stage svg { width:100%; height:min(58vw,690px); max-height:calc(100vh - 380px); min-height:320px; touch-action:none; user-select:none; }
-    .reference-wrap { display:flex; justify-content:center; align-items:center; flex:1; min-height:0; }
-    [data-customer-hook=reference-img] { display:block; width:100%; height:min(58vw,730px); max-height:calc(100vh - 380px); object-fit:contain; }
+    .canvas-pane .reference-wrap { display:flex; justify-content:center; align-items:center; flex:1 1 auto; min-height:0; min-width:0; max-width:100%; max-height:100%; overflow:hidden; }
+    .canvas-pane [data-customer-hook=reference-img] { display:block; width:100%; max-width:100%; height:100%; max-height:calc(100vh - 480px); min-height:200px; object-fit:contain; }
     .safe-area { fill:#f0f5f2; stroke:#6b9782; stroke-width:1; vector-effect:non-scaling-stroke; } .exclusion-area { fill:#fbe9e8; stroke:#bd716d; stroke-width:1; vector-effect:non-scaling-stroke; }
     .footprint { fill:#d8e8ed; fill-opacity:.9; stroke:#35738a; stroke-width:1.5; vector-effect:non-scaling-stroke; cursor:grab; } .footprint.selected { stroke-width:2.5; } .footprint.invalid { fill:#f3d7d4; stroke:#ab4238; }
     .origin { stroke:#91a4ae; stroke-width:.7; stroke-dasharray:2 2; vector-effect:non-scaling-stroke; pointer-events:none; } .footprint-label { fill:#224555; font-size:4px; text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
@@ -61,6 +61,26 @@
     [data-step-panel=review] .btn-primary { width:100%; } .is-empty .desk { opacity:.35; pointer-events:none; } .is-empty .loadbar { padding-block:24px; }
     @media(max-width:900px) { .desk { grid-template-columns:1fr; min-height:0; } .canvas-pane { position:static; height:auto; min-height:0; border-right:0; border-bottom:1px solid var(--line); padding:18px 20px; } .task-rail { padding:28px 24px; } .stage svg,[data-customer-hook=reference-img] { height:58vw; max-height:440px; min-height:200px; } .rail-context { margin-bottom:22px; min-height:70px; } .task-rail h2 { font-size:28px; } .rail-actions { padding-top:24px; } [data-customer-hook=prototype-note] { text-align:left; } }
     @media(max-width:500px) { .topbar { padding:0 14px; height:65px; gap:12px; } .brand { gap:12px; } .brand img { width:95px; height:36px; } .divider { height:28px; } .wordmark { font-size:18px; } .save-top { font-size:12px; gap:5px; } .save-top .icon { width:15px; } .stepnav { gap:18px; height:54px; } .stepnav button { font-size:14px; } .stepnav .rule { width:18px; } .loadbar { padding:7px 16px; gap:12px; } .view-toggle button { font-size:11px; padding:7px 9px; } .canvas-foot { gap:8px; } .sku { font-size:15px; } .task-rail { padding:24px 20px; } .lede { font-size:14px; } .identity { max-width:300px; } }
+    .views-showcase { grid-column:1 / -1; grid-row:auto; border-top:1px solid var(--line); margin:0; padding:18px 3.5% 24px; display:grid; gap:10px; background:#fbfcfd; }
+    .views-showcase[hidden] { display:none; }
+    /* Bounded wrap + block canvas: an inline canvas leaves a text-baseline
+    gap that grows the wrap ~6px per frame, so the compositor never settles
+    and screenshots hang. Fixed responsive height keeps layout stable. */
+    .views-model-wrap { height:min(58vw,440px); min-height:280px; min-width:0; overflow:hidden; position:relative; }
+    .views-model-wrap canvas { display:block; width:100%; height:100%; }
+    .views-model-wrap[hidden] { display:none; }
+    /* Flat raster containment: the photo must never paint across controls.
+    Bounded wrap height with contain-fit, and strict hidden handling so a
+    stale image cannot linger when the mode/side changes. */
+    .views-showcase .views-flat-wrap { min-width:0; max-width:100%; height:min(58vw,440px); min-height:200px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .views-showcase .views-flat-wrap[hidden] { display:none; }
+    .views-showcase [data-customer-hook="views-flat-img"] { display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; margin:0 auto; }
+    .views-showcase [data-customer-hook="views-flat-img"][hidden] { display:none; }
+    /* The sticky canvas pane must never paint above the showcase. */
+    .views-showcase { position:relative; z-index:1; }
+    [data-customer-hook=task-rail] { grid-column:2; grid-row:1; }
+    .desk > .canvas-pane { grid-column:1; grid-row:1; }
+    @media(max-width:900px) { [data-customer-hook=task-rail] { grid-column:1; grid-row:auto; } .desk > .canvas-pane { grid-column:1; grid-row:auto; } .views-model-wrap { height:58vw; min-height:220px; } }
   </style>
 </head>
 <body>
@@ -110,7 +130,31 @@
           <button data-customer-hook="reset" type="button" disabled>Start over from opened file</button>
         </div></details><button class="quiet-button" data-customer-hook="undo" type="button" disabled>Undo last change</button></div>
 
+
       </section>
+        <section data-customer-hook="views-showcase" class="views-showcase" aria-label="Product views showcase" hidden>
+      <h2 class="small">Product views</h2>
+      <p data-customer-hook="views-uncalibrated" class="small" hidden>Uncalibrated provisional area - not for production</p>
+      <div class="views-row" role="group" aria-label="View mode">
+        <span class="views-label">Mode</span>
+        <button data-customer-hook="views-mode-flat" type="button" aria-pressed="true">Flat</button>
+        <button data-customer-hook="views-mode-2d" type="button" aria-pressed="false">2D</button>
+        <button data-customer-hook="views-mode-3d" type="button" aria-pressed="false">3D</button>
+      </div>
+      <div class="views-row" role="group" aria-label="View side">
+        <span class="views-label">Side</span>
+        <button data-customer-hook="views-side-front" type="button" aria-pressed="false">Front</button>
+        <button data-customer-hook="views-side-back" type="button" aria-pressed="false">Back</button>
+        <button data-customer-hook="views-side-left" type="button" aria-pressed="false">Left</button>
+        <button data-customer-hook="views-side-right" type="button" aria-pressed="false">Right</button>
+      </div>
+      <p data-customer-hook="views-missing" class="small muted" hidden></p>
+      <div class="reference-wrap" data-customer-hook="views-flat-wrap"><img data-customer-hook="views-flat-img" alt="Product view photo" hidden></div>
+      <div class="views-model-wrap" data-customer-hook="views-model-wrap" hidden><canvas data-customer-hook="views-model-canvas"></canvas></div>
+      <p data-customer-hook="views-empty" class="small" hidden></p>
+      <p data-customer-hook="views-caption" class="view-caption"></p>
+      <p data-customer-hook="views-warning" class="small" hidden></p>
+    </section>
       <aside data-customer-hook="task-rail" class="task-rail" aria-label="Task">
         <div class="rail-context">
           <img data-customer-hook="logo-thumb" alt="Selected logo preview" hidden>

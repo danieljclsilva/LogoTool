@@ -28,6 +28,11 @@
  * - Nested `pos` is authoritative; any own flat placement coordinate
  *   property is a shape error, never silently accepted.
  * - Zero placements valid; repeated same `logoId` valid (no uniqueness check).
+ * - Preview-only products: the ONLY permitted empty shape is all-empty
+ *   (`regions: []` AND `calibrations: []` AND every variant `regionIds: []`);
+ *   any partially-empty shape fails with `preview-only-shape`. Placements on
+ *   preview-only products/configs always fail (`dangling-ref`: preview-only
+ *   products have no prepared regions, so no placement may refer to them).
  * - `validateProject(doc, baseline)` additionally runs the baseline tamper
  *   check (see workflow.ts) when a baseline is supplied.
  *
@@ -306,6 +311,24 @@ interface RegionIndex {
 interface ProductIndex {
   path: string;
   variantRegions: Map<string, Set<string>>;
+  previewOnly: boolean;
+}
+
+/**
+ * Structural preview-only check (shared with the provisional-product factory
+ * contract): a product is preview-only when BOTH regions and calibrations are
+ * empty arrays. Never name-substring heuristics. Partial emptiness (e.g.
+ * regions present but calibrations missing) is NOT preview-only; it fails
+ * the all-or-nothing invariant elsewhere.
+ */
+function isPreviewOnlyValue(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    Array.isArray(value["regions"]) &&
+    (value["regions"] as unknown[]).length === 0 &&
+    Array.isArray(value["calibrations"]) &&
+    (value["calibrations"] as unknown[]).length === 0
+  );
 }
 
 function validateProductAt(value: unknown, basePath: string): ValidationError[] {
@@ -342,7 +365,7 @@ function validateProductAt(value: unknown, basePath: string): ValidationError[] 
       }
       variantIds.push(id);
       const regionIds = variant["regionIds"];
-      if (!checkStringList(regionIds, `${path}.regionIds`, errors, "variant regionIds", 1)) {
+      if (!checkStringList(regionIds, `${path}.regionIds`, errors, "variant regionIds", 0)) {
         variantRegions.set(id, new Set<string>());
       } else {
         variantRegions.set(id, new Set<string>(regionIds));
@@ -373,8 +396,8 @@ function validateProductAt(value: unknown, basePath: string): ValidationError[] 
 
   const calibrations = value["calibrations"];
   const calibrationVersions = new Map<string, Set<string>>();
-  if (!Array.isArray(calibrations) || calibrations.length < 1) {
-    fail(errors, "bad-shape", `${basePath}.calibrations`, "product needs at least 1 calibration");
+  if (!Array.isArray(calibrations)) {
+    fail(errors, "bad-shape", `${basePath}.calibrations`, "product calibrations must be an array");
   } else {
     const ids: string[] = [];
     calibrations.forEach((entry: unknown, i: number) => {
@@ -402,8 +425,8 @@ function validateProductAt(value: unknown, basePath: string): ValidationError[] 
 
   const regions = value["regions"];
   const regionIds: string[] = [];
-  if (!Array.isArray(regions) || regions.length < 1) {
-    fail(errors, "bad-shape", `${basePath}.regions`, "product needs at least 1 region");
+  if (!Array.isArray(regions)) {
+    fail(errors, "bad-shape", `${basePath}.regions`, "product regions must be an array");
   } else {
     regions.forEach((region: unknown, i: number) => {
       const path = `${basePath}.regions[${i}]`;
@@ -433,6 +456,49 @@ function validateProductAt(value: unknown, basePath: string): ValidationError[] 
       checkStringList(region["allowedMethods"], `${path}.allowedMethods`, errors, "allowedMethods", 1);
     });
     checkIdList(regionIds, `${basePath}.regions`, errors, "region");
+  }
+  // All-or-nothing preview-only invariant: the all-empty shape
+  // (regions.length===0 && calibrations.length===0 && every variant
+  // regionIds.length===0) is the ONLY permitted empty form. Any partially-empty
+  // shape keeps failing as before. Full invariant lives here in code; the JSON
+  // schema is structural only (minima 0).
+  if (isRecord(value) && Array.isArray(value["regions"]) && Array.isArray(value["calibrations"])) {
+    const regionsEmpty = (value["regions"] as unknown[]).length === 0;
+    const calibrationsEmpty = (value["calibrations"] as unknown[]).length === 0;
+    const variantsValue = value["variants"];
+    const variantEmpties: boolean[] = Array.isArray(variantsValue)
+      ? variantsValue.map((entry: unknown) =>
+        isRecord(entry) && Array.isArray(entry["regionIds"]) && (entry["regionIds"] as unknown[]).length === 0,
+      )
+      : [];
+    const everyVariantEmpty = variantEmpties.length > 0 && variantEmpties.every(Boolean);
+    const someVariantEmpty = variantEmpties.some(Boolean);
+    const allEmpty = regionsEmpty && calibrationsEmpty && everyVariantEmpty;
+    const anyEmpty = regionsEmpty || calibrationsEmpty || someVariantEmpty;
+    if (anyEmpty && !allEmpty) {
+      fail(
+        errors,
+        "preview-only-shape",
+        basePath,
+        "partially-empty product: preview-only products must be all-empty (regions [], calibrations [], every variant regionIds []); calibrated products need >=1 region, >=1 calibration, and >=1 regionId per variant",
+      );
+    }
+    if (regionsEmpty && calibrationsEmpty && Array.isArray(variantsValue)) {
+      variantsValue.forEach((entry: unknown, i: number) => {
+        if (
+          isRecord(entry) &&
+          Array.isArray(entry["regionIds"]) &&
+          (entry["regionIds"] as unknown[]).length > 0
+        ) {
+          fail(
+            errors,
+            "preview-only-shape",
+            `${basePath}.variants[${i}].regionIds`,
+            "preview-only product (no regions, no calibrations) cannot list variant regionIds",
+          );
+        }
+      });
+    }
   }
 
   const regionIdSet = new Set<string>(regionIds);
@@ -637,6 +703,18 @@ function validatePlacement(
   } else if (!logoIds.has(logoId)) {
     fail(errors, "dangling-ref", `${path}.logoId`, `placement references unknown logo "${logoId}"`);
   }
+  // Preview-only invariant: no placement may refer to a nonexistent/unprepared
+  // region. On a preview-only product (no regions at all) every regionId is
+  // unresolvable, so any placement fails here with the dangling-ref family.
+  if (product !== undefined && product.previewOnly) {
+    fail(
+      errors,
+      "dangling-ref",
+      `${path}.regionId`,
+      `placement references preview-only product "${productId}" which has no prepared regions (preview-only products cannot host placements)`,
+    );
+    return;
+  }
   const regionId = value["regionId"];
   const region: RegionIndex | undefined =
     isNonEmptyString(regionId) ? regions.get(regionId) : undefined;
@@ -758,7 +836,7 @@ export function validateProject(project: unknown, baseline?: IssuedBaseline): Va
             }
           }
         }
-        productIndexes.set(product["id"], { path, variantRegions });
+        productIndexes.set(product["id"], { path, variantRegions, previewOnly: isPreviewOnlyValue(product) });
       }
     });
     checkIdList(productIds, "products", errors, "product");

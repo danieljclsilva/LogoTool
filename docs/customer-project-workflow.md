@@ -152,7 +152,7 @@ the opened package assets). Reference photos and thumbnails are
 visual aids only — Logo Station rechecks every measurement separately, and
 neither a reference image nor a thumbnail proves manufacturing authority.
 
-The adapter currently reads this provisional additional asset format:
+The adapter keeps reading the version 1 shape for single reference photos:
 
 ```json
 {"version":1,"references":[{"productId":"SYN-PRODUCT","variantId":"SYN-VARIANT","image":"presentation/product.png","label":"Product reference"}]}
@@ -168,6 +168,42 @@ Switching views cancels an unfinished drag and leaves committed bytes unchanged.
 The Builder retains only references matching issued selections, rewrites the
 manifest deterministically and excludes unrelated additional assets. This is
 presentation metadata, not a calibrated photo mapping or production schema.
+
+Multiview products (version 2) keep the same bounds and additionally carry
+explicitly assigned per-side raster views and at most one GLB model reference:
+
+```json
+{"version":2,"views":[{"productId":"SYN-PRODUCT","variantId":"SYN-VARIANT","view":"front","image":"presentation/front.png","label":"Front view"}],"models":[{"productId":"SYN-PRODUCT","variantId":"SYN-VARIANT","model":"presentation/model.glb","label":"3D model"}]}
+```
+
+Sides are exactly `front`, `back`, `left` or `right`. The internal builder
+creates such entries from one staged GLB, one staged flat image, or one
+explicitly assigned side view alone (each assigned image stays on its named
+side; nothing is duplicated into front). Existing version-1 references are
+preserved verbatim in an optional `references` array when the manifest is
+upgraded to version 2; invalid history is dropped with a visible note, and the
+32-entry budget is enforced before anything is committed (over-budget adds are
+rejected with prior state untouched). The customer shows an independent
+Product views showcase with flat, 2D and 3D modes. Camera-side selection is
+independent of photo availability: with a model present, all four sides are
+offered in 2D/3D (including right with no right photo — the camera moves, no
+photo is invented), and flat falls back to an explicitly labelled model
+projection where a side photo is absent. 2D shows a planar view (a fixed
+camera projection when a model is present, explicitly labelled `Model
+projection - not a garment unfolding`, otherwise the undistorted raster
+labelled `Planar view - not a 3D reconstruction` with orbit locked); 3D
+orbits the GLB model, or a textured-plane proxy for image-only products
+explicitly labelled `Proxy - not reconstructed geometry`. Model
+preview-unavailable states (missing WebGL, failed parse, external-reference
+models rejected by the self-contained boundary) surface a clear warning and
+fallback instead of a blank canvas with a success caption. The measured
+placement diagram stays the default for placement decisions and is never
+overlaid with a pretend logo mapping. Provisional preview-only products carry
+NO measurements at all (empty regions, calibrations and variant region lists)
+and cannot host placements; they show `Uncalibrated provisional area - not
+for production` and export zero placements. Model bytes are bounded to
+16 MiB, header-parsed AND self-contained-validated at render selection
+(external URIs rejected); view switching never mutates the project.
 
 ## Loading and saving offline
 
