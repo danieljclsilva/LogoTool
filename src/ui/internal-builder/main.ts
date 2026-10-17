@@ -14,6 +14,7 @@ import {
   canonicalize,
   importCustomerReturn,
   serializeExport,
+  validateLogos,
 } from '../../core/index.js';
 import type {
   Configuration,
@@ -37,6 +38,8 @@ import {
   createSelfContainedHtml,
   decodeEmbeddedProjectBase64,
 } from '../../packaging/self-contained-html/index.js';
+import { MAX_PREVIEW_BYTES, readRasterHeader } from '../../assets/raster-header.js';
+import { createProjectFromDefinitions } from '../../core/project-builder/create-project.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { zipSync } from 'fflate';
 
@@ -45,6 +48,14 @@ interface SourceState {
   project: ProjectDocument;
   assets: ProjectPackageAsset[];
   summary: BuilderSourceSummary;
+}
+interface ImportedLogo {
+  id: string;
+  name: string;
+  bytes: Uint8Array;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+  widthPx: number;
+  heightPx: number;
 }
 
 interface GeneratedState {
@@ -86,10 +97,17 @@ function required<T extends Element>(selector: string): T {
 const hook = <T extends Element>(name: string): T =>
   required<T>(`[data-builder-hook="${name}"]`);
 
+
 const sourceFile = hook<HTMLInputElement>('source-file');
 const sourceChoose = hook<HTMLButtonElement>('source-choose');
 const sourceDrop = hook<HTMLElement>('source-drop');
 const sourceStatus = hook<HTMLElement>('source-status');
+const startCreate = hook<HTMLButtonElement>('start-create');
+const createStatus = hook<HTMLElement>('create-status');
+const catalogueNote = hook<HTMLElement>('catalogue-note');
+const logoAdd = hook<HTMLButtonElement>('logo-add');
+const logoFile = hook<HTMLInputElement>('logo-file');
+const logoStatus = hook<HTMLElement>('logo-status');
 const productList = hook<HTMLElement>('product-list');
 const logoList = hook<HTMLElement>('logo-list');
 const configurationList = hook<HTMLElement>('configuration-list');
@@ -120,6 +138,251 @@ const ticketSummary = hook<HTMLElement>('ticket-summary');
 const candidateDownload = hook<HTMLButtonElement>('candidate-download');
 const operationPrint = hook<HTMLButtonElement>('operation-print');
 const operationContainer = hook<HTMLElement>('operation-container');
+type PrepareStep = 'open' | 'choose' | 'details' | 'send';
+type ReviewStep = 'office' | 'return' | 'check';
+type BuilderMode = 'prepare' | 'review';
+let builderMode: BuilderMode = 'prepare';
+let prepareStep: PrepareStep = 'open';
+let reviewStep: ReviewStep = 'office';
+let lastAutoProjectId = '';
+const modePrepare = hook<HTMLButtonElement>('mode-prepare');
+const modeReview = hook<HTMLButtonElement>('mode-review');
+const stepOpen = hook<HTMLButtonElement>('step-open');
+const stepChoose = hook<HTMLButtonElement>('step-choose');
+const stepDetails = hook<HTMLButtonElement>('step-details');
+const stepSend = hook<HTMLButtonElement>('step-send');
+const stepOffice = hook<HTMLButtonElement>('step-office');
+const stepReturn = hook<HTMLButtonElement>('step-return');
+const stepCheck = hook<HTMLButtonElement>('step-check');
+const newSourceButton = hook<HTMLButtonElement>('new-source');
+const projectIdNew = hook<HTMLButtonElement>('project-id-new');
+const selectionSummary = hook<HTMLElement>('selection-summary');
+const selectionError = hook<HTMLElement>('selection-error');
+const reviewFiles = hook<HTMLElement>('review-files');
+const reviewChanges = hook<HTMLElement>('review-changes');
+const fileDetails = hook<HTMLElement>('file-details');
+const builderAlert = hook<HTMLElement>('builder-alert');
+const readySummary = hook<HTMLElement>('ready-summary');
+const officeSummary = hook<HTMLElement>('office-summary');
+function alertBuilder(message = ''): void {
+  builderAlert.textContent = message;
+  builderAlert.hidden = !message;
+}
+function newLocalId(): string {
+  const cryptoRef = globalThis.crypto;
+  if (typeof cryptoRef?.randomUUID === 'function') {
+    try {
+      return cryptoRef.randomUUID();
+    } catch { /* fall through to manual entropy below */ }
+  }
+  const bytes = new Uint8Array(16);
+  if (typeof cryptoRef?.getRandomValues === 'function') {
+    try {
+      cryptoRef.getRandomValues(bytes);
+    } catch {
+      for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    }
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  }
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+function ensureAutoProjectId(): void {
+  const current = projectIdInput.value;
+  if (current.trim() === '' || current === lastAutoProjectId) {
+    const fresh = newLocalId();
+    projectIdInput.value = fresh;
+    lastAutoProjectId = fresh;
+  }
+}
+function paintModeAndStepTabs(): void {
+  for (const [button, active] of [[modePrepare, builderMode === 'prepare'], [modeReview, builderMode === 'review']] as const) {
+    button.classList.toggle('is-active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+  const tabs: Array<[HTMLButtonElement, boolean]> = [
+    [stepOpen, builderMode === 'prepare' && prepareStep === 'open'],
+    [stepChoose, builderMode === 'prepare' && prepareStep === 'choose'],
+    [stepDetails, builderMode === 'prepare' && prepareStep === 'details'],
+    [stepSend, builderMode === 'prepare' && prepareStep === 'send'],
+    [stepOffice, builderMode === 'review' && reviewStep === 'office'],
+    [stepReturn, builderMode === 'review' && reviewStep === 'return'],
+    [stepCheck, builderMode === 'review' && reviewStep === 'check'],
+  ];
+  for (const [button, active] of tabs) {
+    button.classList.toggle('is-active', active);
+    if (active) button.setAttribute('aria-current', 'step');
+    else button.removeAttribute('aria-current');
+  }
+}
+function showStep(mode: BuilderMode, step: PrepareStep | ReviewStep): void {
+  if (mode === 'prepare') prepareStep = step as PrepareStep;
+  else reviewStep = step as ReviewStep;
+  builderMode = mode;
+  for (const panel of document.querySelectorAll<HTMLElement>('[data-builder-mode-panel]')) {
+    panel.hidden = panel.getAttribute('data-builder-mode-panel') !== mode;
+  }
+  for (const section of document.querySelectorAll<HTMLElement>('[data-builder-step]')) {
+    const name = section.getAttribute('data-builder-step');
+    const inPrepare = section.closest('[data-builder-mode-panel="prepare"]') !== null;
+    section.hidden = inPrepare ? name !== prepareStep : name !== reviewStep;
+  }
+  paintModeAndStepTabs();
+  document.body.classList.remove('show-operation-preview');
+  hook('preview-document').setAttribute('aria-expanded', 'false');
+  operationContainer.hidden = mode !== 'review' || step !== 'check' || lastReturn === null;
+  updateControls();
+}
+function showMode(mode: BuilderMode): void {
+  showStep(mode, mode === 'prepare' ? prepareStep : reviewStep);
+}
+function goNext(): void {
+  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  if (builderMode === 'prepare') {
+    if (prepareStep === 'open') { if (source !== null) showStep('prepare', 'choose'); }
+    else if (prepareStep === 'choose') { if (source !== null && selectionValid) showStep('prepare', 'details'); }
+    else if (prepareStep === 'details') { if (generated) showStep('prepare', 'send'); }
+  } else {
+    if (reviewStep === 'office') {
+      if (activeBaseline() !== null) showStep('review', 'return');
+      else baselineLoadStatus.textContent = 'Choose the office copy you saved when sending the project, then continue.';
+    } else if (reviewStep === 'return') {
+      if (lastReturn !== null) showStep('review', 'check');
+      else returnStatus.textContent = activeBaseline() === null
+        ? 'No issued baseline available; generate a package or choose a saved baseline first.'
+        : 'Load a returned project file to review it.';
+    }
+  }
+}
+function goBack(): void {
+  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  if (builderMode === 'prepare') {
+    if (prepareStep === 'choose') showStep('prepare', 'open');
+    else if (prepareStep === 'details') showStep('prepare', 'choose');
+    else if (prepareStep === 'send') showStep('prepare', 'details');
+  } else {
+    if (reviewStep === 'return') showStep('review', 'office');
+    else if (reviewStep === 'check') showStep('review', 'return');
+  }
+}
+function renderSelectionSummary(): void {
+  catalogueNote.hidden = !fromCatalogue || source === null;
+  selectionSummary.replaceChildren();
+  if (source === null) {
+    selectionSummary.textContent = 'No project loaded yet.';
+    return;
+  }
+  const selection = readSelection();
+  let optionCount = 0;
+  for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+    if (box.checked && selection.productIds.includes(box.getAttribute('data-product') ?? '')) optionCount += 1;
+  }
+  for (const options of productList.querySelectorAll<HTMLElement>('[data-options-for]')) options.hidden = !selection.productIds.includes(options.getAttribute('data-options-for')!);
+  const importedSelected = logoImports.filter((entry) =>
+    logoList.querySelector<HTMLInputElement>(`input[type="checkbox"][value="${entry.id}"]`)?.checked !== false,
+  ).length;
+  const count = (value: number, name: string) => `${value} ${name}${value === 1 ? '' : 's'}`;
+  for (const line of [count(selection.productIds.length, 'product'), count(optionCount, 'option'), count(selection.logoIds.length + importedSelected, 'logo')]) {
+    const row = document.createElement('p');
+    row.textContent = line;
+    selectionSummary.append(row);
+  }
+}
+function renderFileDetails(identity: { customerLabel: string; jobReference: string; issuedBy: string; projectId: string }): void {
+  const body = fileDetails.querySelector('.body') ?? fileDetails;
+  let node = body.querySelector('[data-builder-dynamic="file-summary"]');
+  if (!node) {
+    node = document.createElement('p');
+    node.setAttribute('data-builder-dynamic', 'file-summary');
+    node.className = 'muted';
+    body.insertBefore(node, body.firstChild);
+  }
+  const size = generated !== null
+    ? (generated.format === 'hybrid' && generated.zipBytes !== null ? generated.zipBytes.length : generated.htmlBytes.length)
+    : 0;
+  node.textContent =
+    `Customer ${identity.customerLabel} / job ${identity.jobReference} by ${identity.issuedBy}; project ${identity.projectId}. ` +
+    `Office copy ${generated?.packageBytes.length ?? 0} bytes; customer file ${size} bytes.`;
+}
+function clearFileDetails(): void {
+  fileDetails.querySelector('[data-builder-dynamic="file-summary"]')?.remove();
+}
+function renderReviewFiles(): void {
+  reviewFiles.replaceChildren();
+  if (lastReturn === null) return;
+  for (const line of [`Office copy: ${lastReturn.baselineFileName}`, `Customer return: ${lastReturn.returnFileName}`]) {
+    const row = document.createElement('p');
+    row.textContent = line;
+    reviewFiles.append(row);
+  }
+}
+function renderReviewChanges(issued: ProjectDocument): void {
+  reviewChanges.replaceChildren();
+  if (lastReturn === null) return;
+  const back = lastReturn.imported;
+  function line(parent: HTMLElement, text: string, className = ''): HTMLElement {
+    const node = document.createElement('p'); node.textContent = text; node.className = className; parent.append(node); return node;
+  }
+  const current = back.confirmation?.revision === back.revision && back.confirmation?.digest === lastReturn.contentDigest;
+  line(reviewChanges, current ? `Customer confirmed this version · ${back.confirmation!.confirmedBy}` : 'Customer confirmation is missing or out of date. Ask for confirmation before approval.', current ? 'review-ok' : 'review-warning');
+  line(reviewChanges, lastReturn.geometryOk ? 'All logos fit the allowed areas.' : 'Some logos do not fit the allowed areas. Check the measurements before proceeding.', lastReturn.geometryOk ? 'review-ok' : 'review-warning');
+  const old = new Map(issued.configurations.map(item => [item.id, item]));
+  const fresh = new Map(back.configurations.map(item => [item.id, item]));
+  let changed = false;
+  for (const id of new Set([...old.keys(), ...fresh.keys()])) {
+    const before = old.get(id), after = fresh.get(id);
+    if (canonicalize(before ?? null) === canonicalize(after ?? null)) continue;
+    changed = true;
+    const config = after ?? before!;
+    const product = back.products.find(item => item.id === config.productId);
+    const variant = product?.variants.find(item => item.id === config.variantId);
+    const group = document.createElement('section'); group.className = 'change-group'; reviewChanges.append(group);
+    line(group, `${product?.name ?? config.productId} · ${variant?.name ?? config.variantId}`, 'change-title');
+    if (!before || !after) line(group, after ? 'Product option added.' : 'Product option removed.');
+    const oldLogos = new Map((before?.placements ?? []).map((item, index) => [item.id ?? `#${index}`, item]));
+    const newLogos = new Map((after?.placements ?? []).map((item, index) => [item.id ?? `#${index}`, item]));
+    let changedLogo = false;
+    for (const key of new Set([...oldLogos.keys(), ...newLogos.keys()])) {
+      const oldItem = oldLogos.get(key), newItem = newLogos.get(key);
+      if (canonicalize(oldItem ?? null) === canonicalize(newItem ?? null)) continue;
+      changedLogo = true;
+      const item = newItem ?? oldItem!;
+      const logo = back.logos.find(logo => logo.id === item.logoId);
+      line(group, logo?.name ?? item.logoId, 'change-title');
+      const grid = document.createElement('div'); grid.className = 'comparison'; group.append(grid);
+      function compare(label: string, previous: string, next: string): void {
+        line(grid, label, 'change-label'); line(grid, `Before: ${previous}`); line(grid, `After: ${next}`);
+      }
+      const names = (value: Placement | undefined) => product?.regions.find(region => region.id === value?.regionId)?.name ?? value?.regionId ?? '(not placed)';
+      compare('Logo size', oldItem ? `${oldItem.widthMm} × ${oldItem.heightMm} mm` : '(not placed)', newItem ? `${newItem.widthMm} × ${newItem.heightMm} mm` : '(removed)');
+      if (oldItem?.regionId !== newItem?.regionId) compare('Logo area', names(oldItem), names(newItem));
+      else line(group, `Logo area: ${names(item)}`);
+      if (oldItem?.method !== newItem?.method) compare('Method', oldItem?.method ?? '(none)', newItem?.method ?? '(none)');
+      else line(group, `Method: ${item.method}`);
+      if (oldItem?.logoId !== newItem?.logoId && oldItem && newItem) compare('Artwork', back.logos.find(logo => logo.id === oldItem.logoId)?.name ?? oldItem.logoId, logo?.name ?? newItem.logoId);
+      if (oldItem?.instructions !== newItem?.instructions) compare('Customer note', oldItem?.instructions || '(none)', newItem?.instructions || '(none)');
+      if (oldItem && newItem && (oldItem.pos.xMm !== newItem.pos.xMm || oldItem.pos.yMm !== newItem.pos.yMm)) compare('Position (mm)', `${oldItem.pos.xMm}, ${oldItem.pos.yMm}`, `${newItem.pos.xMm}, ${newItem.pos.yMm}`);
+      if (oldItem && newItem && oldItem.rotationDeg !== newItem.rotationDeg) compare('Clockwise rotation', `${oldItem.rotationDeg}°`, `${newItem.rotationDeg}°`);
+      const details = document.createElement('details'); details.className = 'disclosure';
+      const title = document.createElement('summary'); title.textContent = 'Position and rotation'; details.append(title); group.append(details);
+      for (const [label, value] of [['Before', oldItem], ['After', newItem]] as const) {
+        if (!value) continue;
+        const area = product?.regions.find(region => region.id === value.regionId);
+        line(details, `${label}: centre ${value.pos.xMm}, ${value.pos.yMm} mm · Clockwise ${value.rotationDeg}°`);
+        line(details, `Reference point: ${area?.frame.originDescription ?? 'unknown'}; +x ${area?.frame.axes.xPositive ?? 'unknown'}; +y ${area?.frame.axes.yPositive ?? 'unknown'}`);
+      }
+    }
+    if (!changedLogo) line(group, !after?.placements.length ? 'No logos placed.' : 'Product option or logo order changed.');
+  }
+  if (issued.instructions !== back.instructions) {
+    changed = true;
+    line(reviewChanges, `Project note before: ${issued.instructions || '(none)'}`);
+    line(reviewChanges, `Project note after: ${back.instructions || '(none)'}`);
+  }
+  if (!changed) line(reviewChanges, 'No changes to logo layouts or notes.');
+}
 
 const hasher = createWebCryptoProjectHasher();
 
@@ -131,10 +394,17 @@ let selectionValid = false;
 let loading = false;
 let generating = false;
 let returnBusy = false;
+let creating = false;
+let createGeneration = 0;
+let logoImporting = false;
+let logoGeneration = 0;
+let logoCounter = 0;
+let fromCatalogue = false;
 let baselineBusy = false;
 let loadGeneration = 0;
 let generateGeneration = 0;
 let returnGeneration = 0;
+let logoImports: ImportedLogo[] = [];
 let baselineGeneration = 0;
 
 function activeBaseline(): BaselineState | null {
@@ -166,17 +436,31 @@ function invalidateOutputsForEdit(): void {
   baselineStatus.textContent = loadedBaseline !== null
     ? `No generated delivery retained. A saved baseline (${loadedBaseline.fileName}) remains loaded for return review.`
     : 'No issued baseline retained; generate a package first.';
+  clearFileDetails();
+  if (builderMode === 'prepare' && prepareStep === 'send') showStep('prepare', 'details');
   clearReturnReview();
   updateControls();
 }
 
 function updateControls(): void {
-  const blocked = loading || generating || returnBusy || baselineBusy;
+  const blocked = loading || generating || creating || logoImporting || returnBusy || baselineBusy;
   sourceChoose.disabled = blocked;
   sourceFile.disabled = blocked;
+  startCreate.disabled = blocked;
+  logoAdd.disabled = blocked || source === null;
+  logoFile.disabled = blocked || source === null;
+  newSourceButton.disabled = blocked || source === null;
   baselineChoose.disabled = blocked;
   baselineFile.disabled = blocked;
   generateButton.disabled = source === null || !selectionValid || blocked;
+  const office = activeBaseline();
+  officeSummary.textContent = office ? `Office copy ready: ${office.fileName}` : 'Choose the office copy saved for this job.';
+  baselineChoose.textContent = office ? 'Choose a different office copy' : 'Choose office copy';
+  baselineChoose.className = office ? 'btn-secondary' : 'btn-primary';
+  hook<HTMLButtonElement>('office-download').hidden = office === null;
+  const officeNext = document.querySelector<HTMLButtonElement>('[data-builder-step="office"] [data-builder-hook="builder-next"]');
+  if (officeNext) { officeNext.hidden = office === null; officeNext.className = 'btn-primary'; }
+  baselineLoadStatus.hidden = office !== null && !baselineBusy && !baselineLoadStatus.textContent?.startsWith('Could not');
   const hasOutput = generated !== null && !blocked;
   downloadPackage.disabled = !hasOutput;
   downloadHtml.disabled = !hasOutput;
@@ -184,14 +468,45 @@ function updateControls(): void {
     ? 'Download configurator HTML only (advanced)'
     : 'Download project file only (advanced)';
   downloadBaseline.disabled = activeBaseline() === null || blocked;
+  hook<HTMLButtonElement>('office-download').disabled = activeBaseline() === null || blocked;
   downloadReviewer.disabled = blocked;
+  hook<HTMLButtonElement>('reviewer-copy').disabled = blocked;
   projectIdUseSource.disabled = source === null || blocked;
+  projectIdNew.disabled = blocked;
   for (const input of [customerName, jobRef, issuedBy, projectIdInput, formatSelf, formatHybrid]) input.disabled = blocked;
-  for (const input of document.querySelectorAll<HTMLInputElement>('.check-list input')) input.disabled = blocked;
+  for (const input of document.querySelectorAll<HTMLInputElement>('.rows input')) input.disabled = blocked;
   const hasReturn = lastReturn !== null && !blocked;
   candidateDownload.disabled = !hasReturn;
   operationPrint.disabled = !hasReturn;
   returnFile.disabled = blocked || activeBaseline() === null;
+  const stepButtons = document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-next"], [data-builder-hook="builder-back"]');
+  for (const button of stepButtons) {
+    const step = button.closest('[data-builder-step]')?.getAttribute('data-builder-step');
+    const visible = (builderMode === 'prepare' ? prepareStep : reviewStep) === step;
+    button.hidden = !visible;
+    if (!visible) continue;
+    const isNext = button.getAttribute('data-builder-hook') === 'builder-next';
+    button.disabled = blocked || (isNext && !canAdvanceFromCurrentStep());
+  }
+  if (officeNext && office === null) officeNext.hidden = true;
+  modePrepare.disabled = blocked;
+  modeReview.disabled = blocked;
+  for (const tab of [stepOpen, stepChoose, stepDetails, stepSend, stepOffice, stepReturn, stepCheck]) tab.disabled = blocked;
+  stepChoose.disabled = blocked || source === null;
+  stepDetails.disabled = blocked || source === null || !selectionValid;
+  stepSend.disabled = blocked || generated === null;
+  stepReturn.disabled = blocked || activeBaseline() === null;
+  stepCheck.disabled = blocked || lastReturn === null;
+}
+function canAdvanceFromCurrentStep(): boolean {
+  if (builderMode === 'prepare') {
+    if (prepareStep === 'open') return source !== null;
+    if (prepareStep === 'choose') return source !== null && selectionValid;
+    return prepareStep === 'details' && generated !== null;
+  }
+  if (reviewStep === 'office') return activeBaseline() !== null;
+  if (reviewStep === 'return') return lastReturn !== null;
+  return false;
 }
 
 function createCheckRow(value: string, label: string): { row: HTMLLabelElement; box: HTMLInputElement } {
@@ -207,7 +522,21 @@ function createCheckRow(value: string, label: string): { row: HTMLLabelElement; 
   return { row, box };
 }
 
-function renderSelectionLists(summary: BuilderSourceSummary): void {
+function currentChecks(): { products: string[]; logos: string[]; configurations: string[] } {
+  const products: string[] = [];
+  for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+    if (box.checked) products.push(`${box.getAttribute('data-product') ?? ''}\0${box.value}`);
+  }
+  const logos: string[] = [];
+  for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+    if (!box.checked) logos.push(box.value);
+  }
+  const configurations = Array.from(configurationList.querySelectorAll<HTMLInputElement>('input[type=checkbox]')).filter(box => box.checked).map(box => box.value);
+  return { products, logos, configurations };
+}
+
+function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = false): void {
+  const kept = preserveChecks ? currentChecks() : null;
   productList.replaceChildren();
   logoList.replaceChildren();
   configurationList.replaceChildren();
@@ -218,21 +547,27 @@ function renderSelectionLists(summary: BuilderSourceSummary): void {
     productList.append(empty);
   } else {
     for (const product of summary.products) {
-      const { row } = createCheckRow(product.id, `${product.name} (${product.id})`);
+      const { row, box } = createCheckRow(product.id, product.name || product.id);
+      if (kept !== null && !kept.products.includes(`\0${product.id}`)) box.checked = false;
       productList.append(row);
       if (product.variantIds.length > 0) {
         const variants = document.createElement('div');
         variants.className = 'variants';
+        variants.setAttribute('data-options-for',product.id);
+        const live = source?.project.products.find((entry) => entry.id === product.id);
         for (const variantId of product.variantIds) {
-          const variant = createCheckRow(variantId, variantId);
-          variant.box.setAttribute('data-product', product.id);
-          variants.append(variant.row);
+          const variant = live?.variants.find((entry) => entry.id === variantId);
+          const label = variant?.name !== undefined ? variant.name : variantId;
+          const variantRow = createCheckRow(variantId, label);
+          variantRow.box.setAttribute('data-product', product.id);
+          if (kept !== null && !kept.products.includes(`${product.id}\0${variantId}`)) variantRow.box.checked = false;
+          variants.append(variantRow.row);
         }
         productList.append(variants);
       }
     }
   }
-  if (summary.logoIds.length === 0) {
+  if (summary.logoIds.length === 0 && logoImports.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted';
     empty.textContent = 'No logos in source.';
@@ -240,8 +575,14 @@ function renderSelectionLists(summary: BuilderSourceSummary): void {
   } else {
     for (const logoId of summary.logoIds) {
       const logo = source?.project.logos.find((entry) => entry.id === logoId);
-      const label = logo?.name !== undefined ? `${logo.name} (${logoId})` : logoId;
-      logoList.append(createCheckRow(logoId, label).row);
+      const { row, box } = createCheckRow(logoId, logo?.name || logoId);
+      if (kept !== null && kept.logos.includes(logoId)) box.checked = false;
+      logoList.append(row);
+    }
+    for (const imported of logoImports) {
+      const {row,box} = createCheckRow(imported.id, imported.name);
+      if (kept?.logos.includes(imported.id)) box.checked = false;
+      logoList.append(row);
     }
   }
   if (summary.configurationIds.length === 0) {
@@ -253,9 +594,11 @@ function renderSelectionLists(summary: BuilderSourceSummary): void {
     for (const configurationId of summary.configurationIds) {
       const configuration = source?.project.configurations.find((entry) => entry.id === configurationId);
       const label = configuration !== undefined
-        ? `${configuration.id} — ${configuration.productId} / ${configuration.variantId}`
+        ? `${configuration.productId} · ${configuration.variantId} — ${configuration.placements.length} logo placements`
         : configurationId;
-      configurationList.append(createCheckRow(configurationId, label).row);
+      const {row,box} = createCheckRow(configurationId, label);
+      if (kept && !kept.configurations.includes(configurationId)) box.checked = false;
+      configurationList.append(row);
     }
   }
 }
@@ -265,9 +608,10 @@ function readSelection(): BuilderSelection {
   for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
     if (box.checked && box.getAttribute('data-product') === null) productIds.push(box.value);
   }
+  const importedIds = logoImports.map((entry) => entry.id);
   const logoIds: string[] = [];
   for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
-    if (box.checked) logoIds.push(box.value);
+    if (box.checked && !importedIds.includes(box.value)) logoIds.push(box.value);
   }
   const allConfigurations: string[] = [];
   for (const box of configurationList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
@@ -311,11 +655,17 @@ function refreshSelectionValidation(): void {
   if (outcome.ok) {
     selectionValid = true;
     const configurationCount = selection.configurationIds ?? source.summary.configurationIds;
-    generateStatus.textContent =
-      `Selection valid: ${selection.productIds.length} products, ${selection.logoIds.length} logos, ${configurationCount.length} source configurations. Selected variants without defaults start empty in automatic mode.`;
+    const readable = `Selection valid: ${selection.productIds.length} products, ${selection.logoIds.length} logos, ${configurationCount.length} source configurations. Selected variants without defaults start empty in automatic mode.`;
+    generateStatus.textContent = readable;
+    generateStatus.hidden = true;
+    selectionError.textContent = '';
+    renderSelectionSummary();
   } else {
     selectionValid = false;
-    generateStatus.textContent = `Selection invalid: ${outcome.errors.map((error) => error.message).join('; ')}`;
+    const readable = `Selection invalid: ${outcome.errors.map((error) => error.message).join('; ')}`;
+    generateStatus.textContent = readable;
+    selectionError.textContent = 'Choose at least one product and an option for each selected product. Check any specific setups you selected.';
+    renderSelectionSummary();
   }
   updateControls();
 }
@@ -328,6 +678,7 @@ function clearGeneratedOutputs(): void {
   baselineStatus.textContent = loadedBaseline !== null
     ? `No generated delivery retained. A saved baseline (${loadedBaseline.fileName}) remains loaded for return review.`
     : 'No issued baseline retained; generate a package first.';
+  clearFileDetails();
   clearReturnReview();
   updateControls();
 }
@@ -339,6 +690,8 @@ function clearReturnReview(): void {
   reviewPanel.hidden = true;
   ticketSummary.textContent = 'No return imported.';
   handoffSummary.textContent = 'No return imported.';
+  reviewFiles.replaceChildren();
+  reviewChanges.replaceChildren();
   for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
   operationContainer.replaceChildren();
   operationContainer.hidden = true;
@@ -350,7 +703,12 @@ function clearReturnReview(): void {
 }
 
 async function loadSourceFile(file: File): Promise<void> {
+  alertBuilder();
   const generation = ++loadGeneration;
+  createGeneration += 1;
+  creating = false;
+  logoGeneration += 1;
+  logoImporting = false;
   generateGeneration += 1;
   generating = false;
   returnGeneration += 1;
@@ -366,14 +724,22 @@ async function loadSourceFile(file: File): Promise<void> {
     if (generation !== loadGeneration) return;
     assertProjectEditorLimits(parsed.project);
     const summary = summarizeSourceProject(parsed.project);
+    fromCatalogue = false;
+    logoImports = [];
+    logoStatus.textContent = '';
     source = { fileName: file.name, project: parsed.project, assets: parsed.assets, summary };
     renderSelectionLists(summary);
     projectIdSuggestion.textContent = `Source project ID “${summary.projectId}”. Enter a unique ID for this customer issue.`;
     clearGeneratedOutputs();
     sourceStatus.textContent = `Loaded ${file.name}: project ${summary.projectId} revision ${summary.revision}, ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} configurations, ${summary.assetPaths.length} assets.`;
     refreshSelectionValidation();
+    ensureAutoProjectId();
+    showStep('prepare', 'choose');
   } catch (error) {
-    if (generation === loadGeneration) sourceStatus.textContent = `Could not load ${file.name}: invalid source: ${error instanceof Error ? error.message : String(error)}. The previous source remains unchanged.`;
+    if (generation === loadGeneration) {
+      sourceStatus.textContent = `Could not load ${file.name}: invalid source: ${error instanceof Error ? error.message : String(error)}. The previous source remains unchanged.`;
+      alertBuilder(`Could not open ${file.name}. Choose a valid project file. Your previous project is still available.`);
+    }
   } finally {
     if (generation === loadGeneration) { loading = false; updateControls(); }
   }
@@ -398,7 +764,16 @@ function embeddedEditorBytes(): Uint8Array {
 }
 
 async function generateIssued(): Promise<void> {
-  if (source === null || loading || generating || baselineBusy || returnBusy) return;
+  if (source === null || loading || generating || creating || logoImporting || baselineBusy || returnBusy) return;
+  alertBuilder();
+  generateStatus.hidden = false;
+  const missing = [[customerName, 'customer name'], [jobRef, 'job reference'], [issuedBy, 'prepared by']] as const;
+  const empty = missing.filter(([input]) => !input.value.trim());
+  if (empty.length) {
+    alertBuilder(`Enter ${empty.map(([, label]) => label).join(', ')} to create the customer file.`);
+    empty[0]![0].focus();
+    return;
+  }
   const snapshot = source;
   clearGeneratedOutputs();
   const generation = ++generateGeneration;
@@ -425,12 +800,50 @@ async function generateIssued(): Promise<void> {
       if (generation === generateGeneration) {
         generated = null;
         generateStatus.textContent = `Issue rejected: ${issued.errors.map((error) => error.message).join('; ')}`;
+        alertBuilder('Check the project ID in More options. Enter a unique reference using 1–256 characters.');
+        const options = projectIdInput.closest('details'); if (options) options.open = true;
+        projectIdInput.focus();
       }
       return;
     }
     if (generation !== generateGeneration) return;
+    const unchecked: string[] = [];
+    for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (!box.checked) unchecked.push(box.value);
+    }
+    const snapshotImports = logoImports.filter((entry) => !unchecked.includes(entry.id));
+    if (issued.project.logos.length + snapshotImports.length > 64) {
+      generateStatus.textContent = 'Issue rejected: at most 64 logos';
+      return;
+    }
+    for (const imported of snapshotImports) {
+      issued.project.logos.push({
+        schemaVersion: issued.project.schemaVersion,
+        id: imported.id,
+        name: imported.name,
+        role: 'original',
+        assets: [{
+          uri: importedLogoPath(imported),
+          role: 'original',
+          mediaType: imported.mediaType,
+          widthPx: imported.widthPx,
+          heightPx: imported.heightPx,
+        }],
+      });
+    }
+    const mergedValidation = validateLogos(issued.project.logos);
+    if (!mergedValidation.ok) {
+      generateStatus.textContent = `Issue rejected: ${mergedValidation.errors.map((error) => error.message).join('; ')}`;
+      return;
+    }
+    for (const imported of snapshotImports) {
+      const digest = await hasher.sha256Bytes(imported.bytes);
+      if (generation !== generateGeneration) return;
+      issued.project.logos.find((entry) => entry.id === imported.id)!.assets[0]!.sha256Hex = digest;
+    }
+    const importedAssets = snapshotImports.map((imported) => ({ path: importedLogoPath(imported), bytes: imported.bytes }));
     const issuedAssets = selectIssuedAssets(
-      snapshot.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })),
+      [...snapshot.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })), ...importedAssets],
       issued.project,
     );
     // Presentation-only passthrough: optional presentation/ reference assets
@@ -492,12 +905,17 @@ async function generateIssued(): Promise<void> {
       `Retained issued baseline: ${identity.projectId} revision 1 (${packageBytes.length} bytes). Save this exact file before closing the page; memory is lost on reload.`;
     generateStatus.textContent =
       `Issued ${identity.projectId} revision 1 for ${identity.customerLabel} / ${identity.jobReference} by ${identity.issuedBy}. Confirmation and internal review history reset before customer handoff.`;
+    readySummary.textContent = `${identity.customerLabel} · ${identity.jobReference} · Prepared by ${identity.issuedBy}`;
+    renderFileDetails(identity);
+    sizeEstimate.textContent = `${hybrid ? 'ZIP package' : 'Ready-to-open customer file'} · ${((hybrid ? zipBytes!.length : htmlBytes.length) / 1024 / 1024).toFixed(1)} MB. ${hybrid ? 'Ask the customer to unzip it first.' : 'The customer opens it directly.'}`;
+    showStep('prepare', 'send');
   } catch (error) {
     if (generation === generateGeneration) {
       generated = null;
       sizeEstimate.textContent = 'No issued package generated yet.';
       baselineStatus.textContent = 'No issued baseline retained; generate a package first.';
       generateStatus.textContent = `Generation failed: ${error instanceof Error ? error.message : String(error)}`;
+      alertBuilder('The customer file could not be created. Please try again. Your source project is unchanged.');
     }
   } finally {
     if (generation === generateGeneration) {
@@ -524,10 +942,10 @@ function downloadPackageFile(): void {
   if (generated === null || loading || generating || returnBusy || baselineBusy) return;
   if (generated.format === 'hybrid' && generated.zipBytes !== null) {
     downloadBytes(generated.zipBytes, `${generated.jobPart}.zip`, 'application/zip');
-    generateStatus.textContent = `Downloaded ${generated.jobPart}.zip (${generated.zipBytes.length} bytes). Attach it to your normal handoff yourself.`;
+    generateStatus.textContent = `Download started: ${generated.jobPart}.zip (${generated.zipBytes.length} bytes). Attach it to your normal handoff yourself.`;
   } else {
     downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
-    generateStatus.textContent = `Downloaded OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes). The customer opens this file directly, nothing to unzip.`;
+    generateStatus.textContent = `Download started: OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes). The customer opens this file directly, nothing to unzip.`;
   }
 }
 
@@ -535,20 +953,20 @@ function downloadHtmlFile(): void {
   if (generated === null || loading || generating || returnBusy || baselineBusy) return;
   if (generated.format === 'hybrid') {
     downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
-    generateStatus.textContent = `Downloaded OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes) on its own.`;
+    generateStatus.textContent = `Download started: OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes) on its own.`;
   } else {
     downloadBytes(generated.packageBytes, `${generated.jobPart}.logo-project`, 'application/zip');
-    generateStatus.textContent = `Downloaded ${generated.jobPart}.logo-project (${generated.packageBytes.length} bytes) on its own.`;
+    generateStatus.textContent = `Download started: ${generated.jobPart}.logo-project (${generated.packageBytes.length} bytes) on its own.`;
   }
 }
 
 function downloadBaselineFile(): void {
-  if (loading || generating || returnBusy || baselineBusy) return;
+  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
   const baseline = activeBaseline();
   if (baseline === null) return;
   downloadBytes(baseline.packageBytes, `${baseline.jobPart}-issued-baseline.logo-project`, 'application/zip');
   baselineStatus.textContent =
-    `Issued baseline downloaded byte-identical (${baseline.packageBytes.length} bytes).`;
+    `Download started: issued baseline (${baseline.packageBytes.length} bytes). Save it before closing the page; memory is lost on reload.`;
 }
 
 function compareAssetBytes(issued: readonly ProjectPackageAsset[], back: readonly ProjectPackageAsset[]): string[] {
@@ -657,6 +1075,7 @@ function safeJobPart(value: string): string {
 }
 
 async function loadBaselineFile(file: File): Promise<void> {
+  alertBuilder();
   const generation = ++baselineGeneration;
   generateGeneration += 1;
   generating = false;
@@ -676,8 +1095,12 @@ async function loadBaselineFile(file: File): Promise<void> {
     // Selecting a saved baseline explicitly switches review context away from any generated delivery.
     clearGeneratedOutputs();
     baselineLoadStatus.textContent = `Loaded saved baseline ${file.name}: project ${parsed.project.projectId} revision ${parsed.project.revision} (${bytes.length} bytes). Return review is now available.`;
+    showStep('review', 'return');
   } catch (error) {
-    if (generation === baselineGeneration) baselineLoadStatus.textContent = `Could not load baseline ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous baseline remains unchanged.`;
+    if (generation === baselineGeneration) {
+      baselineLoadStatus.textContent = `Could not load baseline ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous baseline remains unchanged.`;
+      alertBuilder(`Could not open office copy ${file.name}. Choose the original file saved for this job. Your previous copy is unchanged.`);
+    }
   } finally {
     if (generation === baselineGeneration) { baselineBusy = false; updateControls(); }
   }
@@ -690,11 +1113,13 @@ function onBaselineFileChange(): void {
 }
 
 async function loadReturnFile(file: File): Promise<void> {
+  alertBuilder();
   const generation = ++returnGeneration;
   if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
     returnBusy = false;
     updateControls();
     returnStatus.textContent = `Could not import return ${file.name}: archive size exceeds limit; rejected before reading.`;
+    alertBuilder('This return file is too large. Choose a valid project return.');
     return;
   }
   returnBusy = true;
@@ -709,6 +1134,7 @@ async function loadReturnFile(file: File): Promise<void> {
     updateControls();
     const detail = error instanceof Error ? error.message : String(error);
     returnStatus.textContent = `Could not import return ${file.name}: file read failed: ${detail}.`;
+    alertBuilder('This return file could not be read. Please choose it again.');
     return;
   }
   if (generation !== returnGeneration) return;
@@ -765,12 +1191,15 @@ async function loadReturnFile(file: File): Promise<void> {
     const geometrySummary = document.createElement('p');
     geometrySummary.setAttribute('data-builder-dynamic', 'true');
     geometrySummary.textContent = geometry.text;
+    const differenceText = differenceLines(baseline.issuedProject, imported);
     const differences = document.createElement('pre');
     differences.setAttribute('data-builder-dynamic', 'true');
-    differences.textContent = differenceLines(baseline.issuedProject, imported).join('\n\n');
+    differences.textContent = differenceText.join('\n\n');
     reviewPanel.insertBefore(confirmation, anchor);
     reviewPanel.insertBefore(geometrySummary, anchor);
     reviewPanel.insertBefore(differences, anchor);
+    renderReviewFiles();
+    renderReviewChanges(baseline.issuedProject);
     const decision = imported.review !== undefined ? imported.review.decision : 'pending (no current internal review)';
     ticketSummary.textContent =
       `Project ${imported.projectId}; revision ${imported.revision}; candidate digest ${candidate.digest}; confirmation ${imported.confirmation === undefined ? 'none' : `rev ${imported.confirmation.revision} by ${imported.confirmation.confirmedBy}`} (timestamp source: returned confirmation envelope); decision ${decision}.`;
@@ -793,9 +1222,11 @@ async function loadReturnFile(file: File): Promise<void> {
     operationContainer.append(renderOperationDocument(doc, document));
     operationContainer.hidden = false;
     returnStatus.textContent = 'Return imported against the active issued baseline. Internal review is pending.';
+    showStep('review', 'check');
   } catch (error) {
     if (generation !== returnGeneration) return;
     returnStatus.textContent = `Could not import return ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous valid review remains unchanged.`;
+    alertBuilder(`Could not check ${file.name}. Make sure the office copy and customer return belong to the same job. The previous valid check is unchanged.`);
   } finally {
     if (generation === returnGeneration) {
       returnBusy = false;
@@ -819,7 +1250,7 @@ async function downloadCandidateFile(): Promise<void> {
   try {
     if (generation !== returnGeneration || lastReturn !== snapshot) return;
     downloadBytes(new TextEncoder().encode(snapshot.serializedCandidate), snapshot.candidateFileName, 'application/json');
-    returnStatus.textContent = `Downloaded ${snapshot.candidateFileName}.`;
+    returnStatus.textContent = `Download started: ${snapshot.candidateFileName}.`;
   } catch (error) {
     if (generation === returnGeneration && lastReturn === snapshot) {
       returnStatus.textContent = `Candidate download failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -859,8 +1290,144 @@ function downloadReviewerFile(): void {
   }
 }
 
+interface BuilderCatalogue {
+  products: ProjectDocument['products'];
+  logos: ProjectDocument['logos'];
+  assets: { path: string; bytesBase64: string }[];
+}
+function readEmbeddedCatalogue(): BuilderCatalogue {
+  const node = document.querySelector('#__logoBuilderCatalogue');
+  if (node === null) {
+    throw new Error('Example product catalogue is not embedded; rebuild dist/internal-builder.html before creating a project.');
+  }
+  if (node.tagName !== 'SCRIPT' || node.getAttribute('type') !== 'application/json') {
+    throw new Error('Embedded example catalogue has an unexpected element shape.');
+  }
+  const content = node.textContent ?? '';
+  if (content.length > 8 * 1024 * 1024) throw new Error('Embedded catalogue is too large.');
+  const parsed: unknown = JSON.parse(content);
+  if (typeof parsed !== 'object' || parsed === null) throw new Error('Embedded example catalogue is invalid.');
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record['products']) || !Array.isArray(record['logos']) || !Array.isArray(record['assets'])) {
+    throw new Error('Embedded example catalogue is missing products, logos or assets.');
+  }
+  return parsed as BuilderCatalogue;
+}
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)!;
+  return bytes;
+}
+async function createFromCatalogue(): Promise<void> {
+  if (loading || generating || creating || baselineBusy || returnBusy) return;
+  alertBuilder();
+  const generation = ++createGeneration;
+  // Starting a new job deliberately supersedes any unfinished artwork import.
+  logoGeneration += 1; logoImporting = false;
+  loadGeneration += 1;
+  generateGeneration += 1;
+  generating = false;
+  creating = true;
+  updateControls();
+  createStatus.textContent = 'Creating a new draft from example products…';
+  try {
+    const catalogue = readEmbeddedCatalogue();
+    if (generation !== createGeneration) return;
+    const draft = createProjectFromDefinitions({ products: catalogue.products, logos: catalogue.logos, projectId: newLocalId(), synthetic: true });
+    if (!draft.ok) {
+      if (generation === createGeneration) {
+        createStatus.textContent = `Could not create a project: ${draft.errors.map((error) => error.message).join('; ')}. Your previous project is still available.`;
+        alertBuilder('The example catalogue could not be used. Your previous project is still available.');
+      }
+      return;
+    }
+    if (generation !== createGeneration) return;
+    assertProjectEditorLimits(draft.project);
+    const catalogueAssets = catalogue.assets.map((asset) => ({ path: asset.path, bytes: base64ToBytes(asset.bytesBase64), kind: 'referenced' as const }));
+    const packageBytes = await createProjectPackage({ project: draft.project, assets: catalogueAssets }, { sha256: hasher.sha256Bytes });
+    const checked = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+    if (generation !== createGeneration) return;
+    const summary = summarizeSourceProject(checked.project);
+    logoImports = [];
+    fromCatalogue = true;
+    source = { fileName: 'example-catalogue', project: checked.project, assets: checked.assets, summary };
+    renderSelectionLists(summary);
+    projectIdSuggestion.textContent = 'A fresh project ID was generated for this new draft. Enter a unique ID for this customer issue.';
+    clearGeneratedOutputs();
+    customerName.value = '';
+    jobRef.value = '';
+    issuedBy.value = '';
+    formatSelf.checked = true; formatHybrid.checked = false;
+    projectIdInput.value = newLocalId(); lastAutoProjectId = projectIdInput.value;
+    logoStatus.textContent = '';
+    createStatus.textContent = `Created a new draft with ${summary.products.length} example products. Example products — not for production.`;
+    refreshSelectionValidation();
+    showStep('prepare', 'choose');
+  } catch (error) {
+    if (generation === createGeneration) {
+      createStatus.textContent = `Could not create a project: ${error instanceof Error ? error.message : String(error)}. Your previous project is still available.`;
+      alertBuilder('The example catalogue could not be used. Your previous project is still available.');
+    }
+  } finally {
+    if (generation === createGeneration) { creating = false; updateControls(); }
+  }
+}
+function importedLogoPath(imported: ImportedLogo): string {
+  const extension = imported.mediaType === 'image/jpeg' ? 'jpg' : imported.mediaType === 'image/webp' ? 'webp' : 'png';
+  return `logos/${imported.id}.${extension}`;
+}
+function readableLogoName(fileName: string): string {
+  const trimmed = fileName.trim().replace(/\.[^.]*$/, '').replace(/[_\-\s]+/g, ' ').trim();
+  return trimmed === '' ? 'Customer logo' : trimmed.slice(0, 80);
+}
+async function importLogoFile(file: File): Promise<void> {
+  if (!source || loading || generating || creating || returnBusy || baselineBusy) return;
+  alertBuilder();
+  const generation = ++logoGeneration;
+  logoImporting = true;
+  updateControls();
+  logoStatus.textContent = `Reading ${file.name}…`;
+  try {
+    if (file.size > MAX_PREVIEW_BYTES) throw new Error(`logo exceeds ${MAX_PREVIEW_BYTES} bytes; rejected before reading`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (generation !== logoGeneration) return;
+    const header = readRasterHeader(bytes);
+    if (header === null) throw new Error('unsupported or invalid image; choose a PNG, JPEG or WebP file');
+    const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], { type: header.mediaType }));
+    const width = bitmap.width, height = bitmap.height; bitmap.close();
+    if (generation !== logoGeneration) return;
+    if (width !== header.width || height !== header.height) throw new Error('image dimensions could not be verified');
+    if (source === null) throw new Error('create or open a project before adding a logo');
+    let id: string;
+    do { id = `customer-logo-${newLocalId()}`; } while (source.project.logos.some(logo => logo.id === id) || logoImports.some(logo => logo.id === id));
+    logoImports.push({ id, name: readableLogoName(file.name), bytes: bytes.slice(), mediaType: header.mediaType, widthPx: header.width, heightPx: header.height });
+    logoStatus.textContent = `Added ${file.name}. It is selected automatically; the customer places it later.`;
+    renderSelectionLists(source.summary, true);
+    refreshSelectionValidation();
+  } catch (error) {
+    if (generation === logoGeneration) {
+      logoStatus.textContent = `Could not add ${file.name}: ${error instanceof Error ? error.message : String(error)}. Previous logos are unchanged.`;
+      alertBuilder(`Could not add ${file.name}. Choose a PNG, JPEG or WebP image. Previous logos are unchanged.`);
+    }
+  } finally {
+    if (generation === logoGeneration) { logoImporting = false; updateControls(); }
+  }
+}
+function onLogoFileChange(): void {
+  const file = logoFile.files?.[0];
+  if (file) void importLogoFile(file);
+  logoFile.value = '';
+}
+
 sourceChoose.addEventListener('click', () => sourceFile.click());
 sourceFile.addEventListener('change', onSourceFileChange);
+startCreate.addEventListener('click', () => void createFromCatalogue());
+logoAdd.addEventListener('click', () => logoFile.click());
+logoFile.addEventListener('change', onLogoFileChange);
+newSourceButton.addEventListener('click', () => {
+  showStep('prepare', 'open');
+});
 sourceDrop.addEventListener('click', () => sourceFile.click());
 sourceDrop.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -884,6 +1451,13 @@ downloadPackage.addEventListener('click', downloadPackageFile);
 downloadHtml.addEventListener('click', downloadHtmlFile);
 downloadBaseline.addEventListener('click', downloadBaselineFile);
 downloadReviewer.addEventListener('click', downloadReviewerFile);
+hook<HTMLButtonElement>('reviewer-copy').addEventListener('click', downloadReviewerFile);
+hook<HTMLButtonElement>('office-download').addEventListener('click', downloadBaselineFile);
+hook<HTMLButtonElement>('preview-document').addEventListener('click', () => {
+  const open = document.body.classList.toggle('show-operation-preview');
+  hook('preview-document').setAttribute('aria-expanded', String(open));
+  if (open) operationContainer.scrollIntoView({ block: 'start' });
+});
 baselineChoose.addEventListener('click', () => baselineFile.click());
 baselineFile.addEventListener('change', onBaselineFileChange);
 returnFile.addEventListener('change', onReturnFileChange);
@@ -896,10 +1470,32 @@ projectIdUseSource.addEventListener('click', () => {
   if (source !== null) projectIdInput.value = source.summary.projectId;
   refreshSelectionValidation();
 });
+projectIdNew.addEventListener('click', () => {
+  const fresh = newLocalId();
+  projectIdInput.value = fresh;
+  lastAutoProjectId = fresh;
+  refreshSelectionValidation();
+  projectIdInput.focus();
+});
 customerName.addEventListener('input', () => refreshSelectionValidation());
 jobRef.addEventListener('input', () => refreshSelectionValidation());
 issuedBy.addEventListener('input', () => refreshSelectionValidation());
 projectIdInput.addEventListener('input', () => refreshSelectionValidation());
 formatSelf.addEventListener('change', () => refreshSelectionValidation());
 formatHybrid.addEventListener('change', () => refreshSelectionValidation());
-updateControls();
+modePrepare.addEventListener('click', () => showMode('prepare'));
+modeReview.addEventListener('click', () => showMode('review'));
+stepOpen.addEventListener('click', () => showStep('prepare', 'open'));
+stepChoose.addEventListener('click', () => { if (source !== null) showStep('prepare', 'choose'); });
+stepDetails.addEventListener('click', () => { if (source !== null && selectionValid) showStep('prepare', 'details'); });
+stepSend.addEventListener('click', () => { if (generated) showStep('prepare', 'send'); });
+stepOffice.addEventListener('click', () => showStep('review', 'office'));
+stepReturn.addEventListener('click', () => { if (activeBaseline() !== null) showStep('review', 'return'); });
+stepCheck.addEventListener('click', () => { if (lastReturn !== null) showStep('review', 'check'); });
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-next"]')) {
+  button.addEventListener('click', goNext);
+}
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-back"]')) {
+  button.addEventListener('click', goBack);
+}
+showStep('prepare', 'open');

@@ -1,35 +1,78 @@
 # Internal Builder (Phase 11)
 
-The provisional Builder creates customer deliveries from a local validated
-`.logo-project` catalogue snapshot. It uses the existing domain, customer editor,
+The guided Builder creates new drafts from bundled prepared definitions or
+opens an existing local validated `.logo-project`. It uses the existing domain, customer editor,
 return-import and operation-document contracts. No Odoo connection, upload or
-schema finalization is involved.
+schema finalization is involved. The Builder never sends files anywhere:
+operators download files and attach them to their normal handoff manually.
 
 ## Start and issue
 
 Run `npm run build`, then open `dist/internal-builder.html` directly with the
-network disabled. For a synthetic demonstration, choose the generated
-`dist/trusted-issued.logo-project` as the source.
+network disabled. For a synthetic demonstration, choose **Create a project**; no project file
+is required. To exercise Open, choose `dist/trusted-issued.logo-project`. All fixtures and calibrations
+used in tests are synthetic; optional raster reference photos and artwork
+thumbnails are visual aids only.
 
-1. Choose or drop a source package. Imported artwork remains inert original
-   bytes; the Builder displays its logo definitions rather than rendering it.
-2. Select products, their variants and the artwork to supply. All start selected.
-   Unselected artwork removes its default placements; selecting no artwork is
-   valid. Measurements, frames, safe areas and calibration remain from source.
-3. **Choose specific setups (advanced, optional)** reveals the configuration
-   list for selecting specific prepared configurations.
-   Leaving all checked uses automatic selection: only selected products/variants
-   survive, and variants without a default receive an empty editable
-   configuration. Explicit configuration subsets keep only those configurations.
-4. Enter customer label, job reference, issuer and a unique issued project ID.
-   The ID binds subsequent returns to this issue. Use a different ID for a new
-   customer issue; the application cannot enforce uniqueness across saved files.
-5. Choose self-contained HTML or hybrid ZIP and generate. Exact output sizes
-   appear before downloading. Generation is deterministic for identical inputs.
-6. Download the delivery AND the retained baseline before handoff. Store the
-   baseline internally with the job. Browser memory is lost on close/reload.
+The header offers two modes: **Prepare a project** and **Review a return**.
+Preparation starts on **Start**, a guided sequence of one task at a time:
 
-The issue starts at revision 1 with the explicitly entered project ID. Source
+1. **Start.** Two paths with no technical file input required: the primary
+   **Create a project** button starts a genuinely new draft from the bundled
+   example catalogue, and the secondary **Open an existing project**
+   disclosure (collapsed by default) loads a project file supplied for the job.
+   Creating never uploads or opens an old customer job: it clears customer
+   name, job reference, prepared-by, instructions, placements,
+   confirmation/review histories and baseline references, then assembles a
+   fresh revision-1 draft with a new local project ID from prepared product
+   definitions. A failed create or open leaves the current project and outputs
+   unchanged with an actionable error; a successful start moves on to Choose
+   items. A new-source action stays easy to find. Keyboard works throughout.
+2. **Choose items.** Products, their options and logos are checked by default
+   with plain readable names; the created draft shows **Example products —
+   not for production.** next to the list. Product and nested option toggles
+   keep the original selection semantics; multiple logos and zero logos are
+   supported. **Add a customer logo** imports a new PNG/JPEG/WebP image from
+   this device through the real file chooser (2 MB pre-read bound, header +
+   native decode validated); nothing is uploaded. The import keeps exact
+   original bytes with a collision-safe ID, a readable name, `original` role
+   and pixel dimensions only (never millimetre sizes or calibration), is
+   selected automatically, and leaves prior state untouched on invalid,
+   disguised, oversized or unreadable files. **Choose specific setups** is an
+   advanced disclosure for preparation subsets only. A summary shows counts
+   for the actual selection, and invalid selections (for example no products)
+   are reported here. Continue moves to Customer details without needing job
+   identity yet. Back and step tabs never change selections or outputs.
+3. **Customer details.** Only Customer name, Job reference and Prepared by are
+   visible. The unique issue project ID is generated automatically as a fresh
+   local ID: it never reuses the source ID, stays stable across step and mode
+   navigation, and is reused for repeated generation with unchanged input. An
+   explicit new-ID action and an editable ID field with a uniqueness note live
+   behind **More options**, alongside the package format; manual overrides are
+   kept, while empty or invalid IDs are rejected. The format defaults to the
+   recommended self-contained HTML; the ZIP alternative is also behind More
+   options. The single primary action is **Create customer file**, with
+   field-specific validation. Success moves on to Save & send. Inputs lock
+   during asynchronous work and stale async tokens are discarded.
+4. **Save & send.** Exactly two files with plain purposes: **Save office copy**
+   (the retained issued baseline for later return checks — save it before
+   closing, because browser memory is lost on reload) and **Save customer file**
+   (the delivery in the selected format, sent to the customer manually).
+   The step shows the generated job/customer summary and human file sizes;
+   exact internals live in the **File details** disclosure. Editing a selection or job detail
+   invalidates the generated outputs consistently; switching tabs or modes
+   alone does not.
+
+The bundled creation catalogue embeds explicit prepared definitions only —
+currently the three example products in `examples/products/` plus the two SVG
+marks in `examples/logos/` (byte-identical to those files, `synthetic=true`
+on the issued draft) — built by `scripts/build-package-preview.mjs` into
+`<script id="__logoBuilderCatalogue">`. It never ships an old customer job,
+history, instructions or confirmation, and no production catalogue is
+claimed. Add-logo artwork ships as referenced `original` bytes within the
+same project-package limits as any other asset.
+
+The issue starts at revision 1 with the issued project ID. Source
 confirmation, internal review and their histories are cleared; original source
 files are unchanged. Customer/job/issuer labels are descriptive local data,
 not authenticated identities. Only artwork referenced by selected logos ships;
@@ -38,50 +81,60 @@ images and their provisional `presentation/preview.json` manifest also travel
 with the delivery and retained baseline; see `customer-project-workflow.md`. The current schema has no product-model
 binary references; no real product asset mapping is claimed.
 
-Hybrid delivery is `<JOB>.zip` containing `OPEN_LOGO_CONFIGURATOR.html` and
-`<JOB>.logo-project`. After extraction, customers open the HTML and choose/drop
-that project. Self-contained delivery is `OPEN_LOGO_CONFIGURATOR.html` with the
-same project bytes embedded and automatically loaded. The primary **Download
-customer package** button delivers the selected format: the ready-to-open HTML
-in self-contained mode, the ZIP in hybrid mode. A secondary download offers the
-other file (project-only in self-contained mode, HTML-only in hybrid mode).
-Both save editable `.logo-project` returns. The separate retained baseline
-download is byte-identical to the issued project in either format. Regenerating
-identical input produces identical project, HTML and ZIP bytes.
+Self-contained delivery is `OPEN_LOGO_CONFIGURATOR.html` with the issued
+project bytes embedded and automatically loaded: the customer opens it
+directly, nothing to unzip. Hybrid delivery is `<JOB>.zip` containing
+`OPEN_LOGO_CONFIGURATOR.html` and `<JOB>.logo-project`, which the customer
+opens and loads with Choose Project or drag and drop. The primary **Save
+customer file** action delivers the selected format. A secondary advanced file
+(project-only in self-contained mode, configurator-only in hybrid mode) and
+the standalone return reviewer live behind disclosures; they are for special
+cases only. The saved office copy is byte-identical to the issued project in
+either format. Regenerating identical input produces identical project, HTML
+and ZIP bytes.
 
 Changing a selection, identity or format clears generated downloads and the
-return preview. Inputs lock during asynchronous work; operation tokens discard
-obsolete completions. Files are size-checked before reading, validated before
+return preview. Files are size-checked before reading, validated before
 replacement and bounded by package/editor limits. Failed imports retain the
 previous valid source/baseline/review. Core Builder limits are 64 products,
 64 logos, 64 issued configurations and 256 characters per ID/identity field.
 
 ## Return review and ticket/BoM preparation
 
-The Builder compares a return against the current generated baseline, or use
-**Choose saved issued baseline** to restore the exact internally saved file in a
-fresh session. Selecting a saved baseline switches the review context and clears
-generated delivery downloads; it does not issue another project. A loaded saved
-baseline can be downloaded again without regenerating it. Treat a customer-sent
-file as a return, never as the trusted baseline.
+**Review a return** is separate from preparation and never shows
+source/identity panels. It guides Office copy, then Customer return, then
+Check & prepare. The office-copy chooser comes first and is never hidden
+behind an advanced disclosure: in a fresh session, choose the saved office
+copy file first, then the returned file. The retained original and the
+customer-returned file are clearly distinguished; a loaded saved baseline
+never implies a customer delivery exists. Switching modes alone preserves
+valid state, while replacing the baseline invalidates the old review and
+generated deliveries per current semantics. Invalid baseline/return files
+leave the previous good state with a visible error (including
+baseline-project mismatches).
 
-Choose the returned package to compare definitions, exact asset kinds/bytes,
-revision and customer confirmation through `importCustomerReturn`. Returned
-internal review fields never confer authority. Inspect configuration/instruction
-differences, confirmation and geometry status. Download the deterministic
-candidate JSON and preview the operation document from that same revision and
-digest. **Print operation document** uses the browser's Print / Save as PDF path.
-Native print-dialog settings and printer scaling require operator review.
+Check & prepare shows readable filenames, the exact changes
+(products/placements, instructions, zero placements) and the customer
+confirmation/fit status before any action. Detailed diffs stay in a contextual
+disclosure; unconfirmed or unsafe returns stay explicitly pending review and
+are never approved here. The operation document from the exact candidate
+revision and digest is available through **Preview operation document** and
+remains printable, with print CSS intact. The primary action is **Print / save PDF** (browser Print /
+Save as PDF path; native print-dialog settings and printer scaling require
+operator review); the secondary action is **Save production data** (the actual
+deterministic candidate JSON, with its file format noted in the advanced
+detail). Candidate JSON and operation documents always remain
+`candidate-pending-review`. Attach the returned project, candidate and checked PDF
+manually to the ticket/BoM as appropriate; the Builder performs no Odoo writes
+and records no approvals.
 
 The handoff summary identifies the actual return, baseline and candidate
-filenames and PDF steps. Candidate JSON and operation documents always remain
-`candidate-pending-review`. Attach the returned project, candidate and checked PDF
-manually to the ticket/BoM as appropriate; the Builder performs no Odoo writes.
+filenames and PDF steps.
 
-**Download full return reviewer** saves a separate inline HTML page for internal
+**Save full reviewer** saves a separate inline HTML page for internal
 decisions and revised customer proposals. Open it offline and select the saved
 baseline and return. Its existing approval/reconfirmation rules still apply.
-The Builder's embedded preview itself does not record internal decisions.
+Downloading it does not open it. The Builder's embedded preview itself does not record internal decisions.
 
 ## Remaining gates
 

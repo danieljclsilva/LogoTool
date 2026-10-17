@@ -6,12 +6,11 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectDocument } from '../src/core/types.js';
-import { openOfflineContext, assertCleanProbe, downloadText } from './helpers.js';
+import { gotoBuilder, revealBuilderControl, openOfflineContext, assertCleanProbe } from './helpers.js';
 import type { Page } from '@playwright/test';
 
 const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const editor = pathToFileURL(resolve('dist/customer-configurator.html')).href;
-const builder = pathToFileURL(resolve('dist/internal-builder.html')).href;
 const hook = (page: Page, name: string) => page.locator(`[data-customer-hook="${name}"]`);
 async function syntheticPng(page: Page): Promise<Uint8Array> {
   const base64 = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 20; canvas.height = 10; const context = canvas.getContext('2d')!; context.fillStyle = '#12394b'; context.fillRect(0,0,20,10); return canvas.toDataURL('image/png').split(',')[1]!; });
@@ -92,23 +91,38 @@ test('Builder prunes unselected reference images and preserves the selected imag
   const { context, page, probe } = await openOfflineContext(browser);
   let directory = '';
   try {
-    await page.goto(builder); const source = await fixture(); const png = await syntheticPng(page);
+    await gotoBuilder(page);
+    await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
+    const source = await fixture(); const png = await syntheticPng(page);
     const references = source.project.configurations.map((configuration,index) => ({ productId:configuration.productId,variantId:configuration.variantId,image:`presentation/product-${index}.png` }));
     const bytes = await packageWith(source.project,source.assets,[{ path:'presentation/preview.json',bytes:new TextEncoder().encode(JSON.stringify({ version:1,references })) },...references.map(entry => ({ path:entry.image,bytes:png })),{ path:'presentation/unrelated.png',bytes:png }]);
-    const b = (name: string) => page.locator(`[data-builder-hook="${name}"]`);
-    await b('source-file').setInputFiles({ name:'synthetic-reference-source.logo-project',mimeType:'application/zip',buffer:Buffer.from(bytes) });
-    await expect(b('source-status')).toContainText('Loaded');
+    const show = async (name: string) => { await revealBuilderControl(page, name); const visible = page.locator(`[data-builder-hook="${name}"]`).filter({ visible: true }); if ((await visible.count()) > 0) return visible; return page.locator(`[data-builder-hook="${name}"]`); };
+    await (await show('source-file')).setInputFiles({ name:'synthetic-reference-source.logo-project',mimeType:'application/zip',buffer:Buffer.from(bytes) });
+    await expect(await show('source-status')).toContainText('Loaded');
+    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await expect(await show('selection-summary')).toContainText('2 products');
     const secondProduct = source.project.products[1]!.id;
-    await b('product-list').locator(`input[value="${secondProduct}"]:not([data-product])`).uncheck();
-    for (const [name,value] of Object.entries({ 'customer-name':'Synthetic visual customer','job-ref':'VISUAL-QA','issued-by':'Synthetic QA','project-id':'SYN-VISUAL-QA' })) await b(name).fill(value);
-    await b('generate').click(); await expect(b('download-package')).toBeEnabled();
-    const baseline = await downloadBytes(page,() => b('download-baseline').click());
+    await (await show('product-list')).locator(`input[value="${secondProduct}"]:not([data-product])`).uncheck();
+    await expect(await show('selection-summary')).toContainText('1 product');
+    await (await show('builder-next')).click();
+    await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
+    for (const [name,value] of Object.entries({ 'customer-name':'Synthetic visual customer','job-ref':'VISUAL-QA','issued-by':'Synthetic QA' })) await (await show(name)).fill(value);
+    const issuedProjectId = await (await show('project-id')).inputValue();
+    expect(issuedProjectId.length).toBeGreaterThan(0);
+    const primary = await show('generate');
+    await expect(primary).toContainText('Create customer file');
+    await primary.click();
+    await expect(await show('generate-status')).toContainText(`Issued ${issuedProjectId} revision 1`);
+    await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
+    await expect(await show('download-baseline')).toContainText('Save office copy');
+    await expect(await show('download-package')).toContainText('Save customer file');
+    const baseline = await downloadBytes(page,() => show('download-baseline').then(control => control.click()));
     const parsed = await parseProjectPackage(baseline,{ sha256 });
     const retainedManifest = JSON.parse(new TextDecoder().decode(parsed.assets.find(asset => asset.path === 'presentation/preview.json')!.bytes));
     expect(retainedManifest.references).toHaveLength(1);
     expect(parsed.assets.some(asset => asset.path === 'presentation/product-1.png')).toBe(false);
     expect(parsed.assets.some(asset => asset.path === 'presentation/unrelated.png')).toBe(false);
-    const html = await downloadBytes(page,() => b('download-package').click());
+    const html = await downloadBytes(page,() => show('download-package').then(control => control.click()));
     directory = await mkdtemp(join(tmpdir(),'LogoTool reference delivery ')); const htmlPath = join(directory,'OPEN.html'); await writeFile(htmlPath,html);
     const customer = await context.newPage(); customer.on('pageerror',error => probe.pageErrors.push(String(error))); customer.on('console',message => { if(message.type()==='error') probe.consoleErrors.push(message.text()); });
     await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeVisible();
@@ -117,8 +131,12 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const returned = await downloadBytes(customer,() => hook(customer,'submit').click());
     const parsedReturn = await parseProjectPackage(returned,{ sha256 });
     expect(parsedReturn.assets.filter(asset => asset.kind==='additional')).toEqual(parsed.assets.filter(asset => asset.kind==='additional'));
-    await b('return-file').setInputFiles({ name:'reference-return.logo-project',mimeType:'application/zip',buffer:Buffer.from(returned) });
-    await expect(b('review-panel')).toBeVisible(); assertCleanProbe(probe);
+    await (await show('mode-review')).click();
+    await expect(page.locator('[data-builder-step="office"]')).toBeVisible();
+    await (await show('return-file')).setInputFiles({ name:'reference-return.logo-project',mimeType:'application/zip',buffer:Buffer.from(returned) });
+    await expect(await show('review-panel')).toBeVisible();
+    await expect(await show('review-changes')).not.toBeEmpty();
+    assertCleanProbe(probe);
   } finally { await context.close(); if(directory) await rm(directory,{recursive:true,force:true}); }
 });
 

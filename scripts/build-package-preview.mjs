@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { zipSync } from 'fflate';
@@ -66,12 +66,53 @@ if (builderTemplateRaw.split(reviewerMarker).length !== 2) {
 }
 const embeddedEditor = `<script id="__logoCustomerEditorHtml" type="text/plain">${Buffer.from(customerHtmlBytes).toString('base64')}</script>`;
 const embeddedReviewer = `<script id="__logoCustomerReviewerHtml" type="text/plain">${Buffer.from(returnReviewHtmlBytes).toString('base64')}</script>`;
+// Offline "Create a project" catalogue: explicit prepared example definitions
+// only (never a customer job). Products parse as JSON and stay byte-identical;
+// logo defs likewise; binary assets embed as base64 with deterministic
+// path ordering. No instructions/history/confirmation/review travel in this
+// JSON. Bounded: three small products plus two SVG marks.
+const catalogueProductFiles = (await readdir('examples/products'))
+  .filter((file) => file.endsWith('.product.json'))
+  .sort(comparePaths);
+const catalogueProducts = await Promise.all(
+  catalogueProductFiles.map(async (file) => JSON.parse(await readFile(`examples/products/${file}`, 'utf8'))),
+);
+catalogueProducts.sort((left, right) => comparePaths(left.id, right.id));
+const catalogueLogoFiles = ['syn-mark-a.logo.json', 'syn-mark-b.logo.json'];
+const catalogueLogos = await Promise.all(
+  catalogueLogoFiles.map(async (file) => JSON.parse(await readFile(`examples/logos/${file}`, 'utf8'))),
+);
+catalogueLogos.sort((left, right) => comparePaths(left.id, right.id));
+const catalogueAssetPaths = [
+  ...new Set(catalogueLogos.flatMap((logo) => logo.assets.map((asset) => asset.uri))),
+].sort(comparePaths);
+const catalogueAssets = await Promise.all(
+  catalogueAssetPaths.map(async (assetPath) => {
+    if (!assetPath.startsWith('logos/') || assetPath.includes('..') || assetPath.includes('\\')) {
+      throw new Error(`Unexpected catalogue asset path: ${assetPath}`);
+    }
+    const bytes = new Uint8Array(await readFile(resolve(root, 'examples', assetPath)));
+    return { path: assetPath, bytesBase64: Buffer.from(bytes).toString('base64') };
+  }),
+);
+// Products and logos stay byte-identical to the prepared example files;
+// synthetic=true is applied by createProjectFromDefinitions on the draft
+// project, never stamped onto the catalogue definitions themselves.
+const catalogueJson = JSON.stringify({
+  products: catalogueProducts,
+  logos: catalogueLogos,
+  assets: catalogueAssets,
+});
+const embeddedCatalogue = `<script id="__logoBuilderCatalogue" type="application/json">${catalogueJson.replace(/<\//g, '<\\/')}</script>`;
 const builderTemplate = builderTemplateRaw.replace(editorMarker, () => embeddedEditor).replace(reviewerMarker, () => embeddedReviewer);
-const builderHtmlBytes = await buildInlineHtmlFromTemplate(
+let builderHtml = new TextDecoder().decode(await buildInlineHtmlFromTemplate(
   'src/ui/internal-builder/main.ts',
   builderTemplate,
   'internal builder',
-);
+));
+if (builderHtml.split('</script>').length < 2) throw new Error('Built internal builder HTML has no closing script tag for catalogue placement');
+builderHtml = builderHtml.replace('</script>', `</script>\n${embeddedCatalogue}`);
+const builderHtmlBytes = new TextEncoder().encode(builderHtml);
 
 const sha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 const project = JSON.parse(

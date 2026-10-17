@@ -684,3 +684,116 @@ host, native print settings, real garment calibration and physically mapped
 artwork were not validated. The focused Chrome run is development evidence,
 not a complete Chrome/Edge matrix. No Odoo calls, uploads, publishing, commits
 or pushes were performed.
+
+## Internal Builder proof-desk acceptance — 2026-10-17
+
+The Muse Spark 1.3 Contributor OMP pass supplied the initial redesign. It stopped
+at its process deadline without a final integrated report. Codex independently
+reviewed and completed integration, retaining the domain/packaging behavior and
+all byte-equality/race assertions. Guided Prepare and Review modes replace the
+long form; raw identifiers, detailed comparisons and alternate formats are
+progressively disclosed. See `ui-design.md` for the visual comparison ledger.
+
+| Check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain/viewer/e2e TypeScript | Pass |
+| `npm test` | Node-only; builds first | 382/382, zero skipped |
+| `npm run test:e2e -- --workers=3 --max-failures=2` | Chromium156.0.8078.4 | 80/80, zero skipped |
+| `npm run test:e2e:chrome -- --workers=2 e2e/internal-builder.spec.ts e2e/presentation-assets.spec.ts` | Installed Chrome155.0.8059.80 | 19/19, zero skipped |
+| Independent visual/interaction journey | Offline file:// Chromium;1536×1024,1280×900,390×844 | 21 state/viewport captures; clean errors/network/overflow probes |
+
+OS: macOS / Darwin27.2.0 arm64. All maintained cases use synthetic fixtures,
+built/extracted local HTML, offline contexts and zero console/page-error or
+HTTP(S)-request assertions. The focused Chrome suite covers the final Builder
+and presentation asset changes; it is not a complete Chrome matrix. Final
+status-copy/visibility cleanup was rechecked in this focused run and screenshots.
+
+The staff journey checks both desktop and narrow viewports without opening
+technical settings: choose a source, select items, see actionable missing-field
+feedback, enter three job details, generate, download both files, compare the
+embedded customer bytes with the office copy, switch modes without losing output,
+and reject a bad replacement while retaining exact office-copy bytes. Existing
+checks also open the delivered customer HTML, edit/confirm/save the return, restore
+a saved office copy in a fresh session and compare/export/print the same candidate.
+Automatic IDs stay stable; explicit overrides, empty/oversized IDs, zero-logo
+selection, deterministic regeneration, obsolete reads/hashes, failed imports and
+selected optional presentation assets remain covered.
+
+Independent screenshots exercised all seven steps per viewport and a real
+customer width edit, confirmation, return download and Builder comparison.
+Codex inspected ImageGen references and final screenshots with `view_image`.
+Intermediate runs exposed stale copy expectations, test-helper navigation races,
+unwrapped technical text and insufficient mobile step spacing. These were
+corrected before the passing runs; assertions were preserved and no tests skipped.
+Logs/scripts/screenshots are retained outside tracked source under
+`/tmp/logotool-builder-redesign/`. Design references/prompts remain ignored under
+`private/design-concepts/2026-10-17/internal-builder/`.
+
+The supplementary in-app Browser's earlier file:// refusal remains honored.
+The project-required Playwright suite supplied offline acceptance without a
+server or network workaround. Actual Windows Chrome/Edge, this host's Edge,
+real production calibration, native print-dialog choices and staff usability
+with representative operators remain unvalidated. Passing automated journeys
+does not establish that every staff member needs no introduction. No Odoo calls,
+uploads, publishing, dependency installs, commits or pushes in this redesign.
+
+## Create a project acceptance — 2026-10-17
+
+The Builder's new Start path creates a fresh revision-1 draft directly from
+bundled prepared product definitions, with zero placements and reset job details
+and approval evidence. No previous project file is required. The embedded
+catalogue is explicitly synthetic and does not establish production calibration.
+Local PNG/JPEG/WebP artwork import preserves exact bytes, original role and
+pixel dimensions, while physical sizes remain explicit customer choices.
+
+Codex independently integrated the Muse Spark implementation, preserving the
+prior Builder redesign. Corrections include fresh IDs after manual overrides,
+all choice retention on artwork import, collision-safe IDs and correct media
+extensions, decoded/header dimension agreement, obsolete-read rejection,
+atomic catalogue validation and rejection of non-JSON/nonfinite physical input
+before cloning. Unselected product options collapse and the desktop action rail
+stays accessible alongside longer lists.
+
+The new acceptance cases cover starting without an input project, prepared
+product/calibration identity, empty placement lists and cleared histories,
+zero/multiple logos, duplicate filenames, exact new artwork byte preservation,
+PNG and JPEG delivery/thumbnails, stable repeated output, manual-ID reset,
+product/variant/setup/logo subset retention, malformed/oversized images,
+unreadable files and obsolete decoding after replacement. A delivered customer
+HTML is opened without sibling files, the imported logo is placed and sized,
+the customer confirms and saves, and a fresh Builder compares the return with
+the saved office copy. Existing package and presentation-asset tests remain.
+
+Independent offline journeys captured Start, choices, artwork, details,
+download and return review at1536×1024,1280×900 and390×844. Codex inspected both
+the established proof-desk references and the latest screenshots with
+`view_image`: branding, typography, white surfaces, row/rail layout, control
+hierarchy, plain copy and responsive flow remain consistent. Dynamic fixture
+content replaces illustrative concept samples. No new raster UI was generated
+for this extension of the existing design system. Scripts, logs and18 captures
+are outside tracked source at `/tmp/logotool-create-project/visual-final/`.
+
+One full parallel run timed out awaiting a download in the existing placement
+restore case. Its source/assertions were unchanged; it passed an isolated rerun
+in8.5seconds. Final full validation uses two workers without skipped tests or
+increased timeouts. Intermediate new-flow checks also caught navigation/copy
+expectations, JPEG path assumptions and an unapplied-notes test step, all fixed
+while retaining exact byte and numeric assertions.
+
+Actual Windows Chrome/Edge, real product calibration/catalogue deployment and
+representative staff usability remain separate gates. The supplementary in-app
+Browser's prior file:// refusal was honored; repository-required offline
+Playwright remains primary. No web server, HTTP(S) calls, Odoo calls, uploads,
+publishing, dependency installs, commits or pushes were used for this work.
+
+| Final check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Domain/viewer/e2e TypeScript | Pass |
+| `npm test` | Node-only; build first | 393/393; zero skipped |
+| `npm run test:e2e -- --workers=2 --max-failures=2` | Chromium156.0.8078.4, macOS/Darwin27.2.0arm64, offline file:// | 89/89; zero skipped |
+| `npm run test:e2e:chrome -- --workers=2 e2e/new-project.spec.ts e2e/internal-builder.spec.ts e2e/presentation-assets.spec.ts` | Installed Chrome155.0.8059.80, same host/offline | 28/28; zero skipped |
+| Independent creation/delivery/edit/confirmation/return journey | Chromium;1536×1024,1280×900,390×844 | 18 state/viewport captures; zero horizontal overflow, console/page errors or HTTP(S) requests |
+
+Final command logs are `/tmp/logotool-create-project/{typecheck.log,unit.log,full-accepted.log,chrome-accepted.log}`.
+The focused Chrome run is development evidence for these flows, not the full
+Chrome/Edge matrix or actual Windows validation.

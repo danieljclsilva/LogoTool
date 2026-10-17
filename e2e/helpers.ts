@@ -62,6 +62,37 @@ export async function openOfflineContext(
 export async function gotoInspector(page: Page): Promise<void> {
   await page.goto(INSPECTOR_URL);
 }
+export const BUILDER_URL = pathToFileURL(resolve(process.cwd(), 'dist/internal-builder.html')).href;
+
+export async function gotoBuilder(page: Page): Promise<void> {
+  await page.goto(BUILDER_URL);
+}
+
+/** Navigate the guided builder to the mode/disclosure holding a control. */
+export async function revealBuilderControl(page: Page, name: string): Promise<void> {
+  const selector = `[data-builder-hook="${name}"]`;
+  const control = page.locator(selector).first();
+  const mode = await control.evaluate(
+    (element) => element.closest('[data-builder-mode-panel]')?.getAttribute('data-builder-mode-panel'),
+  );
+  if (mode) {
+    const panel = page.locator(`[data-builder-mode-panel="${mode}"]`).first();
+    if (!await panel.isVisible()) {
+      await page.locator(`[data-builder-hook="mode-${mode}"]`).first().click();
+      await panel.first().waitFor({ state: 'visible' });
+    }
+  }
+  // Status assertions can inspect hidden context without changing the journey.
+  // Interactive controls and disclosed review content use real step navigation.
+  if (!await control.isDisabled() && !name.endsWith('status') && !['builder-next','builder-back','size-estimate','handoff-summary'].includes(name)) {
+    const step = await control.evaluate(element => element.closest('[data-builder-step]')?.getAttribute('data-builder-step'));
+    if (step && !await page.locator(`[data-builder-step="${step}"]`).isVisible()) {
+      const tabs: Record<string,string> = {open:'open',choose:'choose',details:'details',send:'send',office:'office',return:'return',check:'check'};
+      await page.locator(`[data-builder-hook="step-${tabs[step]}"]`).click();
+    }
+  }
+  await revealControl(page, selector);
+}
 
 export async function ingestGlb(page: Page, glb: Buffer): Promise<void> {
   await hook(page, 'inspector', 'file-input').setInputFiles({
