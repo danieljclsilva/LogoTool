@@ -147,7 +147,23 @@ const unsavedWarning = optionalHook<HTMLElement>('unsaved-warning');
 // never throw here.
 void brandMark; void stepNav; void canvasPane; void precisePosition; void preciseSize; void prototypeNote;
 
-const UNSAVED_STEP_MESSAGE = 'You have changes that are not applied yet — press “Apply my changes” to keep them before moving on. (Switching the logo area above discards unsaved edits.)';
+function isNewPlacementOnlyDirt(): boolean {
+  return placementFormDirty && !projectInstructionsDirty && !currentPlacement();
+}
+
+function guidedAddDirection(): string {
+  if (guideStep === 'size') return 'press “Review layout” to add the logo';
+  if (guideStep === 'review') return 'go back to the earlier steps to add the logo';
+  return 'press “Continue to size” to add the logo';
+}
+
+function unsavedStepMessage(): string {
+  if (isNewPlacementOnlyDirt()) {
+    const tail = guideStep === 'review' ? 'before saving' : 'before moving on';
+    return `You have changes that are not added yet — ${guidedAddDirection()} ${tail}. (Switching the logo area above discards unsaved edits.)`;
+  }
+  return 'You have changes that are not applied yet — press “Apply my changes” to keep them before moving on. (Switching the logo area above discards unsaved edits.)';
+}
 
 function hasUnsavedEdits(): boolean {
   return placementFormDirty || projectInstructionsDirty;
@@ -157,7 +173,7 @@ function updateUnsavedWarning(): void {
   if (!unsavedWarning) return;
   if (loaded && hasUnsavedEdits()) {
     unsavedWarning.hidden = false;
-    unsavedWarning.textContent = UNSAVED_STEP_MESSAGE;
+    unsavedWarning.textContent = unsavedStepMessage();
   } else {
     unsavedWarning.hidden = true;
   }
@@ -1910,7 +1926,7 @@ logoSelect.addEventListener('change', () => {
   if (placementFormDirty || projectInstructionsDirty) {
     logoSelect.value = selectedLogoId;
     updateUnsavedWarning();
-    setStatus(UNSAVED_STEP_MESSAGE);
+    setStatus(unsavedStepMessage());
     updateButtons();
     return;
   }
@@ -1935,7 +1951,9 @@ for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, p
       setStatus('You changed the project notes — press “Apply my changes” to save them into a new version.');
     } else if (control !== confirmedByInput) {
       placementFormDirty = true;
-      setStatus('You changed numbers below — press “Apply my changes” to save them into a new version.');
+      setStatus(isNewPlacementOnlyDirt()
+        ? `You changed numbers below — ${guidedAddDirection()} as a new version.`
+        : 'You changed numbers below — press “Apply my changes” to save them into a new version.');
     }
     stateGeneration += 1;
     updateUnsavedWarning();

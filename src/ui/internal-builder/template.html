@@ -218,6 +218,13 @@
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-left">Assign left side image</button><input data-builder-hook="product-view-left-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the left side image"><label class="field">Left side label<input data-builder-hook="product-view-left-label" type="text" autocomplete="off" placeholder="e.g. Left side"></label></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-right">Assign right side image</button><input data-builder-hook="product-view-right-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the right side image"><label class="field">Right side label<input data-builder-hook="product-view-right-label" type="text" autocomplete="off" placeholder="e.g. Right side"></label></div>
             <p class="muted">Optional per-view labels are attached to the named side only. Only explicitly assigned sides travel with the product; a lone back, left, or right image stays on that side and is never duplicated into front.</p>
+            <details class="disclosure">
+              <summary>Import a prepared product definition</summary>
+              <div class="body">
+                <p class="muted">Import an inspector-bridge prepared product JSON: explicit millimetre regions, calibration references and methods. The file validates before anything changes; a failed import keeps the previous project. Imported products arrive with zero placements and provisional, pending-review calibration wording — never production-approved. An included bridge sidecar ships as reference evidence in the package, never as geometry.</p>
+                <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="prepared-product-add">Import prepared product JSON</button><input data-builder-hook="prepared-product-file" type="file" accept=".json,application/json" aria-label="Choose a prepared product definition JSON file"></div>
+              </div>
+            </details>
             <p class="muted" data-builder-hook="product-status" role="status" aria-live="polite"></p>
             <h3 class="group-title">Logos</h3>
             <div class="rows" data-builder-hook="logo-list"><p class="muted">No project loaded yet.</p></div>

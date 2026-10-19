@@ -13,21 +13,75 @@ import type {
   Region,
   ResultCandidate,
 } from "../types.js";
+import { MAX_PREVIEW_BYTES, readRasterHeader } from "../../assets/raster-header.js";
 import type {
+  ArtworkPreview,
   BuildOperationDocumentInput,
   DiagramAxes,
   DiagramExclusion,
+  OperationArtworkAsset,
   OperationConfiguration,
   OperationDocument,
   OperationIdentity,
   OperationPlacement,
+  OperationReferenceView,
   PlacementDiagram,
   Point2d,
+  ReferenceViewInput,
 } from "./types.js";
 
 const MARGIN_FACTOR = 0.12;
 const MIN_SIZE = 50;
 const AXES_LENGTH = 30;
+const SHORT_DIGEST_CHARS = 16;
+
+/**
+ * Previewable raster extensions, mirroring the presentation adapter's
+ * allowlist (`src/ui/customer-editor/presentation-assets.ts`). Anything else
+ * (SVG, PDF, production files) is never rendered: originals stay preserved
+ * as bytes behind the packaging adapter.
+ */
+const PREVIEWABLE_BY_EXTENSION: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+};
+
+function normalizeAssetBytes(
+  input: ReadonlyMap<string, Uint8Array> | Record<string, Uint8Array> | undefined,
+): Map<string, Uint8Array> | undefined {
+  if (input === undefined) return undefined;
+  if (input instanceof Map) return new Map(input);
+  return new Map(Object.entries(input));
+}
+
+/**
+ * Pure bounded preview verdict for one package path. Enforces the shared
+ * byte + pixel-dimension caps via `readRasterHeader` and requires the header
+ * media type to agree with the file extension (disguised content fails).
+ * Never throws; never fetches; never mutates its inputs.
+ */
+function previewAsset(uri: string, assets: Map<string, Uint8Array> | undefined): ArtworkPreview {
+  if (assets === undefined) return { status: "not-supplied" };
+  const bytes = assets.get(uri);
+  if (bytes === undefined || bytes.length === 0) return { status: "missing" };
+  if (bytes.length > MAX_PREVIEW_BYTES) return { status: "too-large", byteLength: bytes.length };
+  const dot = uri.lastIndexOf(".");
+  const expected = dot < 0 ? undefined : PREVIEWABLE_BY_EXTENSION[uri.slice(dot).toLowerCase()];
+  if (expected === undefined) return { status: "unsupported" };
+  const header = readRasterHeader(bytes);
+  if (header === null || header.mediaType !== expected) {
+    return { status: "corrupt", byteLength: bytes.length };
+  }
+  return {
+    status: "inline-raster",
+    mediaType: header.mediaType,
+    widthPx: header.width,
+    heightPx: header.height,
+    byteLength: bytes.length,
+  };
+}
 
 function toPoint2d(point: PointMm): Point2d {
   return { x: point[0], y: point[1] };
@@ -117,16 +171,35 @@ function buildPlacementDiagram(placement: ExportPlacement, region: Region | unde
   const axes = buildAxes(0, 0, placement.frame.axes.xPositive, placement.frame.axes.yPositive);
   const viewBox = computeViewBox([...safePolygon, ...exclusions.flatMap((item) => item.polygon),
     { x: 0, y: 0 }, { x: axes.xEndX, y: axes.xEndY }, { x: axes.yEndX, y: axes.yEndY }], footprint);
-  return { viewBox, safePolygon, exclusions, footprint, axes };
+  return { viewBox, safePolygon, safeSupplied: safePolygon.length > 0, exclusions, footprint, axes };
+}
+
+function buildArtworkAsset(
+  uri: string,
+  role: OperationArtworkAsset["role"],
+  mediaType: string,
+  sha256Hex: string | undefined,
+  description: string | undefined,
+  assets: Map<string, Uint8Array> | undefined,
+): OperationArtworkAsset {
+  return {
+    uri,
+    role,
+    mediaType,
+    ...(sha256Hex !== undefined ? { sha256Hex } : {}),
+    ...(description !== undefined ? { description } : {}),
+    preview: previewAsset(uri, assets),
+  };
 }
 
 function buildOperationPlacement(
   placement: ExportPlacement,
   displayIndex: number,
   productById: Map<string, ProductDefinition>,
+  assets: Map<string, Uint8Array> | undefined,
 ): OperationPlacement {
   const product = productById.get(placement.productId);
-  const region = product?.regions.find((region) => region.id === placement.regionId);
+  const region = product?.regions.find((item) => item.id === placement.regionId);
   return {
     displayIndex,
     ...(placement.id !== undefined ? { id: placement.id } : {}),
@@ -135,6 +208,7 @@ function buildOperationPlacement(
     variantId: placement.variantId,
     logoId: placement.logoId,
     regionId: placement.regionId,
+    regionName: region?.name ?? null,
     method: placement.method,
     pos: { xMm: placement.pos.xMm, yMm: placement.pos.yMm },
     widthMm: placement.widthMm,
@@ -143,16 +217,56 @@ function buildOperationPlacement(
     ...(placement.instructions !== undefined ? { instructions: placement.instructions } : {}),
     frame: placement.frame,
     calibration: placement.calibration,
-    artwork: placement.artwork,
+    artwork: {
+      logoId: placement.artwork.logoId,
+      ...(placement.artwork.role !== undefined ? { role: placement.artwork.role } : {}),
+      assets: placement.artwork.assets.map((asset) =>
+        buildArtworkAsset(asset.uri, asset.role, asset.mediaType, asset.sha256Hex, asset.description, assets)
+      ),
+    },
     diagram: buildPlacementDiagram(placement, region),
   };
+}
+
+/**
+ * Own-key record read. Configuration ids are caller-authored, so lookups
+ * must not resolve through the prototype chain (`__proto__` would otherwise
+ * yield `Object.prototype` and crash on `.map`, or silently pick up
+ * inherited members). Missing or inherited keys read as absent.
+ */
+function ownEntry<T>(record: Record<string, T> | undefined, key: string): T | undefined {
+  if (record === undefined) return undefined;
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+function buildReferenceViews(
+  configurationId: string,
+  input: BuildOperationDocumentInput,
+  assets: Map<string, Uint8Array> | undefined,
+): { views: OperationReferenceView[]; note: string | null } {
+  const selections: readonly ReferenceViewInput[] = ownEntry(input.referenceViews, configurationId) ?? [];
+  const views = selections.map((selection) => ({
+    view: selection.view,
+    imagePath: selection.imagePath,
+    label: selection.label ?? null,
+    preview: previewAsset(selection.imagePath, assets),
+  }));
+  const warning = ownEntry(input.referenceWarnings, configurationId) ?? null;
+  if (warning !== null) return { views, note: warning };
+  if (views.length === 0) {
+    return { views, note: "No product reference supplied for this configuration in the package." };
+  }
+  return { views, note: null };
 }
 
 function buildOperationConfiguration(
   configuration: ExportConfiguration,
   index: number,
   productById: Map<string, ProductDefinition>,
+  input: BuildOperationDocumentInput,
+  assets: Map<string, Uint8Array> | undefined,
 ): OperationConfiguration {
+  const reference = buildReferenceViews(configuration.id, input, assets);
   return {
     index,
     id: configuration.id,
@@ -161,8 +275,10 @@ function buildOperationConfiguration(
     ...(configuration.productName !== undefined ? { productName: configuration.productName } : {}),
     ...(configuration.variantName !== undefined ? { variantName: configuration.variantName } : {}),
     placements: configuration.placements.map((placement, placementIndex) =>
-      buildOperationPlacement(placement, placementIndex + 1, productById)
+      buildOperationPlacement(placement, placementIndex + 1, productById, assets)
     ),
+    referenceViews: reference.views,
+    referenceNote: reference.note,
   };
 }
 
@@ -171,6 +287,7 @@ function buildIdentity(candidate: ResultCandidate, input: BuildOperationDocument
     projectId: candidate.projectId,
     revision: candidate.revision,
     digest: candidate.digest,
+    shortDigest: candidate.digest.slice(0, SHORT_DIGEST_CHARS),
     schemaVersion: candidate.schemaVersion,
     ...(input.generatedAt !== undefined ? { generatedAt: input.generatedAt } : {}),
     reviewStatus: candidate.status,
@@ -183,17 +300,19 @@ function buildIdentity(candidate: ResultCandidate, input: BuildOperationDocument
 export function buildOperationDocument(input: BuildOperationDocumentInput): OperationDocument {
   const { candidate } = input;
   const productById = new Map(candidate.products.map((product) => [product.id, product]));
+  const assets = normalizeAssetBytes(input.assetBytes);
   return {
     identity: buildIdentity(candidate, input),
     limitations: [
       "Illustrative diagrams, not to scale.",
-      "Logo footprints only; actual artwork rendering is unavailable.",
+      "Logo footprints only; artwork previews are illustrative customer-supplied artwork, never production colour proof.",
+      "Product reference views are illustrative only; the dimensioned diagram is the source of truth.",
       "Product views, SKU, colour, thread and ticket data are absent.",
       "Calibration and physical validation remain unresolved.",
       "candidate-pending-review: local customer confirmation and internal review are workflow evidence, not production approval.",
     ],
     configurations: candidate.configurations.map((configuration, index) =>
-      buildOperationConfiguration(configuration, index, productById)
+      buildOperationConfiguration(configuration, index, productById, input, assets)
     ),
     ...(candidate.instructions !== undefined ? { projectInstructions: candidate.instructions } : {}),
   };

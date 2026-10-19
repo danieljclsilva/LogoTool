@@ -32,14 +32,16 @@ Chromium suite 70/70; final focused Builder 10/10 in Chromium and 10/10 in
 installed Chrome. See `docs/offline-testing.md` for versions, viewports and scope.
 Windows delivery and the existing full Chrome gate remain unresolved.
 
-## Current validation priority — 2026-10-15
+## Jacket validation snapshot — 2026-10-15
 
 Per the user's latest direction, Windows validation is deferred. The retained
 private jacket development model has been tested using an explicitly synthetic
 scale (user-authorized), with no claim of measured garment dimensions or
 production approval. The inspector/placement draft and the
-Builder/customer package are still separate flows: no model/calibration-to-project
-bridge has been implemented. See the jacket test-model acceptance record in
+Builder/customer package were separate flows at that date. The 2026-10-18
+planar conversion/import bridge now connects authored inspector area bundles
+to customer projects; it does not establish physically mapped jacket artwork
+or real garment calibration. See the jacket test-model acceptance record in
 `docs/offline-testing.md` before treating package tests as model-based acceptance.
 
 ## Dependencies
@@ -94,19 +96,12 @@ production contracts still need evidence review. Real physical calibration,
 curved mapping, production-ready export/PDF and authenticated review remain pending.
 The Internal Builder is a provisional local-source prototype. Hybrid and self-contained editors/reviewer are only
 a synthetic workflow prototype; Windows Chrome/Edge delivery remains unverified.
-Before Phase 11, the maintained offline Playwright suite had 15 specs / 60 tests. On
-macOS 27.2 arm64, `npm run typecheck`, `npm test` (363 Node tests) and
-`npm run test:e2e` (60/60 in Chromium 156.0.8078.4) passed, including the new
-operation-document preview spec. Focused installed Chrome acceptance passed
-13/13 candidate and operation-document cases on 2026-10-15. Printed synthetic
-A4 PDFs (6 and 9 pages) were rendered and inspected page by page. Installed Chrome
-154.0.8037.98 passed all eight new candidate tests, but its full-suite runs
-ended 52/55 and 54/55 after browser-process closure in existing variant-transfer
-tests, with macOS display/GPU diagnostics. The current full Chrome gate is not
-green; see the acceptance record in `docs/offline-testing.md`. Package acceptance opens the extracted hybrid
-ZIP and the self-contained HTML through offline `file://` at 1280×900 and
-390×844, including both customer and internal-review pages. Every browser test asserts
-zero console/page errors and HTTP(S) requests. Windows Chrome/Edge delivery
-remains untested. See `docs/offline-testing.md`.
+Suite inventory 2026-10-18: 23 e2e spec files (131 cases), 32 Node test files
+(485 tests). Codex independent validation: typecheck passes, 485/485 Node,
+18/18 Python, and 131/131 offline Chromium (`--workers=1`, no retries/skips).
+The earlier Chromium failure was traced to a visibility-filtered status
+expectation after successful navigation, and that assertion is corrected.
+The acceptance log records the installed-Chrome result and the explicit Edge,
+Windows and physical-validation gaps. See `docs/offline-testing.md`.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.

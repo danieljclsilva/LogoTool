@@ -99,8 +99,56 @@ replacement and bounded by package/editor limits. Failed imports retain the
 previous valid source/baseline/review. Core Builder limits are 64 products,
 64 logos, 64 issued configurations and 256 characters per ID/identity field.
 
-## Return review and ticket/BoM preparation
+## Prepared products from inspector exports
 
+An inspector calibration/region-area export becomes a Builder product through
+a documented local conversion — never a hand-authored file:
+
+```sh
+npm run build   # the script imports the compiled kernel from dist/
+node scripts/convert-area-bundle.mjs \
+  --area-bundle <area-bundle.json> \
+  --labels <bridge-labels.json> \
+  --expected-asset-sha256 <64 hex chars> \
+  --out <prepared-product.json>
+```
+
+The script runs the pure `buildPreparedProductFromAreaBundle` kernel over the
+actual export: exact envelope-version/asset-hash match, locally recomputed
+fit, explicit operator labels (product/variant/region/frame/method — nothing
+invented), atomic rejection. Output is `{ product, sidecar, areaBundleText,
+areaBundleSha256 }`; `areaBundleText` is the verbatim source export text
+(strict UTF-8; a leading BOM is supported and preserved, anything else that
+cannot round-trip byte-identically is rejected) and `areaBundleSha256` its
+SHA-256, so original evidence (including named exclusion identities the
+canonical schema cannot represent) travels byte-identically. Output refuses to
+overwrite existing files, is written atomically (exclusive link-install), and
+is capped at the shared Builder intake bound — oversized conversions fail with
+an actionable error before anything is written.
+
+In the Builder (Choose items → Import a prepared product definition), the
+file validates before anything changes; a failed import keeps the previous
+project. The pure kernel only format-checks the evidence digest — the Builder
+then hashes the exact bytes it will package and compares against the supplied
+digest before committing (stale async hashes are discarded, mismatches fail
+atomically). Imported products arrive with zero placements and provisional,
+pending-review calibration wording — never production-approved. The verified
+sidecar plus the original export ship as `prepared/` package evidence assets
+on issue; stale confirmation/review never survive because issuing always
+creates a fresh revision-1 draft. Synthetic fixtures demonstrating the flow
+live in `e2e/fixtures/bridge-area-bundle.json`, `bridge-labels.json` and
+`prepared-bridge-product.json` (the last is script output, pinned by test to
+equal fresh conversion); the offline roundtrip — including tampered-digest
+rejection and obsolete-hash discard — is covered by
+`e2e/prepared-product-import.spec.ts`.
+
+Limitations (not production calibration): planar frames only (no curved/3D
+mapping); all variants of one import share the single inspector calibration
+recorded in the evidence (setup groupings, not independently measured
+variants); real garment measurements, curved-surface behavior and operator
+sign-off remain separate gates.
+
+## Return review and ticket/BoM preparation
 **Review a return** is separate from preparation and never shows
 source/identity panels. It guides Office copy, then Customer return, then
 Check & prepare. The office-copy chooser comes first and is never hidden

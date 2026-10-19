@@ -29,9 +29,11 @@ import type {
 } from '../../core/index.js';
 import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import { buildOperationDocument } from '../../core/operation-document/index.js';
+import type { ReferenceViewInput } from '../../core/operation-document/types.js';
 import {
   operationDocumentStyles,
   renderOperationDocument,
+  selectOperationReferenceViews,
 } from '../shared/operation-document/index.js';
 import {
   createProjectPackage,
@@ -47,6 +49,7 @@ import { MAX_PREVIEW_BYTES, readRasterHeader } from '../../assets/raster-header.
 import { parseGlb } from '../../assets/glb.js';
 import { validateSelfContained } from '../../assets/validate.js';
 import { createProjectFromDefinitions } from '../../core/project-builder/create-project.js';
+import { appendPreparedProduct, preparedEvidencePaths, selectPreparedSidecarAssets, PREPARED_IMPORT_LIMITS } from '../../core/project-builder/prepared-import.js';
 import { createProvisionalProduct } from '../../core/project-builder/provisional-product.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { zipSync } from 'fflate';
@@ -120,6 +123,8 @@ const productName = hook<HTMLInputElement>('product-name');
 const productAdd = hook<HTMLButtonElement>('product-add');
 const productFile = hook<HTMLInputElement>('product-file');
 const productStatus = hook<HTMLElement>('product-status');
+const preparedProductAdd = hook<HTMLButtonElement>('prepared-product-add');
+const preparedProductFile = hook<HTMLInputElement>('prepared-product-file');
 const productViewFile: Record<string, HTMLInputElement> = {
   front: hook<HTMLInputElement>('product-view-front-file'),
   back: hook<HTMLInputElement>('product-view-back-file'),
@@ -492,6 +497,8 @@ function updateControls(): void {
   productAdd.disabled = blocked;
   productFile.disabled = blocked;
   productName.disabled = blocked;
+  preparedProductAdd.disabled = blocked || source === null;
+  preparedProductFile.disabled = blocked || source === null;
   for (const side of ['front', 'back', 'left', 'right'] as const) {
     productViewButton[side]!.disabled = blocked;
     productViewFile[side]!.disabled = blocked;
@@ -916,8 +923,32 @@ async function generateIssued(): Promise<void> {
       ...addedPresentations.flatMap((entry) => entry.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: 'additional' as const }))),
     ];
     const presentationAssets = selectPresentationPackageAssets(mergedPresentationInputs, issued.project.configurations);
+    // Prepared-product evidence passthrough: bridge sidecars for issued
+    // products travel as additional entries, plus the original area-bundle
+    // exports paired at import time (derived evidence paths per issued
+    // product). Evidence only, never geometry; sidecars are additionally
+    // bound by their embedded product binding, never the filename.
+    const preparedPaths = new Set<string>();
+    for (const config of issued.project.configurations) {
+      for (const evidencePath of Object.values(preparedEvidencePaths(config.productId))) preparedPaths.add(evidencePath);
+    }
+    const sidecarTexts: Array<{ path: string; text: string }> = [];
+    for (const asset of snapshot.assets) {
+      if (asset.kind !== 'additional') continue;
+      if (!preparedPaths.has(asset.path)) continue;
+      if (!asset.path.endsWith('.bridge-sidecar.json')) continue;
+      try {
+        sidecarTexts.push({ path: asset.path, text: new TextDecoder().decode(asset.bytes) });
+      } catch {
+        continue;
+      }
+    }
+    const sidecarPaths = new Set(selectPreparedSidecarAssets(sidecarTexts, issued.project.configurations).map((entry) => entry.path));
+    const evidenceAssets = snapshot.assets
+      .filter((asset) => sidecarPaths.has(asset.path) || (preparedPaths.has(asset.path) && asset.path.endsWith('.area-bundle.json')))
+      .map((asset) => ({ path: asset.path, bytes: asset.bytes }));
     const packageBytes = await createProjectPackage(
-      { project: issued.project, assets: issuedAssets, additionalAssets: presentationAssets },
+      { project: issued.project, assets: issuedAssets, additionalAssets: [...presentationAssets, ...evidenceAssets] },
       { sha256: hasher.sha256Bytes },
     );
     if (generation !== generateGeneration) return;
@@ -1279,14 +1310,31 @@ async function loadReturnFile(file: File): Promise<void> {
       `Customer delivery files (${generated !== null ? (generated.format === 'hybrid' ? `${generated.jobPart}.zip + OPEN_LOGO_CONFIGURATOR.html` : `OPEN_LOGO_CONFIGURATOR.html (self-contained, embeds ${generated.jobPart}.logo-project)`) : 'none generated this session'}) are separate from these production attachments. ` +
       `Reviewed ${reviewTimestamp} (local browser clock). No Odoo calls were made; manual attachment is the only handoff.`;
     operationContainer.replaceChildren();
+    const returnAssetBytes = new Map(parsed.assets.map((asset) => [asset.path, asset.bytes]));
+    const returnManifestBytes = returnAssetBytes.get('presentation/preview.json');
+    const returnSelections = selectOperationReferenceViews(
+      candidate.configurations,
+      returnManifestBytes,
+      returnManifestBytes !== undefined,
+      { getBytes: (path) => returnAssetBytes.get(path) },
+    );
+    const returnReferenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
+    const returnReferenceWarnings: Record<string, string> = Object.create(null);
+    for (const [id, selection] of Object.entries(returnSelections)) {
+      returnReferenceViews[id] = selection.views;
+      if (selection.warning !== null) returnReferenceWarnings[id] = selection.warning;
+    }
     const doc = buildOperationDocument({
       candidate,
       generatedAt: reviewTimestamp,
       customerConfirmation: confirmationLine(imported, digest),
       internalReview: 'No current internal review. Returned review fields were discarded.',
+      assetBytes: returnAssetBytes,
+      referenceViews: returnReferenceViews,
+      referenceWarnings: returnReferenceWarnings,
     });
     ensureOperationStyles(doc.identity);
-    operationContainer.append(renderOperationDocument(doc, document));
+    operationContainer.append(renderOperationDocument(doc, document, { getBytes: (path) => returnAssetBytes.get(path) }));
     operationContainer.hidden = false;
     returnStatus.textContent = 'Return imported against the active issued baseline. Internal review is pending.';
     showStep('review', 'check');
@@ -1773,6 +1821,128 @@ function onProductFileChange(): void {
   productFile.value = '';
 }
 
+/**
+ * Prepared-product import: a bridge-produced (or otherwise prepared) product
+ * definition JSON joins the current source project. Bounded pre-read,
+ * validated before anything changes; the commit roundtrips through the
+ * package parser like every other source mutation. New configurations arrive
+ * unchecked-filtered: this handler checks the imported product, its variants
+ * and its new configurations after rendering.
+ */
+async function importPreparedProductFile(file: File): Promise<void> {
+  if (loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  alertBuilder();
+  const generation = ++productGeneration;
+  if (source === null) {
+    productStatus.textContent = 'Create or open a project before importing a prepared product definition.';
+    alertBuilder('Create or open a project first. The previous project is unchanged.');
+    return;
+  }
+  productImporting = true;
+  updateControls();
+  productStatus.textContent = `Reading prepared product ${file.name}…`;
+  try {
+    if (looksRemoteFileName(file.name)) throw new Error('file name looks like a remote reference; choose a local prepared product JSON file');
+    if (file.size > PREPARED_IMPORT_LIMITS.maxImportFileBytes) throw new Error(`file exceeds ${PREPARED_IMPORT_LIMITS.maxImportFileBytes} bytes; rejected before reading`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (generation !== productGeneration) return;
+    if (bytes.length === 0 || bytes.length > PREPARED_IMPORT_LIMITS.maxImportFileBytes) throw new Error('file is empty or exceeds the 1 MiB bound');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new Error('file is not valid JSON');
+    }
+    if (generation !== productGeneration) return;
+    const snapshot = source;
+    const appended = appendPreparedProduct(snapshot.project, parsed);
+    if (!appended.ok) {
+      throw new Error(`prepared product rejected: ${appended.errors.map((error) => `${error.code} at ${error.path}`).join('; ')}`);
+    }
+    if (generation !== productGeneration) return;
+    const importedProductId = appended.project.products[appended.project.products.length - 1]!.id;
+    // Cryptographic evidence check (the pure kernel only format-checks the
+    // digest): hash the EXACT bytes that will be packaged and compare against
+    // the supplied digest BEFORE committing anything. A mismatch fails
+    // atomically with the previous source and outputs preserved. The async
+    // hash is re-checked for obsolescence like every other async step.
+    let evidenceBytes: Uint8Array | null = null;
+    if (appended.areaBundleText !== null) {
+      if (appended.areaBundleSha256 === null) {
+        throw new Error('prepared product rejected: area bundle text supplied without its SHA-256; refusing to package unverified evidence');
+      }
+      evidenceBytes = new TextEncoder().encode(appended.areaBundleText);
+      const evidenceDigest = await hasher.sha256Bytes(evidenceBytes);
+      if (generation !== productGeneration) return;
+      if (evidenceDigest !== appended.areaBundleSha256) {
+        throw new Error('prepared product rejected: evidence hash mismatch at areaBundleSha256 (recorded digest does not match the evidence bytes); refusing to package unverified evidence');
+      }
+      if (generation !== productGeneration) return;
+    }
+    // Evidence ships as additional package assets, never as geometry: the
+    // bridge sidecar plus the original area-bundle export (complete source
+    // evidence, including named exclusion identities the canonical polygons
+    // cannot represent). Colliding evidence paths fail the import instead of
+    // overwriting evidence.
+    const evidencePaths = preparedEvidencePaths(importedProductId);
+    for (const evidencePath of [evidencePaths.sidecar, evidencePaths.areaBundle]) {
+      if (snapshot.assets.some((asset) => asset.path === evidencePath)) {
+        throw new Error(`evidence path "${evidencePath}" already exists in this project; refusing to overwrite evidence`);
+      }
+    }
+    const evidenceAdditions: { path: string; bytes: Uint8Array }[] = [];
+    if (appended.sidecar !== null && typeof appended.sidecar === 'object') {
+      evidenceAdditions.push({ path: evidencePaths.sidecar, bytes: new TextEncoder().encode(JSON.stringify(appended.sidecar, null, 2)) });
+    }
+    // Original area-bundle export ships VERBATIM (exact conversion-input
+    // text): never re-serialized, so original evidence bytes are preserved.
+    // These are the same bytes whose SHA-256 was verified above.
+    if (evidenceBytes !== null) {
+      evidenceAdditions.push({ path: evidencePaths.areaBundle, bytes: evidenceBytes });
+    }
+    assertProjectEditorLimits(appended.project);
+    const combinedAdditional = [
+      ...snapshot.assets.filter((asset) => asset.kind === 'additional').map((asset) => ({ path: asset.path, bytes: asset.bytes })),
+      ...evidenceAdditions,
+    ];
+    const packageBytes = await createProjectPackage(
+      { project: appended.project, assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map((asset) => ({ path: asset.path, bytes: asset.bytes })), additionalAssets: combinedAdditional },
+      { sha256: hasher.sha256Bytes },
+    );
+    if (generation !== productGeneration) return;
+    const reparsed = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+    if (generation !== productGeneration) return;
+    const summary = summarizeSourceProject(reparsed.project);
+    source = { fileName: snapshot.fileName, project: reparsed.project, assets: reparsed.assets, summary };
+    const newConfigIds = new Set(reparsed.project.configurations.filter((config) => config.productId === importedProductId).map((config) => config.id));
+    const newVariantIds = new Set((reparsed.project.products.find((product) => product.id === importedProductId)?.variants ?? []).map((variant) => variant.id));
+    renderSelectionLists(summary, true);
+    for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (box.value === importedProductId) box.checked = true;
+      else if (box.getAttribute('data-product') === importedProductId && newVariantIds.has(box.value)) box.checked = true;
+    }
+    for (const box of configurationList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (newConfigIds.has(box.value)) box.checked = true;
+    }
+    refreshSelectionValidation();
+    if (generation !== productGeneration) return;
+    productStatus.textContent = `Imported prepared product ${importedProductId} (${newConfigIds.size} zero-placement setup${newConfigIds.size === 1 ? '' : 's'}). Millimetre regions and calibration refs are explicit and provisional, pending review — never production-approved.${evidenceAdditions.length === 0 ? ' No bridge evidence was supplied.' : ' Bridge evidence ships with the package.'}`;
+  } catch (error) {
+    if (generation === productGeneration) {
+      productStatus.textContent = `Could not import prepared product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
+      alertBuilder('The prepared product could not be imported. Previous products are unchanged.');
+    }
+  } finally {
+    if (generation === productGeneration) { productImporting = false; updateControls(); }
+  }
+}
+
+function onPreparedProductFileChange(): void {
+  const file = preparedProductFile.files?.[0];
+  if (file) void importPreparedProductFile(file);
+  preparedProductFile.value = '';
+}
+
 function onProductViewFileChange(side: ProductViewSide): void {
   const file = productViewFile[side]!.files?.[0];
   if (file) void stageProductViewFile(side, file);
@@ -1785,6 +1955,8 @@ logoAdd.addEventListener('click', () => logoFile.click());
 logoFile.addEventListener('change', onLogoFileChange);
 productAdd.addEventListener('click', () => void addProductFromStaged());
 productFile.addEventListener('change', onProductFileChange);
+preparedProductAdd.addEventListener('click', () => preparedProductFile.click());
+preparedProductFile.addEventListener('change', onPreparedProductFileChange);
 for (const side of PRODUCT_VIEW_SIDES) {
   productViewButton[side]!.addEventListener('click', () => productViewFile[side]!.click());
   productViewFile[side]!.addEventListener('change', () => onProductViewFileChange(side));

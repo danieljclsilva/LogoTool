@@ -8,9 +8,9 @@ import {
   validateProject,
 } from '../../core/index.js';
 import type { Configuration, Placement, ProjectDocument, ResultCandidate, ReviewDecision } from '../../core/index.js';
-import type { OperationIdentity } from '../../core/operation-document/types.js';
+import type { OperationIdentity, ReferenceViewInput } from '../../core/operation-document/types.js';
 import { buildOperationDocument } from '../../core/operation-document/index.js';
-import { renderOperationDocument, operationDocumentStyles } from '../shared/operation-document/index.js';
+import { renderOperationDocument, operationDocumentStyles, selectOperationReferenceViews } from '../shared/operation-document/index.js';
 import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import {
   createProjectPackage,
@@ -377,6 +377,31 @@ function ensureOperationDocumentStyles(identity: OperationIdentity): void {
   style.textContent = operationDocumentStyles(identity);
 }
 
+function operationAssetBytes(): Map<string, Uint8Array> {
+  return new Map(returnedAssets.map((asset) => [asset.path, asset.bytes]));
+}
+
+function operationReferenceInputs(candidate: ResultCandidate): {
+  referenceViews: Record<string, readonly ReferenceViewInput[]>;
+  referenceWarnings: Record<string, string>;
+} {
+  const assets = operationAssetBytes();
+  const manifestBytes = assets.get('presentation/preview.json');
+  const selections = selectOperationReferenceViews(
+    candidate.configurations,
+    manifestBytes,
+    manifestBytes !== undefined,
+    { getBytes: (path) => assets.get(path) },
+  );
+  const referenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
+  const referenceWarnings: Record<string, string> = Object.create(null);
+  for (const [id, selection] of Object.entries(selections)) {
+    referenceViews[id] = selection.views;
+    if (selection.warning !== null) referenceWarnings[id] = selection.warning;
+  }
+  return { referenceViews, referenceWarnings };
+}
+
 function renderOperationDocumentPreview(candidate: ResultCandidate): void {
   operationDocumentContainer.hidden = false;
   operationDocumentContainer.replaceChildren();
@@ -388,9 +413,15 @@ function renderOperationDocumentPreview(candidate: ResultCandidate): void {
   const internalReview = imported && imported.review
     ? `${hasCurrentInternalReview() ? "Current" : "Stale"}: ${imported.review.decision} for revision ${imported.review.revision}, by ${imported.review.reviewer} at ${imported.review.at} (self-entered; workflow data only).${imported.review.note === undefined ? "" : `\nReview note: ${imported.review.note}`}`
     : 'No current internal review. Returned review fields were discarded.';
-  const doc = buildOperationDocument({ candidate, customerConfirmation, internalReview });
+  const doc = buildOperationDocument({
+    candidate,
+    customerConfirmation,
+    internalReview,
+    assetBytes: operationAssetBytes(),
+    ...operationReferenceInputs(candidate),
+  });
   ensureOperationDocumentStyles(doc.identity);
-  operationDocumentContainer.append(renderOperationDocument(doc, document));
+  operationDocumentContainer.append(renderOperationDocument(doc, document, { getBytes: (path) => operationAssetBytes().get(path) }));
 }
 
 async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {

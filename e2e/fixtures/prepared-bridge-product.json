@@ -1,0 +1,170 @@
+{
+  "product": {
+    "schemaVersion": "0.1.0-provisional",
+    "id": "SYN-BRIDGE-001",
+    "kind": "upper-body",
+    "variants": [
+      {
+        "id": "SYN-BRIDGE-V1",
+        "regionIds": [
+          "SYN-BRIDGE-CHEST"
+        ],
+        "name": "Size M"
+      }
+    ],
+    "regions": [
+      {
+        "id": "SYN-BRIDGE-CHEST",
+        "frame": {
+          "frameId": "FRAME-SYN-BRIDGE",
+          "originDescription": "Synthetic bridge datum at chest centre; +x right, +y up; mm.",
+          "axes": {
+            "xPositive": "right",
+            "yPositive": "up"
+          }
+        },
+        "calibrationRef": {
+          "calibrationId": "CAL-SYN-B1",
+          "version": "v1"
+        },
+        "safeArea": [
+          [
+            -100,
+            -80
+          ],
+          [
+            100,
+            -80
+          ],
+          [
+            100,
+            80
+          ],
+          [
+            -100,
+            80
+          ]
+        ],
+        "exclusions": [
+          [
+            [
+              10,
+              10
+            ],
+            [
+              20,
+              10
+            ],
+            [
+              20,
+              20
+            ],
+            [
+              10,
+              20
+            ]
+          ]
+        ],
+        "allowedMethods": [
+          "embroidery",
+          "print"
+        ],
+        "name": "Chest"
+      }
+    ],
+    "calibrations": [
+      {
+        "id": "CAL-SYN-B1",
+        "version": "v1",
+        "description": "Inspector-derived provisional calibration \"CAL-SYN-B1\" version \"v1\"; uniform scale 10 mm per model unit over 1 measurement(s) (max residual 0 mm); pending human review; never production-approved."
+      }
+    ],
+    "name": "Synthetic Bridge Jacket"
+  },
+  "sidecar": {
+    "schemaVersion": "0.1.0-provisional-inspector-bridge",
+    "sourceBundleVersion": "0.1.0-provisional-region-areas",
+    "evidenceSnapshot": "{\"assetFullSha256\":\"abababababababababababababababababababababababababababababababab\",\"calibrationId\":\"CAL-SYN-B1\",\"frameId\":\"FRAME-SYN-B1\",\"measuredDistanceMm\":100,\"pairIds\":[\"O\",\"X\"],\"pairs\":[{\"id\":\"O\",\"model\":{\"x\":0,\"y\":0,\"z\":0}},{\"id\":\"X\",\"model\":{\"x\":10,\"y\":0,\"z\":0}},{\"id\":\"Y\",\"model\":{\"x\":3,\"y\":5,\"z\":0}}],\"product\":\"SYN-BRIDGE\",\"provisionalVersion\":\"v1\",\"relativeTolerance\":0.01,\"toleranceMm\":0.5,\"variant\":\"SYN-BRIDGE-V1\"}",
+    "fit": {
+      "scaleMmPerUnit": 10,
+      "measurementCount": 1,
+      "maxResidualMm": 0,
+      "inconsistent": false,
+      "toleranceMm": 0.5,
+      "relativeTolerance": 0.01,
+      "limitations": [
+        "Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation; directional distortion is undetectable by this kernel.",
+        "Result is provisional and pending human review; this kernel never production-approves a calibration."
+      ]
+    },
+    "regions": [
+      {
+        "regionId": "SYN-BRIDGE-CHEST",
+        "frameId": "FRAME-SYN-BRIDGE",
+        "frameSnapshot": "{\"assetFullSha256\":\"abababababababababababababababababababababababababababababababab\",\"calibrationFrameId\":\"FRAME-SYN-B1\",\"calibrationId\":\"CAL-SYN-B1\",\"frameId\":\"FRAME-SYN-BRIDGE\",\"mmPerModelUnit\":10,\"normal\":{\"x\":0,\"y\":0,\"z\":1},\"offPlaneToleranceMm\":0.01,\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"originAnchorId\":\"O\",\"product\":\"SYN-BRIDGE\",\"provisionalVersion\":\"v1\",\"regionId\":\"SYN-BRIDGE-CHEST\",\"sourceEvidenceSnapshot\":\"{\\\"assetFullSha256\\\":\\\"abababababababababababababababababababababababababababababababab\\\",\\\"calibrationId\\\":\\\"CAL-SYN-B1\\\",\\\"frameId\\\":\\\"FRAME-SYN-B1\\\",\\\"measuredDistanceMm\\\":100,\\\"pairIds\\\":[\\\"O\\\",\\\"X\\\"],\\\"pairs\\\":[{\\\"id\\\":\\\"O\\\",\\\"model\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"X\\\",\\\"model\\\":{\\\"x\\\":10,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"Y\\\",\\\"model\\\":{\\\"x\\\":3,\\\"y\\\":5,\\\"z\\\":0}}],\\\"product\\\":\\\"SYN-BRIDGE\\\",\\\"provisionalVersion\\\":\\\"v1\\\",\\\"relativeTolerance\\\":0.01,\\\"toleranceMm\\\":0.5,\\\"variant\\\":\\\"SYN-BRIDGE-V1\\\"}\",\"variant\":\"SYN-BRIDGE-V1\",\"xAnchorId\":\"X\",\"xAxis\":{\"x\":1,\"y\":0,\"z\":0},\"yAnchorId\":\"Y\",\"yAxis\":{\"x\":0,\"y\":1,\"z\":0}}",
+        "origin": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "xAxis": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "yAxis": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "normal": {
+          "x": 0,
+          "y": 0,
+          "z": 1
+        },
+        "mmPerModelUnit": 10,
+        "offPlaneToleranceMm": 0.01
+      }
+    ],
+    "limitations": [
+      "Bridge output is a provisional prepared definition; not production-approved and pending human review.",
+      "Planar-only mapping: region geometry applies to the authored planar frame in millimetres.",
+      "Curved/3D surface mapping is out of scope: this bridge carries no mesh, UV, or deformation data; downstream placements apply to the planar frame, not to a 3D garment surface.",
+      "Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation.",
+      "All listed variants share one inspector calibration derived from evidence product \"SYN-BRIDGE\" variant \"SYN-BRIDGE-V1\"; variants are setup groupings, not independently measured calibrations. Independent physical calibration per variant remains unvalidated.",
+      "Product carries no logos: 0..N logos attach downstream by logoId/regionId; the product only constrains placement frames."
+    ],
+    "labels": {
+      "product": {
+        "id": "SYN-BRIDGE-001",
+        "kind": "upper-body",
+        "name": "Synthetic Bridge Jacket"
+      },
+      "variants": [
+        {
+          "id": "SYN-BRIDGE-V1",
+          "regionIds": [
+            "SYN-BRIDGE-CHEST"
+          ],
+          "name": "Size M"
+        }
+      ],
+      "regions": {
+        "SYN-BRIDGE-CHEST": {
+          "originDescription": "Synthetic bridge datum at chest centre; +x right, +y up; mm.",
+          "axes": {
+            "xPositive": "right",
+            "yPositive": "up"
+          },
+          "allowedMethods": [
+            "embroidery",
+            "print"
+          ],
+          "name": "Chest"
+        }
+      }
+    }
+  },
+  "areaBundleText": "{\n  \"areas\": [\n    {\n      \"exclusions\": [\n        {\n          \"id\": \"hole\",\n          \"name\": \"Button hole\",\n          \"polygon\": [\n            {\n              \"x\": 10,\n              \"y\": 10\n            },\n            {\n              \"x\": 20,\n              \"y\": 10\n            },\n            {\n              \"x\": 20,\n              \"y\": 20\n            },\n            {\n              \"x\": 10,\n              \"y\": 20\n            }\n          ]\n        }\n      ],\n      \"frameId\": \"FRAME-SYN-BRIDGE\",\n      \"frameSnapshot\": \"{\\\"assetFullSha256\\\":\\\"abababababababababababababababababababababababababababababababab\\\",\\\"calibrationFrameId\\\":\\\"FRAME-SYN-B1\\\",\\\"calibrationId\\\":\\\"CAL-SYN-B1\\\",\\\"frameId\\\":\\\"FRAME-SYN-BRIDGE\\\",\\\"mmPerModelUnit\\\":10,\\\"normal\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":1},\\\"offPlaneToleranceMm\\\":0.01,\\\"origin\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"originAnchorId\\\":\\\"O\\\",\\\"product\\\":\\\"SYN-BRIDGE\\\",\\\"provisionalVersion\\\":\\\"v1\\\",\\\"regionId\\\":\\\"SYN-BRIDGE-CHEST\\\",\\\"sourceEvidenceSnapshot\\\":\\\"{\\\\\\\"assetFullSha256\\\\\\\":\\\\\\\"abababababababababababababababababababababababababababababababab\\\\\\\",\\\\\\\"calibrationId\\\\\\\":\\\\\\\"CAL-SYN-B1\\\\\\\",\\\\\\\"frameId\\\\\\\":\\\\\\\"FRAME-SYN-B1\\\\\\\",\\\\\\\"measuredDistanceMm\\\\\\\":100,\\\\\\\"pairIds\\\\\\\":[\\\\\\\"O\\\\\\\",\\\\\\\"X\\\\\\\"],\\\\\\\"pairs\\\\\\\":[{\\\\\\\"id\\\\\\\":\\\\\\\"O\\\\\\\",\\\\\\\"model\\\\\\\":{\\\\\\\"x\\\\\\\":0,\\\\\\\"y\\\\\\\":0,\\\\\\\"z\\\\\\\":0}},{\\\\\\\"id\\\\\\\":\\\\\\\"X\\\\\\\",\\\\\\\"model\\\\\\\":{\\\\\\\"x\\\\\\\":10,\\\\\\\"y\\\\\\\":0,\\\\\\\"z\\\\\\\":0}},{\\\\\\\"id\\\\\\\":\\\\\\\"Y\\\\\\\",\\\\\\\"model\\\\\\\":{\\\\\\\"x\\\\\\\":3,\\\\\\\"y\\\\\\\":5,\\\\\\\"z\\\\\\\":0}}],\\\\\\\"product\\\\\\\":\\\\\\\"SYN-BRIDGE\\\\\\\",\\\\\\\"provisionalVersion\\\\\\\":\\\\\\\"v1\\\\\\\",\\\\\\\"relativeTolerance\\\\\\\":0.01,\\\\\\\"toleranceMm\\\\\\\":0.5,\\\\\\\"variant\\\\\\\":\\\\\\\"SYN-BRIDGE-V1\\\\\\\"}\\\",\\\"variant\\\":\\\"SYN-BRIDGE-V1\\\",\\\"xAnchorId\\\":\\\"X\\\",\\\"xAxis\\\":{\\\"x\\\":1,\\\"y\\\":0,\\\"z\\\":0},\\\"yAnchorId\\\":\\\"Y\\\",\\\"yAxis\\\":{\\\"x\\\":0,\\\"y\\\":1,\\\"z\\\":0}}\",\n      \"regionId\": \"SYN-BRIDGE-CHEST\",\n      \"safePolygon\": [\n        {\n          \"x\": -100,\n          \"y\": -80\n        },\n        {\n          \"x\": 100,\n          \"y\": -80\n        },\n        {\n          \"x\": 100,\n          \"y\": 80\n        },\n        {\n          \"x\": -100,\n          \"y\": 80\n        }\n      ]\n    }\n  ],\n  \"limitations\": [\n    \"provisional planar frame draft; not production approved\",\n    \"planar mapping cannot model curved surfaces\",\n    \"provisional safe-area draft; not production approved\",\n    \"unconfigured frames (no safe polygon) are draft-only placeholders\"\n  ],\n  \"pendingReview\": true,\n  \"productionApproved\": false,\n  \"regions\": [\n    {\n      \"assetFullSha256\": \"abababababababababababababababababababababababababababababababab\",\n      \"calibrationFrameId\": \"FRAME-SYN-B1\",\n      \"calibrationId\": \"CAL-SYN-B1\",\n      \"frameId\": \"FRAME-SYN-BRIDGE\",\n      \"mmPerModelUnit\": 10,\n      \"normal\": {\n        \"x\": 0,\n        \"y\": 0,\n        \"z\": 1\n      },\n      \"offPlaneToleranceMm\": 0.01,\n      \"origin\": {\n        \"x\": 0,\n        \"y\": 0,\n        \"z\": 0\n      },\n      \"originAnchorId\": \"O\",\n      \"product\": \"SYN-BRIDGE\",\n      \"provisionalVersion\": \"v1\",\n      \"regionId\": \"SYN-BRIDGE-CHEST\",\n      \"sourceEvidenceSnapshot\": \"{\\\"assetFullSha256\\\":\\\"abababababababababababababababababababababababababababababababab\\\",\\\"calibrationId\\\":\\\"CAL-SYN-B1\\\",\\\"frameId\\\":\\\"FRAME-SYN-B1\\\",\\\"measuredDistanceMm\\\":100,\\\"pairIds\\\":[\\\"O\\\",\\\"X\\\"],\\\"pairs\\\":[{\\\"id\\\":\\\"O\\\",\\\"model\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"X\\\",\\\"model\\\":{\\\"x\\\":10,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"Y\\\",\\\"model\\\":{\\\"x\\\":3,\\\"y\\\":5,\\\"z\\\":0}}],\\\"product\\\":\\\"SYN-BRIDGE\\\",\\\"provisionalVersion\\\":\\\"v1\\\",\\\"relativeTolerance\\\":0.01,\\\"toleranceMm\\\":0.5,\\\"variant\\\":\\\"SYN-BRIDGE-V1\\\"}\",\n      \"variant\": \"SYN-BRIDGE-V1\",\n      \"xAnchorId\": \"X\",\n      \"xAxis\": {\n        \"x\": 1,\n        \"y\": 0,\n        \"z\": 0\n      },\n      \"yAnchorId\": \"Y\",\n      \"yAxis\": {\n        \"x\": 0,\n        \"y\": 1,\n        \"z\": 0\n      }\n    }\n  ],\n  \"schemaVersion\": \"0.1.0-provisional-region-areas\",\n  \"session\": {\n    \"evidence\": {\n      \"assetFullSha256\": \"abababababababababababababababababababababababababababababababab\",\n      \"calibrationId\": \"CAL-SYN-B1\",\n      \"frameId\": \"FRAME-SYN-B1\",\n      \"measuredDistanceMm\": 100,\n      \"pairIds\": [\n        \"O\",\n        \"X\"\n      ],\n      \"pairs\": [\n        {\n          \"id\": \"O\",\n          \"model\": {\n            \"x\": 0,\n            \"y\": 0,\n            \"z\": 0\n          }\n        },\n        {\n          \"id\": \"X\",\n          \"model\": {\n            \"x\": 10,\n            \"y\": 0,\n            \"z\": 0\n          }\n        },\n        {\n          \"id\": \"Y\",\n          \"model\": {\n            \"x\": 3,\n            \"y\": 5,\n            \"z\": 0\n          }\n        }\n      ],\n      \"product\": \"SYN-BRIDGE\",\n      \"provisionalVersion\": \"v1\",\n      \"relativeTolerance\": 0.01,\n      \"toleranceMm\": 0.5,\n      \"variant\": \"SYN-BRIDGE-V1\"\n    },\n    \"fit\": {\n      \"assetFullSha256\": \"abababababababababababababababababababababababababababababababab\",\n      \"calibrationId\": \"CAL-SYN-B1\",\n      \"frameId\": \"FRAME-SYN-B1\",\n      \"inconsistent\": false,\n      \"limitations\": [\n        \"Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation; directional distortion is undetectable by this kernel.\",\n        \"Result is provisional and pending human review; this kernel never production-approves a calibration.\"\n      ],\n      \"maxResidualMm\": 0,\n      \"pendingReview\": true,\n      \"perPair\": [\n        {\n          \"id\": \"[\\\"O\\\",\\\"X\\\"]\",\n          \"measuredDistanceMm\": 100,\n          \"modelDistance\": 10,\n          \"pairIds\": [\n            \"O\",\n            \"X\"\n          ],\n          \"predictedDistanceMm\": 100,\n          \"residualMm\": 0\n        }\n      ],\n      \"product\": \"SYN-BRIDGE\",\n      \"productionApproved\": false,\n      \"provisionalVersion\": \"v1\",\n      \"relativeTolerance\": 0.01,\n      \"scaleMmPerUnit\": 10,\n      \"schemaVersion\": \"0.1.0-provisional-calibration\",\n      \"toleranceMm\": 0.5,\n      \"variant\": \"SYN-BRIDGE-V1\"\n    },\n    \"schemaVersion\": \"0.1.0-provisional-calibration-session\"\n  }\n}",
+  "areaBundleSha256": "3594cf9c96d751b57e58a96d7719687624bfb02d34de5eb6db6e8cac3dbe763b"
+}

@@ -1,0 +1,175 @@
+{
+  "areas": [
+    {
+      "exclusions": [
+        {
+          "id": "hole",
+          "name": "Button hole",
+          "polygon": [
+            {
+              "x": 10,
+              "y": 10
+            },
+            {
+              "x": 20,
+              "y": 10
+            },
+            {
+              "x": 20,
+              "y": 20
+            },
+            {
+              "x": 10,
+              "y": 20
+            }
+          ]
+        }
+      ],
+      "frameId": "FRAME-SYN-BRIDGE",
+      "frameSnapshot": "{\"assetFullSha256\":\"abababababababababababababababababababababababababababababababab\",\"calibrationFrameId\":\"FRAME-SYN-B1\",\"calibrationId\":\"CAL-SYN-B1\",\"frameId\":\"FRAME-SYN-BRIDGE\",\"mmPerModelUnit\":10,\"normal\":{\"x\":0,\"y\":0,\"z\":1},\"offPlaneToleranceMm\":0.01,\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"originAnchorId\":\"O\",\"product\":\"SYN-BRIDGE\",\"provisionalVersion\":\"v1\",\"regionId\":\"SYN-BRIDGE-CHEST\",\"sourceEvidenceSnapshot\":\"{\\\"assetFullSha256\\\":\\\"abababababababababababababababababababababababababababababababab\\\",\\\"calibrationId\\\":\\\"CAL-SYN-B1\\\",\\\"frameId\\\":\\\"FRAME-SYN-B1\\\",\\\"measuredDistanceMm\\\":100,\\\"pairIds\\\":[\\\"O\\\",\\\"X\\\"],\\\"pairs\\\":[{\\\"id\\\":\\\"O\\\",\\\"model\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"X\\\",\\\"model\\\":{\\\"x\\\":10,\\\"y\\\":0,\\\"z\\\":0}},{\\\"id\\\":\\\"Y\\\",\\\"model\\\":{\\\"x\\\":3,\\\"y\\\":5,\\\"z\\\":0}}],\\\"product\\\":\\\"SYN-BRIDGE\\\",\\\"provisionalVersion\\\":\\\"v1\\\",\\\"relativeTolerance\\\":0.01,\\\"toleranceMm\\\":0.5,\\\"variant\\\":\\\"SYN-BRIDGE-V1\\\"}\",\"variant\":\"SYN-BRIDGE-V1\",\"xAnchorId\":\"X\",\"xAxis\":{\"x\":1,\"y\":0,\"z\":0},\"yAnchorId\":\"Y\",\"yAxis\":{\"x\":0,\"y\":1,\"z\":0}}",
+      "regionId": "SYN-BRIDGE-CHEST",
+      "safePolygon": [
+        {
+          "x": -100,
+          "y": -80
+        },
+        {
+          "x": 100,
+          "y": -80
+        },
+        {
+          "x": 100,
+          "y": 80
+        },
+        {
+          "x": -100,
+          "y": 80
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "provisional planar frame draft; not production approved",
+    "planar mapping cannot model curved surfaces",
+    "provisional safe-area draft; not production approved",
+    "unconfigured frames (no safe polygon) are draft-only placeholders"
+  ],
+  "pendingReview": true,
+  "productionApproved": false,
+  "regions": [
+    {
+      "assetFullSha256": "abababababababababababababababababababababababababababababababab",
+      "calibrationFrameId": "FRAME-SYN-B1",
+      "calibrationId": "CAL-SYN-B1",
+      "frameId": "FRAME-SYN-BRIDGE",
+      "mmPerModelUnit": 10,
+      "normal": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "offPlaneToleranceMm": 0.01,
+      "origin": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "originAnchorId": "O",
+      "product": "SYN-BRIDGE",
+      "provisionalVersion": "v1",
+      "regionId": "SYN-BRIDGE-CHEST",
+      "sourceEvidenceSnapshot": "{\"assetFullSha256\":\"abababababababababababababababababababababababababababababababab\",\"calibrationId\":\"CAL-SYN-B1\",\"frameId\":\"FRAME-SYN-B1\",\"measuredDistanceMm\":100,\"pairIds\":[\"O\",\"X\"],\"pairs\":[{\"id\":\"O\",\"model\":{\"x\":0,\"y\":0,\"z\":0}},{\"id\":\"X\",\"model\":{\"x\":10,\"y\":0,\"z\":0}},{\"id\":\"Y\",\"model\":{\"x\":3,\"y\":5,\"z\":0}}],\"product\":\"SYN-BRIDGE\",\"provisionalVersion\":\"v1\",\"relativeTolerance\":0.01,\"toleranceMm\":0.5,\"variant\":\"SYN-BRIDGE-V1\"}",
+      "variant": "SYN-BRIDGE-V1",
+      "xAnchorId": "X",
+      "xAxis": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "yAnchorId": "Y",
+      "yAxis": {
+        "x": 0,
+        "y": 1,
+        "z": 0
+      }
+    }
+  ],
+  "schemaVersion": "0.1.0-provisional-region-areas",
+  "session": {
+    "evidence": {
+      "assetFullSha256": "abababababababababababababababababababababababababababababababab",
+      "calibrationId": "CAL-SYN-B1",
+      "frameId": "FRAME-SYN-B1",
+      "measuredDistanceMm": 100,
+      "pairIds": [
+        "O",
+        "X"
+      ],
+      "pairs": [
+        {
+          "id": "O",
+          "model": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "X",
+          "model": {
+            "x": 10,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "Y",
+          "model": {
+            "x": 3,
+            "y": 5,
+            "z": 0
+          }
+        }
+      ],
+      "product": "SYN-BRIDGE",
+      "provisionalVersion": "v1",
+      "relativeTolerance": 0.01,
+      "toleranceMm": 0.5,
+      "variant": "SYN-BRIDGE-V1"
+    },
+    "fit": {
+      "assetFullSha256": "abababababababababababababababababababababababababababababababab",
+      "calibrationId": "CAL-SYN-B1",
+      "frameId": "FRAME-SYN-B1",
+      "inconsistent": false,
+      "limitations": [
+        "Uniform isotropic scale only: a single anchor-pair distance cannot establish anisotropy, shear, or rotation; directional distortion is undetectable by this kernel.",
+        "Result is provisional and pending human review; this kernel never production-approves a calibration."
+      ],
+      "maxResidualMm": 0,
+      "pendingReview": true,
+      "perPair": [
+        {
+          "id": "[\"O\",\"X\"]",
+          "measuredDistanceMm": 100,
+          "modelDistance": 10,
+          "pairIds": [
+            "O",
+            "X"
+          ],
+          "predictedDistanceMm": 100,
+          "residualMm": 0
+        }
+      ],
+      "product": "SYN-BRIDGE",
+      "productionApproved": false,
+      "provisionalVersion": "v1",
+      "relativeTolerance": 0.01,
+      "scaleMmPerUnit": 10,
+      "schemaVersion": "0.1.0-provisional-calibration",
+      "toleranceMm": 0.5,
+      "variant": "SYN-BRIDGE-V1"
+    },
+    "schemaVersion": "0.1.0-provisional-calibration-session"
+  }
+}

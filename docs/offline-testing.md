@@ -1,5 +1,51 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Whole-workflow browser acceptance — 2026-10-19
+
+Codex completed a native Chrome walkthrough with real local file pickers,
+downloads and Print / Save as PDF, followed by independent maintained browser
+checks. The walkthrough covered inspector asset/calibration/region authoring
+and export, converter → Builder import, customer issue/edit/confirm/save/reopen,
+staff review, candidate JSON/PDF, repeated logos, unsafe-fit rejection,
+confirmation invalidation, and the revised-proposal/reconfirmation loop.
+See [the detailed acceptance record](browser-workflow-acceptance-2026-10-19.md).
+
+The native run found incorrect guidance directing new-placement edits to a
+disabled Apply button. The guidance now follows the available add steps;
+existing-placement and project-note edits keep their Apply instructions.
+Two new maintained full journeys (`e2e/user-workflow.spec.ts`) repeat the
+complete operator/customer/reviewer cycle for self-contained HTML and hybrid
+ZIP delivery, including desktop/mobile screenshots and download validation.
+
+Independent Codex checks on the final application build:
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | Pass |
+| `npm run build` | Pass |
+| `npx playwright test --project=chromium --workers=1` | 133/133, 3.1 minutes |
+| `npx playwright test e2e/user-workflow.spec.ts --project=chrome --headed --workers=1` | 2/2, 18.4 seconds |
+| `npx playwright test e2e/user-workflow.spec.ts --project=chromium --project=chrome --workers=1` | 4/4, 21.8 seconds, after strengthening the trusted review-history assertion |
+| Native Chrome file-picker/download/print walkthrough | Completed with synthetic data; candidate digests matched exact returns |
+
+Environment: macOS Darwin 27.2.0 arm64, Chromium 156.0.8078.4 and installed
+Chrome 155.0.8059.80. Maintained contexts are offline, use `file://`, and assert
+zero HTTP(S) requests, console errors and page errors. Whole journeys use
+1280×900 and 390×844; other specs retain their recorded per-test viewports.
+The native window was 2880×1738 device pixels, with DevTools docked during
+offline/console inspection. All five pages of the actual native revision-3
+operation PDF were rendered and visually checked. Earlier 485 Node and 18
+Python checks remain evidence for the unchanged domain/converter code; this
+follow-up changes customer guidance and browser acceptance coverage only.
+
+Artifacts are under ignored `.opencode/user-journey-2026-10-18/`, including
+`codex-final-chromium/` and `codex-final-chrome/`. The original real-Chrome
+whole-suite limitation recorded below is not replaced by the two-journey
+Chrome result. Microsoft Edge is absent from both local Applications paths;
+it was not installed or substituted. Actual Windows Chrome/Edge offline use,
+physical measurement/calibration and verified operator approval remain
+unverified release gates. No live Odoo, customer data, uploads or publishing.
+
 ## Multiview development acceptance — 2026-10-17
 
 The internal builder now creates a preview-only product from a single GLB,
@@ -78,7 +124,15 @@ npm run build:customer-prototype # standalone inline customer/reviewer package b
 `npm run typecheck` checks domain, viewer, and e2e/config TypeScript.
 Unit/domain tests remain separate: `npm test`
 (build + `node --test dist/tests-ts/*.test.js`). No live Odoo calls anywhere
-in automated tests.
+in automated tests. `node scripts/convert-area-bundle.mjs` converts an
+inspector area-bundle export to a Builder-ready prepared product (needs
+`npm run build` first; see `docs/internal-builder.md`).
+
+Windows operators run the same gates through
+`scripts/run-windows-acceptance.ps1 -NetworkDisabled` from the repo root
+after disabling networking; it writes a portable per-scope report
+(environment, logs, per-browser Playwright artifacts, summary). See
+`docs/release-acceptance.md`. macOS runs remain development evidence only.
 
 ## Projects (`playwright.config.ts`)
 
@@ -124,6 +178,8 @@ Windows Chrome/Edge over `file://` with networking disabled, still untested.
   recovery, and deterministically releases an obsolete startup digest after
   replacement. Desktop/mobile screenshots and environment metadata are attached.
 - `operational-candidate-preview.spec.ts` — baseline-based internal reviewer candidate preview/download, canonical byte agreement, zero/repeated placements, approval-independent pending status, failed-load preservation, revised proposal refresh, inert instruction text, controlled obsolete hashing and hash-failure recovery. Desktop/mobile screenshots and offline environment metadata are attached.
+- `operation-document-assets.spec.ts` — package-asset operation-document evidence (2026-10-18, 7 tests): inert header-validated raster artwork previews with illustrative captions, corrupt/non-raster explicit placeholders, header-valid-but-undecodable native-decode fallback, illustrative reference views with explicit missing notes, revision/digest consistency, approval-independent pending status, narrow-viewport overflow.
+- `prepared-product-import.spec.ts` — inspector-bridge→Builder roundtrip (2026-10-18, 3 tests): prepared product import with exact mm geometry + verbatim sidecar/area-bundle evidence, malformed-import atomicity, customer placement/confirm/save/reopen in the imported mm region with explicit unsafe-fit rejection, baseline review with consistent candidate JSON. Fixture generated by `scripts/convert-area-bundle.mjs`; desktop/mobile screenshots attached per test.
 - `standalone.spec.ts` — asset replacement resets session/areas/placements;
   copied single HTML file (folder name with spaces, no siblings) ingests and
   runs offline. ZIP/unzip transport-preview acceptance is covered separately
@@ -840,3 +896,112 @@ publishing, dependency installs, commits or pushes were used for this work.
 Final command logs are `/tmp/logotool-create-project/{typecheck.log,unit.log,full-accepted.log,chrome-accepted.log}`.
 The focused Chrome run is development evidence for these flows, not the full
 Chrome/Edge matrix or actual Windows validation.
+
+## Prepared-product bridge acceptance — 2026-10-18
+
+Lead-integrated after worker delivery (no OMP): the pure inspector bridge
+(`src/core/inspector-bridge`, 26 Node tests), Builder prepared-product intake
+(`src/core/project-builder/prepared-import`, 13 Node tests), conversion
+entrypoint (`scripts/convert-area-bundle.mjs`, 7 Node CLI tests), Builder
+import UI with sidecar/verbatim-evidence packaging, and operation-document
+asset plumbing (artwork previews, reference views, decode fallback, `__proto__`
+guards) are integrated and validated on this host.
+
+| Check | Environment | Result |
+| --- | --- | --- |
+| `npm run typecheck` | Node 26.10.0, TypeScript (domain + viewer + e2e) | Pass |
+| `npm test` | Node-only; builds first | 479/479, zero skipped |
+| `python3 -m unittest discover -s tests` | repo Python tooling | 18/18 OK |
+| `npm run test:e2e -- --workers=1` | macOS 27.2 arm64, Chromium 156.0.8078.4, offline `file://` | 129/130; single load-timeout in existing `presentation-assets` case, passes solo and in file/subset runs (host-load flake, unchanged code path) |
+| `npx playwright test --project=chrome e2e/prepared-product-import.spec.ts e2e/operation-document-assets.spec.ts` | Installed Chrome 155.0.8059.80, same host/offline | 10/10 |
+| `npm run test:e2e:chrome -- --workers=1` | Same installed Chrome, full suite | 127/130; 3 browser-process closures (`Target page, context or browser has been closed`) in untouched multiview/drag/standalone specs, no application assertion failures |
+
+Every browser test opens built `dist/*.html` (or extracted/generated packages in
+portable temp dirs with spaces) through `file://` in offline contexts and
+asserts zero console/page errors and zero HTTP(S) requests. New fixtures are
+tracked synthetics: `e2e/fixtures/bridge-area-bundle.json`,
+`bridge-labels.json`, and script-generated `prepared-bridge-product.json`
+(pinned by test to equal fresh conversion output byte-for-byte, including the
+verbatim evidence text and its SHA-256). The offline roundtrip covers prepared
+import → issue → placement/confirm/save/reopen in the same mm regions with an
+explicit unsafe-fit rejection → baseline review → consistent candidate JSON.
+All documents stay `candidate-pending-review`; schemas remain provisional.
+
+Screenshots inspected: Builder Save & send, customer placement review with
+measured diagram and confirmation, reviewer operation-document with decode
+fallback. macOS runs are development evidence; actual Windows Chrome/Edge,
+Edge on any host, real calibration/artwork rendering, native print-dialog
+behavior and operator usability remain untested gates. See
+`docs/release-acceptance.md`, `docs/operator-pilot-checklist.md` and
+`docs/release-readiness.md`.
+
+### Codex correction to the initial timeout diagnosis
+
+Independent failure artifacts from the first Codex full run show the Builder
+already on Choose items with both products loaded. The failing expectation
+used `source-status` filtered to visible elements after Start became hidden.
+This is a navigation/locator race, not evidence of a slow archive load. Codex
+replaced only that status expectation with its stable locator; all subsequent
+step, selection, asset-byte and return assertions remain intact. Earlier
+references to a host-load flake above were the lead's initial interpretation,
+now superseded by these artifacts. No timeout increases, sharding, retries
+or skipped tests were used as a remedy.
+
+## Codex independent final acceptance — 2026-10-18
+
+OpenCode v2 used `opencode-go/muse-spark-1.3-contributor` for the lead and
+workers. Codex independently reviewed the integrated changes, required evidence
+hash verification and exact UTF-8/BOM preservation, corrected the status
+locator race, and reviewed Windows PowerShell 5.1 path compatibility.
+
+Environment: macOS / Darwin 27.2.0 arm64; Node 26.10.0; bundled Chromium
+156.0.8078.4 and installed Google Chrome 155.0.8059.80. Browser contexts
+were offline, opening built/extracted/generated files directly through
+`file://`. Default viewport 1280×900; specs also cover 390×844 and their
+recorded desktop sizes. Passing cases assert zero console/page errors and
+zero HTTP(S) requests. Host networking was not claimed disabled on macOS.
+
+| Independent check | Result |
+| --- | --- |
+| `npm run typecheck` | Pass, all three TypeScript configurations |
+| `npm test` | 485/485; zero skipped |
+| `python3 -m unittest discover -s tests -v` | 18/18 OK; synthetic captures only |
+| Focused Chromium prepared import + presentation | 11/11, including tampered evidence and obsolete hash rejection |
+| `npm run test:e2e -- --workers=1` | 131/131 Chromium; no retries/skips |
+| `npm run test:e2e:chrome -- --workers=1` | 128/131; two browser-process closures and one transport test timeout |
+| Traced focused Chrome rerun of those three failures | 3/3; separate diagnostic evidence, not a green full suite |
+| Edge launch check | Hard failure: installed `msedge` distribution missing; functional acceptance untested |
+| Actual Windows Chrome/Edge; Windows runner execution | Untested; release gate remains open |
+
+The Chrome closures occurred in single-right-image creation and basic
+inspector dragging, with `CVDisplayLinkCreateWithCGDisplay` and macOS process
+policy diagnostics in the browser log. The transport zero-placement test
+timed out without a page snapshot. All three pass together in a traced
+single-worker rerun, without source changes, retries or increased timeouts.
+No application assertion failure reproduced in that rerun; the full Chrome
+gate nevertheless remains incomplete.
+
+The current 32 Node files include 26 bridge, 14 prepared-import, 12 converter
+CLI and 12 operation-document asset tests. There are 23 e2e spec files / 131
+cases per browser. New acceptance covers actual converter output, exact
+source evidence preservation, safe and unsafe placement, customer confirmation,
+save/reopen, baseline review and agreement with deterministic candidate JSON.
+Native decode failures and unusual configuration IDs remain covered.
+
+Codex inspected desktop/mobile workflow screenshots, then printed two
+synthetic A4 operation documents with raster artwork and a product reference
+(7 pages; 9 pages with 85 instruction lines). Poppler renders of all 16 pages
+were visually inspected; extracted text confirms every page has the project,
+revision, pending status and correct page numbering, with all 85 instruction
+lines present. Native OS print-dialog settings and physical printer scaling
+remain unverified.
+
+Local ignored evidence is retained under
+`.opencode/release-readiness-2026-10-18/`: `codex-unit-final.log`,
+`codex-typecheck-final.log`, `codex-environment.json`,
+`codex-chromium-final.log`, `codex-chrome-final.log`,
+`codex-chrome-triage.log`, `codex-edge.log`, separate browser artifacts/HTML
+reports, print PDFs and page renders. The initial failed Chromium evidence is
+also retained separately. No Odoo calls, customer evidence reads, uploads,
+installs, publishing, commits or pushes were performed. Schemas stay
+provisional; production approval is not conferred.

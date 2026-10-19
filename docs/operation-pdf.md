@@ -7,7 +7,8 @@ customer-return reviewer. It uses the same canonical `buildCandidateExport` /
 for user-initiated Print / Save as PDF. It is not a direct PDF download and is
 not production-ready.
 
-A direct production PDF renderer, full Builder and Odoo attachment integration remain pending.
+The provisional internal Builder now previews and prints these documents
+locally. A direct production PDF renderer and Odoo attachment integration remain pending.
 
 ## Purpose and source
 
@@ -116,3 +117,23 @@ Windows Chrome/Edge still require delivery validation. See `offline-testing.md`.
 - Render and inspect every page for legibility, clipping and overlapping labels.
 - Verify regenerated PDFs against project changes with synthetic data; no live
   Odoo calls in automated tests.
+
+## Package-asset preview extension — 2026-10-18
+
+The Builder and standalone reviewer now supply package asset bytes to the
+operation-document view model and renderer. Bounded PNG/JPEG/WebP artwork
+previews and product reference images are embedded locally; SVG and other
+unsupported artwork remain preserved originals with an explicit placeholder.
+Header-valid images that fail native decoding also become an explicit
+placeholder. Reference views are illustrative and never establish calibrated
+artwork placement on a garment. The exact candidate revision, digest,
+measurements, instructions and pending-review status remain authoritative.
+
+Codex independently printed two synthetic A4 documents containing a product
+reference and raster artwork: 7 normal pages and 9 pages with 85 instruction
+lines. All 16 pages were rendered with Poppler and visually inspected for
+legibility, clipping, diagrams and image placement. Extracted text confirmed
+project/revision/status/page numbering on every page and all 85 instruction
+lines. The browser used offline `file://`, with zero console/page errors and
+HTTP(S) requests. This is macOS Chromium development evidence; native Windows
+print dialogs, printer scaling and physical production accuracy remain untested.

@@ -58,11 +58,13 @@ structured physical production specifications.
 
 ## Coordination and delegation
 
-- The main Codex agent in this chat coordinates the work. Use `omp` (oh-my-pi)
-  to assign implementation work to a lead agent; the lead divides it among
+- The main Codex agent in this chat coordinates the work. Use OpenCode v2
+  (`opencode`) with `opencode-go/muse-spark-1.3-contributor` to assign implementation work
+  to a lead agent; the lead divides it among
   subagents, reviews their changes and returns an integrated result to Codex.
 - Give the lead a concrete objective, acceptance criteria, authorized scope and
-  expected deliverables. Check the installed OMP interface before invoking it.
+  expected deliverables. Check the installed OpenCode interface and available
+  model IDs before invoking it; use the explicitly named Contributor model.
 - Before starting subagents, the lead assigns each a bounded task with explicit
   file/module ownership, interfaces, dependencies, required checks and completion
   criteria. Avoid overlapping write ownership; shared-file changes belong to one
@@ -75,10 +77,10 @@ structured physical production specifications.
   and reports changed files, validation, unresolved risks and readiness to Codex.
 - Codex independently reviews the integrated result, performs final validation
   and gives final approval. Only Codex commits and pushes approved changes within
-  the user's authorized scope; the OMP lead and subagents must not commit or push.
+  the user's authorized scope; the OpenCode lead and subagents must not commit or push.
 - Delegation never expands Odoo access or other user authorization. Pass relevant
   project guidance and restrictions to every agent handling that work.
-- When OMP can work independently, use a scheduled chat wake-up every 10, 20,
+- When OpenCode can work independently, use a scheduled chat wake-up every 10, 20,
   or 30 minutes based on the expected task duration instead of continuously
   polling. Keep watching only when a concrete integration dependency, blocker,
   or time-sensitive action requires it. At each wake-up, check completion and

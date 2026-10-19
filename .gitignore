@@ -36,7 +36,8 @@ __pycache__/
 !.env.template
 !*.env.template
 
-# 5. OMP / Codex local sessions (local-only agent state)
+# 5. OpenCode / historical OMP / Codex local sessions (local-only agent state)
+.opencode/
 .omp/
 .codex/
 

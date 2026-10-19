@@ -56,6 +56,9 @@ They are a functional synthetic prototype, not production output; see
 Customer runtime packages are intended to need no Node or Python; build tooling is development-only.
 Real Chrome/Edge runs: `npm run test:e2e:chrome`, `npm run test:e2e:edge`,
 `npm run test:e2e:matrix`. See [offline testing](docs/offline-testing.md).
+Windows release gate (UNTESTED on Windows so far): [docs/release-acceptance.md](docs/release-acceptance.md)
+plus `scripts/run-windows-acceptance.ps1` run the same suites on a Windows host
+and write a portable report; see also the [release-readiness checklist](docs/release-readiness.md).
 
 Implemented: generalized products/variants/regions, mm placements with explicit
 frames and calibration references, schema and reference validation, canonical
@@ -63,6 +66,10 @@ JSON, content digests, revision-specific customer confirmation, separate interna
 review, issued-baseline comparison and customer-return import. Candidate output
 is deterministic and always pending review. Zero placements and repeated designs
 are supported. Fixture artwork and measurements are entirely synthetic.
+Inspector calibration/region-area exports convert to prepared product
+definitions through `scripts/convert-area-bundle.mjs` (explicit labels, atomic
+validation); the Internal Builder imports them with original evidence, issues
+customer files, and reviews returns against the saved baseline.
 
 Confirmation binds product definitions, artwork, placements and operational
 instructions. Customer-return imports compare internal definitions and discard
@@ -96,7 +103,8 @@ The internal return reviewer now previews and downloads deterministic
 pending-review operational candidate JSON and a printable operation document
 with physical footprint diagrams (Phase 10 partial). Use the browser print
 dialog to print or save as PDF. Direct production PDF generation,
-production-ready output and the internal Builder remain pending.
+production-ready output remains pending. The provisional internal Builder now
+creates packages, imports prepared planar products and reviews returns locally.
 
 For draft variant transfer, capture the current calibrated placements as the
 source, then author or restore the target variant using the existing inspector

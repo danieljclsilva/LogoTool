@@ -6,16 +6,47 @@
  */
 
 import type {
+  ArtworkPreview,
+  OperationArtworkAsset,
   OperationConfiguration,
   OperationDocument,
   OperationIdentity,
   OperationPlacement,
+  OperationReferenceView,
   PlacementDiagram,
   Point2d,
 } from "../../../core/operation-document/types.js";
+import { readRasterHeader } from "../../../assets/raster-header.js";
+import {
+  artworkPreviewReason,
+  artworkRenderFailureReason,
+  bytesToDataUrl,
+  referencePreviewReason,
+  type OperationDocumentAssetLookup,
+} from "./assets.js";
+
+export type { OperationDocumentAssetLookup };
 
 function setText(element: HTMLElement, text: string): void {
   element.textContent = text;
+}
+
+/**
+ * Header-valid bytes can still fail native decoding (truncated or corrupt
+ * payload behind a valid header). Every rendered raster <img> carries an
+ * error listener that swaps the figure for explicit placeholder text, so a
+ * corrupt payload never renders a broken image and never throws.
+ */
+function watchImageDecode(
+  document: Document,
+  figure: HTMLElement,
+  image: HTMLImageElement,
+  uri: string,
+): void {
+  image.addEventListener("error", () => {
+    figure.replaceChildren();
+    figure.append(createTextElement(document, "p", artworkRenderFailureReason("decode-failed", uri), "opdoc-artwork-placeholder"));
+  });
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
@@ -60,7 +91,7 @@ function renderIdentity(document: Document, identity: OperationIdentity): HTMLEl
   const grid = createElement(document, "dl", "opdoc-identity-grid");
   appendDefinition(document, grid, "Project", identity.projectId);
   appendDefinition(document, grid, "Revision", String(identity.revision));
-  appendDefinition(document, grid, "Digest", identity.digest);
+  appendDigest(document, grid, identity);
   appendDefinition(document, grid, "Schema", identity.schemaVersion);
   if (identity.generatedAt !== undefined) {
     appendDefinition(document, grid, "Generated at", identity.generatedAt);
@@ -75,6 +106,27 @@ function renderIdentity(document: Document, identity: OperationIdentity): HTMLEl
   }
   section.append(grid);
   return section;
+}
+
+/**
+ * Digest row: truncated digest shown prominently; the full digest is present
+ * as text inside a disclosure (screen) and as a print-only span so printed
+ * PDFs always carry the exact value even when the disclosure is closed.
+ */
+function appendDigest(document: Document, grid: HTMLElement, identity: OperationIdentity): void {
+  const pair = createElement(document, "div", "opdoc-field");
+  pair.append(createTextElement(document, "dt", "Digest"));
+  const dd = createElement(document, "dd");
+  dd.append(createTextElement(document, "span", `${identity.shortDigest}\u2026`));
+  const printOnly = createTextElement(document, "span", identity.digest, "opdoc-digest-print");
+  printOnly.setAttribute("data-opdoc-digest", "full");
+  dd.append(printOnly);
+  const details = createElement(document, "details", "opdoc-digest-screen");
+  details.append(createTextElement(document, "summary", "Full digest"));
+  details.append(createTextElement(document, "p", identity.digest));
+  dd.append(details);
+  pair.append(dd);
+  grid.append(pair);
 }
 
 function renderLimitations(document: Document, limitations: string[]): HTMLElement {
@@ -178,16 +230,22 @@ function renderDiagram(document: Document, diagram: PlacementDiagram): SVGElemen
   return svg;
 }
 
-function renderPlacement(document: Document, placement: OperationPlacement): HTMLElement {
+function renderPlacement(
+  document: Document,
+  placement: OperationPlacement,
+  lookup: OperationDocumentAssetLookup | undefined,
+): HTMLElement {
   const article = createElement(document, "article", "opdoc-placement");
   const heading = createTextElement(document, "h4", `${placement.displayIndex}. Placement ${placement.id ?? placement.displayIndex}`);
   article.append(heading);
+  article.append(createTextElement(document, "p", "Status: candidate-pending-review", "opdoc-status"));
 
   const grid = createElement(document, "dl", "opdoc-placement-grid");
   appendDefinition(document, grid, "Configuration", placement.configurationId);
   appendDefinition(document, grid, "Product / variant", `${placement.productId} / ${placement.variantId}`);
   appendDefinition(document, grid, "Logo", placement.logoId);
   appendDefinition(document, grid, "Region", placement.regionId);
+  appendDefinition(document, grid, "Region name", placement.regionName ?? "not supplied");
   appendDefinition(document, grid, "Method", placement.method);
   appendDefinition(document, grid, "Centre X", `${placement.pos.xMm} mm`);
   appendDefinition(document, grid, "Centre Y", `${placement.pos.yMm} mm`);
@@ -211,6 +269,14 @@ function renderPlacement(document: Document, placement: OperationPlacement): HTM
 
   const diagramHeading = createTextElement(document, "h5", "Positioning diagram");
   article.append(diagramHeading);
+  if (!placement.diagram.safeSupplied) {
+    article.append(createTextElement(
+      document,
+      "p",
+      "Safe-area polygon not supplied for this region; the footprint is shown without safe bounds.",
+      "opdoc-warning",
+    ));
+  }
   article.append(renderDiagram(document, placement.diagram));
   const caption = createTextElement(document, "p", "Illustrative, not to scale — logo footprint only. Green: safe region; red: exclusions; blue: footprint. Dashed lines: X/Y offsets from the frame origin to the bbox centre. +X right, +Y up; directions are named above.");
   caption.className = "opdoc-caption";
@@ -228,10 +294,11 @@ function renderPlacement(document: Document, placement: OperationPlacement): HTM
       item.append(assetHeading);
       const assetGrid = createElement(document, "dl");
       appendDefinition(document, assetGrid, "URI", asset.uri);
-      appendDefinition(document, assetGrid, "Media type", asset.mediaType);
-      if (asset.sha256Hex !== undefined) appendDefinition(document, assetGrid, "SHA-256", asset.sha256Hex);
+      appendDefinition(document, assetGrid, "Declared media type", asset.mediaType);
+      appendDefinition(document, assetGrid, "SHA-256", asset.sha256Hex ?? "not supplied");
       if (asset.description !== undefined) appendDefinition(document, assetGrid, "Description", asset.description);
       item.append(assetGrid);
+      item.append(renderArtworkPreview(document, asset, placement.artwork.logoId, lookup));
       list.append(item);
     }
     article.append(list);
@@ -240,7 +307,123 @@ function renderPlacement(document: Document, placement: OperationPlacement): HTM
   return article;
 }
 
-function renderConfiguration(document: Document, configuration: OperationConfiguration): HTMLElement {
+/**
+ * Bounded package-artwork preview. Only header-validated raster originals
+ * render, as inert `<img>` elements with `data:` URLs built from package
+ * bytes (never fetched, never remote). Every other case renders explicit
+ * placeholder text — never a broken image.
+ */
+function renderArtworkPreview(
+  document: Document,
+  asset: OperationArtworkAsset,
+  logoId: string,
+  lookup: OperationDocumentAssetLookup | undefined,
+): HTMLElement {
+  const preview: ArtworkPreview = asset.preview;
+  if (preview.status !== "inline-raster") {
+    return createTextElement(document, "p", artworkPreviewReason(preview.status, asset.uri), "opdoc-artwork-placeholder");
+  }
+  const bytes = lookup?.getBytes(asset.uri);
+  if (!bytes || bytes.length === 0) {
+    return createTextElement(document, "p", artworkRenderFailureReason("bytes-absent", asset.uri), "opdoc-artwork-placeholder");
+  }
+  const header = readRasterHeader(bytes);
+  if (header === null || header.mediaType !== preview.mediaType) {
+    return createTextElement(document, "p", artworkRenderFailureReason("encode-failed", asset.uri), "opdoc-artwork-placeholder");
+  }
+  const url = bytesToDataUrl(bytes, header.mediaType);
+  if (url === null) {
+    return createTextElement(document, "p", artworkRenderFailureReason("encode-failed", asset.uri), "opdoc-artwork-placeholder");
+  }
+  const figure = createElement(document, "figure", "opdoc-artwork-figure");
+  const image = createElement(document, "img", "opdoc-artwork-img");
+  image.setAttribute("src", url);
+  image.setAttribute("alt", `Customer-supplied artwork preview for logo ${logoId} (illustrative, not a colour proof)`);
+  image.setAttribute("width", String(header.width));
+  image.setAttribute("height", String(header.height));
+  watchImageDecode(document, figure, image, asset.uri);
+  figure.append(image);
+  const caption = createElement(document, "figcaption", "opdoc-caption");
+  setText(caption, "Illustrative customer-supplied artwork preview \u2014 never a production colour proof.");
+  figure.append(caption);
+  return figure;
+}
+
+/**
+ * Illustrative product reference views for one configuration. Reference
+ * images are visual aids only; missing references render explicit text and
+ * missing sides are never invented.
+ */
+function renderReferenceViews(
+  document: Document,
+  configuration: OperationConfiguration,
+  lookup: OperationDocumentAssetLookup | undefined,
+): HTMLElement {
+  const section = createElement(document, "section", "opdoc-reference-section");
+  section.append(createTextElement(document, "h4", "Product reference (illustrative)"));
+  if (configuration.referenceNote !== null) {
+    section.append(createTextElement(document, "p", configuration.referenceNote, "opdoc-reference-note"));
+  }
+  if (configuration.referenceViews.length === 0) {
+    if (configuration.referenceNote === null) {
+      section.append(createTextElement(
+        document,
+        "p",
+        "Product reference not supplied for this configuration in the package.",
+        "opdoc-reference-missing",
+      ));
+    }
+  } else {
+    for (const view of configuration.referenceViews) {
+      section.append(renderReferenceView(document, view, lookup));
+    }
+    section.append(createTextElement(
+      document,
+      "p",
+      "Illustrative product reference only; the dimensioned positioning diagram is the source of truth.",
+      "opdoc-caption",
+    ));
+  }
+  return section;
+}
+
+function renderReferenceView(
+  document: Document,
+  view: OperationReferenceView,
+  lookup: OperationDocumentAssetLookup | undefined,
+): HTMLElement {
+  const figure = createElement(document, "figure", "opdoc-reference");
+  const side = view.view ?? "single view";
+  const bytes = view.preview.status === "inline-raster" ? lookup?.getBytes(view.imagePath) : undefined;
+  const header = bytes && bytes.length > 0 ? readRasterHeader(bytes) : null;
+  const url = header !== null && header.mediaType === view.preview.mediaType
+    ? bytesToDataUrl(bytes!, header.mediaType)
+    : null;
+  if (url === null) {
+    const reason = view.preview.status === "inline-raster"
+      ? artworkRenderFailureReason(bytes ? "encode-failed" : "bytes-absent", view.imagePath)
+      : referencePreviewReason(view.imagePath);
+    figure.append(createTextElement(document, "p", reason, "opdoc-artwork-placeholder"));
+  } else {
+    const image = createElement(document, "img", "opdoc-reference-img");
+    image.setAttribute("src", url);
+    image.setAttribute("alt", `Illustrative product reference (${side}): ${view.label ?? view.imagePath}`);
+    image.setAttribute("width", String(header!.width));
+    image.setAttribute("height", String(header!.height));
+    watchImageDecode(document, figure, image, view.imagePath);
+    figure.append(image);
+  }
+  const caption = createElement(document, "figcaption", "opdoc-caption");
+  setText(caption, `${view.label ?? view.imagePath} \u2014 ${side}; illustrative only, not a placement proof.`);
+  figure.append(caption);
+  return figure;
+}
+
+function renderConfiguration(
+  document: Document,
+  configuration: OperationConfiguration,
+  lookup: OperationDocumentAssetLookup | undefined,
+): HTMLElement {
   const section = createElement(document, "section", "opdoc-configuration");
   const heading = createTextElement(
     document,
@@ -248,6 +431,7 @@ function renderConfiguration(document: Document, configuration: OperationConfigu
     `${configuration.productName ?? configuration.productId} / ${configuration.variantName ?? configuration.variantId}`,
   );
   section.append(heading);
+  section.append(createTextElement(document, "p", "Status: candidate-pending-review", "opdoc-status"));
 
   const meta = createElement(document, "dl", "opdoc-config-meta");
   appendDefinition(document, meta, "Configuration ID", configuration.id);
@@ -256,18 +440,28 @@ function renderConfiguration(document: Document, configuration: OperationConfigu
   appendDefinition(document, meta, "Placements", String(configuration.placements.length));
   section.append(meta);
 
+  section.append(renderReferenceViews(document, configuration, lookup));
+
   if (configuration.placements.length === 0) {
-    section.append(createTextElement(document, "p", "0 placements."));
+    section.append(createTextElement(
+      document,
+      "p",
+      "0 placements \u2014 no logos are configured here; no earlier artwork is reused.",
+    ));
   } else {
     for (const placement of configuration.placements) {
-      section.append(renderPlacement(document, placement));
+      section.append(renderPlacement(document, placement, lookup));
     }
   }
 
   return section;
 }
 
-export function renderOperationDocument(doc: OperationDocument, document: Document): DocumentFragment {
+export function renderOperationDocument(
+  doc: OperationDocument,
+  document: Document,
+  assets?: OperationDocumentAssetLookup,
+): DocumentFragment {
   const fragment = document.createDocumentFragment();
   const wrapper = createElement(document, "div", "lt-operation-document");
   wrapper.append(renderIdentity(document, doc.identity));
@@ -281,9 +475,11 @@ export function renderOperationDocument(doc: OperationDocument, document: Docume
   }
 
   const configurationsSection = createElement(document, "section", "opdoc-configurations");
-  if (doc.configurations.length === 0) configurationsSection.append(createTextElement(document, "p", "No configurations."));
+  if (doc.configurations.length === 0) {
+    configurationsSection.append(createTextElement(document, "p", "No configurations recorded in this candidate."));
+  }
   for (const configuration of doc.configurations) {
-    configurationsSection.append(renderConfiguration(document, configuration));
+    configurationsSection.append(renderConfiguration(document, configuration, assets));
   }
   wrapper.append(configurationsSection);
 
@@ -337,6 +533,24 @@ export function operationDocumentStyles(identity: OperationIdentity): string {
     .opdoc-caption { font-size: 8pt; color: #52616d; font-style: italic; margin: 0.25rem 0 0; }
     .opdoc-asset-list { list-style: none; padding: 0; margin: 0; }
     .opdoc-asset { margin: 0.4rem 0; padding: 0.4rem; background: #f7f9fa; border-radius: 3pt; }
+    .opdoc-artwork-figure { margin: 0.5rem 0; }
+    .opdoc-artwork-img { display: block; max-width: 100%; max-height: 240px; object-fit: contain; margin: 0.4rem 0; border: 0.5pt solid #cbd4da; background: #fff; break-inside: avoid; }
+    .opdoc-artwork-placeholder, .opdoc-reference-missing, .opdoc-reference-note, .opdoc-warning {
+      font-size: 9pt; color: #5d4037; background: #fff8e1; border: 0.5pt solid #e0c36a;
+      border-radius: 3pt; padding: 0.35rem 0.5rem; overflow-wrap: anywhere;
+    }
+    .opdoc-reference { margin: 0.5rem 0; break-inside: avoid; }
+    .opdoc-reference img { display: block; max-width: 100%; max-height: 300px; object-fit: contain; border: 0.5pt solid #cbd4da; background: #fff; }
+    .opdoc-reference figcaption { font-size: 8pt; color: #52616d; font-style: italic; margin-top: 0.25rem; overflow-wrap: anywhere; }
+    .opdoc-status { font-weight: 700; font-size: 9pt; color: #1b2c39; margin: 0.25rem 0; }
+    .opdoc-digest-screen { font-size: 9pt; margin-top: 0.25rem; }
+    .opdoc-digest-screen summary { cursor: pointer; }
+    .opdoc-digest-screen p { overflow-wrap: anywhere; }
+    .opdoc-digest-print { display: none; }
+    @media print {
+      .opdoc-digest-screen { display: none; }
+      .opdoc-digest-print { display: inline; overflow-wrap: anywhere; }
+    }
     .opdoc-instructions p { white-space: pre-wrap; overflow-wrap: anywhere; }
     @page {
       size: A4; margin: 22mm 14mm 18mm;

@@ -98,7 +98,9 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const bytes = await packageWith(source.project,source.assets,[{ path:'presentation/preview.json',bytes:new TextEncoder().encode(JSON.stringify({ version:1,references })) },...references.map(entry => ({ path:entry.image,bytes:png })),{ path:'presentation/unrelated.png',bytes:png }]);
     const show = async (name: string) => { await revealBuilderControl(page, name); const visible = page.locator(`[data-builder-hook="${name}"]`).filter({ visible: true }); if ((await visible.count()) > 0) return visible; return page.locator(`[data-builder-hook="${name}"]`); };
     await (await show('source-file')).setInputFiles({ name:'synthetic-reference-source.logo-project',mimeType:'application/zip',buffer:Buffer.from(bytes) });
-    await expect(await show('source-status')).toContainText('Loaded');
+    // Loading advances to Choose items and hides the Start panel. Read the
+    // status directly so this assertion survives that navigation boundary.
+    await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded');
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await expect(await show('selection-summary')).toContainText('2 products');
     const secondProduct = source.project.products[1]!.id;

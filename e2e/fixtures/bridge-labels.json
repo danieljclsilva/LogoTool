@@ -1,0 +1,29 @@
+{
+  "labels": {
+    "product": {
+      "id": "SYN-BRIDGE-001",
+      "name": "Synthetic Bridge Jacket",
+      "kind": "upper-body"
+    },
+    "variants": [
+      {
+        "id": "SYN-BRIDGE-V1",
+        "name": "Size M"
+      }
+    ],
+    "regions": {
+      "SYN-BRIDGE-CHEST": {
+        "name": "Chest",
+        "originDescription": "Synthetic bridge datum at chest centre; +x right, +y up; mm.",
+        "axes": {
+          "xPositive": "right",
+          "yPositive": "up"
+        },
+        "allowedMethods": [
+          "embroidery",
+          "print"
+        ]
+      }
+    }
+  }
+}
