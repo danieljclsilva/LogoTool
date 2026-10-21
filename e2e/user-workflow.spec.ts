@@ -111,6 +111,9 @@ async function openReviewDisclosure(page: Page, hook: string): Promise<void> {
 async function setCustomerNumber(page: Page, hook: string, value: number): Promise<void> {
   await revealCustomerControl(page, hook);
   await customer(page, hook).fill(String(value));
+  // Commit like a human tabbing out (fill alone keeps focus, so `change`
+  // would otherwise only fire on the next focus move).
+  await customer(page, hook).press('Tab');
 }
 
 async function unlockRatioForEdit(page: Page): Promise<void> {
@@ -197,6 +200,12 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
       buffer: RASTER_PNG,
     });
     await expect(await shown(page, 'logo-status')).toContainText(`Added ${RASTER_NAME}`);
+    // Deliberately include the example artwork this synthetic journey places
+    // (empty start leaves example logos unchecked; the import is auto-checked).
+    const logoList = await shown(page, 'logo-list');
+    for (const logoId of ['SYN-LOGO-A', 'SYN-LOGO-B']) {
+      await logoList.locator(`input[value="${logoId}"]`).check();
+    }
 
     // Keep the imported bridge product plus one prepared tee; drop the rest.
     // Top-level product toggles only: variant boxes live in a container that
@@ -213,7 +222,13 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     for (let index = 0; index < productCount; index += 1) {
       const box = productBoxes.nth(index);
       const nested = await box.getAttribute('data-product');
-      if (nested !== null) continue;
+      if (nested !== null) {
+        // Variant sub-option: follow its parent product (visible only while
+        // the parent stays selected). Empty-start UX leaves all boxes
+        // unchecked, so kept products need their variants ticked too.
+        if (keptProducts.includes(nested) && await box.isVisible()) await box.check();
+        continue;
+      }
       const value = (await box.getAttribute('value')) ?? '';
       seenProducts.push(value);
       if (keptProducts.includes(value)) await box.check();
@@ -379,12 +394,13 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await setCustomerNumber(editor, 'width-mm', 50);
     await setCustomerNumber(editor, 'height-mm', 30);
     // Regression: new-placement guidance must direct at the guided add path,
-    // never at the disabled Apply control. (Fills happen on the size step,
-    // so the direction names "Review layout"; the invariant is no Apply.)
-    await expect(customer(editor, 'status')).toContainText('to add the logo');
+    // never at the disabled Apply control. Committed edits auto-apply; with
+    // no placed logo selected yet they stay pending with an add direction.
+    await expect(customer(editor, 'status')).toContainText('not added yet');
+    await expect(customer(editor, 'status')).toContainText('Review layout');
     await expect(customer(editor, 'status')).not.toContainText('Apply my changes');
     await expect(customer(editor, 'unsaved-warning')).toContainText('not added yet');
-    await expect(customer(editor, 'unsaved-warning')).toContainText('to add the logo');
+    await expect(customer(editor, 'unsaved-warning')).toContainText('Review layout');
     await expect(customer(editor, 'unsaved-warning')).not.toContainText('Apply my changes');
     await expect(customer(editor, 'update')).toBeDisabled();
     await revealCustomerControl(editor, 'rotation');
@@ -429,9 +445,9 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await customer(editor, 'add').click();
     await expect(customer(editor, 'placement').locator('option')).toHaveCount(2);
     await expect(customer(editor, 'geometry')).toContainText('Fits: yes');
-    await expect(customer(editor, 'review')).toContainText('Center: 20 mm, 10 mm');
-    await expect(customer(editor, 'review')).toContainText('Width × height: 60 mm × 30 mm');
-    await expect(customer(editor, 'review')).toContainText('Turn clockwise: 15°');
+    await expect(customer(editor, 'review')).toContainText('Center: 20.0 mm, 10.0 mm');
+    await expect(customer(editor, 'review')).toContainText('Width × height: 60.0 mm × 30.0 mm');
+    await expect(customer(editor, 'review')).toContainText('Turn clockwise: 15.0°');
 
     // Zero-placement setup stays explicit (selected variant included).
     await selectCustomerOption(editor, 'configuration', teeConfigB.id);
@@ -448,35 +464,30 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await expect(customer(editor, 'placement').locator('option')).toHaveCount(1);
     await expect(customer(editor, 'placement').locator('option')).toHaveText('No placements');
     await selectCustomerOption(editor, 'configuration', teeConfigA.id);
-    await expect(customer(editor, 'review')).toContainText('Center: 20 mm, 10 mm');
+    await expect(customer(editor, 'review')).toContainText('Center: 20.0 mm, 10.0 mm');
 
     // ---- Customer: unsafe edit is rejected, then corrected. ----
     await selectCustomerOption(editor, 'configuration', bridgeConfigId);
     await selectCustomerOption(editor, 'placement', '0');
     await setCustomerNumber(editor, 'x-mm', unsafeProbe[0]);
     await setCustomerNumber(editor, 'y-mm', unsafeProbe[1]);
-    // Existing-placement edits still direct to Apply (enabled here).
-    await expect(customer(editor, 'status')).toContainText('Apply my changes');
-    await expect(customer(editor, 'unsaved-warning')).toContainText('Apply my changes');
-    await expect(customer(editor, 'update')).toBeEnabled();
-    await revealCustomerControl(editor, 'update');
-    await customer(editor, 'update').click();
+    // Valid edits auto-apply as a new revision (no separate Apply step); the
+    // unsafe position is saved but flagged by fit feedback, blocking confirm.
+    await expect(customer(editor, 'status')).toContainText('Applied your changes as version');
+    await expect(customer(editor, 'unsaved-warning')).toBeHidden();
     await expect(customer(editor, 'geometry')).toContainText('Fits: no');
     await expect(customer(editor, 'confirm')).toBeDisabled();
     await shoot(editor, `${format}-05-unsafe`);
     await setCustomerNumber(editor, 'x-mm', p1x);
     await setCustomerNumber(editor, 'y-mm', p1y);
-    await revealCustomerControl(editor, 'update');
-    await customer(editor, 'update').click();
     await expect(customer(editor, 'geometry')).toContainText('Fits: yes');
 
     // ---- Customer: instructions, confirmation, invalidation, reconfirm. ----
     await revealCustomerControl(editor, 'instructions');
     await customer(editor, 'instructions').fill(`Workflow instructions ${jobRef}.`);
-    // Project-notes edits still direct to Apply.
-    await expect(customer(editor, 'status')).toContainText('Apply my changes');
-    await revealCustomerControl(editor, 'update');
-    await customer(editor, 'update').click();
+    await customer(editor, 'instructions').press('Tab');
+    // Project-note edits auto-apply as a new revision (no separate Apply).
+    await expect(customer(editor, 'status')).toContainText('Applied your changes as version');
     await expect(customer(editor, 'review')).toContainText(`Notes for the whole project: Workflow instructions ${jobRef}.`);
     await revealCustomerControl(editor, 'confirmed-by');
     await customer(editor, 'confirmed-by').fill('Workflow customer');
@@ -499,8 +510,7 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     // mirror height and break the 52×30 expectation below).
     await unlockRatioForEdit(editor);
     await setCustomerNumber(editor, 'width-mm', 52);
-    await revealCustomerControl(editor, 'update');
-    await customer(editor, 'update').click();
+    // The auto-applied width edit invalidates the confirmation; no Apply click.
     await expect(customer(editor, 'confirmation')).toContainText(/no longer counts/i);
     await expect(customer(editor, 'submit')).toBeDisabled();
     await revealCustomerControl(editor, 'confirm');
@@ -517,6 +527,14 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
       await customer(editor, 'submit').click();
     });
     const returnedProject = (await parseProjectPackage(returned.bytes, { sha256: sha256bytes })).project;
+    // Descriptive Windows-portable download names: identity + revision, never
+    // generic names that browsers deduplicate into ` (5)` collisions.
+    expect(draft.name).toMatch(/-r\d+-draft\.logo-project$/);
+    expect(returned.name).toMatch(/-r\d+-confirmed-return\.logo-project$/);
+    for (const name of [draft.name, returned.name]) {
+      assert.ok(!/[<>:"/\\|?*]/.test(name), `download name must be Windows-portable: ${name}`);
+      assert.ok(!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(name), `download name must avoid reserved device names: ${name}`);
+    }
     expect(returnedProject.confirmation?.revision).toBe(returnedProject.revision);
     assert.ok(draft.bytes.length > 0, 'draft download should not be empty');
 
@@ -526,8 +544,9 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await expect(customer(editor, 'revision')).toHaveText(String(returnedProject.revision));
     await expect(customer(editor, 'confirmation')).toContainText('Confirmed: version');
     await selectCustomerOption(editor, 'configuration', bridgeConfigId);
-    await expect(customer(editor, 'review')).toContainText(`Center: ${p1x} mm, ${p1y} mm`);
-    await expect(customer(editor, 'review')).toContainText('Width × height: 52 mm × 30 mm');
+    const fmt1 = (value: number): string => (Math.round(value * 10) / 10).toFixed(1);
+    await expect(customer(editor, 'review')).toContainText(`Center: ${fmt1(p1x)} mm, ${fmt1(p1y)} mm`);
+    await expect(customer(editor, 'review')).toContainText('Width × height: 52.0 mm × 30.0 mm');
     await expect(customer(editor, 'review')).toContainText(`Notes for the whole project: Workflow instructions ${jobRef}.`);
     await shoot(editor, `${format}-08-reopened`);
 
@@ -590,21 +609,21 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     assert.ok(teeCandidate, 'candidate should carry the tee configuration');
     expect(teeCandidate.placements).toHaveLength(1);
 
-    // Operation document: raster artwork, instructions, pending status, print CSS.
+    // Operation sheet: business identity and unfinished honesty, print CSS.
+    // No digest, no customer notes, no review status on the operator sheet.
     await (await shown(fresh, 'preview-document')).click();
     const operation = await shown(fresh, 'operation-container');
     await expect(operation).toBeVisible();
-    await expect(operation).toContainText(candidateJson.digest);
-    await expect(operation).toContainText(`Workflow instructions ${jobRef}.`);
-    await expect(operation).toContainText('First bridge mark.');
-    await expect(operation).toContainText('Status: candidate-pending-review');
-    await expect(
-      operation.locator('img[alt*="Customer-supplied artwork preview"]').first(),
-    ).toBeVisible();
+    await expect(operation.locator('.opsheet').first()).toBeVisible();
+    await expect(operation).not.toContainText(candidateJson.digest);
+    await expect(operation).not.toContainText(`Workflow instructions ${jobRef}.`);
+    await expect(operation).not.toContainText('First bridge mark.');
+    await expect(operation).not.toContainText('Status: candidate-pending-review');
+    await expect(operation).toContainText('setup needed before production');
     await shoot(fresh, `${format}-10-operation-document`);
     await fresh.emulateMedia({ media: 'print' });
     await expect(fresh.locator('main#internal-builder')).toBeHidden();
-    await expect(fresh.locator('.lt-operation-document')).toBeVisible();
+    await expect(fresh.locator('.opsheet').first()).toBeVisible();
     await fresh.emulateMedia({ media: 'screen' });
 
     // Invalid and wrong-project files preserve the previous good state: the
@@ -672,7 +691,9 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
       review(reviewer, 'save-proposal').click(),
     );
     const revised = (await parseProjectPackage(proposal.bytes, { sha256: sha256bytes })).project;
-    expect(revised.revision).toBe(returnedProject.revision + 1);
+    // Proposal inputs auto-apply per changed field (x, then instructions),
+    // so the two edits land as two successive revisions.
+    expect(revised.revision).toBe(returnedProject.revision + 2);
     expect(revised.confirmation).toBeUndefined();
     expect(revised.instructions).toBe('Revised proposal instructions.');
     const revisedBridge = revised.configurations.find((entry) => entry.id === bridgeConfigId);
@@ -751,8 +772,16 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     expect(finalCandidate.status).toBe('candidate-pending-review');
     expect(finalCandidate.digest).toBe(buildCandidateExport(reconfirmedProject, sha256text).digest);
     await expect(review(final, 'candidate-status')).toContainText('candidate-pending-review');
-    await expect(review(final, 'operation-document-container')).toContainText('Status: candidate-pending-review');
-    await expect(review(final, 'operation-document-container')).toContainText(finalCandidate.digest);
+    // The operator sheet carries business data only: no review status, no
+    // digest, no customer notes (the reconfirmed project instructions stay
+    // source context). Nothing is authored on this read-only page, so every
+    // logo honestly reports setup needed.
+    await expect(review(final, 'operation-document-container').locator('.opsheet').first()).toBeVisible();
+    await expect(review(final, 'operation-document-container')).not.toContainText('Status: candidate-pending-review');
+    await expect(review(final, 'operation-document-container')).not.toContainText('candidate-pending-review');
+    await expect(review(final, 'operation-document-container')).not.toContainText(finalCandidate.digest);
+    await expect(review(final, 'operation-document-container')).not.toContainText('Revised proposal instructions.');
+    await expect(review(final, 'operation-document-container')).toContainText('setup needed before production');
 
     await final.setViewportSize({ width: 390, height: 844 });
     expect(await final.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

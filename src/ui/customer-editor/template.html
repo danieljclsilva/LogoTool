@@ -29,10 +29,33 @@
     .canvas-pane { border-right:1px solid var(--line); padding:22px 4% 24px; display:flex; flex-direction:column; min-width:0; align-self:start; position:sticky; top:0; height:calc(100vh - 180px); min-height:640px; z-index:0; isolation:isolate; }
     [data-customer-hook=context-line] { color:var(--muted); font-size:13px; margin:0 0 10px; }
     .job-choices { margin:0 0 22px!important; padding:10px 0!important; border-top:0!important; }
-    .stage { display:flex; align-items:center; justify-content:center; flex:1; min-height:320px; }
-    .stage svg { width:100%; height:min(58vw,690px); max-height:calc(100vh - 380px); min-height:320px; touch-action:none; user-select:none; }
-    .canvas-pane .reference-wrap { display:flex; justify-content:center; align-items:center; flex:1 1 auto; min-height:0; min-width:0; max-width:100%; max-height:100%; overflow:hidden; }
-    .canvas-pane [data-customer-hook=reference-img] { display:block; width:100%; max-width:100%; height:100%; max-height:calc(100vh - 480px); min-height:200px; object-fit:contain; }
+    .stage { display:flex; align-items:center; justify-content:center; flex:1 0 auto; height:min(58vw,690px); max-height:calc(100vh - 380px); min-height:320px; }
+    .stage svg { width:100%; height:100%; max-height:calc(100vh - 380px); min-height:320px; touch-action:none; user-select:none; }
+    .canvas-pane .photo-wrap { position:relative; flex:1; min-height:320px; min-width:0; overflow:hidden; }
+    .canvas-pane .photo-wrap[hidden] { display:none; }
+    .canvas-pane .photo-wrap img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; margin:0 auto; }
+    .canvas-pane .photo-wrap img[hidden] { display:none; }
+    .canvas-pane .photo-wrap svg { position:absolute; touch-action:none; user-select:none; }
+    .side-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+    .side-tabs button { border:1px solid var(--line); border-radius:16px; padding:6px 14px; font-size:13px; color:var(--muted); background:#fff; }
+    .side-tabs button[aria-pressed=true] { background:#192d3d; border-color:#192d3d; color:#fff; font-weight:600; }
+    .side-tabs button:disabled { opacity:.45; cursor:default; }
+    .mapping-status { font-size:13px; color:var(--muted); margin:0 0 10px; }
+    .mapping-status.provisional { color:#8a6227; }
+    .mode-3d-pane { flex:1; min-height:320px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--line); border-radius:5px; padding:24px; text-align:center; color:var(--muted); font-size:14px; }
+    .mode-3d-pane[hidden] { display:none; }
+    /* Single primary 3D pane: bounded wrap + block canvas (same no-settle
+    rationale as the views-model wrap). Column layout keeps the availability
+    line, canvas, and zoom controls stacked. */
+    .mode-3d-pane { flex-direction:column; gap:10px; }
+    .mode-3d-pane p { margin:0; }
+    .mode-3d-wrap { width:100%; height:min(58vw,440px); min-height:280px; min-width:0; overflow:hidden; position:relative; }
+    .mode-3d-wrap[hidden] { display:none; }
+    .mode-3d-wrap canvas { display:block; width:100%; height:100%; touch-action:pan-y; }
+    .mode-3d-controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:0; }
+    .mode-3d-controls button { font-size:13px; padding:8px 14px; }
+    .mode-3d-controls button:disabled { opacity:.45; cursor:default; }
+    @media(max-width:900px) { .mode-3d-wrap { height:58vw; min-height:220px; } }
     .safe-area { fill:#f0f5f2; stroke:#6b9782; stroke-width:1; vector-effect:non-scaling-stroke; } .exclusion-area { fill:#fbe9e8; stroke:#bd716d; stroke-width:1; vector-effect:non-scaling-stroke; }
     .footprint { fill:#d8e8ed; fill-opacity:.9; stroke:#35738a; stroke-width:1.5; vector-effect:non-scaling-stroke; cursor:grab; } .footprint.selected { stroke-width:2.5; } .footprint.invalid { fill:#f3d7d4; stroke:#ab4238; }
     .origin { stroke:#91a4ae; stroke-width:.7; stroke-dasharray:2 2; vector-effect:non-scaling-stroke; pointer-events:none; } .footprint-label { fill:#224555; font-size:4px; text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
@@ -59,7 +82,8 @@
     [data-customer-hook=unsaved-warning] { font-size:13px; color:#8a6227; margin:14px 0; } [data-customer-hook=prototype-note] { font-size:11px; text-align:right; color:var(--muted); margin:28px 0 0; }
     .review { font-size:14px; line-height:1.6; overflow-wrap:anywhere; margin-bottom:24px; } .review h3 { font-size:16px; margin:0 0 14px; } .review h4 { font-size:14px; margin:0 0 8px; font-weight:600; } .review p { margin:0 0 8px; } .review-product+.review-product { border-top:1px solid var(--line); padding-top:20px; margin-top:20px; } .review-placement+.review-placement { margin-top:20px; } .review-fit { color:#227443; } .review-fit.invalid { color:#a53a32; } .review-measurements { color:var(--muted); font-size:13px; margin:12px 0; } .review-measurements[open]>summary { margin-bottom:12px; } .reference-review { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; } .save-row { display:flex; gap:10px; margin:20px 0; }
     [data-step-panel=review] .btn-primary { width:100%; } .is-empty .desk { opacity:.35; pointer-events:none; } .is-empty .loadbar { padding-block:24px; }
-    @media(max-width:900px) { .desk { grid-template-columns:1fr; min-height:0; } .canvas-pane { position:static; height:auto; min-height:0; border-right:0; border-bottom:1px solid var(--line); padding:18px 20px; } .task-rail { padding:28px 24px; } .stage svg,[data-customer-hook=reference-img] { height:58vw; max-height:440px; min-height:200px; } .rail-context { margin-bottom:22px; min-height:70px; } .task-rail h2 { font-size:28px; } .rail-actions { padding-top:24px; } [data-customer-hook=prototype-note] { text-align:left; } }
+    .artwork { pointer-events:none; }
+    @media(max-width:900px) { .desk { grid-template-columns:1fr; min-height:0; } .canvas-pane { position:static; height:auto; min-height:0; border-right:0; border-bottom:1px solid var(--line); padding:18px 20px; } .task-rail { padding:28px 24px; } .stage { flex:none; height:58vw; max-height:440px; min-height:200px; } .stage svg { height:100%; max-height:440px; min-height:200px; } .canvas-pane .photo-wrap { min-height:200px; height:58vw; max-height:440px; flex:none; } .rail-context { margin-bottom:22px; min-height:70px; } .task-rail h2 { font-size:28px; } .rail-actions { padding-top:24px; } [data-customer-hook=prototype-note] { text-align:left; } }
     @media(max-width:500px) { .topbar { padding:0 14px; height:65px; gap:12px; } .brand { gap:12px; } .brand img { width:95px; height:36px; } .divider { height:28px; } .wordmark { font-size:18px; } .save-top { font-size:12px; gap:5px; } .save-top .icon { width:15px; } .stepnav { gap:18px; height:54px; } .stepnav button { font-size:14px; } .stepnav .rule { width:18px; } .loadbar { padding:7px 16px; gap:12px; } .view-toggle button { font-size:11px; padding:7px 9px; } .canvas-foot { gap:8px; } .sku { font-size:15px; } .task-rail { padding:24px 20px; } .lede { font-size:14px; } .identity { max-width:300px; } }
     .views-showcase { grid-column:1 / -1; grid-row:auto; border-top:1px solid var(--line); margin:0; padding:18px 3.5% 24px; display:grid; gap:10px; background:#fbfcfd; }
     .views-showcase[hidden] { display:none; }
@@ -94,9 +118,7 @@
     <button class="save-top" data-customer-hook="save-draft-top" type="button" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12l3 3v15H4V3h1Z"/><path d="M8 3v7h8V3M8 21v-7h8v7"/></svg>Save draft</button>
   </header>
   <nav class="stepnav" data-customer-hook="step-nav" aria-label="Progress">
-    <button data-customer-hook="step-position" type="button" aria-current="step">Position</button>
-    <span class="rule" aria-hidden="true"></span>
-    <button data-customer-hook="step-size" type="button">Size</button>
+    <button data-customer-hook="step-edit" type="button" aria-current="step">Edit logos</button>
     <span class="rule" aria-hidden="true"></span>
     <button data-customer-hook="step-review" type="button">Review</button>
   </nav>
@@ -112,16 +134,25 @@
     <div class="desk">
       <section data-customer-hook="canvas-pane" class="canvas-pane" aria-label="Product view">
         <p data-customer-hook="context-line" class="muted">Open a project to see your product context.</p>
+        <div class="side-tabs" role="group" aria-label="Logo area side">
+          <button data-customer-hook="side-front" type="button" aria-pressed="false">Front</button>
+          <button data-customer-hook="side-back" type="button" aria-pressed="false">Back</button>
+          <button data-customer-hook="side-left" type="button" aria-pressed="false">Left</button>
+          <button data-customer-hook="side-right" type="button" aria-pressed="false">Right</button>
+        </div>
+        <p data-customer-hook="mapping-status" class="mapping-status" role="status">Open a project to see the photo mapping status.</p>
         <div class="stage">
           <svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Logo-area diagram with logo boxes"><g data-customer-hook="canvas-layer"></g></svg>
         </div>
-        <div class="reference-wrap"><img data-customer-hook="reference-img" alt="Product reference photo" hidden></div>
+        <div class="photo-wrap" data-customer-hook="photo-wrap" hidden><img data-customer-hook="reference-img" alt="Mapped product photo" hidden><svg data-customer-hook="photo-overlay" role="img" aria-label="Mapped logo overlay"></svg></div>
+        <div class="mode-3d-pane" data-customer-hook="mode-3d-pane" hidden><p data-customer-hook="model-availability">Open a project to check 3D availability.</p><div class="mode-3d-wrap" data-customer-hook="mode-3d-wrap" hidden><canvas data-customer-hook="mode-3d-canvas"></canvas></div><p class="mode-3d-controls"><button data-customer-hook="mode-3d-zoom-in" type="button">Zoom in</button><button data-customer-hook="mode-3d-zoom-out" type="button">Zoom out</button><button data-customer-hook="mode-3d-reset" type="button">Reset view</button></p></div>
         <p data-customer-hook="reference-warning" hidden></p>
         <div class="canvas-foot">
           <div><p class="sku" data-customer-hook="product-caption">Your product</p><p class="view-caption" data-customer-hook="view-caption">Placement diagram</p></div>
-          <div class="view-toggle" role="group" aria-label="Canvas view">
-            <button data-customer-hook="view-reference" type="button" aria-pressed="false">Product reference</button>
-            <button data-customer-hook="view-diagram" type="button" aria-pressed="true">Placement diagram</button>
+          <div class="view-toggle" role="group" aria-label="Canvas mode">
+            <button data-customer-hook="mode-photo" type="button" aria-pressed="false">Photo</button>
+            <button data-customer-hook="mode-diagram" type="button" aria-pressed="true">Diagram</button>
+            <button data-customer-hook="mode-3d" type="button" aria-pressed="false">3D</button>
           </div>
         </div>
         <div class="canvas-tools">        <details class="more-actions"><summary>More actions</summary><div class="manage-row">
@@ -166,32 +197,29 @@
             <label hidden>Product option<select data-customer-hook="variant" disabled></select></label>
             <label hidden>Logo<select data-customer-hook="logo" disabled></select></label>
           </div></details>
-        <h2>Set the logo size</h2>
-        <p class="lede">Choose the width. The shape stays the same.</p>
+        <h2>Place and size your logos</h2>
+        <p class="lede">Choose where each logo goes and how big it is.</p>
 
-        <div data-step-panel="position">
+        <div data-step-panel="edit">
           <div class="field-row">
             <label>Logo area<select data-customer-hook="region" disabled></select></label>
           </div>
           <label data-customer-hook="placement-choice">Placed logos<select data-customer-hook="placement" disabled></select></label>
 
           <details class="precise" data-customer-hook="precise-position">
-            <summary>Precise adjustments</summary>
+            <summary>Advanced: exact position</summary>
             <div class="field-row">
               <label>Middle of logo, X (mm)<input data-customer-hook="x-mm" type="number" step="any" disabled></label>
               <label>Middle of logo, Y (mm)<input data-customer-hook="y-mm" type="number" step="any" disabled></label>
             </div>
           </details>
-        </div>
-
-        <div data-step-panel="size">
           <div class="field-row">
             <label>Logo width
               <span class="mm-field"><input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span>
             </label>
           </div>
           <details class="precise" data-customer-hook="precise-size">
-            <summary>Precise adjustments</summary>
+            <summary>Advanced: height, rotation, method, note</summary>
             <div class="field-row">
               <label>Logo height (mm)<input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled></label>
               <label>Turn clockwise (degrees)<input data-customer-hook="rotation" type="number" min="-179.999999999" max="180" step="any" disabled></label>

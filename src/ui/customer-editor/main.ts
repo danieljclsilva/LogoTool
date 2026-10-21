@@ -35,10 +35,19 @@ import {
   PRESENTATION_MANIFEST_PATH,
   PRESENTATION_MAX_IMAGE_BYTES,
   selectPresentationModel,
-  selectPresentationReference,
   selectPresentationViews,
 } from './presentation-assets.js';
 import type { PresentationManifest } from './presentation-assets.js';
+import {
+  forwardPhotoMapping,
+  inversePhotoMapping,
+  parsePhotoMappings,
+  PHOTO_MAPPINGS_PATH,
+  artworkPhotoMatrix,
+  selectPhotoMapping,
+  validateMappingContext,
+} from './presentation-photo-mapping.js';
+import type { PhotoMappingContext, PhotoMappingEntry, PhotoMappingsV1, PhotoMappingView } from './presentation-photo-mapping.js';
 import type { ViewerSide } from '../../viewer/model-viewer.js';
 
 interface EditorPackage {
@@ -115,24 +124,49 @@ const hasher = createWebCryptoProjectHasher();
 // keeps working before and after the new shell lands. document scope (not
 // #customer-editor) because the new shell places step-nav/save-draft-top
 // outside <main>.
-type GuideStep = 'position' | 'size' | 'review';
-const STEP_ORDER: GuideStep[] = ['position', 'size', 'review'];
-let guideStep: GuideStep = 'position';
+// ---- Single placement workspace (edit) + combined review ----
+// Position, artwork, width and precise coordinates live together in one
+// editable workspace per selected placement; there is no compulsory
+// Position -> Size -> Review traversal per logo. Review is the separate
+// combined proof/confirmation step.
+type GuideStep = 'edit' | 'review';
+const STEP_ORDER: GuideStep[] = ['edit', 'review'];
+let guideStep: GuideStep = 'edit';
 
 const optionalHook = <T extends Element>(name: string): T | null =>
   document.querySelector<T>(`[data-customer-hook="${name}"]`);
 const brandMark = optionalHook<HTMLImageElement>('brand-mark');
 const saveDraftTop = optionalHook<HTMLButtonElement>('save-draft-top');
 const stepNav = optionalHook<HTMLElement>('step-nav');
-const stepPositionButton = optionalHook<HTMLButtonElement>('step-position');
-const stepSizeButton = optionalHook<HTMLButtonElement>('step-size');
+const stepEditButton = optionalHook<HTMLButtonElement>('step-edit');
 const stepReviewButton = optionalHook<HTMLButtonElement>('step-review');
 const taskRail = optionalHook<HTMLElement>('task-rail');
 const canvasPane = optionalHook<HTMLElement>('canvas-pane');
 const contextLine = optionalHook<HTMLElement>('context-line');
 const logoThumb = optionalHook<HTMLImageElement>('logo-thumb');
-const viewReferenceButton = optionalHook<HTMLButtonElement>('view-reference');
-const viewDiagramButton = optionalHook<HTMLButtonElement>('view-diagram');
+// Single primary canvas: one active mode (Photo/Diagram/3D) drives the canvas
+// pane. The second independent views-showcase viewer below stays hidden;
+// all mapped state is rendered in the primary canvas only.
+const modePhotoButton = hook<HTMLButtonElement>('mode-photo');
+const modeDiagramButton = hook<HTMLButtonElement>('mode-diagram');
+const mode3dButton = hook<HTMLButtonElement>('mode-3d');
+const sideButtons = {
+  front: hook<HTMLButtonElement>('side-front'),
+  back: hook<HTMLButtonElement>('side-back'),
+  left: hook<HTMLButtonElement>('side-left'),
+  right: hook<HTMLButtonElement>('side-right'),
+} as const;
+const photoWrap = hook<HTMLElement>('photo-wrap');
+const photoOverlay = hook<SVGSVGElement>('photo-overlay');
+const mappingStatus = hook<HTMLElement>('mapping-status');
+const mode3dPane = hook<HTMLElement>('mode-3d-pane');
+const modelAvailability = hook<HTMLElement>('model-availability');
+// Single primary 3D pane controls: new hooks are looked up null-safely (never
+// required()) so this file keeps working if the shell lags behind.
+const mode3dWrap = optionalHook<HTMLElement>('mode-3d-wrap');
+const mode3dZoomIn = optionalHook<HTMLButtonElement>('mode-3d-zoom-in');
+const mode3dZoomOut = optionalHook<HTMLButtonElement>('mode-3d-zoom-out');
+const mode3dReset = optionalHook<HTMLButtonElement>('mode-3d-reset');
 const referenceImg = optionalHook<HTMLImageElement>('reference-img');
 const referenceWarning = optionalHook<HTMLElement>('reference-warning');
 const ratioLock = optionalHook<HTMLInputElement>('ratio-lock');
@@ -152,9 +186,11 @@ function isNewPlacementOnlyDirt(): boolean {
 }
 
 function guidedAddDirection(): string {
-  if (guideStep === 'size') return 'press “Review layout” to add the logo';
-  if (guideStep === 'review') return 'go back to the earlier steps to add the logo';
-  return 'press “Continue to size” to add the logo';
+  // Names the actually visible commit action: the primary next button adds a
+  // pending new placement (Review layout auto-adds), and Review returns via
+  // the Edit tab. Never points at the collapsed More-actions Add button.
+  if (guideStep === 'review') return 'go back to editing, then press “Review layout” to add the logo';
+  return 'press “Review layout” to add the logo';
 }
 
 function unsavedStepMessage(): string {
@@ -185,7 +221,7 @@ function stepNeighbor(step: GuideStep, delta: 1 | -1): GuideStep {
 }
 
 function requestStep(target: GuideStep): void {
-  if (!loaded || loading || saving || confirming || drag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
   guideStep = target;
   // Navigation preserves pending form values. Only Apply/Continue mutates a revision.
   renderGuideStep();
@@ -198,8 +234,7 @@ function renderGuideStep(): void {
     panel.hidden = panel.getAttribute('data-step-panel') !== guideStep;
   }
   const stepButtons: Array<[GuideStep, HTMLButtonElement | null]> = [
-    ['position', stepPositionButton],
-    ['size', stepSizeButton],
+    ['edit', stepEditButton],
     ['review', stepReviewButton],
   ];
   for (const [name, button] of stepButtons) {
@@ -209,26 +244,22 @@ function renderGuideStep(): void {
   }
   if (primaryNext) {
     primaryNext.hidden = guideStep === 'review';
-    primaryNext.textContent = guideStep === 'position'
-      ? 'Continue to size'
-      : guideStep === 'size' ? 'Review layout' : 'Save confirmed return';
+    primaryNext.textContent = 'Review layout';
   }
   const panel = root.querySelector<HTMLElement>(`[data-step-panel="${guideStep}"]`);
   if (panel) panel.insertBefore(geometryStatus, panel.querySelector(':scope > details') ?? null);
   const heading = taskRail?.querySelector('h2') ?? null;
   if (heading) {
-    heading.textContent = guideStep === 'position'
-      ? 'Place the logo'
-      : guideStep === 'size' ? 'Set the logo size' : 'Review and confirm';
+    heading.textContent = guideStep === 'edit'
+      ? 'Place and size your logos'
+      : 'Review and confirm';
   }
   const lede = taskRail?.querySelector('.lede') ?? null;
   if (lede) {
-    lede.textContent = guideStep === 'position'
-      ? (currentPlacement() ? 'Choose where this logo goes.' : 'Choose a logo and its position.')
-      : guideStep === 'size'
-        ? 'Choose the width. The shape stays the same.'
-        : 'Check every number, then confirm and save your return file.';
-    if (guideStep === 'size' && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
+    lede.textContent = guideStep === 'edit'
+      ? (currentPlacement() ? 'Choose where this logo goes and how big it is.' : 'Choose a logo, its position and size.')
+      : 'Check every number, then confirm and save your return file.';
+    if (guideStep === 'edit' && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
   }
 }
 
@@ -286,123 +317,387 @@ async function renderLogoThumb(): Promise<void> {
   logoThumb.hidden = false;
 }
 
-// ---- Presentation reference (lead-owned adapter, controller-wired) ----
-// The domain has no garment-photo calibrated placement mapping, so the
-// measured placement diagram stays the default view. An optional bounded
-// presentation manifest in the package (presentation/preview.json + raster
-// images) may supply a product reference photo; it is shown as a plain
-// <img> and NEVER gets a mapped logo overlay. Nothing here depends on
-// jacket-specific behavior.
-let referenceAsset: { imagePath: string; label: string | null } | null = null;
-let referenceView: 'diagram' | 'reference' = 'diagram';
-let referenceNotice = '';
-let referenceObjectUrl: string | null = null;
-let referenceGeneration = 0;
-let referenceBytes: Uint8Array | undefined;
-let preferredReferenceOnLoad = true;
+// ---- Photo-mapping consumer (explicit region->side binding) ----
+// Authority: ONLY photo-mapping entries (regionId -> view) and v2 view
+// entries (image -> view). Never infer side from region IDs, labels,
+// filenames, or photo order. Missing/legacy mapping -> truthful diagram
+// fallback ("Reference only — editing uses measured diagram"), never a
+// mislabelled photo. The measured diagram (exact domain millimetres) stays
+// the source of truth; the photo is a mapped preview only.
+// Rotation convention: domain rotationDeg is clockwise-positive facing the
+// region (Y-up). SVG y is down, so SVG rotate(+θ) about the placement
+// center reproduces exactly the validator footprint.
+type PrimaryMode = 'photo' | 'diagram' | '3d';
+let primaryMode: PrimaryMode = 'diagram';
+interface ActivePhoto {
+  entry: PhotoMappingEntry;
+  imageBytes: Uint8Array;
+}
+let activePhoto: ActivePhoto | null = null;
+let photoWarning: string | null = null;
+let photoObjectUrl: string | null = null;
+let photoObjectKey = '';
+let photoGeneration = 0;
+let photoNatural: { width: number; height: number } | null = null;
+const artworkUrls = new Map<string, string>();
 
-function revokeReferenceUrl(): void {
-  if (referenceObjectUrl !== null) {
-    try { URL.revokeObjectURL(referenceObjectUrl); } catch { /* already gone */ }
-    referenceObjectUrl = null;
-  }
+// Display rounding: one-decimal text (e.g. 108.1) for UI copy only. The
+// canonical widthMm/heightMm/pos/rotationDeg values are never rounded; form
+// fields keep exact values so re-renders lose no precision.
+function formatMm(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return (Math.round(value * 10) / 10).toFixed(1);
 }
 
-function currentPresentationSelection() {
+function photoMappingsOfLoaded(): { mappings: PhotoMappingsV1 | null; present: boolean } {
+  const bytes = loaded?.assets.find((entry) => entry.path === PHOTO_MAPPINGS_PATH && entry.kind === 'additional')?.bytes;
+  return { mappings: parsePhotoMappings(bytes), present: bytes !== undefined };
+}
+
+/**
+ * Current binding context for one region: the region's own calibration
+ * reference plus the declared preview views for the configuration. Callers
+ * refuse any mapping entry that disagrees (stale calibration, swapped or
+ * relabelled photo) and fall back to the measured diagram.
+ */
+function mappingContextFor(regionId: string): PhotoMappingContext | null {
   const project = loaded?.project;
   const configuration = project && selectedConfiguration(project);
-  if (!loaded || !project || !configuration) {
-    return { imagePath: null as string | null, label: null as string | null, warning: null as string | null };
-  }
-  return selectPresentationReference(
+  const product = configuration && project?.products.find((item) => item.id === configuration.productId);
+  const region = product?.regions.find((item) => item.id === regionId);
+  const calibration = region?.calibrationRef;
+  if (!loaded || !project || !configuration || !product || !region || !calibration) return null;
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  const manifestViews = selectPresentationViews(
     loaded.presentationManifest,
     loaded.presentationManifestPresent,
     configuration.productId,
     configuration.variantId,
-    (path) => loaded?.assets.find((entry) => entry.path === path)?.bytes,
-  );
+    lookup,
+  ).views.flatMap((view) => (view.view === null ? [] : [{ view: view.view, image: view.imagePath }]));
+  return {
+    productId: configuration.productId,
+    variantId: configuration.variantId,
+    regionId,
+    calibrationId: calibration.calibrationId,
+    calibrationVersion: calibration.version,
+    manifestViews,
+  };
 }
 
-function renderReferenceView(): void {
-  const showing = referenceView === 'reference' && referenceAsset !== null;
-  if (referenceImg) {
-    if (showing && referenceAsset) {
-      referenceImg.src = referenceObjectUrl ?? '';
-      referenceImg.alt = referenceAsset.label ?? 'Product reference photo';
-      referenceImg.hidden = false;
-    } else {
-      referenceImg.hidden = true;
-      referenceImg.removeAttribute('src');
+function resolveActivePhoto(): void {
+  activePhoto = null;
+  photoWarning = null;
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) return;
+  const { mappings, present } = photoMappingsOfLoaded();
+  if (!present) return; // legacy fallback: truthful diagram, no warning
+  if (!mappings) {
+    photoWarning = 'Photo mapping data was invalid and has been ignored.';
+    return;
+  }
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  const productId = configuration.productId;
+  const variantId = configuration.variantId;
+  const regionId = selectedRegionId;
+  const context = mappingContextFor(regionId);
+  if (!context) {
+    // Region/product calibration refs are missing: no mapping can be current.
+    photoWarning = 'No photo mapping supplied for this logo area — Reference only — editing uses measured diagram.';
+    return;
+  }
+  // Exact-id candidates only: same product + region; variant-scoped first.
+  const candidates = mappings.mappings
+    .filter((entry) => entry.productId === productId && entry.regionId === regionId &&
+      (entry.variantId === undefined || entry.variantId === variantId))
+    .sort((left, right) => (left.variantId === undefined ? 1 : 0) - (right.variantId === undefined ? 1 : 0));
+  for (const candidate of candidates) {
+    // Full-key selection (product, variant, region, view, image): exact
+    // match only, bytes validated by the mapping adapter. The caller's
+    // context additionally enforces the region calibration reference and
+    // the declared preview image/view binding; stale entries fall back.
+    const selection = selectPhotoMapping(mappings, true, productId, variantId, regionId, candidate.view, candidate.image, lookup, context);
+    if (selection.mapping) {
+      const bytes = lookup(selection.mapping.image);
+      if (bytes && bytes.length > 0) {
+        activePhoto = { entry: selection.mapping, imageBytes: bytes };
+        return;
+      }
+    }
+    if (photoWarning === null) photoWarning = selection.warning;
+  }
+  if (photoWarning === null) photoWarning = 'No photo mapping supplied for this logo area — Reference only — editing uses measured diagram.';
+}
+
+function mappingEntriesForSelection(): PhotoMappingEntry[] {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) return [];
+  const { mappings } = photoMappingsOfLoaded();
+  if (!mappings) return [];
+  return mappings.mappings.filter((entry) => entry.productId === configuration.productId &&
+    (entry.variantId === undefined || entry.variantId === configuration.variantId));
+}
+
+function mappedRegionForSide(side: PhotoMappingView): Region | undefined {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const product = project && configuration && productForConfiguration(project, configuration);
+  const variant = product?.variants.find((item) => item.id === configuration?.variantId);
+  if (!project || !configuration || !product || !variant || !loaded) return undefined;
+  const entries = mappingEntriesForSelection();
+  const contexts = new Map<string, PhotoMappingContext | null>();
+  for (const regionId of variant.regionIds) {
+    const entry = entries.find((candidate) => candidate.regionId === regionId &&
+      (candidate.variantId === undefined || candidate.variantId === configuration.variantId) &&
+      candidate.view === side);
+    if (!entry) continue;
+    // Side availability needs a CURRENT binding: region calibration and
+    // declared preview image/view must agree, or the side stays unavailable
+    // (truthful fallback, never a mislabelled photo).
+    let context = contexts.get(regionId);
+    if (context === undefined) {
+      context = mappingContextFor(regionId);
+      contexts.set(regionId, context);
+    }
+    if (!context || validateMappingContext(entry, context).length > 0) continue;
+    const bytes = loaded.assets.find((asset) => asset.path === entry.image)?.bytes;
+    if (bytes && bytes.length > 0) return product.regions.find((region) => region.id === regionId);
+  }
+  return undefined;
+}
+
+function legacySidePresent(side: PhotoMappingView): boolean {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) return false;
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  return selectPresentationViews(
+    loaded.presentationManifest,
+    loaded.presentationManifestPresent,
+    configuration.productId,
+    configuration.variantId,
+    lookup,
+  ).views.some((view) => view.view === side);
+}
+
+function revokePhotoUrl(): void {
+  if (photoObjectUrl !== null) {
+    try { URL.revokeObjectURL(photoObjectUrl); } catch { /* already gone */ }
+    photoObjectUrl = null;
+  }
+  photoObjectKey = '';
+}
+
+function revokeArtworkUrls(): void {
+  for (const url of artworkUrls.values()) {
+    try { URL.revokeObjectURL(url); } catch { /* already gone */ }
+  }
+  artworkUrls.clear();
+}
+
+function artworkUrlForLogo(logoId: string): string | null {
+  if (!loaded) return null;
+  const logo = loaded.project.logos.find((item) => item.id === logoId);
+  const ref = logo?.assets.find((asset) =>
+    asset.mediaType === 'image/png' || asset.mediaType === 'image/jpeg' || asset.mediaType === 'image/webp');
+  if (!logo || !ref) return null;
+  const key = `${logoId}|${ref.uri}`;
+  const cached = artworkUrls.get(key);
+  if (cached) return cached;
+  const bytes = loaded.assets.find((asset) => asset.path === ref.uri)?.bytes;
+  if (!bytes || bytes.length === 0) return null;
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: ref.mediaType }));
+  for (const [otherKey, otherUrl] of artworkUrls) {
+    if (otherKey !== key && otherKey.startsWith(`${logoId}|`)) {
+      try { URL.revokeObjectURL(otherUrl); } catch { /* already gone */ }
+      artworkUrls.delete(otherKey);
     }
   }
-  const diagramWrap = canvas.closest<HTMLElement>('.stage');
-  const photoWrap = referenceImg?.closest<HTMLElement>('.reference-wrap');
-  if (diagramWrap) diagramWrap.hidden = showing;
-  if (photoWrap) photoWrap.hidden = !showing;
-  if (showing) canvas.setAttribute('hidden', '');
-  else canvas.removeAttribute('hidden');
-  if (viewReferenceButton) {
-    viewReferenceButton.setAttribute('aria-pressed', showing ? 'true' : 'false');
-    viewReferenceButton.disabled = referenceAsset === null;
+  artworkUrls.set(key, url);
+  return url;
+}
+
+function syncPhotoImage(): void {
+  const token = ++photoGeneration;
+  if (!activePhoto || !referenceImg) {
+    photoNatural = null;
+    revokePhotoUrl();
+    if (referenceImg) {
+      referenceImg.hidden = true;
+      referenceImg.removeAttribute('src');
+      referenceImg.alt = 'Mapped product photo';
+    }
+    return;
   }
-  if (viewDiagramButton) viewDiagramButton.setAttribute('aria-pressed', showing ? 'false' : 'true');
+  const entry = activePhoto.entry;
+  const key = `${entry.productId}|${entry.variantId ?? ''}|${entry.regionId}|${entry.view}|${entry.image}`;
+  if (key === photoObjectKey && photoObjectUrl && referenceImg.getAttribute('src') !== photoObjectUrl) {
+    referenceImg.src = photoObjectUrl;
+    referenceImg.hidden = false;
+  } else if (key !== photoObjectKey) {
+    revokePhotoUrl();
+    photoNatural = null;
+    referenceImg.hidden = true;
+    referenceImg.removeAttribute('src');
+  }
+  const bytes = activePhoto.imageBytes;
+  const extension = entry.image.slice(entry.image.lastIndexOf('.'));
+  void decodePresentationRaster(bytes, extension).then((decoded) => {
+    if (token !== photoGeneration || !loaded || !activePhoto) {
+      if (decoded) URL.revokeObjectURL(decoded.url);
+      return;
+    }
+    const current = activePhoto.entry;
+    const currentKey = `${current.productId}|${current.variantId ?? ''}|${current.regionId}|${current.view}|${current.image}`;
+    if (currentKey !== key) {
+      if (decoded) URL.revokeObjectURL(decoded.url);
+      return;
+    }
+    if (!decoded) {
+      photoWarning = `Photo-mapped image “${current.image}” could not be shown; showing the measured diagram instead.`;
+      activePhoto = null;
+      if (primaryMode === 'photo') primaryMode = 'diagram';
+      renderAll();
+      return;
+    }
+    revokePhotoUrl();
+    photoObjectUrl = decoded.url;
+    photoObjectKey = key;
+    if (referenceImg) {
+      referenceImg.src = decoded.url;
+      referenceImg.alt = `Mapped ${current.view} photo for ${current.regionId}`;
+      referenceImg.hidden = primaryMode !== 'photo';
+    }
+  });
+}
+
+function describeMappingStatus(): string {
+  if (!loaded?.project) return 'Open a project to see the photo mapping status.';
+  if (activePhoto) {
+    const entry = activePhoto.entry;
+    const base = `Mapped photo · ${entry.view} view · calibrated ${entry.calibrationId} ${entry.calibrationVersion}. Editing uses the measured diagram.`;
+    return entry.status === 'provisional' ? `Mapped photo (visual trial, not production approval) · ${entry.view} view · ${entry.calibrationId} ${entry.calibrationVersion}.` : base;
+  }
+  return photoWarning ?? 'No photo mapping for this logo area — Reference only — editing uses measured diagram.';
+}
+
+function renderPrimaryMode(): void {
+  const usable = loaded?.project !== undefined && !loading;
+  if (primaryMode === 'photo' && !activePhoto) primaryMode = 'diagram';
+  const showingPhoto = primaryMode === 'photo' && activePhoto !== null;
+  const showing3d = primaryMode === '3d';
+  const stage = canvas.closest<HTMLElement>('.stage');
+  if (stage) stage.hidden = showingPhoto || showing3d;
+  if (showingPhoto || showing3d) canvas.setAttribute('hidden', '');
+  else canvas.removeAttribute('hidden');
+  photoWrap.hidden = !showingPhoto;
+  mode3dPane.hidden = !showing3d;
+  modePhotoButton.setAttribute('aria-pressed', showingPhoto ? 'true' : 'false');
+  modeDiagramButton.setAttribute('aria-pressed', !showingPhoto && !showing3d ? 'true' : 'false');
+  mode3dButton.setAttribute('aria-pressed', showing3d ? 'true' : 'false');
+  modePhotoButton.disabled = !usable || !activePhoto;
+  modePhotoButton.title = activePhoto
+    ? 'Show the mapped photo preview for this logo area'
+    : (photoWarning ?? 'No photo mapping for this logo area.');
+  modeDiagramButton.disabled = !usable;
+  modeDiagramButton.title = 'Show the measured placement diagram (millimetres)';
+  mode3dButton.disabled = !usable;
+  mode3dButton.title = 'Show 3D availability — no logo is projected onto any model';
+  if (referenceImg) referenceImg.hidden = !showingPhoto || photoObjectUrl === null;
   const caption = optionalHook<HTMLElement>('view-caption');
-  if (caption) caption.textContent = showing ? 'Product reference · not to scale' : 'Placement diagram · millimetres';
+  if (caption) {
+    caption.textContent = showingPhoto && activePhoto
+      ? `Mapped photo · ${activePhoto.entry.view} view · preview only, not to scale`
+      : showing3d ? '3D availability · reference only' : 'Placement diagram · millimetres';
+  }
+  mappingStatus.textContent = describeMappingStatus();
+  mappingStatus.classList.toggle('provisional', activePhoto?.entry.status === 'provisional');
   if (referenceWarning) {
-    const text = showing ? '' : referenceNotice;
-    if (text) {
+    if (photoWarning && !showingPhoto && loaded?.project) {
       referenceWarning.hidden = false;
-      referenceWarning.textContent = text;
+      referenceWarning.textContent = photoWarning;
     } else {
       referenceWarning.hidden = true;
     }
   }
+  const shownSide = activePhoto?.entry.view ?? null;
+  (Object.keys(sideButtons) as PhotoMappingView[]).forEach((side) => {
+    const button = sideButtons[side];
+    const mapped = mappedRegionForSide(side);
+    button.setAttribute('aria-pressed', shownSide === side && mapped?.id === selectedRegionId ? 'true' : 'false');
+    button.disabled = !usable || !mapped;
+    button.title = mapped
+      ? `Show the ${side} logo area`
+      : legacySidePresent(side)
+        ? `${side} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`
+        : `No ${side} view supplied in this package — no photo invented.`;
+  });
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (configuration) {
+    const lookup = (path: string): Uint8Array | undefined =>
+      loaded?.assets.find((entry) => entry.path === path)?.bytes;
+    const model = selectPresentationModel(
+      loaded!.presentationManifest,
+      loaded!.presentationManifestPresent,
+      configuration.productId,
+      configuration.variantId,
+      lookup,
+    );
+    modelAvailability.textContent = model.modelPath
+      ? `Interactive 3D model “${model.label ?? model.modelPath}” is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.`
+      : 'No 3D model supplied in this package — placement decisions use the measured diagram. No geometry is reconstructed.';
+  } else {
+    modelAvailability.textContent = 'Open a project to check 3D availability.';
+  }
+  // Sync the canvas/buttons with the cached showcase state; the async model
+  // load in refreshShowcase corrects any staleness without a second viewer.
+  paintMode3d();
 }
 
-async function updateReferenceForSelection(): Promise<void> {
-  const token = ++referenceGeneration;
-  const selection = currentPresentationSelection();
-  if (!selection.imagePath || !loaded) {
-    // Presentation-only: warning text only, never a fake overlay.
-    referenceBytes = undefined;
-    referenceNotice = selection.warning ?? '';
-    referenceAsset = null;
-    if (referenceView === 'reference') referenceView = 'diagram';
-    revokeReferenceUrl();
-    renderReferenceView();
+function choosePrimaryMode(mode: PrimaryMode): void {
+  if (!loaded || loading || saving || confirming) return;
+  if (mode === 'photo' && !activePhoto) {
+    setStatus(photoWarning ?? 'No photo mapping for this logo area — editing uses the measured diagram.');
     return;
   }
-  const bytes = loaded.assets.find((entry) => entry.path === selection.imagePath)?.bytes;
-  if (!bytes) {
-    referenceNotice = selection.warning ?? 'Reference image is missing from the package; showing the measured diagram instead.';
-    referenceAsset = null;
-    if (referenceView === 'reference') referenceView = 'diagram';
-    revokeReferenceUrl();
-    renderReferenceView();
+  if (primaryMode === mode) return;
+  // A mode switch always cancels an in-flight move first (never a silent
+  // dead button): the saved project is unchanged, then the mode applies.
+  cancelDrag('Move cancelled because the view mode changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the view mode changed. Your saved logo is unchanged.');
+  primaryMode = mode;
+  renderPrimaryMode();
+  renderPhotoOverlay();
+  // Entering 3D mounts (or re-measures) the pane viewer; leaving it keeps the
+  // cached bytes so returning is instant and orbit is preserved.
+  void refreshShowcase();
+  updateButtons();
+}
+
+function chooseSide(side: PhotoMappingView): void {
+  if (!loaded || loading || saving || confirming) return;
+  // Cancel an in-flight move before switching areas (never a silent button):
+  // the saved project is unchanged, then the area switch applies.
+  cancelDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  const region = mappedRegionForSide(side);
+  if (!region) {
+    // Never a silent failure: explain exactly what is missing and the route.
+    setStatus(legacySidePresent(side)
+      ? `The ${side} photo is present but not mapped to a logo area — reference only; editing still uses the measured diagram.`
+      : `No ${side} view is mapped in this package — no photo invented. Editing still uses the measured diagram.`);
     return;
   }
-  if (bytes === referenceBytes && referenceAsset?.imagePath === selection.imagePath && referenceObjectUrl) { renderReferenceView(); return; }
-  referenceBytes = bytes;
-  referenceAsset = null;
-  revokeReferenceUrl();
-  renderReferenceView();
-  const extension = selection.imagePath.slice(selection.imagePath.lastIndexOf('.'));
-  const decoded = await decodePresentationRaster(bytes, extension);
-  if (token !== referenceGeneration || !loaded) { if (decoded) URL.revokeObjectURL(decoded.url); return; }
-  if (!decoded) {
-    referenceNotice = selection.warning ?? `Reference image “${selection.imagePath}” could not be shown; showing the measured diagram instead.`;
-    referenceAsset = null;
-    if (referenceView === 'reference') referenceView = 'diagram';
-    revokeReferenceUrl();
-    renderReferenceView();
-    return;
-  }
-  revokeReferenceUrl();
-  referenceObjectUrl = decoded.url;
-  referenceAsset = { imagePath: selection.imagePath, label: selection.label };
-  referenceNotice = '';
-  if (preferredReferenceOnLoad) { referenceView = 'reference'; preferredReferenceOnLoad = false; }
-  renderReferenceView();
+  cancelDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  selectedRegionId = region.id;
+  renderAll();
 }
 
 interface LogoPresentationApi {
@@ -426,14 +721,11 @@ declare global {
   }
 }
 window.__logoPresentation = {
-  getReferenceState: () => {
-    const selection = currentPresentationSelection();
-    return {
-      imagePath: referenceAsset?.imagePath ?? null,
-      view: referenceView === 'reference' && referenceAsset ? 'reference' : 'diagram',
-      warning: referenceNotice || selection.warning,
-    };
-  },
+  getReferenceState: () => ({
+    imagePath: activePhoto?.entry.image ?? null,
+    view: primaryMode === 'photo' && activePhoto ? 'reference' : 'diagram',
+    warning: photoWarning,
+  }),
   getViewsState: () => ({
     available: showcaseAvailable,
     mode: showcaseMode,
@@ -484,6 +776,10 @@ interface ShowcaseViewer {
   showImageProxy: (bytes: Uint8Array, label: string) => Promise<{ kind: string; message?: string }>;
   clear: () => void;
   refreshSize: () => void;
+  /** Refit the camera to the current model (Reset view button). */
+  resetView: () => void;
+  /** Dolly the camera toward (<1) or away (>1) from the target (zoom buttons, Ctrl/Meta+wheel). */
+  dolly: (factor: number) => void;
 }
 let showcaseViewer: ShowcaseViewer | null = null;
 let showcaseViewerPromise: Promise<ShowcaseViewer | null> | null = null;
@@ -570,7 +866,10 @@ function describeShowcaseCaption(): string {
 function paintShowcase(): void {
   const section = document.querySelector<HTMLElement>('[data-customer-hook="views-showcase"]');
   if (!section) return;
-  section.hidden = loaded?.project === undefined || loaded === null || !showcaseAvailable;
+  // Single-canvas workspace: the second independent viewer stays hidden.
+  // All mapped state renders in the primary canvas; the showcase keeps its
+  // hooks and status API but never paints a duplicate canvas.
+  section.hidden = true;
   if (section.hidden) return;
   const uncalibrated = document.querySelector<HTMLElement>('[data-customer-hook="views-uncalibrated"]');
   if (uncalibrated && loaded?.project) {
@@ -672,12 +971,48 @@ async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
   if (showcaseViewer) return showcaseViewer;
   if (!showcaseViewerPromise) {
     showcaseViewerPromise = import('../../viewer/model-viewer.js').then((module) => {
-      const canvasElement = document.querySelector<HTMLCanvasElement>('[data-customer-hook="views-model-canvas"]');
-      const wrap = document.querySelector<HTMLElement>('[data-customer-hook="views-model-wrap"]');
+      // Single primary canvas: the viewer renders inside the mode-3d pane.
+      // The hidden views-showcase section keeps its hooks/status but never
+      // hosts a second viewer.
+      const canvasElement = mode3dWrap?.querySelector<HTMLCanvasElement>('canvas') ??
+        document.querySelector<HTMLCanvasElement>('[data-customer-hook="mode-3d-canvas"]');
+      const wrap = mode3dWrap ??
+        document.querySelector<HTMLElement>('[data-customer-hook="mode-3d-wrap"]');
       if (!canvasElement || !wrap) return null;
       const attached = module.ModelViewer.attach({ canvas: canvasElement, container: wrap });
       const viewer = attached.viewer;
       if (!viewer) return null;
+      // Page scroll wins: OrbitControls must never trap plain wheel events
+      // over the canvas. Its wheel zoom is disabled; zoom is offered through
+      // explicit buttons + Ctrl/Meta+wheel only. Rotate/orbit stays enabled.
+      try {
+        const raw = viewer as unknown as { controls?: { enableZoom?: boolean } };
+        if (raw.controls) raw.controls.enableZoom = false;
+      } catch { /* keep the attached orbit behaviour when the toggle is unavailable */ }
+      const zoomBy = (factor: number): void => {
+        try {
+          if (!Number.isFinite(factor) || factor <= 0) return;
+          const raw = viewer as unknown as {
+            camera: {
+              position: {
+                clone(): { sub(target: unknown): { length(): number; multiplyScalar(step: number): unknown } };
+                copy(point: unknown): void;
+              };
+              updateProjectionMatrix(): void;
+            };
+            controls: { target: unknown; update(): void };
+          };
+          const offset = raw.camera.position.clone().sub(raw.controls.target);
+          const length = offset.length();
+          if (!Number.isFinite(length) || length <= 0) return;
+          const clamped = Math.min(Math.max(factor, 0.5), 2);
+          offset.multiplyScalar(clamped);
+          const target = raw.controls.target as { clone(): { add(point: unknown): unknown } };
+          raw.camera.position.copy(target.clone().add(offset));
+          raw.camera.updateProjectionMatrix();
+          raw.controls.update();
+        } catch { /* zoom is best-effort and never throws into the UI */ }
+      };
       showcaseViewer = {
         setViewSide: (side) => viewer.setViewSide(side),
         setOrbitEnabled: (enabled) => viewer.setOrbitEnabled(enabled),
@@ -685,138 +1020,151 @@ async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
         showImageProxy: (bytes, label) => viewer.showImageProxy(bytes, label),
         clear: () => viewer.clear(),
         refreshSize: () => viewer.refreshSize(),
+        resetView: () => viewer.resetView(),
+        dolly: zoomBy,
       };
+      try { viewer.setOrbitEnabled(true); } catch { /* rotate stays as attached */ }
+      // Ctrl/Meta+wheel zooms the model; a plain wheel is left alone so the
+      // page scrolls. No preventDefault without a modifier key, ever.
+      try {
+        const flagged = canvasElement as HTMLCanvasElement & { __mode3dWheel?: boolean };
+        if (!flagged.__mode3dWheel) {
+          flagged.__mode3dWheel = true;
+          canvasElement.addEventListener('wheel', (event) => {
+            if (event.ctrlKey || event.metaKey) {
+              event.preventDefault();
+              zoomBy(event.deltaY > 0 ? 1.15 : 1 / 1.15);
+            }
+          }, { passive: false });
+        }
+      } catch { /* wheel stays page-scroll-only when the guard cannot attach */ }
       return showcaseViewer;
     }).catch(() => null);
   }
   return showcaseViewerPromise;
 }
 
-async function refreshShowcase(): Promise<void> {
-  const token = ++showcaseGeneration;
-  readShowcaseAssets();
-  // Capture currency AFTER the scope snap inside readShowcaseAssets: a
-  // pre-snap side would mark the first decode stale on non-front packages.
-  const modeAtStart = showcaseMode;
-  const sideAtStart = showcaseSide;
-  const snapshot = loaded;
-  if (!snapshot?.project || !showcaseAvailable) {
-    showcaseFlatPath = null;
-    showcaseFlatBytes = undefined;
+/** Paint the single primary mode-3d pane: canvas + zoom controls + honest
+ * availability/failure text. No logo artwork is ever projected onto the mesh;
+ * the measured diagram stays the placement authority. */
+function paintMode3d(): void {
+  const showing3d = primaryMode === '3d';
+  const hasModel = showcaseModelPath !== null;
+  const failed = showcaseModelFailed;
+  const ready = showing3d && hasModel && !failed;
+  const busy = loading || saving || confirming || drag !== null || photoDrag !== null;
+  if (mode3dWrap) mode3dWrap.hidden = !ready;
+  for (const button of [mode3dZoomIn, mode3dZoomOut, mode3dReset]) {
+    if (button) button.disabled = busy || !ready;
+  }
+  if (failed) {
+    // Honest failure (viewer parse failed, incl. empty-bounds geometry):
+    // never a blank success canvas.
+    modelAvailability.textContent = 'Preview unavailable — model could not be shown';
+    return;
+  }
+  if (!loaded?.project) {
+    modelAvailability.textContent = 'Open a project to check 3D availability.';
+    return;
+  }
+  if (hasModel) {
+    modelAvailability.textContent = `Interactive 3D model “${showcaseModelLabel ?? showcaseModelPath}” is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.`;
+    return;
+  }
+  // Selection-rejected models (corrupt/external-URI) surface their read-boundary
+  // warning as the failure caption; a package with no model at all keeps the
+  // no-model honesty text.
+  if (showcaseWarning) {
+    modelAvailability.textContent = showcaseWarning;
+    return;
+  }
+  modelAvailability.textContent = 'No 3D model supplied in this package — placement decisions use the measured diagram. No geometry is reconstructed.';
+}
+
+async function refreshMode3dViewer(): Promise<void> {
+  const generation = ++showcaseGeneration;
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  const modelPath = showcaseModelPath;
+  const bytes = modelPath ? lookup(modelPath) : undefined;
+  if (!modelPath || !bytes || bytes.length === 0) {
+    // Model-absent (or selection-rejected): no canvas, honest text via paint.
     showcaseModelFailed = false;
     showcaseShownModelPath = null;
     showcaseShownModelBytes = null;
     showcaseSurface = 'none';
-    revokeShowcaseFlatUrl();
     try { showcaseViewer?.clear(); } catch { /* viewer teardown is best-effort */ }
-    paintShowcase();
+    paintMode3d();
     return;
   }
-  const live = (): boolean => token === showcaseGeneration && loaded === snapshot && showcaseMode === modeAtStart && showcaseSide === sideAtStart;
-  const picked = pickShowcaseView();
-  const flatPath = picked?.imagePath ?? null;
-  if (flatPath !== showcaseFlatPath) {
-    showcaseFlatPath = flatPath;
-    showcaseFlatBytes = undefined;
-    revokeShowcaseFlatUrl();
-  }
-  paintShowcase();
-  if (picked?.imagePath && loaded) {
-    const bytes = loaded.assets.find((entry) => entry.path === picked.imagePath)?.bytes;
-    if (bytes && bytes !== showcaseFlatBytes) {
-      const extension = picked.imagePath.slice(picked.imagePath.lastIndexOf('.'));
-      const currentPath = picked.imagePath;
-      const decoded = await decodePresentationRaster(bytes, extension);
-      // Stale decode guard: install only when generation, package identity,
-      // mode/side, and raster path are all still current.
-      if (token !== showcaseGeneration || loaded !== snapshot || showcaseMode !== modeAtStart || showcaseSide !== sideAtStart || showcaseFlatPath !== currentPath) {
-        if (decoded) URL.revokeObjectURL(decoded.url);
-        return;
-      }
-      // Cache only a completed decode. A mode switch can invalidate an
-      // in-flight decode without changing its path or bytes; the next mode
-      // must still be able to decode that same image.
-      showcaseFlatBytes = decoded ? bytes : undefined;
-      revokeShowcaseFlatUrl();
-      showcaseFlatUrl = decoded?.url ?? null;
-      if (decoded) showcaseSurface = 'raster';
-      paintShowcase();
-    }
-  }
-  const flatFallbackSurface = showcaseMode === 'flat' && picked === null && showcaseModelPath !== null;
-  const needsSurface = showcaseMode === '2d' || showcaseMode === '3d' || flatFallbackSurface;
-  if (!needsSurface) return;
-  if (showcaseModelPath && loaded) {
-    const bytes = loaded.assets.find((entry) => entry.path === showcaseModelPath)?.bytes;
-    if (!bytes) {
-      showcaseModelFailed = true;
-      showcaseShownModelPath = null;
-      showcaseShownModelBytes = null;
-      showcaseSurface = 'failed';
-      paintShowcase();
-      return;
-    }
-    const viewer = await loadShowcaseViewer();
-    if (viewer === null) {
-      // WebGL unavailable or attach failed: surface, never blank success.
-      if (token !== showcaseGeneration || loaded !== snapshot) return;
-      showcaseModelFailed = true;
-      showcaseSurface = 'failed';
-      paintShowcase();
-      return;
-    }
-    if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
-    // Package buffers are immutable. Identity distinguishes replacement files
-    // even when their path, length and container header bytes are identical.
-    const unchanged = showcaseShownModelPath === showcaseModelPath && showcaseShownModelBytes === bytes && showcaseSurface === 'model';
-    if (!unchanged) {
-      const status = await viewer.showModel(bytes);
-      if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
-      showcaseModelFailed = status.kind !== 'ready';
-      if (status.kind === 'ready') {
-        showcaseShownModelPath = showcaseModelPath;
-        showcaseShownModelBytes = bytes;
-        showcaseSurface = 'model';
-      } else {
-        showcaseShownModelPath = null;
-        showcaseShownModelBytes = null;
-        showcaseSurface = 'failed';
-        if (status.kind === 'parse-failed' && typeof status.message === 'string') showcaseWarning = status.message;
-      }
-    } else if (showcaseModelFailed) {
-      showcaseModelFailed = false;
-    }
-    if (!showcaseModelFailed) showcaseSurface = 'model';
-    paintShowcase();
-    if (!showcaseModelFailed) {
-      // Order matters: set the chosen side FIRST, then resize. refreshSize
-      // preserves the exact current direction, so sizing after the side
-      // keeps the requested view instead of resetting it.
-      viewer.setViewSide(showcaseSide);
-      viewer.setOrbitEnabled(showcaseMode === '3d');
-      viewer.refreshSize();
-    }
+  // Stale-model guard: identical bytes already on screen stay untouched (orbit
+  // position preserved); just re-measure the now-visible wrap.
+  if (showcaseShownModelPath === modelPath && showcaseShownModelBytes === bytes && !showcaseModelFailed) {
+    paintMode3d();
+    try { showcaseViewer?.refreshSize(); } catch { /* sizing is best-effort */ }
     return;
   }
-  if (showcaseMode === '3d' && picked?.imagePath && loaded) {
-    const bytes = loaded.assets.find((entry) => entry.path === picked.imagePath)?.bytes;
-    if (!bytes) return;
-    const proxyViewer = await loadShowcaseViewer();
-    if (proxyViewer === null || token !== showcaseGeneration || loaded !== snapshot || !live()) return;
+  paintMode3d();
+  const viewer = await loadShowcaseViewer();
+  if (generation !== showcaseGeneration) return;
+  if (!viewer) {
+    showcaseModelFailed = true;
+    showcaseSurface = 'failed';
     showcaseShownModelPath = null;
     showcaseShownModelBytes = null;
-    const status = await proxyViewer.showImageProxy(bytes, picked.label ?? 'Product view');
-    if (token !== showcaseGeneration || loaded !== snapshot || !live()) return;
-    showcaseModelFailed = status.kind !== 'ready';
-    showcaseSurface = showcaseModelFailed ? 'failed' : 'proxy';
-    paintShowcase();
-    if (!showcaseModelFailed) proxyViewer.refreshSize();
+    paintMode3d();
+    return;
   }
+  let status: { kind: string; message?: string };
+  try {
+    status = await viewer.showModel(bytes);
+  } catch (error) {
+    status = { kind: 'parse-failed', message: error instanceof Error ? error.message : String(error) };
+  }
+  if (generation !== showcaseGeneration) return;
+  if (status.kind === 'ready') {
+    showcaseModelFailed = false;
+    showcaseSurface = 'model';
+    showcaseShownModelPath = modelPath;
+    showcaseShownModelBytes = bytes;
+    try { viewer.setViewSide(showcaseSide); } catch { /* default framing stands */ }
+  } else {
+    // Empty-bounds and corrupt parses land here: failure caption, no canvas.
+    showcaseModelFailed = true;
+    showcaseSurface = 'failed';
+    showcaseShownModelPath = null;
+    showcaseShownModelBytes = null;
+  }
+  paintMode3d();
+  // The wrap reports 0x0 while hidden; re-measure after it becomes visible so
+  // a stale viewport never blanks the freshly loaded model.
+  if (!showcaseModelFailed) {
+    try { viewer.refreshSize(); } catch { /* sizing is best-effort */ }
+  }
+}
+
+async function refreshShowcase(): Promise<void> {
+  readShowcaseAssets();
+  // Single-canvas workspace: flat rasters are never decoded here, and the
+  // second views-showcase section stays hidden (see paintShowcase). The model
+  // channel renders in the primary mode-3d pane via refreshMode3dViewer.
+  showcaseFlatPath = null;
+  showcaseFlatBytes = undefined;
+  if (showcaseModelPath === null) {
+    showcaseModelFailed = false;
+    showcaseShownModelPath = null;
+    showcaseShownModelBytes = null;
+    showcaseSurface = 'none';
+  }
+  revokeShowcaseFlatUrl();
+  paintShowcase();
+  await refreshMode3dViewer();
 }
 
 function chooseShowcaseMode(mode: ViewsMode): void {
   if (showcaseMode === mode) return;
   cancelDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
   showcaseMode = mode;
   showcaseModelFailed = false;
   paintShowcase();
@@ -825,6 +1173,7 @@ function chooseShowcaseMode(mode: ViewsMode): void {
 
 function chooseShowcaseSide(side: ProductViewSide): void {
   cancelDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
   showcaseSide = side;
   paintShowcase();
   void refreshShowcase();
@@ -950,13 +1299,13 @@ function updateButtons(): void {
   const hasPendingEdits = placementFormDirty || projectInstructionsDirty;
   const structurallyValid = project !== undefined && validateProject(project).ok;
   saveButton.disabled = !usable || saving || !structurallyValid || hasPendingEdits;
-  submitButton.disabled = !usable || saving || confirming || drag !== null || !structurallyValid || hasPendingEdits || !confirmationFresh || !isGeometryValid(project!);
-  confirmButton.disabled = !usable || confirming || saving || drag !== null || !structurallyValid || hasPendingEdits || !confirmedByInput.value.trim() || !isGeometryValid(project!);
-  updateButton.disabled = !usable || saving || confirming || drag !== null || (!projectInstructionsDirty && (!placementFormDirty || !hasSelectedPlacement));
-  addButton.disabled = !canEdit || saving || confirming || drag !== null || !selectedRegionId || !selectedLogoId;
-  removeButton.disabled = !canEdit || !hasSelectedPlacement || saving || confirming || drag !== null || hasPendingEdits;
-  undoButton.disabled = !canEdit || undoHistory.length === 0 || saving || confirming || drag !== null || hasPendingEdits;
-  resetButton.disabled = !canEdit || baseline === null || saving || confirming || drag !== null || hasPendingEdits;
+  submitButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || !structurallyValid || hasPendingEdits || !confirmationFresh || !isGeometryValid(project!);
+  confirmButton.disabled = !usable || confirming || saving || drag !== null || photoDrag !== null || !structurallyValid || hasPendingEdits || !confirmedByInput.value.trim() || !isGeometryValid(project!);
+  updateButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || (!projectInstructionsDirty && (!placementFormDirty || !hasSelectedPlacement));
+  addButton.disabled = !canEdit || saving || confirming || drag !== null || photoDrag !== null || !selectedRegionId || !selectedLogoId;
+  removeButton.disabled = !canEdit || !hasSelectedPlacement || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
+  undoButton.disabled = !canEdit || undoHistory.length === 0 || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
+  resetButton.disabled = !canEdit || baseline === null || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
   for (const control of [configurationSelect, productSelect, variantSelect, regionSelect, logoSelect, placementSelect,
     xInput, yInput, widthInput, heightInput, rotationInput, methodSelect, placementInstructions, projectInstructions,
     confirmedByInput]) control.disabled = !usable;
@@ -964,16 +1313,31 @@ function updateButtons(): void {
   // the primary/back actions stay enabled whenever a project is usable so
   // the Position -> Size -> Review progression never strands the user.
   if (saveDraftTop) saveDraftTop.disabled = saveButton.disabled;
-  if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null;
-  if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || guideStep === 'position';
+  if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null;
+  if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || guideStep === 'edit';
   if (addAnotherButton) addAnotherButton.disabled = addButton.disabled;
-  const stepBlocked = !usable || loading || saving || confirming || drag !== null;
-  if (stepPositionButton) stepPositionButton.disabled = stepBlocked;
-  if (stepSizeButton) stepSizeButton.disabled = stepBlocked;
+  modePhotoButton.disabled = !usable || !activePhoto;
+  modePhotoButton.title = activePhoto
+    ? 'Show the mapped photo preview for this logo area'
+    : (photoWarning ?? 'No photo mapping for this logo area.');
+  modeDiagramButton.disabled = !usable;
+  mode3dButton.disabled = !usable;
+  // Side tabs are navigation, not edits: enabled only for sides with a
+  // mapped logo area in this product option — never a silent no-op.
+  (Object.keys(sideButtons) as PhotoMappingView[]).forEach((side) => {
+    const button = sideButtons[side];
+    const mapped = usable ? mappedRegionForSide(side) : undefined;
+    button.disabled = !usable || !mapped;
+    button.setAttribute('aria-pressed', activePhoto?.entry.view === side && mapped?.id === selectedRegionId ? 'true' : 'false');
+    if (!usable) button.title = 'Open a project first.';
+    else if (mapped) button.title = `Show the ${side} logo area.`;
+    else if (legacySidePresent(side)) button.title = `${side} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`;
+    else button.title = `No ${side} view supplied in this package — no photo invented.`;
+  });
+  const stepBlocked = !usable || loading || saving || confirming || drag !== null || photoDrag !== null;
+  if (stepEditButton) stepEditButton.disabled = stepBlocked;
   if (stepReviewButton) stepReviewButton.disabled = stepBlocked;
   if (ratioLock) ratioLock.disabled = !usable || !currentPlacement();
-  if (viewReferenceButton) viewReferenceButton.disabled = referenceAsset === null;
-  if (viewDiagramButton) viewDiagramButton.disabled = !usable;
   updateButton.hidden = !hasPendingEdits;
   confirmButton.hidden = confirmationFresh && !hasPendingEdits;
   submitButton.hidden = !confirmationFresh || hasPendingEdits;
@@ -1198,23 +1562,36 @@ function renderCanvas(): void {
     polygon.setAttribute('tabindex', '0');
     polygon.setAttribute('role', 'button');
     const logo = project.logos.find((candidate) => candidate.id === item.logoId);
-    polygon.setAttribute('aria-label', `Logo box for ${logo?.name ?? item.logoId}; ${item.widthMm} by ${item.heightMm} millimetres`);
+    polygon.setAttribute('aria-label', `Logo box for ${logo?.name ?? item.logoId}; ${formatMm(item.widthMm)} by ${formatMm(item.heightMm)} millimetres`);
     polygon.addEventListener('pointerdown', (event) => beginDrag(event, index));
-    polygon.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        contextChanged();
-        selectedPlacementIndex = index;
-        renderAll();
-      }
-    });
+    polygon.addEventListener('keydown', (event) => placementKeydown(event, index));
+    // Draw the ORIGINAL artwork image (not the footprint rect alone) with
+    // correct aspect, clockwise-positive rotation facing the region, and
+    // alpha. The image fills exactly the validator footprint box; the
+    // footprint outline stays for selection/fit feedback.
+    const artUrl = artworkUrlForLogo(item.logoId);
+    if (artUrl) polygon.setAttribute('fill-opacity', '0.15');
     const label = svgNode('text');
     label.dataset.placementIndex = String(index);
     label.setAttribute('x', String(item.pos.xMm));
     label.setAttribute('y', String(-item.pos.yMm));
     label.setAttribute('class', 'footprint-label');
     label.textContent = logo?.name ?? item.logoId;
-    canvasLayer.append(polygon, label);
+    canvasLayer.append(polygon);
+    if (artUrl) {
+      const art = svgNode('image');
+      art.setAttribute('href', artUrl);
+      art.setAttribute('x', String(item.pos.xMm - item.widthMm / 2));
+      art.setAttribute('y', String(-item.pos.yMm - item.heightMm / 2));
+      art.setAttribute('width', String(item.widthMm));
+      art.setAttribute('height', String(item.heightMm));
+      art.setAttribute('transform', `rotate(${item.rotationDeg} ${item.pos.xMm} ${-item.pos.yMm})`);
+      art.setAttribute('opacity', '0.9');
+      art.setAttribute('class', 'artwork');
+      art.setAttribute('aria-hidden', 'true');
+      canvasLayer.append(art);
+    }
+    canvasLayer.append(label);
   }
 
   frameSummary.textContent = `Region ${displayName(region.id, region.name)} · frame ${region.frame.frameId}; origin: ${region.frame.originDescription}; +x ${region.frame.axes.xPositive}, +y ${region.frame.axes.yPositive}; calibration ${region.calibrationRef.calibrationId} ${region.calibrationRef.version}. Units: mm.`;
@@ -1268,7 +1645,7 @@ function renderReview(): void {
       item.className = 'review-placement';
       group.append(item);
       line(item, `${displayName(placement.logoId, logo?.name)} · ${displayName(placement.regionId, region?.name)} · ${placement.method}`, 'h4');
-      line(item, `Width × height: ${placement.widthMm} mm × ${placement.heightMm} mm`);
+      line(item, `Width × height: ${formatMm(placement.widthMm)} mm × ${formatMm(placement.heightMm)} mm`);
       const fitLine = line(item, fit?.ok ? 'Fits: yes — within the logo area.' : `Fits: no — ${fit?.reason ?? 'Size is unavailable.'}`);
       fitLine.className = fit?.ok ? 'review-fit' : 'review-fit invalid';
       const measurements = document.createElement('details');
@@ -1277,8 +1654,8 @@ function renderReview(): void {
       line(measurements, 'Position and rotation', 'summary');
       line(measurements, `Reference point: ${region?.frame.originDescription ?? 'unknown'}`);
       line(measurements, `Directions: +x ${region?.frame.axes.xPositive ?? 'unknown'}; +y ${region?.frame.axes.yPositive ?? 'unknown'}`);
-      line(measurements, `Center: ${placement.pos.xMm} mm, ${placement.pos.yMm} mm (logo middle, offsets along the area's +x and +y from its reference point)`);
-      line(measurements, `Turn clockwise: ${placement.rotationDeg}°`);
+      line(measurements, `Center: ${formatMm(placement.pos.xMm)} mm, ${formatMm(placement.pos.yMm)} mm (logo middle, offsets along the area's +x and +y from its reference point)`);
+      line(measurements, `Turn clockwise: ${formatMm(placement.rotationDeg)}°`);
       if (placement.instructions) line(item, `Note about this logo: ${placement.instructions}`);
       references.push(`Logo ${placementLabel(configuration, index)}: ${placement.logoId}; area ${placement.regionId}`);
     }
@@ -1297,10 +1674,11 @@ function renderAll(): void {
     revisionLabel.textContent = '—';
     assetCount.textContent = '—';
     projectInstructions.value = '';
-    guideStep = 'position';
-    referenceView = 'diagram';
-    referenceNotice = '';
-    referenceAsset = null;
+    guideStep = 'edit';
+    activePhoto = null;
+    photoWarning = null;
+    photoNatural = null;
+    revokePhotoUrl();
     updateConfirmationState();
     renderSelectorOptions();
     populatePlacementForm();
@@ -1311,7 +1689,8 @@ function renderAll(): void {
     renderContextLine();
     renderLogoThumb();
     updateUnsavedWarning();
-    void updateReferenceForSelection();
+    renderPrimaryMode();
+    renderPhotoOverlay();
     void refreshShowcase();
     updateButtons();
     return;
@@ -1325,13 +1704,16 @@ function renderAll(): void {
   renderSelectorOptions();
   populatePlacementForm();
   refreshLockedRatio();
+  resolveActivePhoto();
+  syncPhotoImage();
   renderCanvas();
   renderReview();
   renderGuideStep();
   renderContextLine();
   renderLogoThumb();
   updateUnsavedWarning();
-  void updateReferenceForSelection();
+  renderPrimaryMode();
+  renderPhotoOverlay();
   void refreshShowcase();
   updateConfirmationState();
   updateButtons();
@@ -1446,6 +1828,21 @@ function applyPendingEdits(): void {
   }
 }
 
+// Live apply: valid committed edits (change events) save immediately via a
+// new revision — no separate Apply required. New placements still use Add;
+// invalid edits keep their message and block confirm via pending edits.
+function maybeAutoApply(): void {
+  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
+  if (!placementFormDirty && !projectInstructionsDirty) return;
+  if (placementFormDirty && !currentPlacement()) {
+    // New-placement numbers are added, not applied: keep the guidance on the
+    // add path (never a stale Apply pointer) via the shared unsaved message.
+    setStatus(unsavedStepMessage());
+    return;
+  }
+  applyPendingEdits();
+}
+
 function uniqueId(prefix: string): string {
   const project = loaded?.project;
   const existing = new Set<string>([
@@ -1526,8 +1923,11 @@ async function loadProjectSource(
     const candidate: EditorPackage = { project: parsed.project, assets: parsed.assets, presentationManifest: parsePresentationManifest(manifestBytes), presentationManifestPresent: manifestBytes !== undefined };
     loaded = candidate;
     placementFormKey = '';
-    preferredReferenceOnLoad = true;
-    referenceBytes = undefined;
+    revokeArtworkUrls();
+    revokePhotoUrl();
+    activePhoto = null;
+    photoWarning = null;
+    photoNatural = null;
     placementFormDirty = false;
     projectInstructionsDirty = false;
     baseline = cloneProject(parsed.project);
@@ -1545,8 +1945,7 @@ async function loadProjectSource(
     loading = false;
     stateGeneration += 1;
     confirmationFresh = false;
-    const variant = firstProduct?.variants.find((item) => item.id === firstConfiguration?.variantId);
-    guideStep = selectedPlacementIndex !== null && variant?.regionIds.length === 1 ? 'size' : 'position';
+    guideStep = 'edit';
     renderAll();
     setStatus(`Opened ${fileName}. The file passed its checks.`);
     const snapshot = currentSnapshot();
@@ -1581,11 +1980,22 @@ async function loadFiles(files: readonly File[]): Promise<void> {
   });
 }
 
+/**
+ * Windows-portable filename part from a project identity: safe characters
+ * only, length-capped, reserved device names guarded. Same rules as the
+ * builder handoff filenames.
+ */
+function safeFilePart(value: string): string {
+  let part = value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[.-]+|[.-]+$/g, '').slice(0, 96).replace(/[.-]+$/g, '') || 'project';
+  if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part)) part = `_${part}`;
+  return part;
+}
+
 async function savePackage(submit = false): Promise<void> {
   const snapshot = currentSnapshot();
   const projectPackage = loaded;
   if (!snapshot || !projectPackage || loading || saving || confirming) return;
-  if (submit && drag) {
+  if (submit && (drag || photoDrag)) {
     setStatus('Wait until the logo you are dragging is placed or cancelled, then try again.');
     return;
   }
@@ -1619,7 +2029,12 @@ async function savePackage(submit = false): Promise<void> {
     const objectUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }));
     const link = document.createElement('a');
     link.href = objectUrl;
-    link.download = submit ? 'customer-confirmed-return.logo-project' : 'customer-draft.logo-project';
+    // Descriptive, Windows-portable return/draft filenames: sanitized job
+    // identity plus the exact revision, so repeated confirmations never
+    // collide into `customer-confirmed-return (5).logo-project`.
+    link.download = submit
+      ? `${safeFilePart(loaded.project.projectId)}-r${loaded.project.revision}-confirmed-return.logo-project`
+      : `${safeFilePart(loaded.project.projectId)}-r${loaded.project.revision}-draft.logo-project`;
     link.style.display = 'none';
     root.append(link);
     link.click();
@@ -1638,7 +2053,7 @@ async function confirmCurrentRevision(): Promise<void> {
   const snapshot = currentSnapshot();
   const projectPackage = loaded;
   const confirmedBy = confirmedByInput.value.trim();
-  if (drag) {
+  if (drag || photoDrag) {
     setStatus('Wait until the logo you are dragging is placed or cancelled, then confirm.');
     return;
   }
@@ -1686,6 +2101,7 @@ async function confirmCurrentRevision(): Promise<void> {
 }
 
 function contextChanged(): void {
+  if (photoDrag) cancelPhotoDrag('Moving stopped because you switched to something else. Your saved logo is unchanged.');
   if (placementFormDirty || projectInstructionsDirty) setStatus('You typed something that was not applied yet — it was discarded because you switched to something else.');
   placementFormDirty = false;
   projectInstructionsDirty = false;
@@ -1769,6 +2185,7 @@ function canvasPoint(event: PointerEvent, screenToRegion: DOMMatrix | null = can
 
 function beginDrag(event: PointerEvent, placementIndex: number): void {
   if (!event.isPrimary || event.button !== 0 || !loaded || loading || saving || confirming || drag || placementFormDirty || projectInstructionsDirty) return;
+  if (photoDrag) cancelPhotoDrag('Move cancelled because a new move started. Your saved logo is unchanged.');
   const configuration = selectedConfiguration();
   const placement = configuration?.placements[placementIndex];
   const screenToRegion = canvas.getScreenCTM()?.inverse() ?? null;
@@ -1870,6 +2287,337 @@ function finishDrag(event: PointerEvent, commit: boolean): void {
   }
 }
 
+interface PhotoDragState {
+  pointerId: number;
+  configurationId: string;
+  placementIndex: number;
+  project: ProjectDocument;
+  generation: number;
+  photo: ActivePhoto;
+  grabOffsetX: number;
+  grabOffsetY: number;
+  previewX: number;
+  previewY: number;
+}
+let photoDrag: PhotoDragState | null = null;
+
+function cancelPhotoDrag(message: string): void {
+  if (!photoDrag) return;
+  const pointerId = photoDrag.pointerId;
+  photoDrag = null;
+  if (photoOverlay.hasPointerCapture(pointerId)) {
+    try { photoOverlay.releasePointerCapture(pointerId); } catch { /* lost capture is already a cancellation */ }
+  }
+  if (loaded) renderAll();
+  setStatus(message);
+}
+
+// Overlay SVG coordinates are natural photo pixels (viewBox 0 0 W H).
+// Inverse mapping: pixels -> normalized UV -> region millimetres (Y-up).
+function overlayMmFromEvent(event: PointerEvent, photo: ActivePhoto): { xMm: number; yMm: number } | null {
+  if (!photoNatural) return null;
+  const screenToPhoto = photoOverlay.getScreenCTM()?.inverse() ?? null;
+  if (!screenToPhoto) return null;
+  const point = photoOverlay.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const local = point.matrixTransform(screenToPhoto);
+  return inversePhotoMapping(photo.entry, { u: local.x / photoNatural.width, v: local.y / photoNatural.height });
+}
+
+function renderPhotoDragPreview(current: PhotoDragState): void {
+  const configuration = current.project.configurations.find((entry) => entry.id === current.configurationId);
+  const placement = configuration?.placements[current.placementIndex];
+  const product = configuration && productForConfiguration(current.project, configuration);
+  const region = product?.regions.find((item) => item.id === placement?.regionId);
+  const polygon = photoOverlay.querySelector<SVGPolygonElement>(`.footprint[data-placement-index="${current.placementIndex}"]`);
+  if (!placement || !region || !polygon || !photoNatural) return;
+  const label = photoOverlay.querySelector<SVGTextElement>(`.footprint-label[data-placement-index="${current.placementIndex}"]`);
+  if (Math.abs(current.previewX) > PROJECT_EDITOR_LIMITS.maxCoordinateMm || Math.abs(current.previewY) > PROJECT_EDITOR_LIMITS.maxCoordinateMm) {
+    polygon.classList.add('invalid');
+    setGeometry(`Too far out — past the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm edge. Letting go here will not save it.`, false);
+    return;
+  }
+  try {
+    const candidate = { ...placement, pos: { xMm: current.previewX, yMm: current.previewY } };
+    const verdict = evaluatePlacementGeometry(region, candidate);
+    if (verdict.footprint.length !== 4) throw new Error('placement geometry produced no footprint');
+    const points = verdict.footprint.map(([x, y]) => {
+      const uv = forwardPhotoMapping(current.photo.entry, { xMm: x, yMm: y });
+      if (!uv) throw new Error('mapped point is outside the photo calibration');
+      return `${uv.u * photoNatural!.width},${uv.v * photoNatural!.height}`;
+    }).join(' ');
+    polygon.setAttribute('points', points);
+    polygon.classList.toggle('invalid', !verdict.ok);
+    if (label) {
+      const center = forwardPhotoMapping(current.photo.entry, { xMm: current.previewX, yMm: current.previewY });
+      if (center) {
+        label.setAttribute('x', String(center.u * photoNatural.width));
+        label.setAttribute('y', String(center.v * photoNatural.height));
+      }
+    }
+    xInput.value = String(current.previewX);
+    yInput.value = String(current.previewY);
+    setGeometry(`Moving… fits: ${verdict.ok ? 'yes' : 'no'}; ${verdict.reason}. Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok);
+  } catch (error) {
+    polygon.classList.add('invalid');
+    setGeometry(`That spot was rejected: ${error instanceof Error ? error.message : String(error)}`, false);
+  }
+}
+
+function beginPhotoDrag(event: PointerEvent, placementIndex: number): void {
+  if (!event.isPrimary || event.button !== 0 || !loaded || loading || saving || confirming || photoDrag || placementFormDirty || projectInstructionsDirty) return;
+  if (drag) cancelDrag('Move cancelled because a new move started. Your saved logo is unchanged.');
+  const photo = activePhoto;
+  if (!photo || primaryMode !== 'photo') return;
+  const configuration = selectedConfiguration();
+  const placement = configuration?.placements[placementIndex];
+  const start = overlayMmFromEvent(event, photo);
+  if (!configuration || !placement || !start) return;
+  invalidateUiContext();
+  refreshCurrentConfirmation();
+  selectedPlacementIndex = placementIndex;
+  selectedRegionId = placement.regionId;
+  selectedLogoId = placement.logoId;
+  photoDrag = {
+    pointerId: event.pointerId,
+    configurationId: configuration.id,
+    placementIndex,
+    project: loaded.project,
+    generation: stateGeneration,
+    photo,
+    grabOffsetX: placement.pos.xMm - start.xMm,
+    grabOffsetY: placement.pos.yMm - start.yMm,
+    previewX: placement.pos.xMm,
+    previewY: placement.pos.yMm,
+  };
+  try { photoOverlay.setPointerCapture(event.pointerId); }
+  catch {
+    photoDrag = null;
+    renderAll();
+    setStatus('Drag could not start because pointer capture was unavailable.');
+    return;
+  }
+  event.preventDefault();
+  renderAll();
+}
+
+function movePhotoDrag(event: PointerEvent): void {
+  const current = photoDrag;
+  if (!current || current.pointerId !== event.pointerId) return;
+  const point = overlayMmFromEvent(event, current.photo);
+  if (!point) return;
+  const xMm = point.xMm + current.grabOffsetX;
+  const yMm = point.yMm + current.grabOffsetY;
+  if (Math.abs(xMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm || Math.abs(yMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm) {
+    setGeometry(`Drag preview exceeds the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm runtime geometry bound.`, false);
+    event.preventDefault();
+    return;
+  }
+  current.previewX = xMm;
+  current.previewY = yMm;
+  renderPhotoDragPreview(current);
+  event.preventDefault();
+}
+
+function finishPhotoDrag(event: PointerEvent, commit: boolean): void {
+  const current = photoDrag;
+  if (!current || current.pointerId !== event.pointerId) return;
+  photoDrag = null;
+  if (photoOverlay.hasPointerCapture(current.pointerId)) {
+    try { photoOverlay.releasePointerCapture(current.pointerId); } catch { /* pointer capture can already be gone */ }
+  }
+  if (!commit || !event.isPrimary || event.button !== 0 || loaded?.project !== current.project || stateGeneration !== current.generation) {
+    if (loaded) renderAll();
+    if (!commit || !event.isPrimary || event.button !== 0) setStatus('Move cancelled. Your saved logo stays where it was.');
+    return;
+  }
+  const endpoint = overlayMmFromEvent(event, current.photo);
+  if (!endpoint) {
+    renderAll();
+    setStatus('Move cancelled — that spot could not be read. Your saved logo stays where it was.');
+    return;
+  }
+  const xMm = endpoint.xMm + current.grabOffsetX;
+  const yMm = endpoint.yMm + current.grabOffsetY;
+  if (Math.abs(xMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm || Math.abs(yMm) > PROJECT_EDITOR_LIMITS.maxCoordinateMm) {
+    renderAll();
+    setStatus(`That spot is past the ±${PROJECT_EDITOR_LIMITS.maxCoordinateMm} mm edge, so it was not saved.`);
+    return;
+  }
+  const configuration = current.project.configurations.find((item) => item.id === current.configurationId);
+  const placement = configuration?.placements[current.placementIndex];
+  if (!configuration || !placement) return;
+  const selector = placementSelector(placement, current.placementIndex);
+  try {
+    // Inverse mapping lands back in domain millimetres: the existing
+    // updatePlacement path + validation applies unchanged.
+    const next = updatePlacement(current.project, current.configurationId, selector, { pos: { xMm, yMm } });
+    installMutation(next, `Moved the logo — saved as version ${next.revision}. All sizes stay in millimetres.`);
+  } catch (error) {
+    renderAll();
+    setStatus(`Could not move the logo there: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+// Keyboard nudge: arrows move the focused placement in region millimetres
+// (Y-up: ArrowUp is +y). Works on diagram and photo polygons alike; photo
+// moves commit through the same updatePlacement + validation path.
+function nudgePlacement(index: number, dxMm: number, dyMm: number): void {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const placement = configuration?.placements[index];
+  if (!project || !configuration || !placement) return;
+  if (placementFormDirty || projectInstructionsDirty) {
+    setStatus('You have changes that are not applied yet — press “Apply my changes” first.');
+    return;
+  }
+  const selector = placementSelector(placement, index);
+  try {
+    const next = updatePlacement(project, configuration.id, selector, {
+      pos: { xMm: placement.pos.xMm + dxMm, yMm: placement.pos.yMm + dyMm },
+    });
+    installMutation(next, `Moved the logo — saved as version ${next.revision}. All sizes stay in millimetres.`);
+  } catch (error) {
+    setStatus(`Could not move the logo: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function placementKeydown(event: KeyboardEvent, index: number): void {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    contextChanged();
+    selectedPlacementIndex = index;
+    renderAll();
+    return;
+  }
+  const step = event.shiftKey ? 10 : 1;
+  const delta = event.key === 'ArrowLeft' ? [-step, 0]
+    : event.key === 'ArrowRight' ? [step, 0]
+    : event.key === 'ArrowUp' ? [0, step]
+    : event.key === 'ArrowDown' ? [0, -step]
+    : null;
+  if (delta) {
+    event.preventDefault();
+    contextChanged();
+    selectedPlacementIndex = index;
+    const configuration = selectedConfiguration();
+    const placement = configuration?.placements[index];
+    if (placement) {
+      selectedRegionId = placement.regionId;
+      selectedLogoId = placement.logoId;
+    }
+    renderAll();
+    nudgePlacement(index, delta[0]!, delta[1]!);
+  }
+}
+
+function photoPx(photo: ActivePhoto, xMm: number, yMm: number): { x: number; y: number } | null {
+  if (!photoNatural) return null;
+  const uv = forwardPhotoMapping(photo.entry, { xMm, yMm });
+  if (!uv) return null;
+  return { x: uv.u * photoNatural.width, y: uv.v * photoNatural.height };
+}
+
+function layoutPhotoOverlay(): void {
+  if (photoWrap.hidden || !photoNatural) return;
+  const cw = photoWrap.clientWidth;
+  const ch = photoWrap.clientHeight;
+  if (!cw || !ch) return;
+  // Contain-fit: the <img> letterboxes with object-fit; the overlay box is
+  // positioned over the rendered image rect so millimetre mapping holds.
+  const scale = Math.min(cw / photoNatural.width, ch / photoNatural.height);
+  const rw = Math.max(1, photoNatural.width * scale);
+  const rh = Math.max(1, photoNatural.height * scale);
+  photoOverlay.style.left = `${(cw - rw) / 2}px`;
+  photoOverlay.style.top = `${(ch - rh) / 2}px`;
+  photoOverlay.style.width = `${rw}px`;
+  photoOverlay.style.height = `${rh}px`;
+}
+
+function renderPhotoOverlay(): void {
+  photoOverlay.replaceChildren();
+  if (primaryMode !== 'photo' || !activePhoto || !photoNatural) return;
+  const photo = activePhoto;
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const region = regionForSelection();
+  if (!project || !configuration || !region) return;
+  photoOverlay.setAttribute('viewBox', `0 0 ${photoNatural.width} ${photoNatural.height}`);
+  const svgNode = (name: string): SVGElement => document.createElementNS('http://www.w3.org/2000/svg', name);
+  geometryFor(project);
+  const configurationGeometry = geometryLookup?.get(configuration.id);
+  for (const [index, item] of configuration.placements.entries()) {
+    if (item.regionId !== region.id) continue;
+    const verdict = configurationGeometry?.get(index);
+    if (!verdict || verdict.footprint.length !== 4) continue;
+    // Same footprint convention as the domain validator, carried through
+    // the forward mapping into photo pixels. Mis-mapped corners drop the
+    // placement overlay (never a misplaced logo).
+    const corners: string[] = [];
+    let mappable = true;
+    for (const [x, y] of verdict.footprint) {
+      const px = photoPx(photo, x, y);
+      if (!px) { mappable = false; break; }
+      corners.push(`${px.x},${px.y}`);
+    }
+    if (!mappable) continue;
+    const logo = project.logos.find((candidate) => candidate.id === item.logoId);
+    const polygon = svgNode('polygon') as SVGPolygonElement;
+    polygon.setAttribute('points', corners.join(' '));
+    polygon.setAttribute('class', `footprint${verdict.ok ? '' : ' invalid'}${index === selectedPlacementIndex ? ' selected' : ''}`);
+    polygon.dataset.placementIndex = String(index);
+    polygon.setAttribute('tabindex', '0');
+    polygon.setAttribute('role', 'button');
+    polygon.setAttribute('aria-label', `Logo box for ${logo?.name ?? item.logoId}; ${formatMm(item.widthMm)} by ${formatMm(item.heightMm)} millimetres`);
+    polygon.addEventListener('pointerdown', (event) => beginPhotoDrag(event, index));
+    polygon.addEventListener('keydown', (event) => placementKeydown(event, index));
+    const artUrl = artworkUrlForLogo(item.logoId);
+    if (artUrl) polygon.setAttribute('fill-opacity', '0.15');
+    photoOverlay.append(polygon);
+    if (artUrl) {
+      // Authoritative center/size/rotation drawn through the mapping; alpha
+      // preserved so fit feedback stays visible. Side-isolated: only the
+      // active region's placements render, on the active side's photo. Shared
+      // placement math with the operation proof (mapping + placement turn).
+      const matrix = artworkPhotoMatrix(photo.entry.transform, photoNatural.width, photoNatural.height, {
+        xMm: item.pos.xMm,
+        yMm: item.pos.yMm,
+        widthMm: item.widthMm,
+        heightMm: item.heightMm,
+        rotationDeg: item.rotationDeg,
+      });
+      if (matrix) {
+        const art = svgNode('image');
+        art.setAttribute('href', artUrl);
+        art.setAttribute('x', '0');
+        art.setAttribute('y', '0');
+        art.setAttribute('width', '1');
+        art.setAttribute('height', '1');
+        art.setAttribute('preserveAspectRatio', 'none');
+        art.setAttribute('transform', `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`);
+        art.setAttribute('opacity', '0.85');
+        art.setAttribute('class', 'artwork');
+        art.setAttribute('aria-hidden', 'true');
+        photoOverlay.append(art);
+      }
+    }
+    const center = photoPx(photo, item.pos.xMm, item.pos.yMm);
+    if (center) {
+      const label = svgNode('text');
+      label.dataset.placementIndex = String(index);
+      label.setAttribute('x', String(center.x));
+      label.setAttribute('y', String(center.y));
+      label.setAttribute('class', 'footprint-label');
+      // Pixel viewBox (not millimetres): scale the label to the photo.
+      label.setAttribute('font-size', String(Math.max(photoNatural.width / 50, 0.2)));
+      label.textContent = logo?.name ?? item.logoId;
+      photoOverlay.append(label);
+    }
+  }
+  layoutPhotoOverlay();
+}
+
 chooseButton.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   const files = fileInput.files ? Array.from(fileInput.files) : [];
@@ -1912,6 +2660,7 @@ variantSelect.addEventListener('change', () => {
 });
 regionSelect.addEventListener('change', () => {
   cancelDrag('Move cancelled because the logo area changed.');
+  cancelPhotoDrag('Move cancelled because the logo area changed.');
   selectedRegionId = regionSelect.value;
   const methods = regionForSelection()?.allowedMethods ?? [];
   const method = methods.includes(methodSelect.value) ? methodSelect.value : methods[0] ?? '';
@@ -1919,6 +2668,8 @@ regionSelect.addEventListener('change', () => {
   placementFormDirty = currentPlacement() !== undefined;
   stateGeneration += 1;
   renderCanvas(); renderContextLine(); updateUnsavedWarning(); updateButtons();
+  resolveActivePhoto(); syncPhotoImage(); renderPrimaryMode(); renderPhotoOverlay();
+  maybeAutoApply();
 });
 logoSelect.addEventListener('change', () => {
   // Switching logos never loses applied edits: block the switch while
@@ -2061,42 +2812,69 @@ confirmButton.addEventListener('click', () => void confirmCurrentRevision());
 saveButton.addEventListener('click', () => void savePackage(false));
 submitButton.addEventListener('click', () => void savePackage(true));
 saveDraftTop?.addEventListener('click', () => void savePackage(false));
-stepPositionButton?.addEventListener('click', () => requestStep('position'));
-stepSizeButton?.addEventListener('click', () => requestStep('size'));
+stepEditButton?.addEventListener('click', () => requestStep('edit'));
 stepReviewButton?.addEventListener('click', () => requestStep('review'));
 backStep?.addEventListener('click', () => requestStep(stepNeighbor(guideStep, -1)));
 primaryNext?.addEventListener('click', () => {
-  if (!loaded || loading || saving || confirming || drag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
   if (hasUnsavedEdits() && currentPlacement()) {
     applyPendingEdits();
     if (hasUnsavedEdits()) return;
   }
-  if (guideStep === 'size' && !currentPlacement()) {
+  if (guideStep === 'edit' && !currentPlacement()) {
     addButton.click();
     if (!currentPlacement()) return;
   }
   requestStep(stepNeighbor(guideStep, 1));
 });
 addAnotherButton?.addEventListener('click', () => {
-  if (!loaded || loading || saving || confirming || drag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
   if (hasUnsavedEdits()) { applyPendingEdits(); if (hasUnsavedEdits()) return; }
   selectedPlacementIndex = null;
-  guideStep = 'position';
+  guideStep = 'edit';
   renderAll();
   const choices = optionalHook<HTMLDetailsElement>('job-choices');
   if (choices && logoSelect.options.length > 1) choices.open = true;
 });
-viewReferenceButton?.addEventListener('click', () => {
-  if (!referenceAsset) return;
-  cancelDrag('Move cancelled because the view changed. Your saved logo is unchanged.');
-  referenceView = 'reference';
-  renderReferenceView();
-});
-viewDiagramButton?.addEventListener('click', () => {
-  cancelDrag('Move cancelled because the view changed. Your saved logo is unchanged.');
-  referenceView = 'diagram';
-  renderReferenceView();
-});
+modePhotoButton.addEventListener('click', () => choosePrimaryMode('photo'));
+modeDiagramButton.addEventListener('click', () => choosePrimaryMode('diagram'));
+mode3dButton.addEventListener('click', () => choosePrimaryMode('3d'));
+// Explicit 3D zoom: buttons + Ctrl/Meta+wheel (wired at viewer attach). Plain
+// wheel and touch scroll stay with the page — the canvas never preventDefaults
+// them, so ordinary scrolling always wins.
+mode3dZoomIn?.addEventListener('click', () => showcaseViewer?.dolly(1 / 1.25));
+mode3dZoomOut?.addEventListener('click', () => showcaseViewer?.dolly(1.25));
+mode3dReset?.addEventListener('click', () => showcaseViewer?.resetView());
+if (typeof ResizeObserver !== 'undefined' && mode3dWrap) {
+  const wrap = mode3dWrap;
+  new ResizeObserver(() => {
+    if (primaryMode === '3d' && showcaseSurface === 'model') {
+      try { showcaseViewer?.refreshSize(); } catch { /* sizing is best-effort */ }
+    }
+  }).observe(wrap);
+}
+for (const side of ['front', 'back', 'left', 'right'] as const) {
+  sideButtons[side].addEventListener('click', () => chooseSide(side));
+}
+// Photo natural size drives the contain-fit overlay box; the overlay keeps
+// the millimetre mapping exact across resizes. No wheel handler is
+// registered anywhere on this canvas, so page scroll is never trapped.
+if (referenceImg) {
+  referenceImg.addEventListener('load', () => {
+    if (referenceImg.naturalWidth > 0 && referenceImg.naturalHeight > 0) {
+      photoNatural = { width: referenceImg.naturalWidth, height: referenceImg.naturalHeight };
+      renderPhotoOverlay();
+    }
+  });
+}
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => layoutPhotoOverlay()).observe(photoWrap);
+}
+// Committed edits auto-apply (live newRevision); per-keystroke input only
+// marks dirty. Invalid edits keep their message and block confirm.
+for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, methodSelect, placementInstructions, projectInstructions]) {
+  control.addEventListener('change', () => maybeAutoApply());
+}
 for (const mode of ['flat', '2d', '3d'] as const) {
   document.querySelector<HTMLButtonElement>(`[data-customer-hook="views-mode-${mode}"]`)?.addEventListener('click', () => chooseShowcaseMode(mode));
 }
@@ -2109,10 +2887,18 @@ canvas.addEventListener('pointermove', moveDrag);
 canvas.addEventListener('pointerup', (event) => finishDrag(event, true));
 canvas.addEventListener('pointercancel', (event) => finishDrag(event, false));
 canvas.addEventListener('lostpointercapture', (event) => finishDrag(event as PointerEvent, false));
+photoOverlay.addEventListener('pointermove', movePhotoDrag);
+photoOverlay.addEventListener('pointerup', (event) => finishPhotoDrag(event, true));
+photoOverlay.addEventListener('pointercancel', (event) => finishPhotoDrag(event, false));
+photoOverlay.addEventListener('lostpointercapture', (event) => finishPhotoDrag(event as PointerEvent, false));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && drag) { event.preventDefault(); cancelDrag('Move cancelled with Escape. Your saved logo is unchanged.'); }
+  if (event.key === 'Escape' && photoDrag) { event.preventDefault(); cancelPhotoDrag('Move cancelled with Escape. Your saved logo is unchanged.'); }
 });
-window.addEventListener('blur', () => cancelDrag('Move cancelled because the window lost focus. Your saved logo is unchanged.'));
+window.addEventListener('blur', () => {
+  cancelDrag('Move cancelled because the window lost focus. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the window lost focus. Your saved logo is unchanged.');
+});
 
 renderAll();
 updateButtons();

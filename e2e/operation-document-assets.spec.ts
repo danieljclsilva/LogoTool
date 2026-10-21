@@ -85,7 +85,7 @@ async function openProposalEditor(page: Page): Promise<void> {
   await expect(page.locator('[data-review-hook="save-proposal"]')).toBeEnabled();
 }
 
-/** Clone the trusted project and add a raster logo asset plus a corrupt one. */
+/** Clone the trusted project and declare raster + non-raster logo assets. */
 function projectWithArtworkVariants(source: ProjectDocument): { project: ProjectDocument; png: Uint8Array; broken: Uint8Array; svg: Uint8Array } {
   const project = structuredClone(source);
   const png = tinyPng();
@@ -106,99 +106,148 @@ function assetsWithArtworkVariants(base: ProjectPackageAsset[], png: Uint8Array,
   ];
 }
 
-/** Manifest covering only the first configuration's product (others stay unmatched). */
-function partialManifest(project: ProjectDocument, image: string): Uint8Array {
-  const first = project.configurations[0]!;
-  return new TextEncoder().encode(JSON.stringify({
-    version: 1,
-    references: [{ productId: first.productId, variantId: first.variantId, image }],
-  }));
-}
-
+/** v2 sided manifest for one product option plus a raster photo. */
 function assetsWithReference(
   base: ProjectPackageAsset[],
   project: ProjectDocument,
+  view: { productId: string; variantId: string; side: 'front' | 'back' | 'left' | 'right'; label?: string; image: string },
   imageBytes: Uint8Array,
 ): ProjectPackageAsset[] {
+  const manifest = new TextEncoder().encode(JSON.stringify({
+    version: 2,
+    views: [{ productId: view.productId, variantId: view.variantId, view: view.side, ...(view.label !== undefined ? { label: view.label } : {}), image: view.image }],
+  }));
   return [
     ...base,
-    { path: 'presentation/preview.json', kind: 'additional', bytes: partialManifest(project, 'presentation/product.png') },
-    { path: 'presentation/product.png', kind: 'additional', bytes: imageBytes },
+    { path: 'presentation/preview.json', kind: 'additional', bytes: manifest },
+    { path: view.image, kind: 'additional', bytes: imageBytes },
   ];
+}
+
+/** Evaluated photo-mapping binding for the trusted tee chest (CAL-SYN-001 v1). */
+function assetsWithMapping(base: ProjectPackageAsset[]): ProjectPackageAsset[] {
+  const mappings = new TextEncoder().encode(JSON.stringify({
+    version: 1,
+    mappings: [{
+      productId: 'SYN-TEE-001',
+      variantId: 'SYN-TEE-M',
+      regionId: 'SYN-TEE-CHEST',
+      view: 'front',
+      image: 'presentation/product.png',
+      transform: { a: 0.005, b: 0, c: 0, d: 0, e: -0.006, f: 1 },
+      calibrationId: 'CAL-SYN-001',
+      calibrationVersion: 'v1',
+      status: 'provisional',
+    }],
+  }));
+  return [...base, { path: 'presentation/photo-mappings.json', kind: 'additional', bytes: mappings }];
 }
 
 function opdocHost(page: Page) {
   return page.locator('[data-review-hook="operation-document-container"]');
 }
 
-test('operation document shows inert raster artwork previews with illustrative captions', async ({ browser }, info) => {
+test('operation sheet composites a mapped photo proof with applied artwork and no artwork panels', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   const varied = projectWithArtworkVariants(project);
-  const withAssets = assetsWithArtworkVariants(assets, varied.png, varied.broken, varied.svg);
-  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withAssets));
-  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withAssets));
-  await openTechnicalDetails(page);
+  const withPhoto = assetsWithReference(
+    assetsWithArtworkVariants(assets, varied.png, varied.broken, varied.svg),
+    varied.project,
+    { productId: 'SYN-TEE-001', variantId: 'SYN-TEE-M', side: 'front', label: 'Front', image: 'presentation/product.png' },
+    tinyPng(),
+  );
+  const withMapping = assetsWithMapping(withPhoto);
+  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withMapping));
+  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withMapping));
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
-  const artworkImages = host.locator('img.opdoc-artwork-img');
-  expect(await artworkImages.count()).toBeGreaterThan(0);
-  // Per-placement rendering: logo-a contributes one inline figure plus three
-  // placeholders (original SVG, truncated PNG, extra SVG) per referencing
-  // placement; logo-b contributes one placeholder (original SVG) each.
-  const logoRefs = { a: 0, b: 0 };
-  for (const configuration of project.configurations) {
-    for (const placement of configuration.placements) {
-      if (placement.logoId === project.logos[0]!.id) logoRefs.a += 1;
-      else logoRefs.b += 1;
-    }
-  }
-  expect(await artworkImages.count()).toBe(logoRefs.a);
-  await expect.poll(() => artworkImages.first().evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(1);
-  await expect(host.locator('.opdoc-artwork-placeholder')).toHaveCount(logoRefs.a * 3 + logoRefs.b);
-  const sources = await artworkImages.evaluateAll((images) => images.map((image) => image.getAttribute('src') ?? ''));
-  for (const source of sources) {
-    expect(source.startsWith('data:image/png')).toBe(true);
-    expect(source.includes('http')).toBe(false);
-  }
-  const handlers = await artworkImages.evaluateAll((images) =>
-    images.map((image) => [image.getAttribute('onerror'), image.getAttribute('onload'), image.getAttribute('onclick')]));
-  for (const row of handlers) {
-    expect(row.every((value) => value === null)).toBe(true);
-  }
-  await expect(host).toContainText('never a production colour proof');
-  await page.screenshot({ path: info.outputPath('operation-artwork-desktop.png') });
+  // The evaluated mapping composites the renderable PNG onto the photo.
+  await expect(host.locator('figure.opsheet-photo figcaption')).toHaveText('Front');
+  await expect(host).toContainText('Mapped photos are visual trial overlays, not production approval.');
+  await expect(host.locator('p.opsheet-trial-note')).toHaveCount(1);
+  const overlays = host.locator('image.opsheet-artwork-overlay');
+  expect(await overlays.count()).toBe(1);
+  const href = await overlays.first().getAttribute('href');
+  expect(href?.startsWith('data:image/png')).toBe(true);
+  expect(href?.includes('http')).toBe(false);
+  // Logo panels carry business data only — never artwork originals.
+  expect(await host.locator('figure.opsheet-artwork-figure').count()).toBe(0);
+  expect(await host.locator('img[src*="logos/"]').count()).toBe(0);
+  await page.screenshot({ path: info.outputPath('operation-mapped-proof.png') });
   assertCleanProbe(probe);
   await close();
 });
 
-test('operation document marks corrupt and non-raster artwork explicitly without broken images', async ({ browser }, info) => {
+test('operation sheet omits unmapped photos from print with an explicit note', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   const varied = projectWithArtworkVariants(project);
-  const withAssets = assetsWithArtworkVariants(assets, varied.png, varied.broken, varied.svg);
-  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withAssets));
-  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withAssets));
-  await openTechnicalDetails(page);
+  const withPhoto = assetsWithReference(
+    assetsWithArtworkVariants(assets, varied.png, varied.broken, varied.svg),
+    varied.project,
+    { productId: 'SYN-TEE-001', variantId: 'SYN-TEE-M', side: 'front', image: 'presentation/product.png' },
+    tinyPng(),
+  );
+  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withPhoto));
+  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withPhoto));
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
-  await expect(host).toContainText('failed raster validation');
-  await expect(host).toContainText('not a previewable raster original');
-  const brokenImages = await host.locator('img[src*="broken"], img[src*="extra"]').count();
-  expect(brokenImages).toBe(0);
-  await page.screenshot({ path: info.outputPath('operation-artwork-placeholders.png') });
+  // No evaluated mapping: the supplied photo is omitted from the focused
+  // print (kept internally) — never a proof, never a silent drop.
+  await expect(host).toContainText('1 supplied photo(s) not shown');
+  expect(await host.locator('figure.opsheet-photo').count()).toBe(0);
+  expect(await host.locator('img.opsheet-photo-img').count()).toBe(0);
+  expect(await host.locator('svg.opsheet-photo-svg').count()).toBe(0);
+  expect(await host.locator('image.opsheet-artwork-overlay').count()).toBe(0);
+  // The trousers sheet has no photo at all: explicit, not silent.
+  await expect(host).toContainText('No product photo supplied for this sheet');
+  await page.screenshot({ path: info.outputPath('operation-reference-desktop.png') });
   assertCleanProbe(probe);
   await close();
+  void info;
 });
 
-test('operation document falls back when header-valid raster bytes fail native decode', async ({ browser }, info) => {
+test('operation sheet explains missing or undecodable artwork bytes instead of guessing an overlay', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
+  // Declare the PNG asset but ship truncated bytes (the package validator
+  // requires the path; the renderer treats undecodable exactly like missing).
   const varied = structuredClone(project);
+  varied.logos[0]!.assets.push({ uri: 'logos/preview.png', role: 'reference', mediaType: 'image/png' });
+  const broken = tinyPng().slice(0, 10);
+  const withAssets: ProjectPackageAsset[] = [
+    ...assets,
+    { path: 'logos/preview.png', kind: 'referenced', bytes: broken },
+  ];
+  const withPhoto = assetsWithReference(
+    withAssets,
+    varied,
+    { productId: 'SYN-TEE-001', variantId: 'SYN-TEE-M', side: 'front', image: 'presentation/product.png' },
+    tinyPng(),
+  );
+  const withMapping = assetsWithMapping(withPhoto);
+  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied, withMapping));
+  await setArchive(page, 'return', 'returned.logo-project', await pack(varied, withMapping));
+  const host = opdocHost(page);
+  await expect(host.locator('.opsheet').first()).toBeVisible();
+
+  await expect(host).toContainText('are missing or undecodable; size and dimensions below still apply.');
+  expect(await host.locator('image.opsheet-artwork-overlay').count()).toBe(0);
+  expect(await host.locator('img[src*="logos/"]').count()).toBe(0);
+  assertCleanProbe(probe);
+  await close();
+  void info;
+});
+
+test('operation sheet falls back when a mapped product photo fails native decode', async ({ browser }, info) => {
+  const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
+  const { project, assets } = await readTrustedBaseline();
   // Valid PNG signature + valid 20x10 IHDR, then garbage: header validation
-  // passes, but no browser can decode the payload.
+  // passes and the evaluated mapping binds the side, but no browser can
+  // decode the payload — the print falls back to an explicit note.
   const corrupt = new Uint8Array(48);
   corrupt.set([137, 80, 78, 71, 13, 10, 26, 10]);
   const view = new DataView(corrupt.buffer);
@@ -209,117 +258,91 @@ test('operation document falls back when header-valid raster bytes fail native d
   corrupt[24] = 8;
   corrupt[25] = 2;
   corrupt.fill(0xab, 33);
-  varied.logos[0]!.assets.push({ uri: 'logos/hdr-corrupt.png', role: 'reference', mediaType: 'image/png' });
-  const withAssets: ProjectPackageAsset[] = [
-    ...assets,
-    { path: 'logos/hdr-corrupt.png', kind: 'referenced', bytes: corrupt },
-  ];
-  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied, withAssets));
-  await setArchive(page, 'return', 'returned.logo-project', await pack(varied, withAssets));
-  await openTechnicalDetails(page);
+  const withPhoto = assetsWithReference(
+    assets,
+    project,
+    { productId: 'SYN-TEE-001', variantId: 'SYN-TEE-M', side: 'front', image: 'presentation/product.png' },
+    corrupt,
+  );
+  const withMapping = assetsWithMapping(withPhoto);
+  await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, withMapping));
+  await setArchive(page, 'return', 'returned.logo-project', await pack(project, withMapping));
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
   await expect(host).toContainText('could not decode it');
-  expect(await host.locator('img[src*="hdr-corrupt"]').count()).toBe(0);
-  expect(await host.locator('figure.opdoc-artwork-figure img').count()).toBeGreaterThanOrEqual(0);
+  await expect(host.locator('img.opsheet-photo-img')).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('operation-decode-fallback.png') });
   assertCleanProbe(probe);
   await close();
 });
 
-test('operation document labels product references illustrative and missing ones explicit', async ({ browser }, info) => {
-  const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
-  const { project, assets } = await readTrustedBaseline();
-  const withAssets = assetsWithReference(assets, project, tinyPng());
-  await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, withAssets));
-  await setArchive(page, 'return', 'returned.logo-project', await pack(project, withAssets));
-  await openTechnicalDetails(page);
-  const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
-
-  const referenceImages = host.locator('figure.opdoc-reference img');
-  expect(await referenceImages.count()).toBeGreaterThan(0);
-  await expect.poll(() => referenceImages.first().evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(1);
-  const referenceSources = await referenceImages.evaluateAll((images) => images.map((image) => image.getAttribute('src') ?? ''));
-  for (const source of referenceSources) {
-    expect(source.startsWith('data:image/')).toBe(true);
-  }
-  await expect(host).toContainText('Illustrative product reference only');
-  await expect(host).toContainText('No reference image supplied for this product in the package.');
-  await page.screenshot({ path: info.outputPath('operation-reference-desktop.png') });
-  assertCleanProbe(probe);
-  await close();
-});
-
-test('operation document refreshes revision and digest consistently after a numeric proposal', async ({ browser }, info) => {
+test('operation sheet drops revision and digest while the candidate JSON keeps them', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
   await openProposalEditor(page);
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
-  await page.locator('[data-review-hook="x"]').fill('31.23456789');
-  await downloadText(page, () => page.locator('[data-review-hook="save-proposal"]').click());
+  await page.locator('[data-review-hook="width"]').fill('31.5');
   const json = JSON.parse(await readCandidateJson(page));
-  await expect(host.locator('.opdoc-identity')).toContainText(`Revision${json.revision}`);
-  await expect(host).toContainText(String(json.digest));
-  await expect(host).toContainText(String(json.digest).slice(0, 16));
-  await expect(host).toContainText('31.23456789 mm');
-  await expect(host).toContainText('candidate-pending-review');
+  expect(json.revision).toBeGreaterThan(1);
+  // The sheet reflects the new geometry but prints no technical envelope.
+  await expect(host).toContainText('31.5 × 40.0 mm');
+  await expect(host).not.toContainText(String(json.digest));
+  await expect(host).not.toContainText('Revision');
   await page.screenshot({ path: info.outputPath('operation-revision-desktop.png') });
   assertCleanProbe(probe);
   await close();
+  void info;
 });
 
-test('operation document keeps candidate-pending-review after an internal workflow approval', async ({ browser }, info) => {
+test('operation sheet keeps draft status after an internal workflow decision', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
   await page.locator('[data-review-hook="reviewer"]').fill('Synthetic reviewer');
   await page.locator('[data-review-hook="decision"]').selectOption('changesRequested');
   await page.locator('[data-review-hook="note"]').fill('Please recheck seam clearance.');
   await page.locator('[data-review-hook="record-review"]').click();
-  await expect(host).toContainText('changesRequested');
-
-  const statuses = await host.locator('.opdoc-status').allTextContents();
-  expect(statuses.length).toBeGreaterThan(0);
-  for (const status of statuses) {
-    expect(status).toContain('candidate-pending-review');
-  }
-  await expect(host.locator('.opdoc-identity')).toContainText('candidate-pending-review');
+  // The decision lives in the review panel (page state), never on the sheet.
+  await expect(page.locator('[data-review-hook="internal-review"]')).toContainText('changesRequested');
+  await expect(host).not.toContainText('Please recheck seam clearance.');
+  await expect(host).not.toContainText('changesRequested');
   await expect(host).not.toContainText('Production approved');
+  // Nothing is authored on this page: the honest draft badge persists.
+  await expect(host.locator('.opsheet-status').first()).toContainText('setup needed before production');
   await page.screenshot({ path: info.outputPath('operation-status-desktop.png') });
   assertCleanProbe(probe);
   await close();
+  void info;
 });
 
-test('operation document renders without overflow on a narrow mobile viewport', async ({ browser }, info) => {
+test('operation sheet renders without overflow on a narrow mobile viewport', async ({ browser }, info) => {
   const { page, probe, close } = await openReviewer(browser, { width: 390, height: 844 });
   const { project, assets } = await readTrustedBaseline();
   const varied = projectWithArtworkVariants(project);
-  const withAssets = assetsWithReference(
+  const withPhoto = assetsWithReference(
     assetsWithArtworkVariants(assets, varied.png, varied.broken, varied.svg),
     varied.project,
+    { productId: 'SYN-TEE-001', variantId: 'SYN-TEE-M', side: 'front', image: 'presentation/product.png' },
     tinyPng(),
   );
-  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withAssets));
-  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withAssets));
-  await openTechnicalDetails(page);
+  await setArchive(page, 'baseline', 'issued.logo-project', await pack(varied.project, withPhoto));
+  await setArchive(page, 'return', 'returned.logo-project', await pack(varied.project, withPhoto));
   const host = opdocHost(page);
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await host.scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath('operation-mobile.png') });
   assertCleanProbe(probe);
   await close();
+  void info;
 });

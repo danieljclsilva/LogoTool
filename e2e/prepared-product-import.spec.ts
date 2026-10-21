@@ -120,6 +120,32 @@ async function readDownload(page: Page, fileName: string, trigger: () => Promise
   return new Uint8Array(await readFile(outputPath));
 }
 
+async function setChecked(box: import('@playwright/test').Locator, checked: boolean): Promise<void> {
+  // Configuration choices must produce real change events even when the box
+  // already matches (Playwright check()/uncheck() are silent no-ops then),
+  // so deliberate setup narrowing is never mistaken for automatic inclusion.
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
+/** Empty start leaves all boxes unchecked: tick every list deliberately. */
+async function selectAllLists(page: Page): Promise<void> {
+  for (const listHook of ['product-list', 'logo-list', 'configuration-list']) {
+    await shown(page, listHook);
+    const list = builder(page, listHook);
+    const boxes = list.locator('input[type="checkbox"]');
+    const count = await boxes.count();
+    for (let index = 0; index < count; index += 1) {
+      const box = boxes.nth(index);
+      if (listHook === 'configuration-list') await setChecked(box, true);
+      else if (await box.isVisible() && await box.isEnabled()) await box.check();
+    }
+  }
+}
+
 function expectOfflineClean(probe: Probe): void {
   expect(probe.pageErrors).toEqual([]);
   expect(probe.consoleErrors).toEqual([]);
@@ -229,6 +255,9 @@ async function issuePreparedDelivery(page: Page, job: string): Promise<{
 }> {
   await createFromCatalogue(page);
   await importPreparedFixture(page);
+  // Empty start: the imported product arrives unselected; select everything
+  // deliberately before issuing.
+  await selectAllLists(page);
   const { issuedProjectId } = await issueCustomerFile(page, job);
   const officeCopy = await readDownload(page, 'office-copy.logo-project', () =>
     shown(page, 'download-baseline').then((control) => control.click()),
@@ -286,8 +315,8 @@ async function placeConfirmAndSubmit(
   await revealCustomerControl(editor, 'add');
   await editor.locator('[data-customer-hook="add"]').click();
   await expect(editor.locator('[data-customer-hook="placement"] option')).toHaveCount(2);
-  await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Center: -40 mm, -30 mm');
-  await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Width × height: 50 mm × 30 mm');
+  await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Center: -40.0 mm, -30.0 mm');
+  await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Width × height: 50.0 mm × 30.0 mm');
   await expect(editor.locator('[data-customer-hook="review-reference"]')).toContainText('Frame: FRAME-SYN-BRIDGE');
   await expect(editor.locator('[data-customer-hook="review-reference"]')).toContainText('Calibration: CAL-SYN-B1 v1');
   await revealCustomerControl(editor, 'confirmed-by');
@@ -320,7 +349,7 @@ test('customer places in the imported mm region, confirms, saves and reopens', a
     await editor.locator('[data-customer-hook="file-input"]').setInputFiles(test.info().outputPath('bridge-return.logo-project'));
     await expect(editor.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     await selectCustomerOption(editor, 'configuration', preparedConfigId);
-    await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Center: -40 mm, -30 mm');
+    await expect(editor.locator('[data-customer-hook="review"]')).toContainText('Center: -40.0 mm, -30.0 mm');
     await editor.setViewportSize({ width: 390, height: 844 });
     expect(await editor.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await editor.screenshot({ path: test.info().outputPath('prepared-customer-mobile.png'), fullPage: true });

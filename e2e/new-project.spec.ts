@@ -22,9 +22,11 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 // - step-open tab reads "Start" ([data-builder-hook="step-open"], panel
 //   [data-builder-step="open"] aria "Start"). Primary
 //   [data-builder-hook="start-create"] ("Create a project") starts a genuinely
-//   new draft from the bundled example catalogue WITHOUT uploading or opening
-//   an existing job; NO setInputFiles for a project is used to reach Choose
-//   items on this path.
+//   new EMPTY draft: nothing is pre-selected, so bundled examples can never
+//   leak into a real job. [data-builder-hook="demo-create"] ("Try demo data")
+//   explicitly opts into the synthetic example selection. No uploading or
+//   opening an existing job; NO setInputFiles for a project is used to reach
+//   Choose items on this path.
 // - [data-builder-hook="start-open-toggle"] is the summary of the Open-existing
 //   <details>, which stays OPEN by default, so source-choose/source-drop stay
 //   visible and the old Open flows are untouched.
@@ -130,6 +132,18 @@ async function variantIds(page: Page, productId: string): Promise<string[]> {
   }, productId);
 }
 
+async function setChecked(box: import('@playwright/test').Locator, checked: boolean): Promise<void> {
+  // Deliberate selection must produce the same change events as real human
+  // toggles: Playwright check()/uncheck() are silent no-ops when the box
+  // already matches, which would hide deliberate setup narrowing from the
+  // automatic-inclusion tracking.
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
 async function setListSelection(page: Page, listHook: string, ids: string[]): Promise<void> {
   const list = await shown(page, listHook);
   const boxes = list.locator('input[type="checkbox"]');
@@ -137,17 +151,33 @@ async function setListSelection(page: Page, listHook: string, ids: string[]): Pr
   const seen: string[] = [];
   for (let index = 0; index < count; index += 1) {
     const box = boxes.nth(index);
-    if (!await box.isVisible()) continue;
     const value = (await box.getAttribute('value')) ?? '';
     const nestedProduct = await box.getAttribute('data-product');
     // The product list nests variant checkboxes (data-product set) under each
-    // product; top-level product selection must not toggle variants.
-    if (nestedProduct !== null) continue;
+    // product. Product selection implies its visible variants (new empty-start
+    // UX leaves every box unchecked; variants of a chosen product must be
+    // ticked deliberately, mirroring the old all-checked default).
+    if (nestedProduct !== null) {
+      await setChecked(box, ids.includes(nestedProduct));
+      continue;
+    }
     seen.push(value);
-    if (ids.includes(value)) await box.check();
-    else await box.uncheck();
+    await setChecked(box, ids.includes(value));
   }
   for (const id of ids) assert.ok(seen.includes(id), `selection list ${listHook} is missing option ${id}`);
+}
+
+/** Check the setups whose readable label belongs to one of the given products. */
+async function selectConfigurationsForProducts(page: Page, productIds: string[]): Promise<void> {
+  const list = await shown(page, 'configuration-list');
+  const boxes = list.locator('input[type="checkbox"]');
+  const count = await boxes.count();
+  for (let index = 0; index < count; index += 1) {
+    const box = boxes.nth(index);
+    if (!await box.isVisible()) continue;
+    const label = await box.evaluate((element) => element.closest('label')?.textContent ?? '');
+    await setChecked(box, productIds.some((id) => label.includes(id)));
+  }
 }
 
 /** Generate via the real primary action. */
@@ -278,11 +308,17 @@ test('create starts a fresh example draft without opening a project file', async
     await expect(builder(page, 'source-drop')).toBeHidden();
     await expect(page.locator('[data-builder-step="choose"]')).toBeHidden();
 
-    // Create WITHOUT setInputFiles for any project file.
+    // Create WITHOUT setInputFiles for any project file. New drafts start
+    // empty: nothing is pre-selected, so the operator cannot accidentally
+    // issue bundled mock items as a real job.
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await expect(await shown(page, 'catalogue-note')).toBeVisible();
     await expect(await shown(page, 'catalogue-note')).toHaveText('Example products — not for production.');
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
+    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
+    // Explicit demo opt-in restores the full example selection.
+    await (await shown(page, 'demo-create')).click();
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(EXPECTED_PRODUCTS);
     for (const productId of EXPECTED_PRODUCTS) {
       expect((await variantIds(page, productId)).length).toBeGreaterThan(0);
@@ -314,6 +350,7 @@ test('create generates revision-1 issues with prepared catalogue identity and ze
     // Narrow the selection: tee + cap products, synthetic mark A only.
     await setListSelection(page, 'product-list', ['SYN-TEE-001', 'SYN-CAP-001']);
     await setListSelection(page, 'logo-list', ['SYN-LOGO-A']);
+    await selectConfigurationsForProducts(page, ['SYN-TEE-001', 'SYN-CAP-001']);
     await (await shown(page, 'builder-next')).click();
     await fillIdentity(page, 'Acme Athletics', jobRef, 'Internal operator');
     const issuedProjectId = await readProjectId(page);
@@ -400,6 +437,7 @@ test('create customer journey adds a new raster logo and reviews the return', as
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await setListSelection(page, 'product-list', ['SYN-TEE-001']);
     await setListSelection(page, 'logo-list', []);
+    await selectConfigurationsForProducts(page, ['SYN-TEE-001']);
     const png = await syntheticPngBytes(page);
     // Real file chooser wired to logo-file (never setInputFiles for a project
     // file on this path): click Add, then feed the OS-level chooser.
@@ -451,7 +489,8 @@ test('create customer journey adds a new raster logo and reviews the return', as
     await editorPage.goto(pathToFileURL(htmlPath).href);
     await expect(editorPage.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
     await expect(editorPage.locator('[data-customer-hook="revision"]')).toHaveText('1');
-    await editorPage.locator('[data-customer-hook="step-size"]').click();
+    // One workspace: width is editable alongside position; Continue adds the
+    // new logo and moves to the combined review step.
     await editorPage.locator('[data-customer-hook="width-mm"]').fill('60');
     await editorPage.locator('[data-customer-hook="primary-next"]').click();
     await expect(editorPage.locator('[data-step-panel="review"]')).toBeVisible();
@@ -499,6 +538,7 @@ test('create supports zero logos and distinct duplicate logo filenames', async (
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await setListSelection(page, 'product-list', ['SYN-CAP-001']);
     await setListSelection(page, 'logo-list', []);
+    await selectConfigurationsForProducts(page, ['SYN-CAP-001']);
     const png = await syntheticPngBytes(page);
     const jpeg = await syntheticJpegBytes(page);
     await addLogo(page, 'crest.png', 'image/png', png);
@@ -545,6 +585,8 @@ test('a new create resets a previously opened job and its logos', async ({ brows
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    // Empty start: take the explicit demo selection, then add the job logo.
+    await (await shown(page, 'demo-create')).click();
     const png = await syntheticPngBytes(page);
     await addLogo(page, 'first.png', 'image/png', png);
     await (await shown(page, 'builder-next')).click();
@@ -555,11 +597,15 @@ test('a new create resets a previously opened job and its logos', async ({ brows
     await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
 
     // A new Create discards the previous draft: identity cleared, fresh issue
-    // ID, catalogue products reselected, no carried-over imported logos.
+    // ID, empty selection that never leaks the previous job, no carried-over
+    // imported logos. The demo catalogue is an explicit opt-in again.
     await (await shown(page, 'step-open')).click();
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await expect(await shown(page, 'catalogue-note')).toBeVisible();
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
+    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
+    await (await shown(page, 'demo-create')).click();
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(EXPECTED_PRODUCTS);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(EXAMPLE_LOGO_IDS);
     await (await shown(page, 'step-details')).click();
@@ -580,6 +626,8 @@ test('hostile logo uploads retain prior good state with zero errors or requests'
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    // Explicit demo opt-in restores the example selection under test.
+    await (await shown(page, 'demo-create')).click();
     const png = await syntheticPngBytes(page);
     await addLogo(page, 'good.png', 'image/png', png);
     const goodIds = await checkedTopLevelIds(page, 'logo-list');
@@ -662,6 +710,11 @@ test('hostile logo uploads retain prior good state with zero errors or requests'
       const gate = globalThis as unknown as { holdDecode?: { done: boolean } };
       return gate.holdDecode?.done;
     })).toBe(true);
+    // The stale decode must not install anything; the fresh empty draft only
+    // regains the examples through the explicit demo opt-in.
+    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
+    expect(await page.locator('[data-builder-hook="logo-list"]').getByText('held', { exact: false }).count()).toBe(0);
+    await (await shown(page, 'demo-create')).click();
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(EXAMPLE_LOGO_IDS);
     expect(await page.locator('[data-builder-hook="logo-list"]').getByText('held', { exact: false }).count()).toBe(0);
     expectOfflineClean(probe);
@@ -679,6 +732,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844
       await expect(await shown(page, 'catalogue-note')).toContainText('Example products — not for production.');
       await setListSelection(page, 'product-list', ['SYN-TEE-001']);
       await setListSelection(page, 'logo-list', ['SYN-LOGO-A']);
+      await selectConfigurationsForProducts(page, ['SYN-TEE-001']);
       await addLogo(page, 'viewport.png', 'image/png', await syntheticPngBytes(page));
       await (await shown(page, 'builder-next')).click();
       await fillIdentity(page, 'Acme Athletics', `CREATE-${viewport.width}`, 'Internal operator');

@@ -1,6 +1,6 @@
 import { gotoBuilder, revealBuilderControl, revealCustomerControl } from './helpers.js';
 import { expect, test } from '@playwright/test';
-import type { Browser, BrowserContext, Page } from '@playwright/test';
+import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -8,9 +8,11 @@ import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
-import { parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-html/index.js';
+import { confirmRevision, contentDigest, newRevision } from '../src/core/index.js';
+import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 
 // Internal-builder acceptance (guided proof-desk redesign). Opens the
 // already-built dist/internal-builder.html offline through file:// (the spec
@@ -39,7 +41,8 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 // - Choose items: product rows are top-level product checkboxes plus nested
 //   variant checkboxes (`[data-product]`); logo list is flat;
 //   configuration-list lives inside the collapsed `Choose specific setups`
-//   disclosure. All checked by default on source load. selection-summary
+//   disclosure. Nothing is pre-selected on source load (empty start); the
+//   operator ticks products/logos/setups deliberately or uses Try demo data.
 //   counts the actual selection; selection-error reports invalid selections
 //   here, so Continue never needs job identity.
 // - Customer details shows only Customer name / Job reference / Prepared by.
@@ -173,6 +176,18 @@ async function variantIds(page: Page, productId: string): Promise<string[]> {
   }, productId);
 }
 
+async function setChecked(box: Locator, checked: boolean): Promise<void> {
+  // Deliberate selection must produce the same change events as real human
+  // toggles: Playwright check()/uncheck() are silent no-ops when the box
+  // already matches, which would hide deliberate setup narrowing from the
+  // automatic-inclusion tracking.
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
 async function setListSelection(page: Page, listHook: string, ids: string[]): Promise<void> {
   const list = await shown(page, listHook);
   const boxes = list.locator('input[type="checkbox"]');
@@ -180,15 +195,20 @@ async function setListSelection(page: Page, listHook: string, ids: string[]): Pr
   const seen: string[] = [];
   for (let index = 0; index < count; index += 1) {
     const box = boxes.nth(index);
-    if (!await box.isVisible()) continue;
     const value = (await box.getAttribute('value')) ?? '';
     const nestedProduct = await box.getAttribute('data-product');
     // The product list nests variant checkboxes (data-product set) under each
-    // product; top-level product selection must not toggle variants.
-    if (nestedProduct !== null) continue;
+    // product. Product selection implies its variants (new empty-start UX
+    // leaves every box unchecked; variants of a chosen product must be
+    // ticked deliberately, mirroring the old all-checked default).
+    // Dispatched assignments (never visibility-gated) keep hidden nested
+    // boxes consistent too, in DOM order, as parents toggle.
+    if (nestedProduct !== null) {
+      await setChecked(box, ids.includes(nestedProduct));
+      continue;
+    }
     seen.push(value);
-    if (ids.includes(value)) await box.check();
-    else await box.uncheck();
+    await setChecked(box, ids.includes(value));
   }
   for (const id of ids) assert.ok(seen.includes(id), `selection list ${listHook} is missing option ${id}`);
 }
@@ -275,7 +295,7 @@ function expectApprovalsCleared(project: Record<string, unknown>): void {
   expect(project['issuedBaselineHash']).toBeUndefined();
 }
 
-test('guided preparation flows from open to details with defaults selected', async ({ browser }) => {
+test('guided preparation flows from open to deliberate selection to details', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     // Initial view is Open project only: future steps stay hidden, with a
@@ -299,7 +319,16 @@ test('guided preparation flows from open to details with defaults selected', asy
     await expect(await shown(page, 'new-source')).toBeVisible();
     expect(await variantIds(page, 'SYN-TEE-001')).toEqual(['SYN-TEE-M', 'SYN-TEE-XL']);
     expect(await variantIds(page, 'SYN-TR-001')).toEqual(['SYN-TR-REG', 'SYN-TR-SHORT']);
-    // Everything is checked by default on source load; names stay readable.
+    // Empty start: nothing is pre-selected on source load. The operator ticks
+    // what the customer needs; here the full catalogue is chosen deliberately.
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
+    await setListSelection(page, 'product-list', FULL_PRODUCTS);
+    await setListSelection(page, 'logo-list', FULL_LOGOS);
+    await setListSelection(page, 'configuration-list', FULL_CONFIGURATIONS);
+    // Choosing setups opens its disclosure; collapse it again so the
+    // default journey keeps technical setups out of sight.
+    await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
+    // The deliberate selection above is reflected; names stay readable.
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(FULL_PRODUCTS);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(FULL_LOGOS);
     expect(await checkedTopLevelIds(page, 'configuration-list')).toEqual(FULL_CONFIGURATIONS);
@@ -425,8 +454,8 @@ test('issues a subset hybrid package at revision 1 with approvals cleared', asyn
       await expect(editor.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
       await revealCustomerControl(editor, 'instructions');
       await editor.locator('[data-customer-hook="instructions"]').fill('Hybrid customer change');
-      await revealCustomerControl(editor, 'update');
-      await editor.locator('[data-customer-hook="update"]').click();
+      await editor.locator('[data-customer-hook="instructions"]').press('Tab');
+      // Note edits auto-apply as a new revision (no separate Apply step).
       const saved = await readDownload(editor, 'hybrid-edited.logo-project', () => editor.locator('[data-customer-hook="save"]').click());
       expect((await parseProjectPackage(saved.bytes, { sha256 })).project.instructions).toBe('Hybrid customer change');
       expect(issued.assets.map((asset) => asset.path)).toEqual(['logos/syn-mark-a.svg']);
@@ -533,6 +562,141 @@ test('issues a zero-logo (zero-artwork) selection end to end', async ({ browser 
   }
 });
 
+test('checking a prepared product and variant includes its setups without opening specific setups', async ({ browser }) => {
+  // Release-blocking regression (native acceptance): ticking a prepared
+  // product + variant must make its existing setups issuable WITHOUT opening
+  // the collapsed Choose specific setups disclosure. Otherwise the issue
+  // silently ships configurations: [] and drops every photo/model/mapping.
+  const { context, page, probe } = await openBuilder(browser);
+  let directory = '';
+  try {
+    const base = await parseProjectPackage(new Uint8Array(await readFile(ALT_SOURCE_PATH)), { sha256 });
+    const config = base.project.configurations.find((item) => item.id === 'SYN-CFG-CAP-OS')!;
+    const product = base.project.products.find((item) => item.id === config.productId)!;
+    const region = product.regions.find((item) => item.id === 'SYN-CAP-FRONT')!;
+    const pngBase64 = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 20; canvas.height = 10;
+      const context2d = canvas.getContext('2d')!;
+      context2d.fillStyle = '#12394b'; context2d.fillRect(0, 0, 20, 10);
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    });
+    const png = new Uint8Array(Buffer.from(pngBase64, 'base64'));
+    const xs = region.safeArea.map((point) => point[0]);
+    const ys = region.safeArea.map((point) => point[1]);
+    const minX = Math.min(...xs); const maxX = Math.max(...xs);
+    const minY = Math.min(...ys); const maxY = Math.max(...ys);
+    const sourceBytes = await createProjectPackage({
+      project: base.project,
+      assets: base.assets.filter((asset) => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes })),
+      additionalAssets: [
+        { path: 'presentation/preview.json', bytes: new TextEncoder().encode(JSON.stringify({ version: 2, views: [{ productId: product.id, variantId: config.variantId, view: 'front', image: 'presentation/front.png' }] })) },
+        { path: 'presentation/front.png', bytes: png },
+        {
+          path: 'presentation/photo-mappings.json',
+          bytes: new TextEncoder().encode(JSON.stringify({
+            version: 1,
+            mappings: [{
+              productId: product.id, variantId: config.variantId, regionId: region.id,
+              view: 'front', image: 'presentation/front.png',
+              transform: { a: 1 / (maxX - minX), b: 0, c: -minX / (maxX - minX), d: 0, e: -1 / (maxY - minY), f: maxY / (maxY - minY) },
+              calibrationId: region.calibrationRef.calibrationId, calibrationVersion: region.calibrationRef.version,
+              status: 'provisional',
+            }],
+          })),
+        },
+      ],
+    }, { sha256 });
+    directory = await mkdtemp(join(tmpdir(), 'logotool-auto-include-'));
+    const sourcePath = join(directory, 'prepared-cap.logo-project');
+    await writeFile(sourcePath, sourceBytes);
+    await loadSourceFile(page, sourcePath, 'prepared-cap.logo-project');
+    // Tick ONLY product + variant through visible controls. The setups
+    // disclosure is never opened here.
+    await setListSelection(page, 'product-list', ['SYN-CAP-001']);
+    await expect(await shown(page, 'selection-summary')).toContainText('1 product');
+    await expect(await shown(page, 'builder-next')).toBeEnabled();
+    await (await shown(page, 'builder-next')).click();
+    await fillIdentity(page, CUSTOMER, 'BLD-AUTO-01', ISSUED_BY, 'ACME-BLD-AUTO-01');
+    await createCustomerFile(page, 'ACME-BLD-AUTO-01');
+    const baseline = await readDownload(page, 'auto-issue.logo-project', () =>
+      shown(page, 'download-baseline').then((control) => control.click()),
+    );
+    const issued = await parseProjectPackage(baseline.bytes, { sha256 });
+    // The matching zero-placement setup shipped (not configurations: []),
+    // with photos/model evidence and the mapping retained.
+    expect(issued.project.configurations.map((entry) => entry.id)).toEqual(['SYN-CFG-CAP-OS']);
+    expect(issued.project.configurations.flatMap((entry) => entry.placements)).toHaveLength(0);
+    const mappingBytes = issued.assets.find((asset) => asset.path === 'presentation/photo-mappings.json')?.bytes;
+    assert.ok(mappingBytes, 'issued package retains the photo mapping');
+    assert.ok(issued.assets.some((asset) => asset.path === 'presentation/front.png'), 'issued package retains the photo');
+    assert.ok(issued.assets.some((asset) => asset.path === 'presentation/preview.json'), 'issued package retains the manifest');
+    // The customer file opens editable with the mapped side available.
+    const html = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
+      shown(page, 'download-package').then((control) => control.click()),
+    );
+    expect(html.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
+    const htmlPath = join(directory, 'issued-auto.html');
+    await writeFile(htmlPath, html.bytes);
+    const editor = await context.newPage();
+    attachPageProbe(editor, probe);
+    await editor.goto(pathToFileURL(htmlPath).href);
+    await expect(editor.locator('[data-customer-hook="project-id"]')).toHaveText('ACME-BLD-AUTO-01');
+    await expect(editor.locator('[data-customer-hook="side-front"]')).toBeEnabled();
+    await editor.close();
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('fractional millimetres render rounded once in staff return comparisons', async ({ browser }) => {
+  // Staff "What changed" copy rounds display values (108.1 mm, never
+  // 108.11145510835912 mm); canonical bytes and the technical appendix keep
+  // full precision.
+  const sha256Text: Sha256HexFn = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
+  const issuedBytes = new Uint8Array(await readFile(TRUSTED_SOURCE_PATH));
+  const issued = await parseProjectPackage(issuedBytes, { sha256 });
+  const fractional = newRevision(issued.project, (draft: ProjectDocument) => {
+    const placement = draft.configurations[0]!.placements[0]!;
+    placement.pos.xMm = -65.123456;
+    placement.pos.yMm = 30.987654;
+    placement.widthMm = 108.11145510835912;
+    placement.heightMm = 40.22222222222222;
+    placement.rotationDeg = 15.55555555555555;
+  });
+  const digest = contentDigest(fractional, sha256Text);
+  const confirmed = confirmRevision(fractional, {
+    confirmedBy: 'Synthetic customer',
+    confirmedAt: '2026-10-13T12:00:00.000Z',
+    digestOf: digest,
+  }, sha256Text);
+  assert.ok(confirmed.ok, 'synthetic confirmation must bind');
+  const returnedBytes = await createProjectPackage({
+    project: confirmed.project,
+    assets: issued.assets.filter((asset) => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes })),
+    additionalAssets: issued.assets.filter((asset) => asset.kind === 'additional').map(({ path, bytes }) => ({ path, bytes })),
+  }, { sha256 });
+  const { context, page, probe } = await openBuilder(browser);
+  try {
+    await (await shown(page, 'baseline-file')).setInputFiles({ name: 'office-copy.logo-project', mimeType: 'application/zip', buffer: Buffer.from(issuedBytes) });
+    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await (await shown(page, 'step-return')).click();
+    await (await shown(page, 'return-file')).setInputFiles({ name: 'fractional-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returnedBytes) });
+    await expect(await shown(page, 'review-panel')).toBeVisible();
+    const changes = builder(page, 'review-changes');
+    await expect(changes).toContainText('108.1 \u00d7');
+    await expect(changes).toContainText('-65.1, 31.0');
+    await expect(changes).toContainText('15.6\u00b0');
+    await expect(changes).not.toContainText('108.11145510835912');
+    await expect(changes).not.toContainText('30.987654');
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});
+
 test('rejects an invalid source without replacing the loaded selection', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   let directory = '';
@@ -555,6 +719,11 @@ test('rejects an invalid source without replacing the loaded selection', async (
     await expect(await shown(page, 'product-list')).toContainText('Synthetic Tee');
 
     await loadSourceFile(page, TRUSTED_SOURCE_PATH, TRUSTED_SOURCE_NAME);
+    // A fresh source load starts empty again; re-select deliberately.
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
+    await setListSelection(page, 'product-list', FULL_PRODUCTS);
+    await setListSelection(page, 'logo-list', FULL_LOGOS);
+    await setListSelection(page, 'configuration-list', FULL_CONFIGURATIONS);
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(FULL_PRODUCTS);
     expectOfflineClean(probe);
   } finally {
@@ -635,8 +804,8 @@ test('saves two files, opens the customer file, and reviews the return against t
     await expect(editorPage.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
     await revealCustomerControl(editorPage, 'instructions');
     await editorPage.locator('[data-customer-hook="instructions"]').fill('Builder return instructions.');
-    await revealCustomerControl(editorPage, 'update');
-    await editorPage.locator('[data-customer-hook="update"]').click();
+    await editorPage.locator('[data-customer-hook="instructions"]').press('Tab');
+    // Note edits auto-apply as a new revision (no separate Apply step).
     await expect(editorPage.locator('[data-customer-hook="revision"]')).toHaveText('2');
     await revealCustomerControl(editorPage, 'confirmed-by');
     await editorPage.locator('[data-customer-hook="confirmed-by"]').fill('Builder accept tester');
@@ -650,8 +819,7 @@ test('saves two files, opens the customer file, and reviews the return against t
     // cleanly: confirmation is customer-side data, never internal authority.
     await revealCustomerControl(editorPage, 'instructions');
     await editorPage.locator('[data-customer-hook="instructions"]').fill('Second unconfirmed edit.');
-    await revealCustomerControl(editorPage, 'update');
-    await editorPage.locator('[data-customer-hook="update"]').click();
+    await editorPage.locator('[data-customer-hook="instructions"]').press('Tab');
     await expect(editorPage.locator('[data-customer-hook="revision"]')).toHaveText('3');
     await revealCustomerControl(editorPage, 'save');
     const unconfirmed = await readDownload(editorPage, 'builder-return-unconfirmed.logo-project', () =>
@@ -713,13 +881,19 @@ test('saves two files, opens the customer file, and reviews the return against t
     );
     const candidate = JSON.parse(new TextDecoder().decode(candidateFile.bytes)) as { revision: number; digest: string };
     expect(candidate.revision).toBe(2);
+    // The one-sheet operator preview prints business data only: no digest,
+    // revision, or config ids — and customer notes are source context, never
+    // printed as operational instructions.
+    await (await shown(fresh, 'preview-document')).click();
+    await expect(builder(fresh, 'operation-container').locator('.opsheet').first()).toBeVisible();
+    await expect(builder(fresh, 'operation-container')).not.toContainText(candidate.digest);
+    await expect(builder(fresh, 'operation-container')).not.toContainText('Builder return instructions.');
+    await expect(builder(fresh, 'operation-container')).toContainText('setup needed before production');
     const printStyle = await fresh.locator('#internal-builder-operation-styles').textContent();
-    await expect(builder(fresh, 'operation-container')).toContainText(candidate.digest);
-    const decodedStyle = printStyle!.replace(/\\([0-9a-f]+) /gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)));
-    expect(decodedStyle).toContain('Revision 2');
+    expect(printStyle).toContain('A4 landscape');
     await fresh.emulateMedia({ media: 'print' });
     await expect(fresh.locator('main#internal-builder')).toBeHidden();
-    await expect(fresh.locator('.lt-operation-document')).toBeVisible();
+    await expect(fresh.locator('.opsheet').first()).toBeVisible();
     await fresh.emulateMedia({ media: 'screen' });
     await expect(await shown(fresh, 'handoff-summary')).toContainText(candidateFile.name);
     await expect(builder(fresh, 'handoff-summary')).toContainText('builder-return.logo-project');
@@ -764,6 +938,9 @@ test('keeps the automatic project ID stable and regenerates deterministic delive
   const { context, page, probe } = await openBuilder(browser);
   try {
     await loadSourceFile(page, TRUSTED_SOURCE_PATH, TRUSTED_SOURCE_NAME);
+    await setListSelection(page, 'product-list', FULL_PRODUCTS);
+    await setListSelection(page, 'logo-list', FULL_LOGOS);
+    await setListSelection(page, 'configuration-list', FULL_CONFIGURATIONS);
     await (await shown(page, 'builder-next')).click();
     await fillIdentity(page, CUSTOMER, 'CON', ISSUED_BY);
     const firstId = await readProjectId(page);
@@ -868,6 +1045,11 @@ test('source reads reject oversized and unreadable files and discard obsolete re
     await expect.poll(() => page.evaluate(() => (window as Window & { oldReadDone?: boolean }).oldReadDone)).toBe(true);
     await expect(await shown(page, 'source-status')).toContainText(`Loaded ${ALT_SOURCE_NAME}`);
     await expect(builder(page, 'source-choose')).toBeEnabled();
+    // The zero-placement source carries one product/option/setup and no
+    // logos; select it deliberately before issuing.
+    await setListSelection(page, 'product-list', ['SYN-CAP-001']);
+    await setListSelection(page, 'logo-list', []);
+    await setListSelection(page, 'configuration-list', ['SYN-CFG-CAP-OS']);
     await (await shown(page, 'builder-next')).click();
     await fillIdentity(page, CUSTOMER, 'ZERO-SOURCE', ISSUED_BY);
     const zeroId = await readProjectId(page);
@@ -886,6 +1068,9 @@ test('generation locks inputs, rejects obsolete hashing and recovers from hash f
   const { context, page, probe } = await openBuilder(browser);
   try {
     await loadSourceFile(page, TRUSTED_SOURCE_PATH, TRUSTED_SOURCE_NAME);
+    await setListSelection(page, 'product-list', FULL_PRODUCTS);
+    await setListSelection(page, 'logo-list', FULL_LOGOS);
+    await setListSelection(page, 'configuration-list', FULL_CONFIGURATIONS);
     await (await shown(page, 'builder-next')).click();
     await fillIdentity(page, CUSTOMER, 'HASH-RACE', ISSUED_BY);
     const racedId = await readProjectId(page);
@@ -926,6 +1111,13 @@ for (const viewport of [{width:1536,height:1024},{width:390,height:844}]) {
       const chooser = page.waitForEvent('filechooser');
       await builder(page,'source-choose').click(); await (await chooser).setFiles(TRUSTED_SOURCE_PATH);
       await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+      // Empty start: select the catalogue deliberately before refining it.
+      await setListSelection(page, 'product-list', ['SYN-TEE-001', 'SYN-TR-001']);
+      await setListSelection(page, 'logo-list', ['SYN-LOGO-A', 'SYN-LOGO-B']);
+      await setListSelection(page, 'configuration-list', ['SYN-CFG-TEE-M', 'SYN-CFG-TR-REG']);
+      // Choosing setups opens its disclosure; collapse it again so the
+      // default journey keeps technical IDs out of the visible step text.
+      await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
       const product = builder(page,'product-list').locator('input[value="SYN-TR-001"]:not([data-product])');
       await product.uncheck(); await expect(builder(page,'selection-summary')).toContainText('1 product');
       await expect(builder(page,'selection-summary')).toContainText('2 options');

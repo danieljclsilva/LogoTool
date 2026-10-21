@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -33,6 +34,67 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
 async function startCatalogue(page: Page): Promise<void> {
   await builder(page, 'start-create').click();
   await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+}
+
+/** Check every product/logo/setup box through visible controls (empty start
+ * leaves all boxes unchecked; tests select deliberately). Collapses the
+ * setups disclosure afterwards so later step-text assertions stay scoped. */
+async function setChecked(box: import('@playwright/test').Locator, checked: boolean): Promise<void> {
+  // Configuration choices must produce real change events even when the box
+  // already matches (Playwright check()/uncheck() are silent no-ops then),
+  // so deliberate setup narrowing is never mistaken for automatic inclusion.
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
+async function selectAllLists(page: Page): Promise<void> {
+  for (const listHook of ['product-list', 'logo-list', 'configuration-list']) {
+    const list = await shown(page, listHook);
+    const boxes = list.locator('input[type="checkbox"]');
+    const count = await boxes.count();
+    for (let index = 0; index < count; index += 1) {
+      const box = boxes.nth(index);
+      if (listHook === 'configuration-list') await setChecked(box, true);
+      else if (await box.isVisible() && await box.isEnabled()) await box.check();
+    }
+  }
+  await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
+}
+
+/** Check only the given product (with its variants/setups); uncheck the rest.
+ * Ticks the explicit preview-only escape so an uncalibrated provisional
+ * product issues deliberately (never a silent block). */
+async function selectOnlyProduct(page: Page, productId: string): Promise<void> {
+  const productList = await shown(page, 'product-list');
+  const boxes = productList.locator('input[type="checkbox"]');
+  const count = await boxes.count();
+  for (let index = 0; index < count; index += 1) {
+    const box = boxes.nth(index);
+    if (!await box.isVisible() || !await box.isEnabled()) continue;
+    const nested = await box.getAttribute('data-product');
+    const value = await box.getAttribute('value');
+    if (nested !== null) {
+      if (nested === productId) await box.check();
+      else await box.uncheck();
+      continue;
+    }
+    if (value === productId) await box.check();
+    else await box.uncheck();
+  }
+  const configList = await shown(page, 'configuration-list');
+  const configBoxes = configList.locator('input[type="checkbox"]');
+  const configCount = await configBoxes.count();
+  for (let index = 0; index < configCount; index += 1) {
+    const box = configBoxes.nth(index);
+    if (!await box.isVisible() || !await box.isEnabled()) continue;
+    const label = await box.evaluate((element) => element.closest('label')?.textContent ?? '');
+    await setChecked(box, label.includes(productId));
+  }
+  await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
+  await (await shown(page, 'preview-only-acknowledge')).check();
 }
 
 async function syntheticPng(page: Page, color: string, width: number, height: number): Promise<Uint8Array> {
@@ -214,15 +276,11 @@ for (const side of ['front', 'back', 'left', 'right'] as const) {
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
       const after = await productIds(page);
       expect(after.length).toBe(before.length + 1);
+      const addedOnly = after.find((id) => !before.includes(id));
+      assert.ok(addedOnly, 'new product should appear in the product list');
+      // Issue just the new preview-only product with the explicit escape.
+      await selectOnlyProduct(page, addedOnly);
       // The manifest must hold exactly that side — never duplicated into front.
-      await page.evaluate(() => {
-        const root = document.querySelector('[data-builder-hook="configuration-list"]');
-        if (!root) throw new Error('Missing configuration list.');
-        for (const box of Array.from(root.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[]) {
-          box.checked = true;
-          box.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
       await fillIdentity(page, 'Acme Athletics', `MV-SIDE-${side}`, 'Internal operator');
       const issuedProjectId = await readProjectId(page);
       await createCustomerFile(page, issuedProjectId);
@@ -244,6 +302,7 @@ test('explicit per-side assignment travels with labels; missing sides stay absen
   const { context, page, probe } = await openBuilder(browser);
   try {
     await startCatalogue(page);
+    const productsBefore = await productIds(page);
     const front = await syntheticPng(page, '#12394b', 20, 10);
     const back = await syntheticPng(page, '#4b3912', 20, 10);
     await stagePrimary(page, 'front.png', 'image/png', front);
@@ -252,18 +311,10 @@ test('explicit per-side assignment travels with labels; missing sides stay absen
     await (await shown(page, 'product-name')).fill('Two-sided');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('2 views');
-    // The new provisional config arrives unchecked in the collapsed setups
-    // disclosure; explicitly select it alongside everything else so the
-    // issued package (and its presentation manifest) covers the new product.
-    await page.evaluate(() => {
-      const root = document.querySelector('[data-builder-hook="configuration-list"]');
-      if (!root) throw new Error('Missing configuration list.');
-      const boxes = Array.from(root.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
-      const target = boxes.find((box) => box.value.startsWith('builder-config-provisional-product-'));
-      if (!target) throw new Error(`New provisional config missing; saw: ${boxes.map((box) => box.value).join(',')}`);
-      target.checked = true;
-      target.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // Issue just the new preview-only product with the explicit escape.
+    const addedTwoSided = (await productIds(page)).find((id) => !productsBefore.includes(id));
+    assert.ok(addedTwoSided, 'new product should appear in the product list');
+    await selectOnlyProduct(page, addedTwoSided);
     await fillIdentity(page, 'Acme Athletics', 'MV-MULTI-01', 'Internal operator');
     const issuedProjectId = await readProjectId(page);
     await createCustomerFile(page, issuedProjectId);
@@ -362,12 +413,16 @@ test('save/reopen preserves exact bytes and physical-data invariance', async ({ 
   const { context, page, probe } = await openBuilder(browser);
   try {
     await startCatalogue(page);
+    const invariantBefore = await productIds(page);
     const png = await syntheticPng(page, '#12394b', 20, 10);
     await stagePrimary(page, 'front.png', 'image/png', png);
     await stageSide(page, 'left', 'left.png', png);
     await (await shown(page, 'product-name')).fill('Invariant');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
+    const addedInvariant = (await productIds(page)).find((id) => !invariantBefore.includes(id));
+    assert.ok(addedInvariant, 'new product should appear in the product list');
+    await selectOnlyProduct(page, addedInvariant);
     await fillIdentity(page, 'Acme Athletics', 'MV-INV-01', 'Internal operator');
     const issuedProjectId = await readProjectId(page);
     await createCustomerFile(page, issuedProjectId);
@@ -432,15 +487,10 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     // Issue with every setup selected, then confirm the merged manifest
-    // keeps the v1 reference VERBATIM alongside the new v2 view.
-    await page.evaluate(() => {
-      const root = document.querySelector('[data-builder-hook="configuration-list"]');
-      if (!root) throw new Error('Missing configuration list.');
-      for (const box of Array.from(root.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[]) {
-        box.checked = true;
-        box.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    // keeps the v1 reference VERBATIM alongside the new v2 view. The newcomer
+    // is preview-only, so the explicit escape is ticked deliberately.
+    await selectAllLists(page);
+    await (await shown(page, 'preview-only-acknowledge')).check();
     await fillIdentity(page, 'Acme Athletics', 'MV-V1-01', 'Internal operator');
     const issuedProjectId = await readProjectId(page);
     await createCustomerFile(page, issuedProjectId);
@@ -510,14 +560,7 @@ test('over-budget presentation add is rejected and leaves prior state untouched'
     await expect(await shown(page, 'product-status')).toContainText('32-entry budget');
     expect(await productIds(page)).toEqual(before);
     // The presentation stays valid: issuing still works with the intact history.
-    await page.evaluate(() => {
-      const root = document.querySelector('[data-builder-hook="configuration-list"]');
-      if (!root) throw new Error('Missing configuration list.');
-      for (const box of Array.from(root.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[]) {
-        box.checked = true;
-        box.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    await selectAllLists(page);
     await fillIdentity(page, 'Acme Athletics', 'MV-BUDGET-01', 'Internal operator');
     const issuedProjectId = await readProjectId(page);
     await createCustomerFile(page, issuedProjectId);

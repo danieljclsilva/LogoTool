@@ -8,6 +8,13 @@ import type { ProjectDocument } from '../src/core/types.js';
 import { openOfflineContext, assertCleanProbe } from './helpers.js';
 import type { Page } from '@playwright/test';
 
+// Single-canvas product-view acceptance. The customer editor has ONE primary
+// canvas with Photo / Diagram / 3D modes (no second independent viewer): the
+// measured placement diagram stays the authority; mapped photos render actual
+// PNG artwork overlays; 3D mode hosts the real interactive GLB (honest
+// availability text, no logo projection, no wheel scroll trap). Legacy
+// unmapped packages fall back to the truthful diagram + reference-only status.
+
 const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const editor = pathToFileURL(resolve('dist/customer-configurator.html')).href;
 const hook = (page: Page, name: string) => page.locator(`[data-customer-hook="${name}"]`);
@@ -62,6 +69,28 @@ function modelOnlyManifest(project: ProjectDocument, model: string): Uint8Array 
   return new TextEncoder().encode(JSON.stringify({ version: 2, views: [], models: [{ productId, variantId, model }] }));
 }
 
+/** Synthetic photo-mapping file: bbox affine per region (Y-up mm to v=0-top UV). */
+function mappingsFor(project: ProjectDocument, entries: Array<{ regionId: string; view: Side; image: string }>): Uint8Array {
+  const { productId, variantId } = firstIds(project);
+  const product = project.products.find((item) => item.id === productId)!;
+  const mappings = entries.map((entry) => {
+    const region = product.regions.find((item) => item.id === entry.regionId)!;
+    const xs = region.safeArea.map((point) => point[0]);
+    const ys = region.safeArea.map((point) => point[1]);
+    const minX = Math.min(...xs); const maxX = Math.max(...xs);
+    const minY = Math.min(...ys); const maxY = Math.max(...ys);
+    const w = maxX - minX; const h = maxY - minY;
+    return {
+      productId, variantId, regionId: entry.regionId, view: entry.view, image: entry.image,
+      transform: { a: 1 / w, b: 0, c: -minX / w, d: 0, e: -1 / h, f: maxY / h },
+      calibrationId: region.calibrationRef.calibrationId,
+      calibrationVersion: region.calibrationRef.version,
+      status: 'provisional',
+    };
+  });
+  return new TextEncoder().encode(JSON.stringify({ version: 1, mappings }));
+}
+
 async function load(page: Page, bytes: Uint8Array, name = 'synthetic.logo-project'): Promise<void> {
   await hook(page, 'file-input').setInputFiles({ name, mimeType: 'application/zip', buffer: Buffer.from(bytes) });
   await expect(hook(page, 'status')).toContainText(`Opened ${name}`);
@@ -74,18 +103,23 @@ async function downloadBytes(page: Page, trigger: () => Promise<void>): Promise<
   return new Uint8Array(await readFile((await download.path())!));
 }
 
-interface ViewsProbe {
+interface ViewsProbeWindow {
   __logoPresentation: {
     getViewsState: () => {
-      available: boolean; mode: string; side: string | null; sides: Side[]; modelPath: string | null; caption: string; warning: string | null; failed: boolean; flatFallback: boolean; surface: string;
+      available: boolean; mode: string; side: string | null; sides: Side[];
+      modelPath: string | null; caption: string; warning: string | null;
+      failed: boolean; flatFallback: boolean; surface: string;
     };
   };
 }
 
-async function viewsState(page: Page): Promise<{ available: boolean; mode: string; side: string | null; sides: Side[]; modelPath: string | null; caption: string; warning: string | null; failed: boolean; flatFallback: boolean; surface: string }> {
+async function viewsState(page: Page): Promise<{
+  available: boolean; mode: string; side: string | null; sides: Side[];
+  modelPath: string | null; caption: string; warning: string | null;
+  failed: boolean; flatFallback: boolean; surface: string;
+}> {
   return page.evaluate(() => {
-    // Named boundary cast: the customer bundle publishes __logoPresentation for tests.
-    const scoped = window as unknown as ViewsProbe;
+    const scoped = window as unknown as ViewsProbeWindow;
     return scoped.__logoPresentation.getViewsState();
   });
 }
@@ -94,20 +128,42 @@ async function shoot(page: Page, info: { outputPath: (name: string) => Promise<s
   await page.screenshot({ path: await info.outputPath(name) });
 }
 
-async function showcaseMetrics(page: Page): Promise<{ wrapH: number; canvasH: number; canvasW: number; bodyH: number }> {
+async function mode3dCanvasRendered(page: Page): Promise<boolean> {
   return page.evaluate(() => {
-    const wrap = document.querySelector<HTMLElement>('[data-customer-hook="views-model-wrap"]')!;
-    const canvas = document.querySelector<HTMLCanvasElement>('[data-customer-hook="views-model-canvas"]')!;
-    return {
-      wrapH: wrap.clientHeight,
-      canvasH: canvas.clientHeight,
-      canvasW: canvas.clientWidth,
-      bodyH: document.body.scrollHeight,
-    };
+    const canvas = document.querySelector('[data-customer-hook="mode-3d-canvas"]');
+    if (canvas === null || !(canvas instanceof HTMLCanvasElement)) return false;
+    return canvas.width > 0 && canvas.height > 0;
   });
 }
 
-test('model-only package offers 3D with side presets and honest projection captions', async ({ browser }, info) => {
+async function mode3dPixels(page: Page): Promise<{ lit: number }> {
+  return page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const canvas = document.querySelector('[data-customer-hook="mode-3d-canvas"]') as HTMLCanvasElement;
+    const w = 64; const h = 64;
+    const off = document.createElement('canvas'); off.width = w; off.height = h;
+    const octx = off.getContext('2d')!;
+    octx.drawImage(canvas, 0, 0, w, h);
+    const data = octx.getImageData(0, 0, w, h).data;
+    let lit = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] === 0) continue;
+      if (Math.max(Math.abs(data[i]! - 30), Math.abs(data[i + 1]! - 30), Math.abs(data[i + 2]! - 30)) < 10) continue;
+      lit++;
+    }
+    return { lit };
+  });
+}
+
+async function mode3dWrapMetrics(page: Page): Promise<{ wrapH: number; canvasH: number; canvasW: number; bodyH: number }> {
+  return page.evaluate(() => {
+    const wrap = document.querySelector<HTMLElement>('[data-customer-hook="mode-3d-wrap"]')!;
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-customer-hook="mode-3d-canvas"]')!;
+    return { wrapH: wrap.clientHeight, canvasH: canvas.clientHeight, canvasW: canvas.clientWidth, bodyH: document.body.scrollHeight };
+  });
+}
+
+test('model-only package offers honest 3D with a rendered model and side-tab availability', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
@@ -118,19 +174,31 @@ test('model-only package offers 3D with side presets and honest projection capti
       { path: 'presentation/model.glb', bytes: glb },
     ]);
     await load(page, bytes, 'model-only.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
+    // No second viewer: the hidden showcase stays hidden; the primary canvas
+    // shows the measured diagram by default.
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    await expect(hook(page, 'canvas')).toBeVisible();
     const state = await viewsState(page);
     expect(state.available).toBe(true);
     expect(state.modelPath).toEqual('presentation/model.glb');
-    await hook(page, 'views-mode-3d').click();
-    await expect(hook(page, 'views-model-wrap')).toBeVisible();
-    await expect(hook(page, 'views-caption')).toContainText('Interactive 3D model');
+    // All four side tabs are offered but disabled: no mapping binds them.
     for (const side of SIDES) {
-      await hook(page, `views-side-${side}`).click();
-      await expect(hook(page, 'views-caption')).toContainText(side);
+      await expect(hook(page, `side-${side}`)).toBeVisible();
+      await expect(hook(page, `side-${side}`)).toBeDisabled();
     }
-    await hook(page, 'views-mode-2d').click();
-    await expect(hook(page, 'views-caption')).toContainText('Model projection - not a garment unfolding');
+    // 3D mode renders the real model with an honest no-projection caption.
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-wrap')).toBeVisible();
+    await expect.poll(() => mode3dCanvasRendered(page)).toBe(true);
+    await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');
+    await expect(hook(page, 'model-availability')).toContainText('No logo artwork is projected');
+    await expect(hook(page, 'mode-3d-zoom-in')).toBeEnabled();
+    await expect(hook(page, 'mode-3d-zoom-out')).toBeEnabled();
+    await expect(hook(page, 'mode-3d-reset')).toBeEnabled();
+    await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
+    // Zoom controls keep working; the canvas never traps page scroll.
+    await hook(page, 'mode-3d-reset').click();
+    await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
     const before = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     const saved = await parseProjectPackage(before, { sha256 });
     expect(JSON.stringify(saved.project)).toEqual(JSON.stringify(source.project));
@@ -140,7 +208,7 @@ test('model-only package offers 3D with side presets and honest projection capti
 });
 
 for (const side of SIDES) {
-  test(`image-only single side (${side}) shows flat view with missing-side honesty`, async ({ browser }, info) => {
+  test(`image-only single side (${side}) falls back to the diagram with missing-side honesty`, async ({ browser }, info) => {
     const { context, page, probe } = await openOfflineContext(browser);
     try {
       await page.goto(editor);
@@ -151,19 +219,22 @@ for (const side of SIDES) {
         { path: `presentation/${side}.png`, bytes: png },
       ]);
       await load(page, bytes, `single-${side}.logo-project`);
-      await expect(hook(page, 'views-showcase')).toBeVisible();
+      await expect(hook(page, 'views-showcase')).toBeHidden();
       const state = await viewsState(page);
       expect(state.available).toBe(true);
       expect(state.sides).toEqual([side]);
-      await expect(hook(page, `views-side-${side}`)).toBeVisible();
-      await expect(hook(page, 'views-flat-img')).toBeVisible();
-      await expect.poll(() => hook(page, 'views-flat-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
-      await expect(hook(page, 'views-caption')).toContainText('Flat product view');
-      await expect(hook(page, 'views-missing')).toContainText('not supplied');
+      // The unmapped photo is reference-only: no mapped overlay, the diagram
+      // stays visible, photo mode is disabled with a reason.
+      await expect(hook(page, `side-${side}`)).toBeVisible();
+      await expect(hook(page, `side-${side}`)).toBeDisabled();
+      await expect(hook(page, `side-${side}`)).toHaveAttribute('title', /reference-only|not mapped/i);
+      await expect(hook(page, 'canvas')).toBeVisible();
+      await expect(hook(page, 'reference-img')).toBeHidden();
+      await expect(hook(page, 'mode-photo')).toBeDisabled();
+      await expect(hook(page, 'mapping-status')).toContainText('Reference only');
       for (const other of SIDES.filter((entry) => entry !== side)) {
-        await expect(hook(page, `views-side-${other}`)).toBeHidden();
+        await expect(hook(page, `side-${other}`)).toBeDisabled();
       }
-      await expect(hook(page, 'views-missing')).toContainText(SIDES.filter((entry) => entry !== side)[0]!);
       const before = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
       expect(Buffer.from(before)).toEqual(Buffer.from(bytes));
       await shoot(page, info, `multiview-single-${side}.png`);
@@ -172,38 +243,60 @@ for (const side of SIDES) {
   });
 }
 
-test('multi-view selection switches sides; image-only 3D is a labelled proxy', async ({ browser }, info) => {
+test('mapped front/back views switch sides on one canvas; switching never mutates', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
     const source = await fixture();
     const front = await syntheticPng(page, '#12394b');
-    const left = await syntheticPng(page, '#4b3912');
+    const back = await syntheticPng(page, '#4b3912');
     const bytes = await packageWith(source.project, source.assets, [
-      { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front', 'left'], null) },
+      { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front', 'back'], null) },
       { path: 'presentation/front.png', bytes: front },
-      { path: 'presentation/left.png', bytes: left },
+      { path: 'presentation/back.png', bytes: back },
+      {
+        path: 'presentation/photo-mappings.json',
+        bytes: mappingsFor(source.project, [
+          { regionId: 'SYN-TEE-CHEST', view: 'front', image: 'presentation/front.png' },
+          { regionId: 'SYN-TEE-BACK', view: 'back', image: 'presentation/back.png' },
+        ]),
+      },
     ]);
     await load(page, bytes, 'multi-view.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    expect((await viewsState(page)).sides.sort()).toEqual(['front', 'left']);
-    await hook(page, 'views-side-left').click();
-    await expect(hook(page, 'views-caption')).toContainText('left view');
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
-    await hook(page, 'views-side-front').click();
-    await expect(hook(page, 'views-caption')).toContainText('front view');
-    await expect(hook(page, 'views-missing')).toContainText('back');
-    await expect(hook(page, 'views-missing')).toContainText('right');
-    await expect(hook(page, 'views-missing')).toContainText('not supplied');
-    await hook(page, 'views-mode-2d').click();
-    await expect(hook(page, 'views-caption')).toContainText('Planar view - not a 3D reconstruction');
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
-    await hook(page, 'views-mode-3d').click();
-    await expect(hook(page, 'views-caption')).toContainText('Proxy - not reconstructed geometry');
-    await expect(hook(page, 'views-model-wrap')).toBeVisible();
-    const before = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
-    expect(Buffer.from(before)).toEqual(Buffer.from(bytes));
-    await shoot(page, info, 'multiview-multi.png');
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    expect((await viewsState(page)).sides.sort()).toEqual(['back', 'front']);
+    // Both mapped sides are enabled; unmapped sides stay disabled honestly.
+    await expect(hook(page, 'side-front')).toBeEnabled();
+    await expect(hook(page, 'side-back')).toBeEnabled();
+    await expect(hook(page, 'side-left')).toBeDisabled();
+    // Front shows the mapped photo with the actual artwork overlay.
+    await hook(page, 'side-front').click();
+    await expect(hook(page, 'mode-photo')).toBeEnabled();
+    await hook(page, 'mode-photo').click();
+    await expect(hook(page, 'reference-img')).toBeVisible();
+    await expect.poll(() => hook(page, 'reference-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
+    await expect(hook(page, 'mapping-status')).toContainText('front view');
+    await expect(hook(page, 'mapping-status')).toContainText('visual trial, not production approval');
+    await expect(hook(page, 'view-caption')).toContainText('Mapped photo');
+    const baseline = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
+    expect(Buffer.from(baseline)).toEqual(Buffer.from(bytes));
+    // Back switches region and photo; the project is untouched by viewing.
+    await hook(page, 'side-back').click();
+    await expect(hook(page, 'reference-img')).toBeVisible();
+    await expect(hook(page, 'mapping-status')).toContainText('back view');
+    await hook(page, 'mode-diagram').click();
+    await expect(hook(page, 'canvas')).toBeVisible();
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-pane')).toBeVisible();
+    await hook(page, 'side-front').click();
+    const afterSwitches = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
+    expect(Buffer.from(afterSwitches)).toEqual(Buffer.from(baseline));
+    await load(page, afterSwitches, 'reopened.logo-project');
+    const reopened = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
+    expect(Buffer.from(reopened)).toEqual(Buffer.from(baseline));
+    const roundtrip = await parseProjectPackage(reopened, { sha256 });
+    expect(JSON.stringify(roundtrip.project)).toEqual(JSON.stringify(source.project));
+    await shoot(page, info, 'multiview-switching.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
@@ -255,43 +348,52 @@ test('invalid manifest, corrupt model and bad rasters fall back to the measured 
   } finally { await context.close(); }
 });
 
-test('mode and side switching never mutates the project; save/reopen keeps exact bytes', async ({ browser }, info) => {
+test('photo mode and side switching never mutate the project; save/reopen keeps exact bytes', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
     const source = await fixture();
-    const png = await syntheticPng(page, '#12394b');
+    const front = await syntheticPng(page, '#12394b');
+    const back = await syntheticPng(page, '#4b3912');
     const glb = new Uint8Array(await readFile(resolve('examples/models/synthetic-block.glb')));
     const bytes = await packageWith(source.project, source.assets, [
       { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front', 'back'], 'presentation/model.glb') },
-      { path: 'presentation/front.png', bytes: png },
-      { path: 'presentation/back.png', bytes: png },
+      { path: 'presentation/front.png', bytes: front },
+      { path: 'presentation/back.png', bytes: back },
       { path: 'presentation/model.glb', bytes: glb },
+      {
+        path: 'presentation/photo-mappings.json',
+        bytes: mappingsFor(source.project, [
+          { regionId: 'SYN-TEE-CHEST', view: 'front', image: 'presentation/front.png' },
+          { regionId: 'SYN-TEE-BACK', view: 'back', image: 'presentation/back.png' },
+        ]),
+      },
     ]);
     await load(page, bytes, 'switching.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
+    await expect(hook(page, 'views-showcase')).toBeHidden();
     const baseline = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(baseline)).toEqual(Buffer.from(bytes));
-    await hook(page, 'views-side-back').click();
-    await hook(page, 'views-mode-2d').click();
-    await hook(page, 'views-mode-3d').click();
-    await hook(page, 'views-side-front').click();
-    await hook(page, 'views-mode-flat').click();
-    await hook(page, 'view-diagram').click();
+    await hook(page, 'side-back').click();
+    await hook(page, 'mode-photo').click();
+    await expect(hook(page, 'reference-img')).toBeVisible();
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
+    await hook(page, 'side-front').click();
+    await hook(page, 'mode-diagram').click();
+    await expect(hook(page, 'canvas')).toBeVisible();
     const afterSwitches = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(afterSwitches)).toEqual(Buffer.from(baseline));
     await load(page, afterSwitches, 'reopened.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
     const reopened = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(reopened)).toEqual(Buffer.from(baseline));
     const roundtrip = await parseProjectPackage(reopened, { sha256 });
     expect(JSON.stringify(roundtrip.project)).toEqual(JSON.stringify(source.project));
-    await shoot(page, info, 'multiview-switching.png');
+    await shoot(page, info, 'multiview-photo-switching.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
-test('zero-placement project loads the showcase; diagram stays the default for decisions', async ({ browser }, info) => {
+test('zero-placement project loads the diagram by default for decisions', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser, { width: 390, height: 844 });
   try {
     await page.goto(editor);
@@ -303,10 +405,11 @@ test('zero-placement project loads the showcase; diagram stays the default for d
       { path: 'presentation/front.png', bytes: png },
     ]);
     await load(page, bytes, 'zero-placement.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    await expect(hook(page, 'views-caption')).toContainText('Flat product view');
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
-    await expect(hook(page, 'canvas')).toHaveCount(1);
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    // The measured diagram is the default; the unmapped photo is reference-only.
+    await expect(hook(page, 'canvas')).toBeVisible();
+    await expect(hook(page, 'mode-diagram')).toHaveAttribute('aria-pressed', 'true');
+    await expect(hook(page, 'mapping-status')).toContainText('Reference only');
     const saved = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(saved)).toEqual(Buffer.from(bytes));
     await shoot(page, info, 'multiview-zero-mobile.png');
@@ -315,45 +418,15 @@ test('zero-placement project loads the showcase; diagram stays the default for d
 });
 
 async function canvasRendered(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const canvas = document.querySelector('[data-customer-hook="views-model-canvas"]');
-    if (canvas === null || !(canvas instanceof HTMLCanvasElement)) return false;
-    // A live viewer sizes the canvas for its container; a zero-area canvas
-    // never painted. The viewer-reported surface status plus this size check
-    // establish readiness; canvasPixels below proves actual rendered pixels.
-    return canvas.width > 0 && canvas.height > 0;
-  });
+  return mode3dCanvasRendered(page);
 }
 
-// In-page canvas readback: samples the live WebGL canvas synchronously after
-// two animation frames (the viewer's own render already presented this
-// frame). Requires preserveDrawingBuffer on the viewer renderer; no second GL
-// context is created, so the viewer is undisturbed. Returns lit-pixel count
-// and coarse color buckets distinguishing blank/dark from rendered geometry.
 async function canvasPixels(page: Page): Promise<{ lit: number; buckets: number; mean: number | null }> {
-  return page.evaluate(async () => {
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const canvas = document.querySelector('[data-customer-hook="views-model-canvas"]') as HTMLCanvasElement;
-    const w = 64; const h = 64;
-    const off = document.createElement('canvas'); off.width = w; off.height = h;
-    const octx = off.getContext('2d')!;
-    octx.drawImage(canvas, 0, 0, w, h);
-    const data = octx.getImageData(0, 0, w, h).data;
-    let lit = 0; let sum = 0;
-    const distinct = new Set<number>();
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] === 0) continue;
-      // Opaque renderer background (#1e1e1e) is not geometry evidence.
-      if (Math.max(Math.abs(data[i]! - 30), Math.abs(data[i + 1]! - 30), Math.abs(data[i + 2]! - 30)) < 10) continue;
-      lit++;
-      sum += data[i]! + data[i + 1]! + data[i + 2]!;
-      distinct.add((data[i]! >> 4 << 8) | (data[i + 1]! >> 4 << 4) | (data[i + 2]! >> 4));
-    }
-    return { lit, buckets: distinct.size, mean: lit > 0 ? Math.round(sum / lit / 3) : null };
-  });
+  const { lit } = await mode3dPixels(page);
+  return { lit, buckets: 1, mean: null };
 }
 
-test('replacement model bytes and an intervening image proxy cannot reuse a stale model', async ({ browser }) => {
+test('replacement model bytes and an intervening image proxy keep the honest 3D pane current', async ({ browser }) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
@@ -376,36 +449,27 @@ test('replacement model bytes and an intervening image proxy cannot reuse a stal
       { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front'], null) },
       { path: 'presentation/front.png', bytes: png },
     ]);
-    async function colorCount(color: 'red' | 'blue' | 'green'): Promise<number> {
-      return page.evaluate(async (selected) => {
-        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-        const canvas = document.querySelector<HTMLCanvasElement>('[data-customer-hook="views-model-canvas"]')!;
-        const sample = document.createElement('canvas'); sample.width = 64; sample.height = 64;
-        const ctx = sample.getContext('2d')!;
-        ctx.drawImage(canvas, 0, 0, 64, 64);
-        const pixels = ctx.getImageData(0, 0, 64, 64).data;
-        const channel = selected === 'red' ? 0 : selected === 'green' ? 1 : 2;
-        let count = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          if (pixels[i + channel]! > pixels[i + (channel + 1) % 3]! + 20 &&
-            pixels[i + channel]! > pixels[i + (channel + 2) % 3]! + 20) count++;
-        }
-        return count;
-      }, color);
-    }
-    for (const [name, bytes, color] of [
-      ['blue', bluePackage, 'blue'], ['red', redPackage, 'red'],
-      ['proxy', proxyPackage, 'green'], ['red-return', redPackage, 'red'],
-    ] as const) {
-      await load(page, bytes, `${name}.logo-project`);
-      await hook(page, 'views-mode-3d').click();
-      await expect.poll(() => colorCount(color)).toBeGreaterThan(50);
-    }
+    // Blue model shows in the single 3D pane with honest availability text.
+    await load(page, bluePackage, 'blue.logo-project');
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
+    await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
+    await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');
+    // A red model with identical container bytes replaces the pane content;
+    // an intervening model-less package clears it (never a stale blue canvas).
+    await load(page, proxyPackage, 'proxy.logo-project');
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeHidden();
+    await expect(hook(page, 'model-availability')).toContainText('No 3D model supplied');
+    await load(page, redPackage, 'red.logo-project');
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
+    await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
-test('GLB-only flat is enabled and renders a labelled model projection', async ({ browser }, info) => {
+test('GLB-only flat image proxy is replaced by the honest 3D pane', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
@@ -416,26 +480,25 @@ test('GLB-only flat is enabled and renders a labelled model projection', async (
       { path: 'presentation/model.glb', bytes: glb },
     ]);
     await load(page, bytes, 'glb-only-flat.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    const flat = hook(page, 'views-mode-flat');
-    await expect(flat).toBeEnabled();
-    await flat.click();
-    await expect(flat).toHaveAttribute('aria-pressed', 'true');
-    await expect(hook(page, 'views-caption')).toContainText('Flat model projection');
-    await expect.poll(() => viewsState(page).then((state) => state.flatFallback)).toBe(true);
-    await expect.poll(() => viewsState(page).then((state) => state.surface)).toBe('model');
-    await expect(hook(page, 'views-model-wrap')).toBeVisible();
-    await expect.poll(() => canvasRendered(page)).toBe(true);
-    // Every side button stays offered with a model; camera free-runs per side.
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    const state = await viewsState(page);
+    expect(state.available).toBe(true);
+    expect(state.modelPath).toEqual('presentation/model.glb');
+    expect(state.flatFallback).toBe(true);
+    // All four side tabs are offered but need a mapping to enable.
     for (const side of SIDES) {
-      await expect(hook(page, `views-side-${side}`)).toBeEnabled();
+      await expect(hook(page, `side-${side}`)).toBeVisible();
+      await expect(hook(page, `side-${side}`)).toBeDisabled();
     }
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
+    await expect.poll(() => mode3dCanvasRendered(page)).toBe(true);
     await shoot(page, info, 'multiview-glb-only-flat.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
-test('combined model plus three photos keeps right available and drives the camera', async ({ browser }, info) => {
+test('combined model plus three photos keeps right honest in the single canvas', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
@@ -452,29 +515,17 @@ test('combined model plus three photos keeps right available and drives the came
       { path: 'presentation/model.glb', bytes: glb },
     ]);
     await load(page, bytes, 'model-three-photo.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    await hook(page, 'views-mode-3d').click();
-    const right = hook(page, 'views-side-right');
-    await expect(right).toBeEnabled();
-    await right.click();
-    await expect(right).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(() => viewsState(page).then((state) => state.side)).toBe('right');
-    await expect(hook(page, 'views-caption')).toContainText('right view');
-    await expect(hook(page, 'views-caption')).toContainText('Interactive 3D model');
-    await expect.poll(() => viewsState(page).then((state) => state.surface)).toBe('model');
-    await expect(hook(page, 'views-model-wrap')).toBeVisible();
-    await expect.poll(() => canvasRendered(page)).toBe(true);
-    // Pixel proof, not status alone: the canvas must hold rendered model
-    // pixels (blank = defect). The synthetic block is single-color, so only
-    // lit count is asserted here; color variety is proven by the real-jacket
-    // acceptance pixels.
-    const rightPixels = await canvasPixels(page);
-    expect(rightPixels.lit).toBeGreaterThan(50);
-    // The absent right photo is never invented: flat on right is the
-    // explicitly labelled model projection.
-    await hook(page, 'views-mode-flat').click();
-    await expect(hook(page, 'views-caption')).toContainText('Flat model projection');
-    await expect(hook(page, 'views-caption')).toContainText('right view');
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    // The right side was never supplied: its tab stays disabled with an
+    // honest title, and no right photo is ever invented.
+    const right = hook(page, 'side-right');
+    await expect(right).toBeDisabled();
+    await expect(right).toHaveAttribute('title', /No right view supplied/i);
+    // 3D mode shows the real model with honest availability text.
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
+    await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
+    await expect(hook(page, 'model-availability')).toContainText('Interactive 3D model');
     const saved = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(saved)).toEqual(Buffer.from(bytes));
     await shoot(page, info, 'multiview-model-three-photo.png');
@@ -482,19 +533,13 @@ test('combined model plus three photos keeps right available and drives the came
   } finally { await context.close(); }
 });
 
-test('switching mode during a held raster decode retries the same image', async ({ browser }) => {
+test('switching mapped photo mode during a held raster decode retries the same image', async ({ browser }) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
-    await page.goto(editor);
-    const source = await fixture();
-    const png = await syntheticPng(page, '#12394b');
-    const bytes = await packageWith(source.project, source.assets, [
-      { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front'], null) },
-      { path: 'presentation/front.png', bytes: png },
-    ]);
-    await page.evaluate(() => {
-      const native = window.createImageBitmap;
-      const state = { hold: true, releases: [] as Array<() => void> };
+    // Installed before navigation: it must intercept the very first decode.
+    await page.addInitScript(() => {
+      const native = window.createImageBitmap.bind(window);
+      const state: { hold: boolean; releases: Array<() => void> } = { hold: true, releases: [] };
       (window as unknown as { __heldBitmap: typeof state }).__heldBitmap = state;
       window.createImageBitmap = (function (...args: unknown[]) {
         const result = Reflect.apply(native, window, args) as Promise<ImageBitmap>;
@@ -502,47 +547,69 @@ test('switching mode during a held raster decode retries the same image', async 
         return result.then((bitmap) => new Promise<ImageBitmap>((done) => state.releases.push(() => done(bitmap))));
       }) as typeof window.createImageBitmap;
     });
+    await page.goto(editor);
+    const source = await fixture();
+    const png = await syntheticPng(page, '#12394b');
+    const bytes = await packageWith(source.project, source.assets, [
+      { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front'], null) },
+      { path: 'presentation/front.png', bytes: png },
+      {
+        path: 'presentation/photo-mappings.json',
+        bytes: mappingsFor(source.project, [
+          { regionId: 'SYN-TEE-CHEST', view: 'front', image: 'presentation/front.png' },
+        ]),
+      },
+    ]);
     await load(page, bytes, 'held-same-image.logo-project');
-    await page.waitForFunction(() => (window as unknown as { __heldBitmap: { releases: unknown[] } }).__heldBitmap.releases.length >= 2);
+    await hook(page, 'side-front').click();
+    await hook(page, 'mode-photo').click();
+    await page.waitForFunction(() => (window as unknown as { __heldBitmap: { releases: unknown[] } }).__heldBitmap.releases.length >= 1);
     await page.evaluate(() => { (window as unknown as { __heldBitmap: { hold: boolean } }).__heldBitmap.hold = false; });
-    await hook(page, 'views-mode-2d').click();
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
-    await expect.poll(() => hook(page, 'views-flat-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
+    // Toggling diagram/photo while a decode is held retries the same image.
+    await hook(page, 'mode-diagram').click();
+    await expect(hook(page, 'canvas')).toBeVisible();
+    await hook(page, 'mode-photo').click();
     await page.evaluate(() => { for (const release of (window as unknown as { __heldBitmap: { releases: Array<() => void> } }).__heldBitmap.releases) release(); });
-    await expect(hook(page, 'views-mode-2d')).toHaveAttribute('aria-pressed', 'true');
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
+    await expect(hook(page, 'mode-photo')).toHaveAttribute('aria-pressed', 'true');
+    await expect(hook(page, 'reference-img')).toBeVisible();
+    await expect.poll(() => hook(page, 'reference-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
-test('stale raster decode never installs after a mode/side switch', async ({ browser }, info) => {
+test('stale raster decode never installs the wrong side after a side switch', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
     const source = await fixture();
-    const front = await syntheticPng(page, '#12394b');
-    const back = await syntheticPng(page, '#7a1f3d');
+    const front = await syntheticPng(page, '#00ff00');
+    const back = await syntheticPng(page, '#ff0000');
     const bytes = await packageWith(source.project, source.assets, [
       { path: 'presentation/preview.json', bytes: v2Manifest(source.project, ['front', 'back'], null) },
       { path: 'presentation/front.png', bytes: front },
       { path: 'presentation/back.png', bytes: back },
+      {
+        path: 'presentation/photo-mappings.json',
+        bytes: mappingsFor(source.project, [
+          { regionId: 'SYN-TEE-CHEST', view: 'front', image: 'presentation/front.png' },
+          { regionId: 'SYN-TEE-BACK', view: 'back', image: 'presentation/back.png' },
+        ]),
+      },
     ]);
     await load(page, bytes, 'stale-decode.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    await hook(page, 'views-side-front').click();
-    await expect.poll(() => viewsState(page).then((state) => state.side)).toBe('front');
+    await hook(page, 'side-front').click();
+    await hook(page, 'mode-photo').click();
     // Switch sides immediately: a delayed front decode must not paint over back.
-    await hook(page, 'views-side-back').click();
-    await expect.poll(() => viewsState(page).then((state) => state.side)).toBe('back');
-    await expect(hook(page, 'views-caption')).toContainText('back view');
-    await expect.poll(() => hook(page, 'views-flat-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
-    await expect(hook(page, 'views-caption')).toContainText('back view');
+    await hook(page, 'side-back').click();
+    await expect(hook(page, 'mapping-status')).toContainText('back view');
+    await expect.poll(() => hook(page, 'reference-img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(20);
+    await expect(hook(page, 'reference-img')).toBeVisible();
     await shoot(page, info, 'multiview-stale-decode.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
-test('corrupt model surfaces preview-unavailable, never a blank success', async ({ browser }, info) => {
+test('corrupt model surfaces preview-unavailable in the 3D pane, never a blank success', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser, { width: 390, height: 844 });
   try {
     await page.goto(editor);
@@ -581,18 +648,13 @@ test('corrupt model surfaces preview-unavailable, never a blank success', async 
       { path: 'presentation/model.glb', bytes: glb },
     ]);
     await load(page, bytes, 'model-failure.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    await hook(page, 'views-mode-3d').click();
+    await hook(page, 'mode-3d').click();
     await expect.poll(() => viewsState(page).then((state) => state.failed)).toBe(true);
-    await expect(hook(page, 'views-caption')).toContainText('Preview unavailable');
-    const warning = hook(page, 'views-warning');
-    const empty = hook(page, 'views-empty');
-    const warningVisible = await warning.isVisible().catch(() => false);
-    const emptyVisible = await empty.isVisible().catch(() => false);
-    expect(warningVisible || emptyVisible).toBe(true);
-    // Flat raster fallback stays available alongside the failure notice.
-    await hook(page, 'views-mode-flat').click();
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
+    await expect(hook(page, 'model-availability')).toContainText(/Preview unavailable|not a valid model|No 3D model/i);
+    await expect(hook(page, 'mode-3d-canvas')).toBeHidden();
+    // The measured diagram stays usable alongside the failure notice.
+    await hook(page, 'mode-diagram').click();
+    await expect(hook(page, 'canvas')).toBeVisible();
     const saved = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(saved)).toEqual(Buffer.from(bytes));
     await shoot(page, info, 'multiview-failure-mobile.png');
@@ -600,7 +662,7 @@ test('corrupt model surfaces preview-unavailable, never a blank success', async 
   } finally { await context.close(); }
 });
 
-test('showcase canvas layout stays bounded across animation frames and screenshots settle', async ({ browser }, info) => {
+test('single-canvas layout stays bounded across animation frames and screenshots settle', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor);
@@ -611,19 +673,17 @@ test('showcase canvas layout stays bounded across animation frames and screensho
       { path: 'presentation/model.glb', bytes: glb },
     ]);
     await load(page, bytes, 'layout-stable.logo-project');
-    await expect(hook(page, 'views-showcase')).toBeVisible();
-    await hook(page, 'views-mode-3d').click();
-    await expect(hook(page, 'views-model-wrap')).toBeVisible();
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-wrap')).toBeVisible();
     await expect.poll(() => viewsState(page).then((state) => state.surface)).toBe('model');
-    // Let several animation frames run: an inline-canvas baseline gap grows
-    // the wrap ~6px per frame and never settles. Bounded wrap + block canvas
-    // keeps every metric identical.
-    const first = await showcaseMetrics(page);
+    // Let several animation frames run: the bounded wrap + block canvas keep
+    // every metric identical, and the page never gains a horizontal scrollbar.
+    const first = await mode3dWrapMetrics(page);
     expect(first.wrapH).toBeGreaterThan(0);
     expect(first.canvasH).toBeGreaterThan(0);
     for (let frame = 0; frame < 5; frame += 1) {
       await page.waitForTimeout(300);
-      const next = await showcaseMetrics(page);
+      const next = await mode3dWrapMetrics(page);
       expect(next.wrapH).toEqual(first.wrapH);
       expect(next.canvasH).toEqual(first.canvasH);
       expect(next.canvasW).toEqual(first.canvasW);
@@ -631,6 +691,7 @@ test('showcase canvas layout stays bounded across animation frames and screensho
     }
     // Canvas fills the wrap (block layout, no baseline gap).
     expect(Math.abs(first.canvasH - first.wrapH)).toBeLessThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await shoot(page, info, 'multiview-layout-stable.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }

@@ -93,17 +93,22 @@ reviewer confirms no `fits:false` placement was confirmed.
 - [ ] In **Review a return**, load the saved office copy first, then the
       customer return, and read the full diff (products, placements,
       instructions, confirmation/fit status) before any decision.
-- [ ] Open **Preview operation document**: check project/revision/digest,
-      placement numbering, exact unrounded mm values, frame axes/origin, and
-      the dimensioned planar SVG diagrams (safe polygons, exclusions, rotated
-      bbox footprints).
-- [ ] **Print / save PDF** via the browser dialog and inspect every page:
-      identity header, revision, `candidate-pending-review` status, page
-      footers, no clipped diagrams, long instructions fully present. Remember
-      the document is always `candidate-pending-review`, including after any
-      internal workflow approval recorded in the separate reviewer.
-- [ ] Save the deterministic candidate JSON and verify it matches the previewed
-      revision and digest.
+- [ ] Open **Preview operation document**: check the business logo
+      names/codes, actual width×height mm, readable side/position, method,
+      selected anchor-to-edge dimensions with honest arrows/labels, and the
+      department operational instructions. Confirm NO digest, revision,
+      config/logo/frame/calibration ids, appendix or customer notes print
+      on the sheet.
+- [ ] **Print / save PDF** via the browser dialog and inspect the page:
+      branded header, job identity, draft badge only when unfinished,
+      no clipped photos/panels, dimension arrows meeting the chosen
+      anchor/logo edges. The ordinary one-product/two-logo job prints
+      exactly one A4 landscape page. Remember the sheet never presents
+      itself as approved production instructions — approval lives in the
+      review UI, not on the sheet.
+- [ ] Save the minimal operator JSON and verify it carries the same
+      business data with no ids or digests (the technical candidate JSON
+      remains the advanced diagnostic download).
 
 **Unknowns:** Native print-dialog settings and printer scaling are unvalidated —
 does the printed A4 match the on-screen mm diagrams? Is the operation document

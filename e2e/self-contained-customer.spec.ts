@@ -232,12 +232,15 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     await setNumber(page, 'rotation', 15);
     await revealCustomerControl(page, 'placement-instructions');
     await page.locator('[data-customer-hook="placement-instructions"]').fill('Keep the seam clear.');
+    await page.locator('[data-customer-hook="placement-instructions"]').press('Tab');
     await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Self-contained edit instructions.');
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
-    await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('2');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
+    await page.locator('[data-customer-hook="instructions"]').press('Tab');
+    // Valid edits auto-apply as successive new revisions on change (no
+    // separate Apply step); the batch above lands as multiple versions.
+    const editedRevision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
+    expect(editedRevision).toBeGreaterThan(1);
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4.0 mm, 12.0 mm');
 
     await revealCustomerControl(page, 'confirmed-by');
 
@@ -254,9 +257,9 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
 
     const saved = await parseProjectPackage(new Uint8Array(savedBytes), { sha256 });
     expect(saved.project.projectId).toBe('SYN-PROJ-MULTI-001');
-    expect(saved.project.revision).toBe(2);
+    expect(saved.project.revision).toBe(editedRevision);
     expect(saved.project.instructions).toBe('Self-contained edit instructions.');
-    expect(saved.project.confirmation?.revision).toBe(2);
+    expect(saved.project.confirmation?.revision).toBe(editedRevision);
     const issuedBytes = await fs.readFile(resolve('dist/trusted-issued.logo-project'));
     const issued = await parseProjectPackage(issuedBytes, { sha256 });
     expect(saved.assets).toEqual(issued.assets);
@@ -271,9 +274,9 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
 
     await page.locator('[data-customer-hook="file-input"]').setInputFiles(savedPath);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-MULTI-001');
-    await expect(page.locator('[data-customer-hook="revision"]')).toHaveText('2');
+    await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(editedRevision));
     await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4.0 mm, 12.0 mm');
     await expect(page.locator('[data-customer-hook="instructions"]')).toHaveValue('Self-contained edit instructions.');
 
     const reviewPage = await context.newPage();
@@ -283,9 +286,9 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     await reviewPage.locator('[data-review-hook="baseline-file"]').setInputFiles(resolve('dist/trusted-issued.logo-project'));
     await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await reviewPage.locator('[data-review-hook="return-file"]').setInputFiles(savedPath);
-    await expect(reviewPage.locator('[data-review-hook="confirmation"]')).toContainText('Current for revision 2');
+    await expect(reviewPage.locator('[data-review-hook="confirmation"]')).toContainText(`Current for revision ${editedRevision}`);
     await expect(reviewPage.locator('[data-review-hook="geometry"]')).toContainText('Valid:');
-    await expect(reviewPage.locator('[data-review-hook="revisions"]')).toHaveText('1 / 2');
+    await expect(reviewPage.locator('[data-review-hook="revisions"]')).toHaveText(`1 / ${editedRevision}`);
     await reviewPage.close();
 
     expectOfflineClean(probe);

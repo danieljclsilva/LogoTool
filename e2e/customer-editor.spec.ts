@@ -196,6 +196,9 @@ function expectOfflineClean(probe: Probe): void {
 async function setNumber(page: Page, hook: string, value: number): Promise<void> {
   await revealCustomerControl(page, hook);
   await page.locator(`[data-customer-hook="${hook}"]`).fill(String(value));
+  // Human commits fire `change` on blur; Tab out so the edit auto-applies
+  // exactly as a human-committed edit would (fill alone keeps focus).
+  await page.locator(`[data-customer-hook="${hook}"]`).press('Tab');
 }
 
 async function openAdvancedDetails(page: Page, hook: string): Promise<void> {
@@ -249,7 +252,7 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
 
     await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
     await selectCustomerOption(page, 'region', 'SYN-TEE-CHEST');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0.0 mm, 10.0 mm');
     await setNumber(page, 'x-mm', 4);
     await setNumber(page, 'y-mm', 12);
     await setNumber(page, 'width-mm', 76);
@@ -258,15 +261,18 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
     await setNumber(page, 'rotation', 15);
     await revealCustomerControl(page, 'placement-instructions');
     await page.locator('[data-customer-hook="placement-instructions"]').fill('Keep the seam clear.');
+    await page.locator('[data-customer-hook="placement-instructions"]').press('Tab');
     await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Both measurement and project instructions change in one revision.');
+    await page.locator('[data-customer-hook="instructions"]').press('Tab');
     await selectCustomerOption(page, 'method', 'embroidery');
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
-    await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 1));
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76 mm × 38 mm');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Turn clockwise: 15°');
+    // Valid edits auto-apply as successive new revisions on change (no
+    // separate Apply step), so the batch above lands as multiple versions.
+    const editedRevision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
+    expect(editedRevision).toBeGreaterThan(issuedRevision);
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4.0 mm, 12.0 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76.0 mm × 38.0 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Turn clockwise: 15.0°');
     await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Frame: FRAME-SYN-CHEST');
     await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Axes: +x right; +y up');
     await expect(page.locator('[data-customer-hook="review-reference"]')).toContainText('Calibration: CAL-SYN-001 v1');
@@ -308,8 +314,8 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
     await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
     await revealCustomerControl(page, 'instructions');
     await page.locator('[data-customer-hook="instructions"]').fill('Synthetic customer instruction: use the updated centered placement.');
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
+  await page.locator('[data-customer-hook="instructions"]').press('Tab');
+    // The note edit auto-applies as a new revision; confirmation invalidates.
     await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/no longer counts|does not match|Nothing confirmed/i);
     await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('offline prototype reviewer');
@@ -342,8 +348,8 @@ test('offline chooser edit, multiple configurations, exact review, confirmation,
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText(saved.project.projectId);
     await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('Confirmed: version');
     await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4 mm, 12 mm');
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76 mm × 38 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 4.0 mm, 12.0 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 76.0 mm × 38.0 mm');
     await expect(page.locator('[data-customer-hook="asset-count"]')).toHaveText('2');
     await captureBothViewports(page, info);
     expectOfflineClean(probe);
@@ -364,8 +370,8 @@ test('drop accepts a geometric-invalid editable draft but blocks confirmation an
     await revealCustomerControl(page, 'confirmed-by');
     await page.locator('[data-customer-hook="confirmed-by"]').fill('should remain unconfirmed');
     await setNumber(page, 'y-mm', 0);
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
+    // The invalid-fit numbers auto-apply as a new revision; confirmation and
+    // submit stay blocked by the fit verdict (no Apply click needed).
     await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('Fits: no');
     await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
     await expect(page.locator('[data-customer-hook="confirm"]')).toBeDisabled();
@@ -670,35 +676,31 @@ test('undo and reset restore package content as new revisions', async ({ browser
     await page.locator('[data-customer-hook="confirm"]').click();
     await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(`Confirmed: version ${issuedRevision}`);
     await setNumber(page, 'x-mm', 25);
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
+    // The number edit auto-applies as a new revision (no Apply click).
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 1));
 
     await setNumber(page, 'x-mm', 15);
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 2));
     await revealCustomerControl(page, 'undo');
     await page.locator('[data-customer-hook="undo"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 3));
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 25 mm, 10 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 25.0 mm, 10.0 mm');
 
     await revealCustomerControl(page, 'undo');
 
     await page.locator('[data-customer-hook="undo"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 4));
     await expect(page.locator('[data-customer-hook="undo"]')).toBeDisabled();
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0.0 mm, 10.0 mm');
 
     await setNumber(page, 'x-mm', 40);
-    await revealCustomerControl(page, 'update');
-    await page.locator('[data-customer-hook="update"]').click();
+    // The number edit auto-applies as a new revision (no Apply click).
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 5));
     await openAdvancedDetails(page, 'reset');
     await revealCustomerControl(page, 'reset');
     await page.locator('[data-customer-hook="reset"]').click();
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(issuedRevision + 6));
-    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0 mm, 10 mm');
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('Center: 0.0 mm, 10.0 mm');
     await expect(page.locator('[data-customer-hook="instructions"]')).toHaveValue(/Synthetic fixture instructions/);
     await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText(/no longer counts|does not match|Nothing confirmed/i);
     await captureBothViewports(page, info);
@@ -709,7 +711,7 @@ test('undo and reset restore package content as new revisions', async ({ browser
   }
 });
 
-test('guided journey shows one decision at a time and works without precise settings', async ({ browser }, info) => {
+test('one workspace edits position and size together; review stays a separate confirmation step', async ({ browser }, info) => {
   for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844 }]) {
     const prototype = await unpackPrototype();
     const { context, page, probe } = await openOfflineEditor(browser, viewport);
@@ -717,20 +719,25 @@ test('guided journey shows one decision at a time and works without precise sett
       await openPage(page, prototype);
       await choosePackage(page, prototype.projectPath);
       const revision = Number(await page.locator('[data-customer-hook="revision"]').textContent());
-      await expect(page.locator('[data-step-panel="position"]')).toBeVisible();
-      await expect(page.locator('[data-step-panel="size"]')).toBeHidden();
+      // One placement workspace: region, placement, width and precise
+      // coordinates live together — no Position -> Size stepping per logo.
+      await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
       await expect(page.locator('[data-step-panel="review"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="step-edit"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="job-choices"]')).not.toHaveAttribute('open', '');
       await expect(page.locator('[data-customer-hook="product"]')).toBeHidden();
-      await expect(page.locator('[data-customer-hook="x-mm"]')).toBeHidden();
-      await page.locator('[data-customer-hook="primary-next"]').click();
+      await expect(page.locator('[data-customer-hook="region"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="width-mm"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="x-mm"]')).toBeHidden();
       await expect(page.locator('[data-customer-hook="height-mm"]')).toBeHidden();
+      // Width commits in place (Tab = human commit parity) without leaving
+      // the workspace; Review is the separate combined proof step.
       await page.locator('[data-customer-hook="width-mm"]').fill('64');
+      await page.locator('[data-customer-hook="width-mm"]').press('Tab');
+      await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(revision + 1));
       await page.locator('[data-customer-hook="primary-next"]').click();
       await expect(page.locator('[data-step-panel="review"]')).toBeVisible();
-      await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(revision + 1));
-      await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 64 mm × 32 mm');
+      await expect(page.locator('[data-customer-hook="review"]')).toContainText('Width × height: 64.0 mm × 32.0 mm');
       for (const hook of ['precise-position','precise-size']) await expect(page.locator(`[data-customer-hook="${hook}"]`)).not.toHaveAttribute('open', '');
       await page.locator('[data-customer-hook="confirmed-by"]').fill('Synthetic guided reviewer');
       await page.locator('[data-customer-hook="confirm"]').click();
@@ -740,14 +747,16 @@ test('guided journey shows one decision at a time and works without precise sett
       expect(saved.project.configurations[0]?.placements[0]?.widthMm).toBe(64);
       expect(saved.project.configurations[0]?.placements[0]?.heightMm).toBe(32);
       await expect(page.locator('[data-customer-hook="status"]')).toContainText('email attachment');
-      await page.locator('[data-customer-hook="step-size"]').click();
+      await page.locator('[data-customer-hook="step-edit"]').click();
+      await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
       const precise = page.locator('[data-customer-hook="precise-size"]');
       await precise.locator('summary').focus(); await page.keyboard.press('Enter');
       await expect(precise).toHaveAttribute('open', '');
       await page.locator('[data-customer-hook="height-mm"]').fill('15');
       await expect(page.locator('[data-customer-hook="ratio-lock"]')).not.toBeChecked();
-      await page.locator('[data-customer-hook="update"]').click();
+      // The height edit auto-applies on change; no Apply click is needed.
       await page.locator('[data-customer-hook="width-mm"]').fill('60');
+      await page.locator('[data-customer-hook="width-mm"]').press('Tab');
       await expect(page.locator('[data-customer-hook="height-mm"]')).toHaveValue('15');
       await page.locator('[data-customer-hook="primary-next"]').click();
       await expect(page.locator('[data-customer-hook="confirmation"]')).toContainText('no longer counts');

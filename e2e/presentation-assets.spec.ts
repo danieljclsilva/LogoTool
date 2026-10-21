@@ -31,6 +31,32 @@ async function downloadBytes(page: Page, trigger: () => Promise<void>): Promise<
   const event = page.waitForEvent('download'); await trigger(); const download = await event; return new Uint8Array(await readFile((await download.path())!));
 }
 
+async function setChecked(box: import('@playwright/test').Locator, checked: boolean): Promise<void> {
+  // Configuration choices must produce real change events even when the box
+  // already matches (Playwright check()/uncheck() are silent no-ops then),
+  // so deliberate setup narrowing is never mistaken for automatic inclusion.
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
+/** Check every builder selection box (empty start leaves all unchecked). */
+async function selectAllLists(page: Page): Promise<void> {
+  for (const listHook of ['product-list', 'logo-list', 'configuration-list']) {
+    await revealBuilderControl(page, listHook);
+    const list = page.locator(`[data-builder-hook="${listHook}"]`);
+    const boxes = list.locator('input[type="checkbox"]');
+    const count = await boxes.count();
+    for (let index = 0; index < count; index += 1) {
+      const box = boxes.nth(index);
+      if (listHook === 'configuration-list') await setChecked(box, true);
+      else if (await box.isVisible() && await box.isEnabled()) await box.check();
+    }
+  }
+}
+
 test('reference view and artwork thumbnail display safely; view changes preserve exact saved bytes', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser, { width:1536,height:1024 });
   try {
@@ -40,11 +66,16 @@ test('reference view and artwork thumbnail display safely; view changes preserve
     source.assets.push({ path:'logos/synthetic-preview.png',kind:'referenced',bytes:png });
     const bytes = await packageWith(source.project,source.assets,[{ path:'presentation/preview.json',bytes:manifest(source.project) },{ path:'presentation/product.png',bytes:png }]);
     await load(page,bytes);
-    await expect(hook(page,'reference-img')).toBeVisible(); await expect(hook(page,'logo-thumb')).toBeVisible();
-    await expect.poll(() => hook(page,'reference-img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(20);
+    // Legacy unmapped reference: the measured diagram stays the authority;
+    // the photo has no mapping, so photo mode is disabled with a reason and
+    // the diagram fallback is explicit.
+    await expect(hook(page,'logo-thumb')).toBeVisible(); await expect(hook(page,'canvas')).toBeVisible();
+    await expect(hook(page,'reference-img')).toBeHidden();
+    await expect(hook(page,'mode-photo')).toBeDisabled();
+    await expect(hook(page,'mapping-status')).toContainText('Reference only');
     const before = await downloadBytes(page,() => hook(page,'save-draft-top').click());
-    await hook(page,'view-diagram').click(); await expect(hook(page,'canvas')).toBeVisible();
-    await hook(page,'view-reference').click(); await expect(hook(page,'canvas')).toBeHidden();
+    await hook(page,'mode-diagram').click(); await expect(hook(page,'canvas')).toBeVisible();
+    await expect(hook(page,'mode-photo')).toBeDisabled();
     const after = await downloadBytes(page,() => hook(page,'save-draft-top').click());
     expect(Buffer.from(before)).toEqual(Buffer.from(bytes)); expect(Buffer.from(after)).toEqual(Buffer.from(before));
     await page.screenshot({ path:info.outputPath('synthetic-reference.png') }); assertCleanProbe(probe);
@@ -64,8 +95,11 @@ test('bad optional images, remote references and oversized raster dimensions kee
     ];
     for (let index=0;index<variants.length;index++) {
       await load(page,await packageWith(source.project,source.assets,variants[index]!),`invalid-preview-${index}.logo-project`);
-      await expect(hook(page,'reference-warning')).toBeVisible(); await expect(hook(page,'reference-img')).toBeHidden();
+      // Unusable references fall back to the measured diagram with an honest
+      // reference-only status; the physical draft stays usable.
+      await expect(hook(page,'reference-img')).toBeHidden();
       await expect(hook(page,'canvas')).toBeVisible(); await expect(hook(page,'save-draft-top')).toBeEnabled();
+      await expect(hook(page,'mapping-status')).toContainText('Reference only');
       await expect(hook(page,'revision')).toHaveText(String(source.project.revision));
     }
     assertCleanProbe(probe);
@@ -80,7 +114,7 @@ test('fixed product, artwork, area and method do not become redundant selectors'
     configuration.placements = configuration.placements.slice(0,1); project.configurations = [configuration]; project.products = [product]; product.variants = [variant]; variant.regionIds = [configuration.placements[0]!.regionId]; product.regions = product.regions.filter(item => variant.regionIds.includes(item.id)); product.regions[0]!.allowedMethods = [configuration.placements[0]!.method]; project.logos = [project.logos.find(item => item.id === configuration.placements[0]!.logoId)!];
     const referenced = new Set(project.logos.flatMap(logo => logo.assets.map(asset => asset.uri)));
     await load(page,await packageWith(project,source.assets.filter(asset => referenced.has(asset.path)),[]));
-    await expect(page.locator('[data-step-panel="size"]')).toBeVisible();
+    await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
     for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();
     await expect(hook(page,'width-mm')).toBeVisible(); await expect(hook(page,'height-mm')).toBeHidden();
     await expect(hook(page,'job-choices')).toBeHidden(); assertCleanProbe(probe);
@@ -102,6 +136,8 @@ test('Builder prunes unselected reference images and preserves the selected imag
     // status directly so this assertion survives that navigation boundary.
     await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded');
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    // Empty start: select everything deliberately before refining.
+    await selectAllLists(page);
     await expect(await show('selection-summary')).toContainText('2 products');
     const secondProduct = source.project.products[1]!.id;
     await (await show('product-list')).locator(`input[value="${secondProduct}"]:not([data-product])`).uncheck();
@@ -127,8 +163,10 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const html = await downloadBytes(page,() => show('download-package').then(control => control.click()));
     directory = await mkdtemp(join(tmpdir(),'LogoTool reference delivery ')); const htmlPath = join(directory,'OPEN.html'); await writeFile(htmlPath,html);
     const customer = await context.newPage(); customer.on('pageerror',error => probe.pageErrors.push(String(error))); customer.on('console',message => { if(message.type()==='error') probe.consoleErrors.push(message.text()); });
-    await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeVisible();
-    await hook(customer,'step-size').click(); await hook(customer,'width-mm').fill('60'); await hook(customer,'primary-next').click();
+    await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeHidden();
+    await expect(hook(customer,'mapping-status')).toContainText('Reference only');
+    await hook(customer,'width-mm').fill('60'); await hook(customer,'width-mm').press('Tab');
+    await hook(customer,'primary-next').click();
     await hook(customer,'confirmed-by').fill('Synthetic reviewer'); await hook(customer,'confirm').click();
     const returned = await downloadBytes(customer,() => hook(customer,'submit').click());
     const parsedReturn = await parseProjectPackage(returned,{ sha256 });
@@ -145,27 +183,16 @@ test('Builder prunes unselected reference images and preserves the selected imag
 test('obsolete image decoding cannot install a reference after a different package opens', async ({ browser }) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
-    await page.addInitScript(() => {
-      const original = window.createImageBitmap.bind(window);
-      let held = false;
-      (window as unknown as { previewHold: { started: boolean; finished?: boolean; release?: () => void } }).previewHold = { started:false };
-      window.createImageBitmap = (async (...args: unknown[]) => {
-        if (!held) { held=true; const state=(window as unknown as { previewHold: { started: boolean; finished?: boolean; release?: () => void } }).previewHold; state.started=true; await new Promise<void>(resolve => {state.release=resolve;}); }
-        const bitmap = await Reflect.apply(original,window,args);
-        (window as unknown as {previewHold:{finished:boolean}}).previewHold.finished = true;
-        return bitmap;
-      }) as typeof window.createImageBitmap;
-    });
     await page.goto(editor); const source = await fixture(); const png = await syntheticPng(page);
     const bytes = await packageWith(source.project,source.assets,[{ path:'presentation/preview.json',bytes:manifest(source.project) },{ path:'presentation/product.png',bytes:png }]);
     await load(page,bytes,'first-reference.logo-project');
-    await page.waitForFunction(() => (window as unknown as {previewHold:{started:boolean}}).previewHold.started);
+    // Unmapped legacy references never decode for display: the diagram stays
+    // authoritative and no stale photo can install.
+    await expect(hook(page,'canvas')).toBeVisible(); await expect(hook(page,'reference-img')).toBeHidden();
     const replacement = structuredClone(source.project); replacement.projectId = 'SYN-NO-REFERENCE';
     await load(page,await packageWith(replacement,source.assets,[]),'replacement.logo-project');
-    await page.evaluate(() => (window as unknown as {previewHold:{release:()=>void}}).previewHold.release());
-    await page.waitForFunction(() => (window as unknown as {previewHold:{finished:boolean}}).previewHold.finished);
     await expect(hook(page,'project-id')).toHaveText('SYN-NO-REFERENCE'); await expect(hook(page,'reference-img')).toBeHidden();
-    await expect(hook(page,'view-reference')).toBeDisabled(); assertCleanProbe(probe);
+    await expect(hook(page,'mode-photo')).toBeDisabled(); assertCleanProbe(probe);
   } finally { await context.close(); }
 });
 
@@ -178,9 +205,10 @@ test('guided primary actions create zero and repeated placements without duplica
     await load(page,await packageWith(source.project,source.assets,[]));
     for (let count=1; count<=2; count++) {
       if (count===2) await hook(page,'add-another').click();
-      await expect(page.locator('[data-step-panel="position"]')).toBeVisible();
-      await hook(page,'primary-next').click();
+      // One workspace: width is set alongside position, no step traversal.
+      await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
       await hook(page,'width-mm').fill('40');
+      await hook(page,'width-mm').press('Tab');
       await hook(page,'primary-next').click();
       await expect(page.locator('[data-step-panel="review"]')).toBeVisible();
       const bytes = await downloadBytes(page,()=>hook(page,'save-draft-top').click());
@@ -194,18 +222,22 @@ test('guided primary actions create zero and repeated placements without duplica
   } finally { await context.close(); }
 });
 
-test('keyboard view switch cancels an unfinished drag without changing saved bytes', async ({ browser }) => {
+test('keyboard 3D-mode switch cancels an unfinished drag without changing saved bytes', async ({ browser }) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(editor); const source = await fixture(); const png = await syntheticPng(page);
     await load(page,await packageWith(source.project,source.assets,[{path:'presentation/preview.json',bytes:manifest(source.project)},{path:'presentation/product.png',bytes:png}]));
-    await expect(hook(page,'reference-img')).toBeVisible();
-    await hook(page,'view-diagram').click();
+    await expect(hook(page,'canvas')).toBeVisible();
     const before = await downloadBytes(page,()=>hook(page,'save-draft-top').click());
     const footprint = hook(page,'canvas').locator('.footprint.selected'); const box = (await footprint.boundingBox())!;
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2); await page.mouse.down(); await page.mouse.move(box.x+box.width/2+20,box.y+box.height/2+10);
-    await hook(page,'view-reference').focus(); await page.keyboard.press('Enter'); await page.mouse.up();
-    await expect(hook(page,'reference-img')).toBeVisible();
+    // Switching to 3D mode cancels the drag (keyboard activation: canvas
+    // pointer capture retargets synthetic mouse events, so a real keyboard
+    // press is the honest visible control here).
+    await hook(page,'mode-3d').focus(); await page.keyboard.press('Enter'); await page.mouse.up();
+    await expect(hook(page,'mode-3d-pane')).toBeVisible();
+    await page.mouse.up();
+    await expect(hook(page,'status')).toContainText('Move cancelled');
     const after = await downloadBytes(page,()=>hook(page,'save-draft-top').click());
     expect(Buffer.from(after)).toEqual(Buffer.from(before));
     assertCleanProbe(probe);

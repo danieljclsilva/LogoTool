@@ -1483,19 +1483,42 @@ The internal Builder must export an operation PDF from a selected project
 revision for attachment to the ticket and BoM. Follow the useful structure of
 the discovered proofs: product views with applied logos and accompanying logo,
 method, size, position and colour panels. Enrich them with numbered placements,
-physical positioning references, detail diagrams, variant applicability,
-operational instructions and revision-specific approval status.
+clean dimension arrows from selected anchor-to-edge measurements, and
+department operational instructions. Customer notes stay labelled source
+context and never print as operational instructions.
 
-Include all recorded operational information across as many pages as needed.
+The default handoff is ONE branded operation sheet: an ordinary
+one-product/two-logo front+back job prints EXACTLY one A4 landscape page at
+default settings with legible text. The sheet carries ONLY what the operator
+needs: human job/customer/article identity, relevant product/variant, logo
+business identity, side/position, method, logo size, selected anchor-to-edge
+measurements, department instructions and supplied method parameters. Never
+print digests, hashes, schema/calibration/frame/project/config IDs,
+timestamps, history, appendices, audit pages, duplicate unbranded photos or
+generic disclaimer lists. For unusually large jobs, select a product/variant
+or create additional operation sheets in the same output when content truly
+cannot fit — never clip, truncate silently, shrink text unreadably, or
+overlap. A clear amount/selection summary precedes print so no
+product/variant is silently lost.
+
 Generate measurements and visuals from the same structured placement data as
 the project and production output, rather than transcribing screenshots. Label
 product views as illustrative unless generated and verified as scale drawings.
 Include recorded method settings and garment modifications; clearly identify
-unresolved values instead of inventing them.
+unresolved values instead of inventing them. One concise business
+draft/status indicator only where it changes an operator decision; keep
+approval semantics honest without warning walls.
 
-Permit a pending-review PDF for the ticket and an approved PDF for production.
-Every page identifies the project/revision and review status. See
-`docs/operation-pdf.md` for content and acceptance criteria.
+Permit a pending-review sheet for the ticket and an approved sheet for
+production. The same selected revision supplies the ticket and BoM so their
+instructions match. Earlier revisions remain historical, with the current
+approved revision clearly identified. The Builder previews and prints the
+sheet locally and offers a minimal operator JSON export (same business data,
+no technical envelope) alongside the existing advanced diagnostic candidate
+export; manual attachment is the initial handoff. Automatic Odoo attachment
+is a separate write integration requiring authorization, outside current
+read-only discovery grants. See `docs/operation-pdf.md` for content and
+acceptance criteria.
 
 ---
 

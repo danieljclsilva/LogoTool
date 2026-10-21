@@ -167,21 +167,20 @@ test('external-reference model with valid views keeps rasters and warns, offline
       { path: 'presentation/model.glb', bytes: glbExternalUri() },
     ]);
     await load(page, bytes, 'external-model-with-views.logo-project');
-    // The raster channel is unaffected; the model warning is explicit and no
-    // blank successful canvas is ever shown.
-    await expect(hook(page, 'views-showcase')).toBeVisible();
+    // The raster channel is reference-only without a mapping; the measured
+    // diagram stays authoritative and the model warning is explicit.
+    await expect(hook(page, 'views-showcase')).toBeHidden();
+    await expect(hook(page, 'canvas')).toBeVisible();
+    await expect(hook(page, 'reference-img')).toBeHidden();
     const state = await viewsState(page);
     expect(state.modelPath).toBe(null);
     expect(state.warning ?? '').toMatch(/external reference|self-contained/i);
-    await expect(hook(page, 'views-flat-img')).toBeVisible();
-    await expect.poll(async () => hook(page, 'views-flat-img').evaluate((image) => {
-      if (!(image instanceof HTMLImageElement)) return -1;
-      return image.naturalWidth;
-    })).toBe(20);
-    await expect(hook(page, 'views-caption')).toContainText('Flat product view');
+    await expect(hook(page, 'mapping-status')).toContainText('Reference only');
+    // The 3D pane reports the rejected model instead of a blank canvas.
+    await hook(page, 'mode-3d').click();
+    await expect(hook(page, 'mode-3d-pane')).toBeVisible();
+    await expect(hook(page, 'model-availability')).toContainText(/not a self-contained model|external reference|Preview unavailable|No 3D model supplied/i);
     await expect(hook(page, 'canvas-pane')).toBeVisible();
-    await shoot(page, info, 'hardening-external-model-with-views.png');
-    await page.setViewportSize({ width: 390, height: 844 });
     await shoot(page, info, 'hardening-external-model-with-views-mobile.png');
     assertCleanProbe(probe);
   } finally { await context.close(); }

@@ -1,77 +1,104 @@
-# Operation PDF from the internal Builder
+# Operation sheet from the internal Builder
 
 Target requirement added on 2026-10-10. Updated 2026-10-15: a bounded
 pending-review operation-document preview is implemented in the internal
-customer-return reviewer. It uses the same canonical `buildCandidateExport` /
-`serializeExport` snapshot as the JSON download and is rendered to the browser
-for user-initiated Print / Save as PDF. It is not a direct PDF download and is
-not production-ready.
+customer-return reviewer. Updated 2026-10-20 (user-authoritative,
+supersedes the multi-page/appendix contract below): the default production
+handoff is ONE branded operation sheet (A4 landscape) plus a minimal
+operator JSON export. Stale paragraphs insisting on printing all technical
+data, every-page IDs, appendices or arbitrary page counts are marked
+accordingly; the 2026-10-20 contract in "Purpose and source", "Content" and
+"Acceptance criteria" is normative.
 
-The provisional internal Builder now previews and prints these documents
+The provisional internal Builder now previews and prints these sheets
 locally. A direct production PDF renderer and Odoo attachment integration remain pending.
 
 ## Purpose and source
 
-Generate a self-contained operation PDF for the ticket and BoM from a selected
-canonical project revision. Follow the useful discovered proof layout: prominent
-product views with logos and compact specification panels. Enrich those views
-with the measurements, instructions and review information the tool creates.
-Customer reference originals remain in ignored private storage; implementation
-fixtures use synthetic artwork and garments.
+Generate one self-contained branded operation sheet for the ticket and BoM
+from a selected canonical project revision. Follow the useful discovered
+proof layout: prominent product views with applied logos and compact
+specification panels. Enrich those views with the measurements and
+department instructions the logo department authors.
 
-The project is the editable source. PDF, previews and structured operational
-output derive from the same configuration. Include all recorded operational
-information, not raw mesh data or unrelated commercial metadata. Missing values
-remain visibly unresolved. Changes are made to the project and PDFs regenerated.
+The sheet carries ONLY what the operator needs to perform the operation:
+human job/customer/article identity (only where supplied), relevant
+product/variant, logo business identity (supplied name/code or positional
+fallback — never generated internal ids), side/position, method, logo size
+(width×height in mm), selected anchor-to-edge measurements in millimetres,
+department operational instructions, and supplied method parameters.
+Customer notes stay labelled source context in the editor and never print
+as operational instructions. Missing values remain visibly unfinished
+("setup needed") — never fabricated. Changes are made to the project and
+sheets regenerated. Customer reference originals remain in ignored private
+storage; implementation fixtures use synthetic artwork and garments.
+
+The project is the editable source. The sheet, its previews and the
+minimal operator JSON export derive from the same configuration.
 
 ## Content
 
 | Section | Information |
 | --- | --- |
-| Document identity | Project/job reference, revision, available ticket/order/BoM references, generation details and review status |
-| Product identity | Actual product/style, colour, SKU and selected variants; distinguish reference garments from configured products |
-| Product views | Relevant front/back/side views showing every placement, with consistent placement numbers and a readable legend |
-| Placement detail | Artwork preview and identity/version, method, known colours/thread references, region, width/height in mm, rotation and applicability |
-| Positioning diagram | Named datum/landmarks, frame, placement reference point, mm offsets and recorded flat/surface measurement convention |
-| Instructions | Recorded method settings, garment modifications, handling/application notes and customer/internal instructions |
-| Variant differences | Shared placement rules, selected sizes and per-variant overrides; separate diagrams where physical positioning differs |
-| Review record | Customer pre-approval of the exact configuration, Logo Station decision, outstanding issues and relevant revision history |
+| Header | FlexiTog mark, human customer / reference / article, product/variant titles |
+| Product views | Actual garment photos with applied original artwork plus clean dimension arrows from the same pure mm calculations as the panels; unmapped photos are labelled reference-only |
+| Logo panels | Business logo name/code, actual width×height in mm, readable side/position, method, optional supplied colour/thread refs and method parameters |
+| Instructions | Logo-department operational instructions only (staff-authored) |
+| Status | One concise business draft/status indicator, only when it changes an operator decision |
 
-Number placements consistently across views, diagrams and tables. Use the actual
-selected artwork revision in the render and specification panel. A reference
-image is not an additional placement. Represent zero placements explicitly where
-applicable instead of reusing a previous logo.
+Number placements consistently across views and panels. Use the actual
+selected artwork revision in the render. A reference image is not an
+additional placement. Represent zero placements explicitly instead of
+reusing a previous logo.
 
 ## Page composition
 
-- Provide a project/review summary and group detail pages by configured product.
-- Combine garment views and logo panels, following the discovered proof layouts.
-- Add enlarged, dimensioned region diagrams for positioning. Their measurements
-  come from physical placement data, not pixels or apparent perspective.
-- Add pages for extra placements, variants or instructions instead of shrinking
-  everything onto one sheet. Shared applicability tables can avoid identical pages.
-- Put project/revision, review status and page numbers on every page. Label renders
-  as illustrative; only claim scale when verified and printing requirements stated.
+- One branded `.opsheet` page per sheet at A4 landscape; continuation pages
+  only when a sheet's logo panels truly overflow (4 first-page, 6 later).
+  Never clip, truncate silently, shrink text unreadably, or overlap.
+- For multi-sheet jobs print a selection summary first so no
+  product/variant is silently lost.
+- The ordinary one-product/two-logo front+back job prints EXACTLY one A4
+  landscape page at default 100% with legible text (≥9pt print).
+- Their measurements come from physical placement data (selected
+  anchor-to-edge geometry in authoritative mm), not pixels or apparent
+  perspective. If mapping, anchors or dimensions are unresolved, the sheet
+  says setup is needed and shows the draft badge instead of guessing.
+- Never print digests, hashes, schema/calibration/frame/project/config
+  IDs, timestamps, history, appendices, audit pages, duplicate unbranded
+  photos, repeated artwork originals, or generic disclaimer lists.
 
-The document must provide enough physical reference information to reproduce a
-placement. Left chest and a camera render alone do not establish precise offsets.
-If calibration or positioning data is unresolved, a review PDF shows that gap.
+The document must provide enough physical reference information to
+reproduce a placement. Front/back photos plus the selected anchor-to-edge
+distances and logo sizes do; a bare photo or an unmeasured diagram does not.
 
 ## Revision and handoff
 
-Allow pending-review PDFs for tickets and approved PDFs after Logo Station
-approval. Show customer and internal approval separately. Relevant configuration
-changes create a new revision and require the applicable review again.
+Allow pending-review sheets for tickets and approved sheets for production.
+Show customer confirmation and departmental approval separately in the
+review UI (never on the operator sheet beyond the concise status badge);
+staff wording must never forge customer approval or silently rewrite
+canonical customer instructions.
 
-The same selected revision supplies the ticket and BoM so their instructions
-match. Earlier revisions remain historical, with the current approved revision
-clearly identified. The Builder previews and downloads the PDF locally; manual
-attachment is the initial handoff. Automatic Odoo attachment is a separate write
-integration requiring authorization, outside current read-only discovery grants.
+The same selected revision supplies the ticket and BoM so their
+instructions match. Earlier revisions remain historical, with the current
+approved revision clearly identified. The Builder previews and downloads
+the sheet locally plus a minimal operator JSON export carrying the same
+business data and no technical envelope; the legacy technical candidate
+export remains an explicitly advanced diagnostic action, never the default
+handoff. Manual attachment is the initial handoff. Automatic Odoo
+attachment is a separate write integration requiring authorization,
+outside current read-only discovery grants.
 
 ## Current bounded implementation (2026-10-15)
 
-The internal customer-return reviewer now previews a pending-review operation
+> Superseded as the default handoff by the 2026-10-20 one-sheet contract
+> above. The canonical archive path (`buildCandidateExport` /
+> `serializeExport`, identity digest, technical appendix) stays internal
+> and compatible; only the operator-facing default changed. Preserved as
+> provenance.
+
+The internal customer-return reviewer previews a pending-review operation
 document alongside the candidate JSON download:
 
 - `src/core/operation-document/index.ts` builds a pure view model from the same
@@ -105,20 +132,33 @@ Windows Chrome/Edge still require delivery validation. See `offline-testing.md`.
 
 ## Acceptance criteria
 
-- Cover all configured products, variants and placements, with consistent numbers
-  and applicability across diagrams and tables.
-- Match dimensions, positions, rotation and frames to the selected project and
-  structured output, without rounding ambiguity.
-- Match artwork, method/colour panels and instructions to that revision.
-- Show pre-approval, departmental review and outstanding issues legibly; pending
-  documents must not present themselves as approved production instructions.
-- Preserve variant overrides and factory garment modifications.
+- One branded sheet per product/variant with the FlexiTog mark, human
+  job/customer/article identity only where supplied, and actual applied artwork.
+- Logo panels show the business name/code (never generated ids), actual
+  width×height mm, readable side/position, method and only supplied
+  extras. Displayed dimensions equal the pure mm calculations.
+- Selected anchor-to-edge dimensions with honest arrows/labels; missing
+  anchors map unambiguously unfinished, never fabricated.
+- Department instructions print verbatim; no customer note appears on the
+  sheet unless staff explicitly entered it as operational text.
+- No digest/hash/schema/calibration/frame/project/config IDs, timestamps,
+  history, appendix or warning walls anywhere on the sheet or in the
+  minimal operator JSON.
+- Ordinary one-product/two-logo front+back job: exactly 1 A4 landscape
+  page at default settings; no clipping/overlap; ≥9pt legible text.
+- Overflow and 0-logo jobs preserve all operations without silent loss.
 - Open independently without external images, fonts or network assets.
 - Render and inspect every page for legibility, clipping and overlapping labels.
-- Verify regenerated PDFs against project changes with synthetic data; no live
+- Verify regenerated sheets against project changes with synthetic data; no live
   Odoo calls in automated tests.
 
 ## Package-asset preview extension — 2026-10-18
+
+> Still valid as the artwork/photo plumbing the one-sheet renderer reuses
+> (header-validated raster previews embedded as data URLs; reference views
+> illustrative only). The "technical appendix keeps full precision" framing
+> is superseded: the operator sheet shows 1-decimal display values from the
+> same pure numbers and prints no appendix.
 
 The Builder and standalone reviewer now supply package asset bytes to the
 operation-document view model and renderer. Bounded PNG/JPEG/WebP artwork
@@ -137,3 +177,62 @@ project/revision/status/page numbering on every page and all 85 instruction
 lines. The browser used offline `file://`, with zero console/page errors and
 HTTP(S) requests. This is macOS Chromium development evidence; native Windows
 print dialogs, printer scaling and physical production accuracy remain untested.
+
+## One-sheet operator contract — 2026-10-20
+
+- `src/core/operation-document/*` builds the minimal `OperationSheetView`
+  (`operation-sheet-view/1`): job/customer/article, per-sheet
+  product/variant, per-logo business identity, sizes, selected
+  anchor-to-edge dimensions, department instructions, supplied method
+  params. No ids, digests, calibration dumps, history or byte arrays.
+- `src/core/operation-measurements/*` computes selected edge-to-anchor
+  distances in authoritative mm from the exact rotated footprint
+  (`dx`/`dy`/shortest-to-edge, strict axis compatibility, nearest-corner
+  honesty for extended arrows). Missing/stale scope stays explicitly
+  unfinished. The `operation-draft/1` sidecar persists department
+  authoring bound to source revision/digest with explicit stale refusal.
+- `src/ui/shared/operation-document/*` renders branded A4-landscape
+  `.opsheet` pages per sheet with the FlexiTog reference hierarchy (red
+  mark + Customer/Reference/Article block; garment proofs dominating a
+  left stage; light gray logo cards with real thumbnails + red accents on
+  a right rail; red footer band): fixed-space exterior technical
+  dimension lanes (photo + mapped artwork untouched inside a nested
+  frame; parallel-offset dimension lines with arrowheads on both ends,
+  witness lines back to the true mapped points, explicit coincident
+  depiction for zero mm — never reshaped extents or invented spans),
+  black gutter labels with unique sheet-wide refs, short A/B anchor
+  markers at true points with a legend mapping codes to full names,
+  code-alone headings, one concise dimension line per logo, side-only
+  captions, a trial disclaimer per proof page, usable photos (no text
+  over photo pixels except ≤2-char anchor codes; 9pt print minimum).
+  Composition is adaptive: only mapped logo-hosting views print
+  (front/back/left/right peers; co-located logos share one proof); each
+  page stages exactly its cards' relevant proofs (cards exactly once,
+  repeated proof/context allowed, never orphaned); content-aware
+  pagination splits oversized cards/instructions with continued
+  identity. `operationSheetPageCount(view, lookup)` shares one planner
+  with the renderer — callers pass the same evaluated lookup they
+  render with for the exact count (without it the counter stays a
+  conservative upper bound).
+  (`"format": "operation-export/1"`): `{job, products: [{product, variant,
+  logos: [{code, side, method, widthMm, heightMm, rotationDeg,
+  methodParams?, colours?, measurements: [{anchor, logoEdge,
+  distanceMm}]}]}]}` — business data only, no ids, digests, paths,
+  source notes, display duplicates, diagnostics or history. File name is
+  `<safe-job-reference>-operator.json` (`operation-sheet-operator.json`
+  fallback, never UUIDs). The raw candidate JSON stays available under
+  "More tools" as `Save diagnostic data` (advanced only, never the
+  default handoff). Operation drafts save as
+  `<safe-job-reference>-r<revision>[-<config>]-operation-draft.json`
+  (generic `operation-sheet` fallback; internal revision/digest binding
+  unchanged).
+- `src/ui/internal-builder/*` authors operational instructions, job
+  fields, technique params, per-logo anchor/edge dimensions (1..N rows),
+  visual anchors + safe-area setup on the product photo, draft save/reopen
+  and prepared-master apply/save. `src/ui/customer-return-review/*`
+  renders the honest read-only preview (setup-needed where unauthored).
+- Verified: `npm run typecheck`, full unit suite, offline Playwright
+  (bundled Chromium + real Chrome) including a 1-page A4 PDF assertion
+  via Chromium `page.pdf`, desktop/narrow screenshots and print-media
+  checks, all with zero console/page errors and zero HTTP(S) requests.
+  Windows Chrome/Edge `file://` remains the untested delivery gate.

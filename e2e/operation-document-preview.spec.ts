@@ -94,34 +94,33 @@ async function openProposalEditor(page: Page): Promise<void> {
   await expect(page.locator('[data-review-hook="save-proposal"]')).toBeEnabled();
 }
 
-test('operation document preview matches candidate JSON and shows exact mm dimensions', async ({ browser }) => {
+test('operation sheet shows business identity, mm sizes and unfinished notes without technical ids', async ({ browser }) => {
   const { page, probe } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'trusted-issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'trusted-return.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
-
-  await page.locator('[data-review-hook="operation-document-print"]').waitFor({ state: 'visible' });
-  await expect(page.locator('[data-review-hook="operation-document-print"]')).toBeEnabled();
-
-  const json = await readCandidateJson(page);
-  const candidate = JSON.parse(json);
-  const firstConfig = candidate.configurations[0];
-  const placement = firstConfig.placements[0];
 
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await expect(host).not.toHaveAttribute('hidden');
-  await expect(host.locator('.lt-operation-document')).toBeVisible();
-  await expect(host).toContainText(`Project${candidate.projectId}`);
-  await expect(host).toContainText(`Revision${candidate.revision}`);
-  await expect(host).toContainText(`${placement.pos.xMm} mm`);
-  await expect(host).toContainText(`${placement.pos.yMm} mm`);
-  await expect(host).toContainText(`${placement.widthMm} mm`);
-  await expect(host).toContainText(`${placement.heightMm} mm`);
-  await expect(host).toContainText(`${placement.rotationDeg}°`);
-  await expect(host).toContainText('Illustrative, not to scale');
-  await expect(host).toContainText('candidate-pending-review');
-  await expect(host.locator('svg g').first()).toHaveAttribute('transform', 'scale(1 -1)');
+  await expect(host.locator('.opsheet').first()).toBeVisible();
+  // One sheet per configured product/variant; business names, never ids.
+  await expect(host.locator('.opsheet')).toHaveCount(project.configurations.length);
+  await expect(host).toContainText('Synthetic Tee / Size M');
+  await expect(host).toContainText('Synthetic Mark A');
+  await expect(host).toContainText('80.0 × 40.0 mm');
+  await expect(host).toContainText('Synthetic Trousers / Regular');
+  await expect(host).toContainText('Synthetic Mark B');
+  await expect(host).toContainText('60.0 × 30.0 mm');
+  // This read-only page authors nothing: every logo honestly reports setup needed.
+  await expect(host).toContainText('Dimensions not set — setup needed.');
+  await expect(host).toContainText('setup needed before production');
+  // No technical envelope on the operator sheet: no digest, revision, config,
+  // logo, region, frame or calibration ids, no review status, no customer notes.
+  const json = JSON.parse(await readCandidateJson(page));
+  for (const secret of [json.digest, 'SYN-CFG-TEE-M', 'SYN-CFG-TR-REG', 'SYN-LOGO-A', 'SYN-LOGO-B', 'SYN-TEE-CHEST', 'CAL-SYN-001', 'candidate-pending-review']) {
+    await expect(host).not.toContainText(secret);
+  }
+  await expect(host).not.toContainText('Synthetic fixture instructions');
 
   assertCleanProbe(probe);
   await page.context().close();
@@ -136,21 +135,19 @@ test('zero-placement configuration is shown explicitly', async ({ browser }) => 
   revised.revision += 1;
   revised.configurations.forEach((configuration) => { configuration.placements = []; });
   await setArchive(page, 'return', 'zero-return.logo-project', await pack(revised, assets));
-  await openTechnicalDetails(page);
 
   const host = page.locator('[data-review-hook="operation-document-container"]');
-  await expect(host).toContainText('0 placements');
-  await expect(host.locator('.opdoc-configuration')).toHaveCount(revised.configurations.length);
+  await expect(host).toContainText('0 logos');
+  await expect(host.locator('.opsheet')).toHaveCount(revised.configurations.length);
   assertCleanProbe(probe);
   await page.context().close();
 });
 
-test('print media hides main reviewer UI and shows operation document', async ({ browser }) => {
+test('print media hides main reviewer UI and shows the operation sheet', async ({ browser }) => {
   const { page, probe } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'trusted-issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'trusted-return.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
   await page.locator('[data-review-hook="operation-document-container"]').waitFor({ state: 'visible' });
   await page.emulateMedia({ media: 'print' });
 
@@ -159,6 +156,7 @@ test('print media hides main reviewer UI and shows operation document', async ({
 
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await expect(host).toBeVisible();
+  await expect(host.locator('.opsheet').first()).toBeVisible();
   const hostBox = await host.boundingBox();
   expect(hostBox && hostBox.width > 0 && hostBox.height > 0).toBe(true);
 
@@ -167,52 +165,60 @@ test('print media hides main reviewer UI and shows operation document', async ({
   await page.context().close();
 });
 
-
-test('operation document refreshes revision and prints inert long instructions on mobile', async ({ browser }) => {
+test('operation sheet refreshes placement width after a revised proposal and never prints customer notes', async ({ browser }, info) => {
   const { page, probe } = await openReviewer(browser, { width: 390, height: 844 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
   await openProposalEditor(page);
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await expect(host).toBeVisible();
+  // Untrusted payload: must never execute and never reach the printed sheet
+  // (customer notes are source context, not operational instructions here).
   const instructions = '<img src="https://invalid.test/logo" onerror="window.bad=true">\n' + 'Synthetic handling instruction. '.repeat(120);
   await page.locator('[data-review-hook="instructions"]').fill(instructions);
-  await page.locator('[data-review-hook="x"]').fill('31.23456789');
-  await downloadText(page, () => page.locator('[data-review-hook="save-proposal"]').click());
+  await page.locator('[data-review-hook="width"]').fill('31.5');
   const json = JSON.parse(await readCandidateJson(page));
-  await expect(host.locator('.opdoc-identity')).toContainText(`Revision${json.revision}`);
-  await expect(host.locator('.opdoc-instructions')).toContainText(instructions);
-  await expect(host).toContainText('31.23456789 mm');
-  await expect(host.locator('img')).toHaveCount(0);
-  const fields = host.locator('.opdoc-placement').first().locator('.opdoc-field');
-  await expect(fields.filter({ hasText: 'Frame ID' })).toContainText(json.configurations[0].placements[0].frame.frameId);
+  expect(json.revision).toBeGreaterThan(1);
+  expect(json.instructions).toContain('Synthetic handling instruction.');
+  // The sheet reflects the new geometry but prints no customer notes.
+  await expect(host).toContainText('31.5 × 40.0 mm');
+  await expect(host).not.toContainText('https://invalid.test/logo');
+  await expect(host).not.toContainText('Synthetic handling instruction.');
+  // The only images on the sheet are the inlined FlexiTog brand marks.
+  await expect(host.locator('img.opsheet-mark')).toHaveCount(2);
+  await expect(host.locator('img[src*="logos/"]')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { bad?: boolean }).bad)).toBe(undefined);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.evaluate(() => { (window as any).printCalls = 0; window.print = () => { (window as any).printCalls++; }; });
+  await page.evaluate(() => { (window as unknown as { printCalls: number }).printCalls = 0; window.print = () => { (window as unknown as { printCalls: number }).printCalls++; }; });
   await page.locator('[data-review-hook="operation-document-print"]').click();
-  expect(await page.evaluate(() => (window as any).printCalls)).toBe(1);
+  expect(await page.evaluate(() => (window as unknown as { printCalls: number }).printCalls)).toBe(1);
   await host.scrollIntoViewIfNeeded();
   await test.info().attach('operation-mobile', { body: await page.screenshot(), contentType: 'image/png' });
   assertCleanProbe(probe);
   await page.context().close();
+  void info;
 });
 
 
-test('operation document preserves review notes and clears on a fresh incomplete pair', async ({ browser }) => {
+test('operation sheet stays free of review state after an internal workflow decision', async ({ browser }) => {
   const { page, probe } = await openReviewer(browser, { width: 1280, height: 900 });
   const { project, assets } = await readTrustedBaseline();
   await setArchive(page, 'baseline', 'issued.logo-project', await pack(project, assets));
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
-  await openTechnicalDetails(page);
   const host = page.locator('[data-review-hook="operation-document-container"]');
   await page.locator('[data-review-hook="reviewer"]').fill('Synthetic reviewer');
   await page.locator('[data-review-hook="decision"]').selectOption('changesRequested');
   await page.locator('[data-review-hook="note"]').fill('Please recheck seam clearance.');
   await page.locator('[data-review-hook="record-review"]').click();
-  await expect(host).toContainText('changesRequested');
-  await expect(host).toContainText('Please recheck seam clearance.');
-  await expect(host).toContainText('candidate-pending-review');
+  // The decision lives in the review panel (page state), never on the sheet.
+  await expect(page.locator('[data-review-hook="internal-review"]')).toContainText('changesRequested');
+  await expect(host).not.toContainText('Please recheck seam clearance.');
+  await expect(host).not.toContainText('changesRequested');
+  await expect(host).not.toContainText('candidate-pending-review');
+  await expect(host).not.toContainText('Production approved');
+  // The sheet keeps its honest draft badge: nothing is authored on this page.
+  await expect(host).toContainText('setup needed before production');
   await page.reload();
   await setArchive(page, 'return', 'returned.logo-project', await pack(project, assets));
   await expect(page.locator('[data-review-hook="status"]')).toContainText('Opened the returned file');

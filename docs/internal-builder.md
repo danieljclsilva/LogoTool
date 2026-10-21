@@ -165,14 +165,17 @@ Check & prepare shows readable filenames, the exact changes
 (products/placements, instructions, zero placements) and the customer
 confirmation/fit status before any action. Detailed diffs stay in a contextual
 disclosure; unconfirmed or unsafe returns stay explicitly pending review and
-are never approved here. The operation document from the exact candidate
-revision and digest is available through **Preview operation document** and
+are never approved here. The ONE branded operation sheet (A4 landscape:
+business identity, sizes, selected anchor-to-edge dimensions, department
+instructions only) is available through **Preview operation document** and
 remains printable, with print CSS intact. The primary action is **Print / save PDF** (browser Print /
 Save as PDF path; native print-dialog settings and printer scaling require
-operator review); the secondary action is **Save production data** (the actual
-deterministic candidate JSON, with its file format noted in the advanced
-detail). Candidate JSON and operation documents always remain
-`candidate-pending-review`. Attach the returned project, candidate and checked PDF
+operator review); the secondary action is **Save operator data** (the minimal
+operator JSON: same business data, no ids or digests). **More tools → Save diagnostic data**
+provides the deterministic candidate JSON for advanced diagnosis. Candidate JSON always remains
+`candidate-pending-review`; the printed sheet carries no digest, revision or
+review-status text beyond a concise draft badge when work is unfinished.
+Attach the returned project, operator data and checked PDF
 manually to the ticket/BoM as appropriate; the Builder performs no Odoo writes
 and records no approvals.
 

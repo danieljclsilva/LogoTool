@@ -390,7 +390,12 @@ test('revised proposal refreshes exact preview and export, safely displaying ins
     await expect(page.locator('[data-review-hook="candidate-download"]')).toBeEnabled();
     const instructions = '<img src="https://example.invalid/never-fetch" onerror="throw 1">\nKeep both lines.';
     await page.locator('[data-review-hook="x"]').fill('21.125');
+    await page.locator('[data-review-hook="x"]').press('Tab');
     await page.locator('[data-review-hook="instructions"]').fill(instructions);
+    await page.locator('[data-review-hook="instructions"]').press('Tab');
+    // Proposal edits auto-apply per changed field (x, then instructions), so
+    // the two edits land as two successive revisions before the download.
+    await expect(page.locator('[data-review-hook="status"]')).toContainText('Applied revised proposal as revision');
     const proposalDownload = page.waitForEvent('download');
     await page.locator('[data-review-hook="save-proposal"]').click();
     const proposal = await proposalDownload;
@@ -399,8 +404,10 @@ test('revised proposal refreshes exact preview and export, safely displaying ins
     const parsedProposal = await parseProjectPackage(new Uint8Array(await readFile(proposalPath)), { sha256: sha256Bytes });
     const imported = importCustomerReturn(returned, baseline.project, sha256Text);
     if (!imported.ok) throw new Error('Unexpected rejected synthetic return');
-    const revised = newRevision(imported.project, (draft) => {
+    const once = newRevision(imported.project, (draft) => {
       draft.configurations[0]!.placements[0]!.pos.xMm = 21.125;
+    });
+    const revised = newRevision(once, (draft) => {
       draft.instructions = instructions;
     });
     expect(parsedProposal.project).toEqual(revised);

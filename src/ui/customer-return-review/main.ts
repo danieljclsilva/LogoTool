@@ -8,9 +8,11 @@ import {
   validateProject,
 } from '../../core/index.js';
 import type { Configuration, Placement, ProjectDocument, ResultCandidate, ReviewDecision } from '../../core/index.js';
-import type { OperationIdentity, ReferenceViewInput } from '../../core/operation-document/types.js';
-import { buildOperationDocument } from '../../core/operation-document/index.js';
-import { renderOperationDocument, operationDocumentStyles, selectOperationReferenceViews } from '../shared/operation-document/index.js';
+import type { PhotoMappingState, ReferenceViewInput } from '../../core/operation-document/types.js';
+import { buildOperationSheetView } from '../../core/operation-document/index.js';
+import { measurePlacement } from '../../core/operation-measurements/index.js';
+import { evaluateOperationPhotoStates, renderOperationSheet, operationSheetStyles, selectOperationReferenceViews } from '../shared/operation-document/index.js';
+import type { OperationSheetAssetLookup, SheetOverlayArtwork, SheetOverlayMapping } from '../shared/operation-document/index.js';
 import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import {
   createProjectPackage,
@@ -75,6 +77,14 @@ let currentDigest = '';
 let currentFit = false;
 let busy = false;
 let operationGeneration = 0;
+/**
+ * Proposal auto-apply state. Number/instruction edits apply via `newRevision`
+ * on field change without a separate Apply step; an invalid edit sets
+ * `proposalBlocked` (message), which blocks confirm + downloads until fixed.
+ */
+let proposalBusy = false;
+let proposalBlocked: string | null = null;
+let pendingProposalDownload = false;
 
 function setStatus(message: string): void {
   status.textContent = message;
@@ -88,21 +98,27 @@ function setBusy(value: boolean): void {
 }
 
 function updateControls(): void {
-  const ready = imported !== null && !busy;
+  const ready = imported !== null && !busy && !proposalBusy;
+  // Edit inputs stay usable while a proposal hash is in flight: disabling a
+  // focused field mid-edit would swallow keystrokes. Applies serialize on
+  // proposalBusy and the completion step re-reads the inputs, so no edit is
+  // lost; only file operations and action buttons wait for quiescence.
+  const editable = imported !== null && !busy;
+  const proposalInvalid = proposalBlocked !== null;
   const validReviewer = reviewerInput.value.trim().length > 0;
   const decision: ReviewDecision = decisionInput.value as ReviewDecision;
-  recordButton.disabled = !ready || !validReviewer || (decision === 'approved' && (!currentFit || !hasCurrentConfirmation()));
-  saveReviewedButton.disabled = !ready || !hasCurrentInternalReview();
-  saveProposalButton.disabled = !ready;
-  candidateDownload.disabled = !ready;
-  operationDocumentPrint.disabled = !ready;
+  recordButton.disabled = !ready || proposalInvalid || !validReviewer || (decision === 'approved' && (!currentFit || !hasCurrentConfirmation()));
+  saveReviewedButton.disabled = !ready || proposalInvalid || !hasCurrentInternalReview();
+  saveProposalButton.disabled = !ready || proposalInvalid;
+  candidateDownload.disabled = !ready || proposalInvalid;
+  operationDocumentPrint.disabled = !ready || proposalInvalid;
   const hasSelectedPlacement = selectedPlacement() !== null;
   for (const input of [xInput, yInput, widthInput, heightInput, rotationInput]) {
-    input.disabled = !ready || !hasSelectedPlacement;
+    input.disabled = !editable || !hasSelectedPlacement;
   }
-  configInput.disabled = !ready;
-  placementInput.disabled = !ready || !hasSelectedPlacement;
-  instructionsInput.disabled = !ready;
+  configInput.disabled = !editable;
+  placementInput.disabled = !editable || !hasSelectedPlacement;
+  instructionsInput.disabled = !editable;
   reviewerInput.disabled = !ready;
   decisionInput.disabled = !ready;
   noteInput.disabled = !ready;
@@ -366,7 +382,7 @@ function renderCandidatePreview(candidate: ResultCandidate): void {
   }
 }
 
-function ensureOperationDocumentStyles(identity: OperationIdentity): void {
+function ensureOperationDocumentStyles(): void {
   const id = 'operation-document-styles';
   let style = document.getElementById(id) as HTMLStyleElement | null;
   if (!style) {
@@ -374,7 +390,7 @@ function ensureOperationDocumentStyles(identity: OperationIdentity): void {
     style.id = id;
     document.head.append(style);
   }
-  style.textContent = operationDocumentStyles(identity);
+  style.textContent = operationSheetStyles();
 }
 
 function operationAssetBytes(): Map<string, Uint8Array> {
@@ -402,26 +418,97 @@ function operationReferenceInputs(candidate: ResultCandidate): {
   return { referenceViews, referenceWarnings };
 }
 
+/**
+ * Station brand mark the build script inlines as a data URL on
+ * `img[data-station-brand]`. Only `data:image/(png|jpeg|webp);base64,…`
+ * passes through to the sheet; anything else yields `undefined` so the
+ * renderer falls back to its wordmark. No network, no new assets.
+ */
+const STATION_MARK_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+function stationBrand(): { markDataUrl: string } | undefined {
+  const src = document.querySelector<HTMLImageElement>('img[data-station-brand]')?.getAttribute('src');
+  if (typeof src === 'string' && STATION_MARK_PATTERN.test(src)) return { markDataUrl: src };
+  return undefined;
+}
+
+/**
+ * One-sheet operation preview for the standalone reviewer. This page carries
+ * no department authoring (anchors, dimensions, business codes and
+ * operational instructions are authored in the internal builder's
+ * review/prepare flow): the view is built with empty bindings, so every logo
+ * honestly reports “setup needed” until the sheet is authored there. The
+ * mapping, sides and artwork overlays still render from the evaluated
+ * package state; editing overlays never reach the sheet.
+ */
+function sheetOverlayLookupFor(
+  assetBytes: Map<string, Uint8Array>,
+  candidate: ResultCandidate,
+  sidesByConfig: Record<string, readonly ReferenceViewInput[]>,
+): OperationSheetAssetLookup {
+  const states = evaluateOperationPhotoStates(candidate, assetBytes);
+  return {
+    getBytes: (path) => assetBytes.get(path),
+    getSheetOverlay: (sheetIndex) => {
+      const config = candidate.configurations[sheetIndex];
+      if (!config) return undefined;
+      const configStates: readonly PhotoMappingState[] = states[config.id] ?? [];
+      const sides = sidesByConfig[config.id] ?? [];
+      const mappings: Array<SheetOverlayMapping | undefined> = sides.map((side) => {
+        const bound = configStates.find((entry) => entry.imagePath === side.imagePath);
+        if (!bound || bound.regionId === undefined || bound.view === undefined || bound.transform === undefined) {
+          return undefined;
+        }
+        return {
+          regionId: bound.regionId,
+          view: bound.view,
+          transform: { ...bound.transform },
+          status: bound.status,
+        };
+      });
+      const artworks: Array<SheetOverlayArtwork | undefined> = config.placements.map((placement) => {
+        // No department bindings on this page (authored in the internal
+        // builder): the empty result keeps every logo honestly unfinished.
+        const measured = measurePlacement(candidate, placement, [], []);
+        const arrows = measured.dimensions.map((dimension) => ({
+          p0: { x: dimension.endpoints[0]!.x, y: dimension.endpoints[0]!.y },
+          p1: { x: dimension.endpoints[1]!.x, y: dimension.endpoints[1]!.y },
+          ...(dimension.artworkPoint !== undefined
+            ? { artworkPoint: { x: dimension.artworkPoint.x, y: dimension.artworkPoint.y } }
+            : {}),
+        }));
+        const uri = placement.artwork.assets.find((asset) => /\.(png|jpe?g|webp)$/i.test(asset.uri))?.uri
+          ?? placement.artwork.assets[0]?.uri;
+        return {
+          regionId: placement.regionId,
+          ...(uri !== undefined ? { imagePath: uri } : {}),
+          xMm: placement.pos.xMm,
+          yMm: placement.pos.yMm,
+          widthMm: placement.widthMm,
+          heightMm: placement.heightMm,
+          rotationDeg: placement.rotationDeg,
+          arrows,
+        };
+      });
+      return { mappings, artworks };
+    },
+  };
+}
+
 function renderOperationDocumentPreview(candidate: ResultCandidate): void {
   operationDocumentContainer.hidden = false;
   operationDocumentContainer.replaceChildren();
-  const customerConfirmation = imported && imported.confirmation
-    ? imported.confirmation.revision === imported.revision && imported.confirmation.digest === currentDigest
-      ? `Current for revision ${imported.confirmation.revision}; confirmed by ${imported.confirmation.confirmedBy} at ${imported.confirmation.confirmedAt} (unverified identity).`
-      : `Stale confirmation for revision ${imported.confirmation.revision}; not trusted.`
-    : 'No current customer confirmation.';
-  const internalReview = imported && imported.review
-    ? `${hasCurrentInternalReview() ? "Current" : "Stale"}: ${imported.review.decision} for revision ${imported.review.revision}, by ${imported.review.reviewer} at ${imported.review.at} (self-entered; workflow data only).${imported.review.note === undefined ? "" : `\nReview note: ${imported.review.note}`}`
-    : 'No current internal review. Returned review fields were discarded.';
-  const doc = buildOperationDocument({
+  const reference = operationReferenceInputs(candidate);
+  const view = buildOperationSheetView({
     candidate,
-    customerConfirmation,
-    internalReview,
-    assetBytes: operationAssetBytes(),
-    ...operationReferenceInputs(candidate),
+    anchors: [],
+    bindings: {},
+    sides: reference.referenceViews,
+    extras: {},
+    operationalInstructions: [],
   });
-  ensureOperationDocumentStyles(doc.identity);
-  operationDocumentContainer.append(renderOperationDocument(doc, document, { getBytes: (path) => operationAssetBytes().get(path) }));
+  ensureOperationDocumentStyles();
+  const assets = operationAssetBytes();
+  operationDocumentContainer.append(renderOperationSheet(view, document, sheetOverlayLookupFor(assets, candidate, reference.referenceViews), stationBrand()));
 }
 
 async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {
@@ -439,7 +526,7 @@ async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${safeFilePart(snapshot.projectId)}-candidate-r${snapshot.revision}.json`;
+    anchor.download = `${safeJobPart(snapshot.projectId)}-r${snapshot.revision}-candidate.json`;
     anchor.style.display = 'none';
     document.body.append(anchor);
     anchor.click();
@@ -457,6 +544,9 @@ async function downloadCandidateJson(snapshot: ProjectDocument): Promise<void> {
 
 function renderEditorChoices(): void {
   if (!imported) return;
+  // Inputs are repopulated from the applied revision, so any prior
+  // proposal-block is resolved by definition.
+  proposalBlocked = null;
   const priorConfig = configInput.value;
   configInput.replaceChildren();
   for (const configuration of imported.configurations) {
@@ -478,20 +568,24 @@ function renderEditorChoices(): void {
     if (Number(priorPlacement) < config.placements.length && priorPlacement !== '') placementInput.value = priorPlacement;
   }
   const placement = selectedPlacement();
+  // Never clobber the field the operator is typing in: a re-render that
+  // overwrites a focused input would silently destroy uncommitted keystrokes
+  // (the focused value commits through its own change event instead).
+  const active = document.activeElement;
   if (placement) {
-    xInput.value = String(placement.pos.xMm);
-    yInput.value = String(placement.pos.yMm);
-    widthInput.value = String(placement.widthMm);
-    heightInput.value = String(placement.heightMm);
-    rotationInput.value = String(placement.rotationDeg);
+    if (xInput !== active) xInput.value = String(placement.pos.xMm);
+    if (yInput !== active) yInput.value = String(placement.pos.yMm);
+    if (widthInput !== active) widthInput.value = String(placement.widthMm);
+    if (heightInput !== active) heightInput.value = String(placement.heightMm);
+    if (rotationInput !== active) rotationInput.value = String(placement.rotationDeg);
   } else {
-    xInput.value = '';
-    yInput.value = '';
-    widthInput.value = '';
-    heightInput.value = '';
-    rotationInput.value = '';
+    if (xInput !== active) xInput.value = '';
+    if (yInput !== active) yInput.value = '';
+    if (widthInput !== active) widthInput.value = '';
+    if (heightInput !== active) heightInput.value = '';
+    if (rotationInput !== active) rotationInput.value = '';
   }
-  instructionsInput.value = imported.instructions ?? '';
+  if (instructionsInput !== active) instructionsInput.value = imported.instructions ?? '';
 }
 
 function selectedConfig(): Configuration | null {
@@ -676,14 +770,27 @@ async function downloadProject(snapshot: ProjectDocument, filename: string): Pro
   }
 }
 
-function safeFilePart(value: string): string {
-  return value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
+function safeJobPart(value: string): string {
+  // Windows-portable sanitizer shared with the internal builder: collapse
+  // hostile runs to `-`, strip leading/trailing dots/dashes, cap length, and
+  // guard reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9).
+  let part = value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[.-]+|[.-]+$/g, '').slice(0, 96).replace(/[.-]+$/g, '') || 'project';
+  if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part)) part = `_${part}`;
+  return part;
+}
+
+function proposalFileName(project: ProjectDocument): string {
+  return `${safeJobPart(project.projectId)}-r${project.revision}-proposal.logo-project`;
+}
+
+function reviewedFileName(project: ProjectDocument): string {
+  return `${safeJobPart(project.projectId)}-r${project.revision}.logo-project`;
 }
 
 async function saveReviewed(): Promise<void> {
   if (!imported || busy) return;
   const snapshot = imported;
-  await downloadProject(snapshot, `${safeFilePart(snapshot.projectId)}-reviewed-r${snapshot.revision}.logo-project`);
+  await downloadProject(snapshot, reviewedFileName(snapshot));
 }
 
 function readNumber(input: HTMLInputElement): number {
@@ -692,80 +799,180 @@ function readNumber(input: HTMLInputElement): number {
   return value;
 }
 
-async function saveProposal(): Promise<void> {
-  if (!imported || busy) return;
-  const project = imported;
-  const generation = operationGeneration;
+/**
+ * Notes auto-apply: number and instruction edits in the proposal editor apply
+ * via `newRevision` as soon as a field changes (no separate Apply step), the
+ * same pattern as the customer editor. Invalid edits set `proposalBlocked`
+ * and block confirm + downloads with feedback until fixed. The explicit
+ * revision-bound confirm (`record-review`) stays manual and invalidates on
+ * every applied change (revision bump).
+ */
+interface ProposalEdit {
+  configurationId: string;
+  placementIndex: number;
+  hasPlacement: boolean;
+  xMm?: number;
+  yMm?: number;
+  widthMm?: number;
+  heightMm?: number;
+  rotationDeg?: number;
+  instructions: string;
+}
+
+function readProposalEdit(project: ProjectDocument): ProposalEdit | { error: string } {
   const configurationId = configInput.value;
   const placementIndex = Number(placementInput.value);
   const configuration = project.configurations.find((item) => item.id === configurationId);
-  const priorPlacement = configuration && Number.isInteger(placementIndex) ? configuration.placements[placementIndex] : undefined;
-  if (!configuration) {
-    setStatus('Choose a configuration before preparing a revised suggestion.');
+  if (!configuration) return { error: 'Choose a configuration before preparing a revised suggestion.' };
+  const priorPlacement = Number.isInteger(placementIndex) ? configuration.placements[placementIndex] : undefined;
+  try {
+    const edit: ProposalEdit = {
+      configurationId,
+      placementIndex,
+      hasPlacement: priorPlacement !== undefined,
+      instructions: instructionsInput.value,
+    };
+    if (priorPlacement) {
+      edit.xMm = readNumber(xInput);
+      edit.yMm = readNumber(yInput);
+      edit.widthMm = readNumber(widthInput);
+      edit.heightMm = readNumber(heightInput);
+      edit.rotationDeg = readNumber(rotationInput);
+    }
+    return edit;
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function proposalDiffers(project: ProjectDocument, edit: ProposalEdit): { placementChanged: boolean; instructionsChanged: boolean } {
+  const configuration = project.configurations.find((item) => item.id === edit.configurationId);
+  const priorPlacement = configuration && Number.isInteger(edit.placementIndex)
+    ? configuration.placements[edit.placementIndex]
+    : undefined;
+  const placementChanged = priorPlacement !== undefined && edit.hasPlacement && (
+    priorPlacement.pos.xMm !== edit.xMm || priorPlacement.pos.yMm !== edit.yMm ||
+    priorPlacement.widthMm !== edit.widthMm || priorPlacement.heightMm !== edit.heightMm ||
+    priorPlacement.rotationDeg !== edit.rotationDeg
+  );
+  const instructionsChanged = project.instructions !== (edit.instructions === '' ? undefined : edit.instructions);
+  return { placementChanged, instructionsChanged };
+}
+
+async function applyProposalFromInputs(download: boolean): Promise<void> {
+  if (!imported || busy) {
+    if (download) setStatus('The reviewer is busy; try the download again once the current file operation finishes.');
     return;
   }
-  try {
-    const xMm = priorPlacement ? readNumber(xInput) : undefined;
-    const yMm = priorPlacement ? readNumber(yInput) : undefined;
-    const widthMm = priorPlacement ? readNumber(widthInput) : undefined;
-    const heightMm = priorPlacement ? readNumber(heightInput) : undefined;
-    const rotationDeg = priorPlacement ? readNumber(rotationInput) : undefined;
-    const nextInstructions = instructionsInput.value;
-    const placementChanged = priorPlacement !== undefined && (
-      priorPlacement.pos.xMm !== xMm || priorPlacement.pos.yMm !== yMm ||
-      priorPlacement.widthMm !== widthMm || priorPlacement.heightMm !== heightMm ||
-      priorPlacement.rotationDeg !== rotationDeg
-    );
-    const instructionsChanged = project.instructions !== (nextInstructions === '' ? undefined : nextInstructions);
-    if (!placementChanged && !instructionsChanged) {
-      setStatus('Nothing to suggest: no numbers or instructions changed, so the update number and approvals stay as they are.');
-      return;
+  if (proposalBusy) {
+    // A hash is in flight; the completion step re-reads the inputs, so queue
+    // the download instead of overlapping revisions.
+    if (download) pendingProposalDownload = true;
+    return;
+  }
+  const project = imported;
+  const edit = readProposalEdit(project);
+  if ('error' in edit) {
+    proposalBlocked = edit.error;
+    setStatus(`Revised proposal blocked: ${edit.error} Confirm and downloads stay disabled until the numbers are fixed.`);
+    updateControls();
+    return;
+  }
+  const { placementChanged, instructionsChanged } = proposalDiffers(project, edit);
+  if (!placementChanged && !instructionsChanged) {
+    const wasBlocked = proposalBlocked !== null;
+    proposalBlocked = null;
+    updateControls();
+    if (download) {
+      await downloadProject(project, proposalFileName(project));
+    } else if (wasBlocked) {
+      setStatus('Proposal inputs are valid again; confirm and downloads are unblocked.');
     }
-    const next = newRevision(project, (draft) => {
-      const draftConfiguration = draft.configurations.find((item) => item.id === configurationId);
+    return;
+  }
+  let next: ProjectDocument;
+  try {
+    next = newRevision(project, (draft) => {
+      const draftConfiguration = draft.configurations.find((item) => item.id === edit.configurationId);
       if (!draftConfiguration) throw new Error('Selected configuration disappeared.');
       if (placementChanged) {
-        const current = draftConfiguration.placements[placementIndex];
-        if (!current || xMm === undefined || yMm === undefined || widthMm === undefined || heightMm === undefined || rotationDeg === undefined) {
+        const current = draftConfiguration.placements[edit.placementIndex];
+        if (!current || edit.xMm === undefined || edit.yMm === undefined || edit.widthMm === undefined || edit.heightMm === undefined || edit.rotationDeg === undefined) {
           throw new Error('Selected placement disappeared or has incomplete measurements.');
         }
-        draftConfiguration.placements[placementIndex] = {
+        draftConfiguration.placements[edit.placementIndex] = {
           ...current,
-          pos: { xMm, yMm },
-          widthMm,
-          heightMm,
-          rotationDeg,
+          pos: { xMm: edit.xMm, yMm: edit.yMm },
+          widthMm: edit.widthMm,
+          heightMm: edit.heightMm,
+          rotationDeg: edit.rotationDeg,
         };
       }
-      if (nextInstructions === '') delete draft.instructions;
-      else draft.instructions = nextInstructions;
+      if (edit.instructions === '') delete draft.instructions;
+      else draft.instructions = edit.instructions;
     });
-    const fit = evaluateProjectGeometry(next);
-    if (!fit.ok) {
-      const failures = fit.placements.filter((item) => !item.ok)
-        .map((item) => `${item.configurationId}/${item.placementId ?? `Placement ${item.placementIndex + 1}`}: ${item.reason}`).join('; ');
-      setStatus(`Revised suggestion rejected: ${failures}. Every logo must fit its safe area and avoid exclusion zones. Adjust the numbers and try again.`);
-      return;
-    }
-    setBusy(true);
+  } catch (error) {
+    proposalBlocked = error instanceof Error ? error.message : String(error);
+    setStatus(`Revised proposal was not created: ${proposalBlocked} Confirm and downloads stay disabled until the inputs are fixed.`);
+    updateControls();
+    return;
+  }
+  const fit = evaluateProjectGeometry(next);
+  if (!fit.ok) {
+    const failures = fit.placements.filter((item) => !item.ok)
+      .map((item) => `${item.configurationId}/${item.placementId ?? `Placement ${item.placementIndex + 1}`}: ${item.reason}`).join('; ');
+    proposalBlocked = failures;
+    setStatus(`Revised proposal blocked: ${failures}. Every logo must fit its safe area and avoid exclusion zones. Confirm and downloads stay disabled until the numbers are fixed.`);
+    updateControls();
+    return;
+  }
+  proposalBusy = true;
+  updateControls();
+  try {
     const digest = await hasher.prepareProject(next);
-    if (generation !== operationGeneration || imported !== project) {
-      if (generation === operationGeneration) setBusy(false);
+    if (imported !== project) {
+      // Superseded while hashing; the winning apply carries any download.
       return;
     }
+    proposalBlocked = null;
     imported = next;
     currentDigest = digest;
     currentFit = true;
-    setBusy(false);
     renderProject();
-    const filename = `${safeFilePart(next.projectId)}-customer-proposal-r${next.revision}.logo-project`;
-    await downloadProject(next, filename);
-  } catch (error) {
-    if (generation === operationGeneration) {
-      setBusy(false);
-      setStatus(`Revised proposal was not created: ${error instanceof Error ? error.message : String(error)}`);
+    // Inputs typed during the hash are re-read and folded in with a fresh
+    // hash, so a queued download below always carries the latest values and
+    // never a stale intermediate cut.
+    const followUp = readProposalEdit(imported);
+    if (!('error' in followUp)) {
+      const diff = proposalDiffers(imported, followUp);
+      if (diff.placementChanged || diff.instructionsChanged) {
+        const wantDownload = download || pendingProposalDownload;
+        pendingProposalDownload = false;
+        await applyProposalFromInputs(wantDownload);
+        return;
+      }
+    } else {
+      proposalBlocked = followUp.error;
+      setStatus(`Revised proposal blocked: ${followUp.error} Confirm and downloads stay disabled until the numbers are fixed.`);
     }
+    const wantDownload = download || pendingProposalDownload;
+    pendingProposalDownload = false;
+    if (wantDownload) {
+      setStatus(`Applied revised proposal as revision ${imported.revision}. Preparing the download…`);
+      await downloadProject(imported, proposalFileName(imported));
+    } else {
+      setStatus(`Applied revised proposal as revision ${imported.revision}. Earlier confirmations and reviews stay in history; the new revision is unapproved until confirmed and reviewed.`);
+    }
+  } finally {
+    proposalBusy = false;
+    updateControls();
   }
+}
+
+async function saveProposal(): Promise<void> {
+  // Manual download path: flush any pending field edits first, then download
+  // the current revision. Auto-apply on field change covers the rest.
+  await applyProposalFromInputs(true);
 }
 
 baselineInput.addEventListener('change', () => onFileChange('baseline', baselineInput));
@@ -782,4 +989,9 @@ operationDocumentPrint.addEventListener('click', () => {
 });
 configInput.addEventListener('change', () => { renderEditorChoices(); updateControls(); });
 placementInput.addEventListener('change', () => { renderEditorChoices(); updateControls(); });
+// Notes auto-apply: field edits become new revisions on change (blur/Enter),
+// with no separate Apply step. Invalid edits block confirm + downloads.
+for (const input of [xInput, yInput, widthInput, heightInput, rotationInput, instructionsInput]) {
+  input.addEventListener('change', () => { void applyProposalFromInputs(false); });
+}
 updateControls();

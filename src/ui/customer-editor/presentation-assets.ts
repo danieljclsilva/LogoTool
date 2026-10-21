@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import { readRasterHeader, MAX_PREVIEW_BYTES, MAX_PREVIEW_PIXELS } from '../../assets/raster-header.js';
+import { parsePhotoMappings, serializePhotoMappings, validatePhotoMapping, PHOTO_MAPPINGS_PATH } from './presentation-photo-mapping.js';
 import { parseGlb } from '../../assets/glb.js';
 import { validateSelfContained } from '../../assets/validate.js';
 /**
@@ -469,7 +470,25 @@ export function selectPresentationPackageAssets(
   configurations: readonly { productId: string; variantId: string }[],
 ): Array<{ path: string; bytes: Uint8Array }> {
   const manifest = parsePresentationManifest(assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH && asset.kind === 'additional')?.bytes);
+  const mappings = parsePhotoMappings(assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
   if (!manifest) return [];
+  /**
+   * Photo-mapping passthrough: optional `presentation/photo-mappings.json`
+   * entries travel as an additional asset, filtered by issued configuration
+   * and restricted to retained raster images. Malformed files are dropped;
+   * v1/v2 reader output is otherwise byte-identical to before.
+   */
+  const selectMappingAssets = (retainedRasterPaths: ReadonlySet<string>): Array<{ path: string; bytes: Uint8Array }> => {
+    if (!mappings) return [];
+    const retained = mappings.mappings.filter((entry) =>
+      validatePhotoMapping(entry).length === 0 &&
+      retainedRasterPaths.has(entry.image) &&
+      configurations.some((configuration) =>
+        configuration.productId === entry.productId &&
+        (entry.variantId === undefined || configuration.variantId === entry.variantId)));
+    if (retained.length === 0) return [];
+    return [{ path: PHOTO_MAPPINGS_PATH, bytes: serializePhotoMappings({ version: 1, mappings: retained }) }];
+  };
   if (manifest.version === 2) {
     const retainedViews = manifest.views.filter((entry) => configurations.some((configuration) =>
       configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
@@ -505,7 +524,9 @@ export function selectPresentationPackageAssets(
     if (sortedModels.length > 0) rewritten.models = sortedModels;
     if (sortedReferences.length > 0) rewritten.references = sortedReferences;
     const paths = [...new Set([...sortedViews.map((entry) => entry.image), ...sortedModels.map((entry) => entry.model), ...sortedReferences.map((entry) => entry.image)])].sort();
+    const rasterPaths = new Set([...sortedViews.map((entry) => entry.image), ...sortedReferences.map((entry) => entry.image)]);
     return [{ path: PRESENTATION_MANIFEST_PATH, bytes: new TextEncoder().encode(JSON.stringify(rewritten)) },
+      ...selectMappingAssets(rasterPaths),
       ...paths.map((path) => ({ path, bytes: assets.find((asset) => asset.path === path)!.bytes }))];
   }
   const retained = manifest.references.filter((entry) => configurations.some((configuration) =>
@@ -517,5 +538,6 @@ export function selectPresentationPackageAssets(
   if (!retained.length) return [];
   const paths = [...new Set(retained.map((entry) => entry.image))].sort();
   return [{ path: PRESENTATION_MANIFEST_PATH, bytes: new TextEncoder().encode(JSON.stringify({ version: 1, references: retained })) },
+    ...selectMappingAssets(new Set(paths)),
     ...paths.map((path) => ({ path, bytes: assets.find((asset) => asset.path === path)!.bytes }))];
 }

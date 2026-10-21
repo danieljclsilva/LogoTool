@@ -110,7 +110,7 @@
 
         <details>
           <summary>Suggest a revised layout (optional)</summary>
-          <p>Number edits create a new update. Earlier confirmations and reviews stay in history, but the new update is unapproved — the customer must check and confirm it again.</p>
+          <p>Number and instruction edits apply automatically as new revisions when you leave each field — no separate apply step. Invalid edits block confirm and downloads until fixed. Earlier confirmations and reviews stay in history, but the new update is unapproved — the customer must check and confirm it again.</p>
           <div class="fields">
             <label>Configuration
               <select data-review-hook="configuration"></select>
@@ -126,7 +126,7 @@
           </div>
           <label style="margin-top:10px">Project instructions<textarea data-review-hook="instructions"></textarea></label>
           <div class="actions">
-            <button data-review-hook="save-proposal" type="button">Create revised proposal and download</button>
+            <button data-review-hook="save-proposal" type="button">Download revised project</button>
           </div>
         </details>
 
