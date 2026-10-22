@@ -14,6 +14,7 @@
     "build:dev": "tsc && node scripts/build-inspector.mjs && node scripts/build-package-preview.mjs",
     "build:dev:preview": "tsc && node scripts/build-package-preview.mjs",
     "build:dev:inspector": "tsc && node scripts/build-inspector.mjs",
+    "build:demo": "npm run build:station && node scripts/prepare-demo.mjs",
     "test": "npm run build && node --test dist/tests-ts/*.test.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.viewer.json && tsc -p tsconfig.e2e.json",
     "generate:models": "node scripts/generate-synthetic-glb.mjs",

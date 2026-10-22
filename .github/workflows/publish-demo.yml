@@ -1,0 +1,182 @@
+# Publish the public Pages demo (separate public repo) on every push to main.
+#
+# LOCAL-ONLY until approved: the publish job runs ONLY when the repository
+# variable DEMO_PUBLISH_ENABLED is exactly 'true'. Pushing this file with the
+# variable unset/disabled validates and stages the demo but publishes
+# nothing and fails nothing for missing secrets. See docs/github-pages-demo.md
+# for the one-time external setup (public repo, deploy key, Pages settings).
+#
+# Official GitHub actions only, pinned to commit SHAs verified 2026-10-22 via
+# `gh api` (release tag + action.yml interface at the SHA — no invented SHAs):
+#   actions/checkout@v7.0.1         3d3c42e5aac5ba805825da76410c181273ba90b1
+#   actions/setup-node@v7.1.0       949feb2413d6458794dcd2491c4babbbce0c15c1
+#   actions/upload-artifact@v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+#   actions/download-artifact@v8.0.2 9000827ccba6bdab643e8b6fd33ac0654aef8333
+name: Publish demo to GitHub Pages (separate public repo)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize runs without cancelling the active run. GitHub may replace a
+# pending run with a newer one; ordering is not guaranteed. The publish job
+# additionally refuses runs that no longer match current source main.
+concurrency:
+  group: publish-demo
+  cancel-in-progress: false
+
+env:
+  DEMO_REPOSITORY: ${{ vars.DEMO_REPOSITORY != '' && vars.DEMO_REPOSITORY || 'danieljclsilva/logotool-demo' }}
+
+jobs:
+  build:
+    name: Validate, test, and stage demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies (CI only)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and contract tests (builds first)
+        run: npm test
+
+      - name: Stage public demo
+        run: npm run build:demo
+
+      - name: Upload staged demo
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-dist
+          path: dist/demo
+          # Dotfiles are EXCLUDED by default: without this, .nojekyll never
+          # reaches the publish job (verified in action.yml at the SHA above).
+          include-hidden-files: true
+          if-no-files-found: error
+
+  publish:
+    name: Publish demo to the public repo
+    needs: build
+    # DISABLED until explicitly approved and configured (see docs): set the
+    # repository variable DEMO_PUBLISH_ENABLED to exactly 'true'. While unset,
+    # this job is skipped — nothing is exposed and nothing fails for missing
+    # secrets. Manual dispatches publish ONLY main-branch code.
+    if: vars.DEMO_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Validate publish configuration
+        env:
+          DEMO_DEPLOY_KEY: ${{ secrets.DEMO_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${DEMO_REPOSITORY}" || { echo "::error::DEMO_REPOSITORY is empty. Set the repository variable DEMO_REPOSITORY (e.g. account/logotool-demo)."; exit 1; }
+          if [ "$(printf '%s' "${DEMO_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" ]; then
+            echo "::error::Refusing to publish: DEMO_REPOSITORY must be a SEPARATE public repo, not the private source (${GITHUB_REPOSITORY})."
+            exit 1
+          fi
+          test -n "${DEMO_DEPLOY_KEY}" || { echo "::error::Repository secret DEMO_DEPLOY_KEY is missing. Add the destination repo's write deploy key (see docs/github-pages-demo.md). The secret value is never printed."; exit 1; }
+          echo "Publish target: ${DEMO_REPOSITORY} (source repo untouched)."
+
+      - name: Refuse stale runs (a newer source main must win)
+        # Concurrency queues runs but does NOT guarantee FIFO order, so a
+        # stale queued run could otherwise publish over a newer build. Compare
+        # read-only against current source main via the API (no credentials in
+        # URLs: gh reads GH_TOKEN from the environment, and Actions masks
+        # github.token in logs regardless) and yield when behind. Fails closed
+        # on any API error.
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          test -n "${current}" || { echo "::error::Could not read the current source main SHA; failing closed."; exit 1; }
+          if [ "${current}" = "${GITHUB_SHA}" ]; then
+            echo "stale=false" >> "${GITHUB_OUTPUT}"
+            echo "This run matches source main (${GITHUB_SHA}); proceeding."
+          else
+            echo "stale=true" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Source main has moved to ${current}; this queued run (${GITHUB_SHA}) yields and publishes nothing."
+          fi
+
+      - name: Download staged demo
+        if: steps.freshness.outputs.stale != 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: demo-dist
+          path: demo-dist
+
+      - name: Verify demo tree (exactly index.html + .nojekyll)
+        if: steps.freshness.outputs.stale != 'true'
+        # `ls` hides dotfiles, so a shell listing cannot prove the tree: use
+        # Node readdir (sees dotfiles) plus lstat regular-file checks.
+        run: |
+          node <<'NODE_EOF'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dir = 'demo-dist';
+          const names = fs.readdirSync(dir).sort();
+          const want = ['.nojekyll', 'index.html'];
+          if (JSON.stringify(names) !== JSON.stringify(want)) {
+            console.error('::error::Staged demo must hold exactly index.html + .nojekyll; found ' + JSON.stringify(names));
+            process.exit(1);
+          }
+          for (const n of want) {
+            if (!fs.lstatSync(path.join(dir, n)).isFile()) {
+              console.error('::error::Not a regular file: ' + n);
+              process.exit(1);
+            }
+          }
+          console.log('Demo tree OK: index.html (' + fs.statSync(path.join(dir, 'index.html')).size + ' bytes) + .nojekyll.');
+          NODE_EOF
+
+      - name: Check out destination repo (deploy key, no general token)
+        if: steps.freshness.outputs.stale != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.DEMO_REPOSITORY }}
+          ssh-key: ${{ secrets.DEMO_DEPLOY_KEY }}
+          # Destination publish goes out over SSH, so the SSH credential must
+          # persist for the push step below (checkout's post-job cleanup
+          # removes it afterwards). The SOURCE checkout above stays
+          # persist-credentials:false. Publish only the main branch, even for
+          # manual dispatches: the destination repo must be initialised with
+          # main before checkout (see docs).
+          ref: main
+          path: demo-repo
+
+      - name: Copy only the two public files and push when changed
+        if: steps.freshness.outputs.stale != 'true'
+        run: |
+          set -euo pipefail
+          test -d demo-repo/.git || { echo "::error::Destination checkout failed. Initialise ${DEMO_REPOSITORY} with a main branch first (see docs)."; exit 1; }
+          cp demo-dist/index.html demo-dist/.nojekyll demo-repo/
+          cd demo-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .nojekyll
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No demo changes since the last publish; nothing to push."
+            exit 0
+          fi
+          git commit -m "Publish station demo from source ${GITHUB_SHA}"
+          # Normal push only: never force, never rewrite destination history.
+          git push origin HEAD:main

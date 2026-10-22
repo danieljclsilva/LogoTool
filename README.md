@@ -36,6 +36,8 @@ Full steps, limits and honesty rules: [docs/internal-builder.md](docs/internal-b
 Physical pilot checklist: [docs/operator-pilot-checklist.md](docs/operator-pilot-checklist.md).
 Release gate: [docs/release-acceptance.md](docs/release-acceptance.md)
 (UNTESTED on Windows so far) plus `scripts/run-windows-acceptance.ps1`.
+Public demo and automatic updates on pushes to `main`:
+[docs/github-pages-demo.md](docs/github-pages-demo.md).
 
 ## Customer delivery formats (same canonical project, your choice at issue)
 
