@@ -75,8 +75,17 @@ Preparation starts on **Start**, a guided sequence of one task at a time:
    Regions are shared geometry: editing one updates every linked option
    (stated up front and in the save confirmation), while anchors stay
    per-option. Model-only products show the actual 3D model on a white stage
-   (orbit only, never a calibrated surface) with a route to add a side photo
-   for measured authoring. Raw mapping rows, prepared-JSON import and master
+   (orbit only, never a calibrated surface). **Add or replace a side photo**
+   attaches an image to the selected existing product without recreating it.
+   Choose its side and whether it applies to the current option or the whole
+   product, then choose a local PNG/JPEG/WebP. A replacement is identified before
+   choosing the file; it starts unmeasured and retires only its own photo mapping.
+   Original image bytes, the model, other views and canonical measurements remain
+   intact. Set the new photo's physical reference visually, then save a prepared
+   master to retain the setup outside the browser session. Generated customer
+   files become stale after a photo change and must be regenerated. Whole-product
+   intake can be refused where only an option-specific presentation scope exists;
+   use the indicated option scope instead. Raw mapping rows, prepared-JSON import and master
    save live under the single **Advanced product setup** disclosure.
 3. **Customer details.** Only Customer name, Job reference and Prepared by are
    visible. The unique issue project ID is generated automatically as a fresh

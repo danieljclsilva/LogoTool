@@ -106,6 +106,7 @@ import { createProjectFromDefinitions } from '../../core/project-builder/create-
 import { isPreviewOnlyProduct } from '../../core/project-builder/provisional-product.js';
 import { appendPreparedProduct, preparedEvidencePaths, selectPreparedSidecarAssets, PREPARED_IMPORT_LIMITS } from '../../core/project-builder/prepared-import.js';
 import { createProvisionalProduct } from '../../core/project-builder/provisional-product.js';
+import { planPhotoIntake } from '../../core/photo-intake/index.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { zipSync } from 'fflate';
 
@@ -184,6 +185,12 @@ const productAdd = hook<HTMLButtonElement>('product-add');
 const productChoose = hook<HTMLButtonElement>('product-choose');
 const productFile = hook<HTMLInputElement>('product-file');
 const productStatus = hook<HTMLElement>('product-status');
+const productPhotoSide = hook<HTMLSelectElement>('product-photo-side');
+const productPhotoScope = hook<HTMLSelectElement>('product-photo-scope');
+const productPhotoLabel = hook<HTMLInputElement>('product-photo-label');
+const productPhotoChoose = hook<HTMLButtonElement>('product-photo-choose');
+const productPhotoFile = hook<HTMLInputElement>('product-photo-file');
+const productPhotoStatus = hook<HTMLElement>('product-photo-status');
 const preparedProductAdd = hook<HTMLButtonElement>('prepared-product-add');
 const preparedProductFile = hook<HTMLInputElement>('prepared-product-file');
 const preparedProductDrop = hook<HTMLElement>('prepared-product-drop');
@@ -618,6 +625,7 @@ let pendingPrimaryImage: PendingProductView | null = null;
 let pendingPrimaryModel: PendingProductModel | null = null;
 let pendingViews: Record<string, PendingProductView | null> = { front: null, back: null, left: null, right: null };
 let productImporting = false;
+let photoAttaching = false;
 let productGeneration = 0;
 let productCounter = 0;
 interface AddedProductPresentation { views: Array<{ view: string; image: string; label?: string }>; models: Array<{ model: string; label?: string }>; assets: Array<{ path: string; bytes: Uint8Array }>; }
@@ -659,7 +667,7 @@ function invalidateOutputsForEdit(): void {
 }
 
 function updateControls(): void {
-  const blocked = loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy;
+  const blocked = loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy;
   sourceChoose.disabled = blocked;
   sourceFile.disabled = blocked;
   startCreate.disabled = blocked;
@@ -676,6 +684,12 @@ function updateControls(): void {
     productViewFile[side]!.disabled = blocked;
     productViewLabel[side]!.disabled = blocked;
   }
+  const photoBlocked = blocked || source === null;
+  productPhotoSide.disabled = photoBlocked;
+  productPhotoScope.disabled = photoBlocked;
+  productPhotoLabel.disabled = photoBlocked;
+  productPhotoChoose.disabled = photoBlocked;
+  productPhotoFile.disabled = photoBlocked;
   newSourceButton.disabled = blocked || source === null;
   baselineChoose.disabled = blocked;
   baselineFile.disabled = blocked;
@@ -1392,14 +1406,20 @@ async function downloadMasterFile(): Promise<void> {
   try {
     const base = parsePhotoMappings(snapshot.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
     const merged = mergeSessionPhotoMappings(base, stagedPhotoMappings);
-    const mergedBytes = serializePhotoMappings(merged);
-    const reparsed = parsePhotoMappings(mergedBytes);
-    if (!reparsed || reparsed.mappings.length !== merged.mappings.length) {
-      throw new Error('staged mappings did not serialize');
+    // An empty merge serializes to bytes the parser reads as absent, so the
+    // mappings file is omitted entirely when nothing is mapped (e.g. every
+    // mapping was retired by a photo replacement); the anchors sidecar below
+    // still travels.
+    const mergedBytes = merged.mappings.length > 0 ? serializePhotoMappings(merged) : null;
+    if (mergedBytes !== null) {
+      const reparsed = parsePhotoMappings(mergedBytes);
+      if (!reparsed || reparsed.mappings.length !== merged.mappings.length) {
+        throw new Error('staged mappings did not serialize');
+      }
     }
     const additionalAssets = [
       ...snapshot.assets.filter((asset) => asset.kind === 'additional' && asset.path !== PHOTO_MAPPINGS_PATH && asset.path !== OPERATION_ANCHORS_PATH).map(({ path, bytes }) => ({ path, bytes })),
-      { path: PHOTO_MAPPINGS_PATH, bytes: mergedBytes },
+      ...(mergedBytes !== null ? [{ path: PHOTO_MAPPINGS_PATH, bytes: mergedBytes }] : []),
     ];
     let sidecarNote = '';
     if (prepareAnchors.length > 0) {
@@ -1424,7 +1444,7 @@ async function downloadMasterFile(): Promise<void> {
       throw new Error('reparse changed the project');
     }
     const backMappings = parsePhotoMappings(back.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH)?.bytes);
-    if (!backMappings || backMappings.mappings.length !== merged.mappings.length) {
+    if (merged.mappings.length > 0 && (!backMappings || backMappings.mappings.length !== merged.mappings.length)) {
       throw new Error('reparse lost staged mappings');
     }
     if (prepareAnchors.length > 0 && back.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH) === undefined) {
@@ -2816,6 +2836,335 @@ function onProductViewFileChange(side: ProductViewSide): void {
   if (file) void stageProductViewFile(side, file);
   productViewFile[side]!.value = '';
 }
+
+/* ---------------- In-place side photos (Tranche A) ---------------- */
+/* Attach a photo to an EXISTING product scope without recreating it.  */
+/* Browser work (read/decode) stays at this boundary; validation and  */
+/* planning are the pure `planPhotoIntake` core service. The commit    */
+/* follows the proven repackage-and-reparse roundtrip: candidate       */
+/* manifest/assets/mappings are built and verified before `source`     */
+/* changes, so a failed, stale or cancelled attach keeps the prior     */
+/* project. A replaced side keeps its entry count and label but starts */
+/* unmeasured: only mappings bound to the replaced photo/scope are     */
+/* retired, and the superseded bytes are preserved under a             */
+/* `superseded/` path as evidence.                                     */
+
+/** Human product/option names for photo-attach messages (never raw IDs). */
+function photoProductLabel(product: { id: string; name?: string }): string {
+  return product.name ?? product.id;
+}
+
+function photoVariantLabel(
+  product: { variants: Array<{ id: string; name?: string }> },
+  variant: { id: string; name?: string },
+): string {
+  if (variant.name) return variant.name;
+  if (product.variants.length === 1) return 'Standard option';
+  const index = product.variants.findIndex((entry) => entry.id === variant.id);
+  return `Option ${index >= 0 ? index + 1 : 1}`;
+}
+
+function photoAttachScopeName(
+  product: { id: string; name?: string; variants: Array<{ id: string; name?: string }> },
+  scopeVariant: { id: string; name?: string } | undefined,
+): string {
+  const productLabel = photoProductLabel(product);
+  if (!scopeVariant) return productLabel;
+  return `${photoVariantLabel(product, scopeVariant)} of ${productLabel}`;
+}
+
+function refreshPhotoAttachHint(): void {
+  if (photoAttaching || source === null) return;
+  const products = source.project.products;
+  const product = products.find((entry) => entry.id === workspaceProductId) ?? products[0] ?? null;
+  if (product === null) {
+    productPhotoStatus.textContent = 'Create or open a project with a product first.';
+    return;
+  }
+  const variant = product.variants.find((entry) => entry.id === workspaceVariantId) ?? product.variants[0] ?? null;
+  const side = productPhotoSide.value;
+  if (variant === null || (side !== 'front' && side !== 'back' && side !== 'left' && side !== 'right')) return;
+  const wholeProduct = productPhotoScope.value === 'product';
+  const scopeVariantId = wholeProduct ? undefined : variant.id;
+  const assets = sessionAssetMap();
+  const manifest = parsePresentationManifest(assets.get(PRESENTATION_MANIFEST_PATH));
+  const occupied = manifest !== null && manifest.version === 2 && manifest.views.some(
+    (entry) => entry.productId === product.id && (entry.variantId ?? undefined) === scopeVariantId && entry.view === side,
+  );
+  const scope = photoAttachScopeName(product, scopeVariantId === undefined ? undefined : variant);
+  productPhotoStatus.textContent = occupied
+    ? `${workspaceSideLabel(side)} view of ${scope} already has a photo — choosing a file replaces it. The old mapping retires and the new photo starts unmeasured; the model, other sides, logos and measurements are kept.`
+    : `${workspaceSideLabel(side)} view of ${scope} has no photo yet — choosing a file adds it unmeasured.`;
+}
+
+async function attachProductPhotoFile(file: File): Promise<void> {
+  if (source === null || loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) {
+    if (source === null) {
+      productPhotoStatus.textContent = 'Create or open a project before adding a side photo.';
+      alertBuilder('Create or open a project before adding a side photo.');
+    }
+    return;
+  }
+  const sideValue = productPhotoSide.value;
+  if (sideValue !== 'front' && sideValue !== 'back' && sideValue !== 'left' && sideValue !== 'right') {
+    productPhotoStatus.textContent = 'Choose a side (Front, Back, Left or Right) first.';
+    return;
+  }
+  if (looksRemoteFileName(file.name)) {
+    productPhotoStatus.textContent = `Could not attach ${file.name}: file name looks like a remote reference; choose a local PNG, JPEG or WebP image. Previous products are unchanged.`;
+    return;
+  }
+  if (file.size > MAX_PREVIEW_BYTES) {
+    productPhotoStatus.textContent = `Could not attach ${file.name}: image exceeds ${MAX_PREVIEW_BYTES} bytes; rejected before reading. Previous products are unchanged.`;
+    return;
+  }
+  // Capture ALL submission state BEFORE any await: source identity, session,
+  // workspace selection, side, scope and label. Later awaits must never read
+  // live UI state, so a mid-read switch cannot attach the photo elsewhere.
+  const submittedSource = source;
+  const submittedSession = sourceSession;
+  const submittedProductId = workspaceProductId;
+  const submittedVariantId = workspaceVariantId;
+  const submittedWholeProduct = productPhotoScope.value === 'product';
+  const submittedLabel = productPhotoLabel.value.trim();
+  const submittedFileName = file.name;
+  const side: ProductViewSide = sideValue;
+  const generation = ++productGeneration;
+  const fresh = (): boolean => generation === productGeneration && source === submittedSource && sourceSession === submittedSession;
+  alertBuilder();
+  photoAttaching = true;
+  updateControls();
+  productPhotoStatus.textContent = `Reading ${submittedFileName}…`;
+  try {
+    await enqueueWorkspaceCommit(async () => {
+      if (!fresh() || source === null) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed while reading; choose the file again. Previous products are unchanged.`;
+        return;
+      }
+      const snapshot = source;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!fresh() || source !== snapshot) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed while reading; choose the file again. Previous products are unchanged.`;
+        return;
+      }
+      const decoded = await decodeAndVerifyRaster(bytes, fresh);
+      if (!fresh() || source !== snapshot) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed while reading; choose the file again. Previous products are unchanged.`;
+        return;
+      }
+      if (decoded === null) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: unsupported or invalid image; choose a PNG, JPEG or WebP file with verifiable dimensions. Previous products are unchanged.`;
+        return;
+      }
+      const products = snapshot.project.products;
+      const product = products.find((entry) => entry.id === submittedProductId) ?? products[0] ?? null;
+      if (product === null) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: no product is in the project; add a product first.`;
+        return;
+      }
+      const variant = product.variants.find((entry) => entry.id === submittedVariantId) ?? product.variants[0] ?? null;
+      if (variant === null) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the selected product has no option; reopen the project and try again.`;
+        return;
+      }
+      const scopeVariantId = submittedWholeProduct ? undefined : variant.id;
+      const assets = sessionAssetMap();
+      const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
+      const parsed = parsePresentationManifest(manifestBytes);
+      if (parsed === null) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: no usable presentation manifest is in this project; add the product with a photo first, then attach further sides here.`;
+        return;
+      }
+      // The pure planner speaks v2 only; v1 references ride along verbatim
+      // so upgrading history is never dropped.
+      const existingManifestJson: unknown = parsed.version === 2
+        ? {
+          version: 2,
+          views: parsed.views.map((entry) => ({ ...entry })),
+          ...(parsed.models ? { models: parsed.models.map((entry) => ({ ...entry })) } : {}),
+          ...(parsed.references ? { references: parsed.references.map((entry) => ({ ...entry })) } : {}),
+        }
+        : { version: 2, views: [], references: parsed.references.map((entry) => ({ ...entry })) };
+      const occupied = parsed.version === 2 && parsed.views.some(
+        (entry) => entry.productId === product.id && (entry.variantId ?? undefined) === scopeVariantId && entry.view === side,
+      );
+      const mode = occupied ? 'replace' : 'add';
+      const merged = workspaceMergedMappings();
+      const plan = planPhotoIntake({
+        productId: product.id,
+        ...(scopeVariantId !== undefined ? { variantId: scopeVariantId } : {}),
+        side,
+        mode,
+        fileName: submittedFileName,
+        bytes: bytes.slice(),
+        widthPx: decoded.width,
+        heightPx: decoded.height,
+        mediaType: decoded.mediaType === 'image/jpeg' ? 'jpeg' : decoded.mediaType === 'image/webp' ? 'webp' : 'png',
+        existingManifest: existingManifestJson,
+        existingMappings: merged.mappings.map((entry) => ({
+          productId: entry.productId,
+          ...(entry.variantId !== undefined ? { variantId: entry.variantId } : {}),
+          regionId: entry.regionId,
+          view: entry.view,
+          image: entry.image,
+        })),
+        existingAssetPaths: [...assets.keys()],
+      });
+      if (!plan.ok) {
+        const detail = plan.code === 'unknown-product-scope'
+          ? `${plan.message}. Try the other “Applies to” scope (option versus whole product).`
+          : `${plan.message}. Previous products are unchanged.`;
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: ${detail}`;
+        return;
+      }
+      if (!fresh() || source !== snapshot) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed while planning; choose the file again. Previous products are unchanged.`;
+        return;
+      }
+      if (plan.replacedAssetPath !== undefined && plan.assetPath === plan.replacedAssetPath) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the plan reuses the superseded photo path; nothing was changed.`;
+        return;
+      }
+      // Candidate commit: new photo bytes at a fresh path, updated manifest
+      // (operator label on adds), mappings minus the retired keys. The
+      // superseded bytes stay in the package at their EXACT original path —
+      // never overwritten, never dropped — so manifest entries or mappings
+      // in other scopes/sides that share that photo keep working.
+      const invalidated = new Set(plan.invalidatedMappingKeys);
+      const manifestOut = JSON.parse(JSON.stringify(plan.manifest)) as {
+        version: 2;
+        views: Array<{ productId: string; variantId?: string; view: string; image: string; label?: string }>;
+        models?: Array<{ productId: string; variantId?: string; model: string; label?: string }>;
+        references?: Array<{ productId: string; variantId?: string; image: string; label?: string }>;
+      };
+      if (mode === 'add' && submittedLabel !== '') {
+        const added = manifestOut.views.find((entry) =>
+          entry.productId === product.id && (entry.variantId ?? undefined) === scopeVariantId &&
+          entry.view === side && entry.image === plan.assetPath);
+        if (added) added.label = submittedLabel;
+      }
+      const newManifestBytes = new TextEncoder().encode(JSON.stringify(manifestOut));
+      const skipPaths = new Set<string>([PRESENTATION_MANIFEST_PATH, PHOTO_MAPPINGS_PATH, OPERATION_ANCHORS_PATH, plan.assetPath]);
+      const carriedAdditional = snapshot.assets
+        .filter((asset) => asset.kind === 'additional' && !skipPaths.has(asset.path))
+        .map(({ path, bytes: assetBytes }) => ({ path, bytes: assetBytes }));
+      const base = parsePhotoMappings(snapshot.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
+      const baseKept = (base?.mappings ?? []).filter((candidate) => !invalidated.has(mappingKeyOf(candidate)));
+      const stagedKept = stagedPhotoMappings.filter((candidate) => !invalidated.has(mappingKeyOf(candidate)));
+      const mergedMappings = mergeSessionPhotoMappings({ version: 1, mappings: baseKept }, stagedKept);
+      // An empty merge means every mapping was retired: omit the mappings
+      // file (the parser reads empty as absent) rather than writing bytes
+      // that parse as no file.
+      const mergedBytes = mergedMappings.mappings.length > 0 ? serializePhotoMappings(mergedMappings) : null;
+      const additionalAssets: Array<{ path: string; bytes: Uint8Array }> = [
+        ...carriedAdditional,
+        { path: plan.assetPath, bytes: bytes.slice() },
+        { path: PRESENTATION_MANIFEST_PATH, bytes: newManifestBytes },
+        ...(mergedBytes !== null ? [{ path: PHOTO_MAPPINGS_PATH, bytes: mergedBytes }] : []),
+      ];
+      // The saved-anchors sidecar rides along exactly once (it is excluded
+      // from the carried set above, so this push cannot duplicate its path).
+      const packagedSidecar = snapshot.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH && asset.kind === 'additional');
+      if (packagedSidecar !== undefined) {
+        additionalAssets.push({ path: packagedSidecar.path, bytes: packagedSidecar.bytes });
+      }
+      const nextProject: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
+      assertProjectEditorLimits(nextProject);
+      if (!fresh() || source !== snapshot) {
+        productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed while planning; choose the file again. Previous products are unchanged.`;
+        return;
+      }
+      const packageBytes = await createProjectPackage(
+        {
+          project: nextProject,
+          assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map(({ path, bytes: assetBytes }) => ({ path, bytes: assetBytes })),
+          additionalAssets,
+        },
+        { sha256: hasher.sha256Bytes },
+      );
+      if (!fresh() || source !== snapshot) return;
+      const reparsed = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+      if (!fresh() || source !== snapshot) return;
+      // Verify the roundtrip before committing: same products/ids, domain
+      // untouched, new view present with exact bytes, retired mappings gone,
+      // superseded photo evidence retained byte-identical.
+      const beforeIds = snapshot.project.products.map((entry) => entry.id);
+      const afterIds = reparsed.project.products.map((entry) => entry.id);
+      if (JSON.stringify(afterIds) !== JSON.stringify(beforeIds)) {
+        throw new Error('The reparse changed the product list; the previous project is unchanged.');
+      }
+      const beforeProduct = snapshot.project.products.find((entry) => entry.id === product.id);
+      const afterProduct = reparsed.project.products.find((entry) => entry.id === product.id);
+      if (!beforeProduct || !afterProduct || JSON.stringify(afterProduct) !== JSON.stringify(beforeProduct)) {
+        throw new Error('The reparse changed product geometry; the previous project is unchanged.');
+      }
+      const backManifest = parsePresentationManifest(reparsed.assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH)?.bytes);
+      const backEntry = backManifest !== null && backManifest.version === 2
+        ? backManifest.views.find((entry) =>
+          entry.productId === product.id && (entry.variantId ?? undefined) === scopeVariantId &&
+          entry.view === side && entry.image === plan.assetPath)
+        : undefined;
+      if (!backEntry) {
+        throw new Error('The reparse lost the new photo; the previous project is unchanged.');
+      }
+      const backPhotoBytes = reparsed.assets.find((asset) => asset.path === plan.assetPath)?.bytes;
+      if (!backPhotoBytes || backPhotoBytes.length !== bytes.length) {
+        throw new Error('The reparse lost the new photo bytes; the previous project is unchanged.');
+      }
+      if (plan.replacedAssetPath !== undefined) {
+        const beforeEvidence = snapshot.assets.find((asset) => asset.path === plan.replacedAssetPath)?.bytes;
+        const afterEvidence = reparsed.assets.find((asset) => asset.path === plan.replacedAssetPath)?.bytes;
+        if (!beforeEvidence || !afterEvidence || beforeEvidence.length !== afterEvidence.length ||
+          !beforeEvidence.every((value, index) => value === afterEvidence[index])) {
+          throw new Error('The reparse lost the superseded photo evidence; the previous project is unchanged.');
+        }
+      }
+      const backMappings = parsePhotoMappings(reparsed.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH)?.bytes);
+      const staleBack = (backMappings?.mappings ?? []).filter((candidate) => invalidated.has(mappingKeyOf(candidate)));
+      if (staleBack.length > 0) {
+        throw new Error('The reparse kept a retired photo mapping; the previous project is unchanged.');
+      }
+      if (!fresh() || source !== snapshot) return;
+      stagedPhotoMappings = stagedKept;
+      source = {
+        fileName: snapshot.fileName,
+        project: reparsed.project,
+        assets: reparsed.assets,
+        summary: summarizeSourceProject(reparsed.project),
+        packageBytes: packageBytes.slice(),
+      };
+      refreshMappingOptions();
+      refreshWorkspace();
+      // The package changed under any generated delivery: mark outputs stale
+      // and refresh the issue gate so a regen is required before download.
+      invalidateOutputsForEdit();
+      refreshSelectionValidation();
+      // Post-commit the source identity has intentionally changed, so only
+      // the generation guard still applies before reporting success.
+      if (generation !== productGeneration) return;
+      const scope = photoAttachScopeName(product, scopeVariantId === undefined ? undefined : variant);
+      productPhotoStatus.textContent = mode === 'add'
+        ? `Added ${workspaceSideLabel(side)} photo to ${scope}. It starts unmeasured — set it up on the photo workspace before authoring. Product, model, other sides, logos and measurements are unchanged.`
+        : `Replaced ${workspaceSideLabel(side)} photo on ${scope}. ${invalidated.size} photo mapping${invalidated.size === 1 ? ' was' : 's were'} retired; the superseded photo stays in the package as evidence and other views sharing it are unchanged. Set up measurements on the new photo before authoring.`;
+    }, () => {
+      productPhotoStatus.textContent = `Could not attach ${submittedFileName}: the project changed before the attach started; choose the file again. Previous products are unchanged.`;
+    });
+  } catch (error) {
+    if (fresh()) {
+      productPhotoStatus.textContent = `Could not attach ${submittedFileName}: ${error instanceof Error ? error.message : String(error)}`;
+      alertBuilder(`The side photo could not be attached. Previous products are unchanged.`);
+    }
+  } finally {
+    photoAttaching = false;
+    updateControls();
+  }
+}
+
+function onProductPhotoFileChange(): void {
+  const file = productPhotoFile.files?.[0];
+  if (file) void attachProductPhotoFile(file);
+  productPhotoFile.value = '';
+}
 sourceChoose.addEventListener('click', () => sourceFile.click());
 sourceFile.addEventListener('change', onSourceFileChange);
 startCreate.addEventListener('click', () => void createEmptyProject());
@@ -2855,6 +3204,10 @@ for (const side of PRODUCT_VIEW_SIDES) {
   productViewButton[side]!.addEventListener('click', () => productViewFile[side]!.click());
   productViewFile[side]!.addEventListener('change', () => onProductViewFileChange(side));
 }
+productPhotoChoose.addEventListener('click', () => productPhotoFile.click());
+productPhotoFile.addEventListener('change', onProductPhotoFileChange);
+productPhotoSide.addEventListener('change', () => refreshPhotoAttachHint());
+productPhotoScope.addEventListener('change', () => refreshPhotoAttachHint());
 newSourceButton.addEventListener('click', () => {
   showStep('prepare', 'open');
 });
@@ -3013,7 +3366,7 @@ function isOperationAnchorsSidecar(raw: unknown): raw is OperationAnchorsSidecar
 }
 
 function prepareBlocked(): boolean {
-  return loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy || source === null;
+  return loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy || source === null;
 }
 
 /** True once an issued baseline exists anywhere: Apply stays out of review. */
@@ -3631,6 +3984,7 @@ function refreshWorkspaceSelectors(): void {
 
 function refreshWorkspace(): void {
   refreshWorkspaceSelectors();
+  refreshPhotoAttachHint();
   workspaceView.refresh();
   void refreshStaffModel();
 }
