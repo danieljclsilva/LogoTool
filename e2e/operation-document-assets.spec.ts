@@ -11,8 +11,8 @@ import { assertCleanProbe, downloadText, openOfflineContext } from './helpers.js
 import type { Probe } from './helpers.js';
 
 const sha256Bytes = async (bytes: Uint8Array): Promise<string> => createHash('sha256').update(bytes).digest('hex');
-const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/customer-return-review.html')).href;
-const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/trusted-issued.logo-project');
+const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-return-review.html')).href;
+const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project');
 
 /** Real 1x1 transparent PNG (decodable in Chrome/Edge; header 1x1). */
 const TINY_PNG_BASE64 =

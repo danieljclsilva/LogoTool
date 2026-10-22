@@ -77,8 +77,8 @@ independent.
 
 ## Offline transport preview
 
-`src/ui/project-package-inspector` builds to the fully inline
-`dist/project-package-inspector.html`. It supports Choose Project and drag/drop,
+`src/ui/project-package-inspector` builds to the fully inline dev-only
+`dist/dev/project-package-inspector.html`. It supports Choose Project and drag/drop,
 validates before replacing the current in-memory project, and ignores stale
 asynchronous reads. It shows project/revision, an explicitly untrusted customer
 confirmation and pending-review summary, a millimetre placement table (including
@@ -86,8 +86,8 @@ named zero-placement configurations), and asset metadata only. Download saves
 the same `.logo-project` format; there is no editing UI or persistence
 requirement. Arbitrary imported strings are inserted as text, not HTML.
 
-Run `npm run build:customer-prototype` to emit ignored development artifacts
-under `dist/` (also emitted by `npm run build`):
+Run `npm run build` (also `npm run build:dev:preview`) to emit ignored development artifacts
+under `dist/dev/`:
 
 - `project-package-inspector.html` — unchanged transport-only inspection harness;
 - `synthetic-zero-placement.logo-project` — zero-placement fixture;

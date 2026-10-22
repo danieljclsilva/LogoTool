@@ -26,7 +26,7 @@ Before opening the Builder, assemble the job inputs:
       supplied each, and which product/variant/region each logo belongs to.
 - [ ] Confirm how many placements the job needs, including the **zero-placement**
       case (a configuration with no logos must stay representable).
-- [ ] Open `dist/internal-builder.html` offline and use **Create a project**
+- [ ] Open `dist/station/Logo Station.html` offline and use **Create a project**
       (synthetic catalogue) or **Open an existing project** for the prepared
       definitions. Confirm the issue starts at revision 1 with a fresh project ID.
 

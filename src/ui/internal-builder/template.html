@@ -241,8 +241,10 @@
             <p class="muted" data-builder-hook="catalogue-note" hidden>Example products — not for production.</p>
             <h3 class="group-title">Products</h3>
             <div class="rows" data-builder-hook="product-list"><p class="muted">No project loaded yet.</p></div>
-            <h3 class="group-title">Add a product</h3>
-            <p class="muted">Add a provisional, uncalibrated product from staged files. One 3D model (.glb), one flat image (PNG, JPEG, WebP), or one assigned side view (front/back/left/right) is enough; each assigned image attaches to its named side only. The product carries no measurements and cannot host placements; missing sides are simply absent, never invented.</p>
+            <details class="disclosure">
+              <summary>Add a provisional product (advanced setup)</summary>
+              <div class="body">
+              <p class="muted">Add a provisional, uncalibrated product from staged files. One 3D model (.glb), one flat image (PNG, JPEG, WebP), or one assigned side view (front/back/left/right) is enough; each assigned image attaches to its named side only. The product carries no measurements and cannot host placements; missing sides are simply absent, never invented.</p>
             <label class="field">Product name<input data-builder-hook="product-name" type="text" autocomplete="off" placeholder="e.g. Team jacket — provisional"></label>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-choose">Choose model or image</button><button type="button" class="btn-secondary" data-builder-hook="product-add">Add product from staged files</button><input data-builder-hook="product-file" type="file" accept=".glb,.png,.jpg,.jpeg,.webp" aria-label="Choose one product file: a 3D model (.glb) or a flat image (PNG, JPEG, WebP)"></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-front">Assign front view image</button><input data-builder-hook="product-view-front-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the front view image"><label class="field">Front view label<input data-builder-hook="product-view-front-label" type="text" autocomplete="off" placeholder="e.g. Front"></label></div>
@@ -250,10 +252,12 @@
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-left">Assign left side image</button><input data-builder-hook="product-view-left-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the left side image"><label class="field">Left side label<input data-builder-hook="product-view-left-label" type="text" autocomplete="off" placeholder="e.g. Left side"></label></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-right">Assign right side image</button><input data-builder-hook="product-view-right-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the right side image"><label class="field">Right side label<input data-builder-hook="product-view-right-label" type="text" autocomplete="off" placeholder="e.g. Right side"></label></div>
             <p class="muted">Optional per-view labels are attached to the named side only. Only explicitly assigned sides travel with the product; a lone back, left, or right image stays on that side and is never duplicated into front.</p>
+              </div>
+            </details>
             <details class="disclosure">
               <summary>Import a prepared product definition</summary>
               <div class="body">
-                <p class="muted">Import an inspector-bridge prepared product JSON: explicit millimetre regions, calibration references and methods. The file validates before anything changes; a failed import keeps the previous project. Imported products arrive with zero placements and provisional, pending-review calibration wording — never production-approved. An included bridge sidecar ships as reference evidence in the package, never as geometry. Product photos stay reference-only: no logo overlay on photos is calibrated by this import.</p>
+                <p class="muted">Import a prepared product definition JSON: explicit millimetre regions with measurement references. The file validates before anything changes; a failed import keeps the previous project. Imported products arrive with zero placements and provisional, pending-review measurement wording — never production-approved. An included bridge sidecar ships as reference evidence in the package, never as geometry. Product photos stay reference-only: no logo overlay on photos is calibrated by this import.</p>
                 <div data-builder-hook="prepared-product-drop" class="drop" tabindex="0" role="button" aria-label="Drop a prepared product JSON file here"><strong>Drop your prepared product file here</strong><br><span class="muted">or choose one from this device. Nothing is uploaded.</span></div>
                 <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="prepared-product-add">Import prepared product JSON</button><input data-builder-hook="prepared-product-file" type="file" accept=".json,application/json" aria-label="Choose a prepared product definition JSON file"></div>
               </div>
@@ -282,11 +286,16 @@
                 <div data-builder-hook="mapping-saved"></div>
               </div>
             </details>
+            <details class="disclosure">
+              <summary>Save a prepared master (advanced reuse)</summary>
+              <div class="body">
             <div class="file-action">
               <button type="button" class="btn-secondary" data-builder-hook="save-master" disabled>Save prepared master</button>
               <p class="muted">Downloads the current source package byte-identical, for reuse as prepared input. Reopen it with “Open an existing project”. Anchors authored below and staged photo mappings travel with the master.</p>
               <p class="muted" data-builder-hook="master-status" role="status" aria-live="polite"></p>
             </div>
+              </div>
+            </details>
             <details class="disclosure" data-builder-hook="prep-setup-disclosure">
               <summary>Anchor + safe-area setup (product preparation)</summary>
               <div class="body">
@@ -360,7 +369,7 @@
           <aside class="desk-rail" aria-label="Create the file">
             <h3 class="rail-title">Create the file</h3>
             <p class="muted">Makes the customer package from the items chosen above.</p>
-            <p class="muted">Uncalibrated products (no regions, no calibrations) stay preview-only: issue is blocked until you prepare measurements in the asset inspector and add them with “Import prepared product definition” in Choose items — or tick the explicit preview-only escape below. Selections with zero placements on calibrated products still issue normally.</p>
+            <p class="muted">Products without measurements stay preview-only: issue is blocked until you add measurements with “Import a prepared product definition” in Choose items — or tick the explicit preview-only escape below. Selections with zero placements on measured products still issue normally.</p>
             <fieldset>
               <label><input data-builder-hook="preview-only-acknowledge" type="checkbox"> Issue preview-only (uncalibrated)</label>
             </fieldset>
@@ -384,7 +393,7 @@
               <button type="button" class="btn-primary" data-builder-hook="download-package" disabled>Save customer file</button>
               <p class="muted">Attach this file to your normal handoff yourself. This page does not upload or send it.</p>
             </div>
-            <details class="disclosure"><summary>Download details</summary><div class="body"><p class="muted" data-builder-hook="baseline-status">No issued baseline retained; make a package first.</p></div></details>
+            <details class="disclosure"><summary>Download details</summary><div class="body"><p class="muted" data-builder-hook="baseline-status">No office copy retained; make a package first.</p></div></details>
             <p class="muted" data-builder-hook="size-estimate">No customer file created yet.</p>
             <details class="disclosure" data-builder-hook="file-details">
               <summary>File details</summary>
@@ -398,7 +407,8 @@
           <aside class="desk-rail" aria-label="Handoff summary">
             <h3 class="rail-title">Handoff summary</h3>
             <p class="muted">Save both files before closing this page: the office copy is held only in browser memory and is lost on reload.</p>
-            <details class="disclosure"><summary>Other tools</summary><div class="body"><button type="button" class="btn-secondary" data-builder-hook="download-reviewer">Save full reviewer</button><p class="muted">Open the downloaded HTML file to record a review decision.</p></div></details>
+            <div class="actions"><button type="button" class="btn-primary" data-builder-hook="send-to-review">Continue to check returns</button></div>
+            <p class="muted">The office copy stays loaded — no need to choose it again unless this page was reloaded.</p>
           </aside>
         </div>
       </section>
@@ -457,24 +467,26 @@
             <h3 class="group-title">What changed</h3>
             <div class="rows" data-builder-hook="review-changes"></div>
             <h3 class="group-title">Prepare the operation sheet</h3>
-            <p class="muted">Write the department's operational instructions and logo dimensions here — no separate reviewer download needed. Customer notes below are read-only context: they never print on the sheet, only department text prints as operational instructions.</p>
-            <label class="field">Product sheet (configuration)<select data-builder-hook="sheet-config" aria-label="Product sheet for operation authoring"></select></label>
+            <p class="muted">Write the department's operational instructions and logo dimensions here. Customer notes below are read-only context: they never print on the sheet, only department text prints as operational instructions.</p>
+            <label class="field">Product/option<select data-builder-hook="sheet-config" aria-label="Product or option for operation authoring"></select></label>
             <p class="muted" data-builder-hook="sheet-summary" role="status" aria-live="polite"></p>
             <div class="sheet-customer-notes" data-builder-hook="sheet-customer-notes" aria-label="Customer notes (read-only context)"></div>
-            <label class="field">Customer (human)<input data-builder-hook="sheet-customer" type="text" autocomplete="off" placeholder="e.g. Acme Ltd"></label>
+            <label class="field">Customer<input data-builder-hook="sheet-customer" type="text" autocomplete="off" placeholder="e.g. Acme Ltd"></label>
             <label class="field">Job reference<input data-builder-hook="sheet-reference" type="text" autocomplete="off" placeholder="e.g. JOB-1234"></label>
             <label class="field">Article<input data-builder-hook="sheet-article" type="text" autocomplete="off" placeholder="e.g. Team jacket — navy"></label>
             <label class="field">Operational instructions (department-authored)<textarea data-builder-hook="sheet-instructions" rows="4" placeholder="e.g. Press front logo at 160°C for 12 s, then check alignment."></textarea></label>
-            <fieldset>
-              <legend>Technique settings (optional — only what you type is printed)</legend>
-              <div class="sheet-logo-grid">
-                <label>Temperature<input data-builder-hook="sheet-tech-temperature" type="text" autocomplete="off" placeholder="e.g. 160°C"></label>
-                <label>Time<input data-builder-hook="sheet-tech-time" type="text" autocomplete="off" placeholder="e.g. 12 s"></label>
-                <label>Pressure<input data-builder-hook="sheet-tech-pressure" type="text" autocomplete="off" placeholder="e.g. medium"></label>
-                <label>Colour<input data-builder-hook="sheet-tech-colour" type="text" autocomplete="off" placeholder="e.g. white thread"></label>
-                <label>Thread<input data-builder-hook="sheet-tech-thread" type="text" autocomplete="off" placeholder="e.g. Madeira 40"></label>
+            <details class="disclosure">
+              <summary>Technique settings (optional — only what you type is printed<span data-builder-hook="tech-summary"></span>)</summary>
+              <div class="body">
+                <div class="sheet-logo-grid">
+                  <label>Temperature<input data-builder-hook="sheet-tech-temperature" type="text" autocomplete="off" placeholder="e.g. 160°C"></label>
+                  <label>Time<input data-builder-hook="sheet-tech-time" type="text" autocomplete="off" placeholder="e.g. 12 s"></label>
+                  <label>Pressure<input data-builder-hook="sheet-tech-pressure" type="text" autocomplete="off" placeholder="e.g. medium"></label>
+                  <label>Colour<input data-builder-hook="sheet-tech-colour" type="text" autocomplete="off" placeholder="e.g. white thread"></label>
+                  <label>Thread<input data-builder-hook="sheet-tech-thread" type="text" autocomplete="off" placeholder="e.g. Madeira 40"></label>
+                </div>
               </div>
-            </fieldset>
+            </details>
             <h3 class="group-title">Logo dimensions</h3>
             <p class="muted">One or more measured dimensions per logo: pick the anchor, the artwork edge and the convention for each row. Horizontal (dx) needs a left/right edge, vertical (dy) a bottom/top edge — anything else is refused with the reason shown. Missing anchors stay unset with “setup needed”: the draft still saves, but the sheet prints a draft badge.</p>
             <div data-builder-hook="sheet-logos"></div>
@@ -494,6 +506,43 @@
               <input data-builder-hook="draft-file" type="file" accept=".json,application/json" aria-label="Choose a saved operation draft JSON file">
             </div>
             <p class="muted" data-builder-hook="draft-status" role="status" aria-live="polite"></p>
+            <details class="disclosure">
+              <summary>Review decision (optional office bookkeeping)</summary>
+              <div class="body">
+                <p class="muted">Record the office decision for this customer update. Approval needs the customer confirmation to match this exact update, and every logo to fit its allowed area. This is internal workflow bookkeeping, not a production release.</p>
+                <p class="muted" data-builder-hook="review-decision-current">No return imported.</p>
+                <label class="field">Reviewer name<input data-builder-hook="review-decision-reviewer" type="text" autocomplete="off" placeholder="e.g. Pat (office)"></label>
+                <label class="field">Decision<select data-builder-hook="review-decision-choice" aria-label="Review decision"><option value="pending">Pending — needs more work</option><option value="changesRequested">Changes requested — send back to the customer</option><option value="approved">Approved — ready for production files</option></select></label>
+                <label class="field">Note (optional)<textarea data-builder-hook="review-decision-note" rows="3" placeholder="e.g. Front logo sits 2 mm too low; asked customer to confirm."></textarea></label>
+                <div class="actions">
+                  <button type="button" class="btn-secondary" data-builder-hook="review-decision-record">Record decision</button>
+                  <button type="button" class="btn-secondary" data-builder-hook="review-decision-download">Save reviewed return</button>
+                </div>
+                <p class="muted" data-builder-hook="review-decision-status" role="status" aria-live="polite"></p>
+              </div>
+            </details>
+            <details class="disclosure" data-builder-hook="proposal-disclosure">
+              <summary>Revise proposal (optional — creates a new customer update)</summary>
+              <div class="body">
+                <p class="muted">Adjust a logo position, size or the project note when the return needs office corrections before production. Applying creates a new update: earlier confirmations and reviews stay in history, the customer must confirm the new update before approval, and sheet drafts for the earlier update are cleared.</p>
+                <p class="muted" data-builder-hook="proposal-current">No return imported.</p>
+                <label class="field">Product option<select data-builder-hook="proposal-config" aria-label="Revised proposal product option"></select></label>
+                <label class="field">Logo placement<select data-builder-hook="proposal-placement" aria-label="Revised proposal logo placement"></select></label>
+                <div class="sheet-logo-grid">
+                  <label>X centre (mm)<input data-builder-hook="proposal-x" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 12.5"></label>
+                  <label>Y centre (mm)<input data-builder-hook="proposal-y" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. -30.0"></label>
+                  <label>Width (mm)<input data-builder-hook="proposal-width" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 90.0"></label>
+                  <label>Height (mm)<input data-builder-hook="proposal-height" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 40.0"></label>
+                  <label>Clockwise rotation (°)<input data-builder-hook="proposal-rotation" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 0.0"></label>
+                </div>
+                <label class="field">Project note (seen by the customer)<textarea data-builder-hook="proposal-instructions" rows="3" placeholder="e.g. Moved front logo 5 mm left."></textarea></label>
+                <div class="actions">
+                  <button type="button" class="btn-secondary" data-builder-hook="proposal-apply">Apply revised proposal</button>
+                  <button type="button" class="btn-secondary" data-builder-hook="proposal-download">Save revised proposal</button>
+                </div>
+                <p class="muted" data-builder-hook="proposal-status" role="status" aria-live="polite"></p>
+              </div>
+            </details>
             <details class="disclosure"><summary>File and measurement details</summary><section data-builder-hook="review-panel" aria-label="Return review" hidden>
               <h3 class="group-title">Return checks</h3>
               <p class="muted" data-builder-hook="ticket-summary">No return imported.</p>
@@ -508,7 +557,7 @@
               <button type="button" class="btn-primary" data-builder-hook="operation-print">Print / save PDF</button>
               <button type="button" class="btn-secondary" data-builder-hook="operator-download">Save operator data</button>
             </div>
-            <button type="button" class="btn-link" data-builder-hook="preview-document" aria-expanded="false">Preview operation document</button><details class="disclosure"><summary>More tools</summary><div class="body"><button type="button" class="btn-secondary" data-builder-hook="reviewer-copy">Save full reviewer</button><p class="muted">Open the downloaded file to record a review decision or prepare a revised proposal.</p><button type="button" class="btn-secondary" data-builder-hook="candidate-download">Save diagnostic data</button><p class="muted">Raw candidate JSON for advanced diagnosis only — the operator file above is the production handoff.</p></div></details>
+            <button type="button" class="btn-link" data-builder-hook="preview-document" aria-expanded="false">Preview operation document</button><details class="disclosure"><summary>More tools</summary><div class="body"><button type="button" class="btn-secondary" data-builder-hook="candidate-download">Save diagnostic data</button><p class="muted">Raw candidate JSON for advanced diagnosis only — the operator file above is the production handoff.</p></div></details>
           </aside>
         </div>
       </section>
@@ -518,7 +567,6 @@
   </main>
   <div data-builder-hook="operation-container" class="operation-document-preview-host" hidden></div>
   <!-- CUSTOMER_EDITOR_HTML -->
-  <!-- CUSTOMER_REVIEWER_HTML -->
   <script><!-- APP_SCRIPT --></script>
 </body>
 </html>

@@ -10,13 +10,13 @@ import { gotoBuilder, revealBuilderControl, openOfflineContext, assertCleanProbe
 import type { Page } from '@playwright/test';
 
 const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-const editor = pathToFileURL(resolve('dist/customer-configurator.html')).href;
+const editor = pathToFileURL(resolve('dist/dev/customer-configurator.html')).href;
 const hook = (page: Page, name: string) => page.locator(`[data-customer-hook="${name}"]`);
 async function syntheticPng(page: Page): Promise<Uint8Array> {
   const base64 = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 20; canvas.height = 10; const context = canvas.getContext('2d')!; context.fillStyle = '#12394b'; context.fillRect(0,0,20,10); return canvas.toDataURL('image/png').split(',')[1]!; });
   return new Uint8Array(Buffer.from(base64, 'base64'));
 }
-async function fixture() { return parseProjectPackage(new Uint8Array(await readFile(resolve('dist/trusted-issued.logo-project'))), { sha256 }); }
+async function fixture() { return parseProjectPackage(new Uint8Array(await readFile(resolve('dist/dev/trusted-issued.logo-project'))), { sha256 }); }
 async function packageWith(project: ProjectDocument, assets: Awaited<ReturnType<typeof fixture>>['assets'], additional: Array<{ path: string; bytes: Uint8Array }>) {
   return createProjectPackage({ project, assets: assets.filter(asset => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes })), additionalAssets: additional }, { sha256 });
 }
@@ -150,7 +150,7 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const primary = await show('generate');
     await expect(primary).toContainText('Create customer file');
     await primary.click();
-    await expect(await show('generate-status')).toContainText(`Issued ${issuedProjectId} revision 1`);
+    await expect(await show('generate-status')).toContainText(`Customer file ready (revision 1)`);
     await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
     await expect(await show('download-baseline')).toContainText('Save office copy');
     await expect(await show('download-package')).toContainText('Save customer file');

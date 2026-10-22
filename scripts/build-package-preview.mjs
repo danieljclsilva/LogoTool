@@ -1,26 +1,26 @@
+// Dev-only package preview generator: developer/test utilities, synthetic
+// fixtures and customer-format reference builds. Writes ONLY under dist/dev/
+// (never the station distribution, never legacy dist-root pages).
+//
+// Station assembly (embedded editor/reviewer markers, catalogue, brand mark)
+// lives in scripts/station-assembly.mjs and is shared with the production
+// station generator — this script consumes buildInlineHtml() for the two
+// dev-only customer reference pages and performs no station construction.
 import { createHash } from 'node:crypto';
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { zipSync } from 'fflate';
 import { createProjectPackage } from '../dist/src/packaging/project-package/index.js';
 import { createSelfContainedHtml } from '../dist/src/packaging/self-contained-html/index.js';
-// Tracked exact original FlexiTog brand mark (red on white), inlined as a
-// data URL into the customer editor brand-mark img. No network, no customer
-// artwork. Deterministic: same bytes every build.
-const brandMarkBytes = await readFile('src/ui/shared/brand/flexitog-mark.jpg');
-const stationBrandStyles = await readFile('src/ui/shared/brand/station.css', 'utf8');
-const BRAND_MARK_DATA_URL = `data:image/jpeg;base64,${brandMarkBytes.toString('base64')}`;
-function withBrandMark(templateHtml) {
-  const marker = '<img data-customer-hook="brand-mark" alt="FlexiTog">';
-  if (templateHtml.split(marker).length !== 2) {
-    throw new Error('Customer editor template must contain one unadorned brand-mark img');
-  }
-  return templateHtml.replace(marker, () => `<img data-customer-hook="brand-mark" alt="FlexiTog" src="${BRAND_MARK_DATA_URL}">`);
-}
+import {
+  buildInlineHtml,
+  comparePaths,
+  loadStationBrand,
+} from './station-assembly.mjs';
 
 const root = process.cwd();
-const outputDir = resolve(root, 'dist');
+const devDir = resolve(root, 'dist/dev');
 const bundled = await build({
   entryPoints: ['src/ui/project-package-inspector/main.ts'],
   bundle: true,
@@ -42,77 +42,19 @@ if (template.split(marker).length !== 2) {
 const inlineScript = bundled.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const html = template.replace(marker, () => inlineScript);
 const htmlBytes = new TextEncoder().encode(html);
+const brand = await loadStationBrand();
 const customerHtmlBytes = await buildInlineHtml(
   'src/ui/customer-editor/main.ts',
   'src/ui/customer-editor/template.html',
   'customer editor',
+  brand,
 );
 const returnReviewHtmlBytes = await buildInlineHtml(
   'src/ui/customer-return-review/main.ts',
   'src/ui/customer-return-review/template.html',
   'customer return review',
+  brand,
 );
-const builderTemplateRaw = await readFile(
-  'src/ui/internal-builder/template.html',
-  'utf8',
-);
-const editorMarker = '<!-- CUSTOMER_EDITOR_HTML -->';
-if (builderTemplateRaw.split(editorMarker).length !== 2) {
-  throw new Error('Internal builder template must contain one CUSTOMER_EDITOR_HTML marker');
-}
-const reviewerMarker = '<!-- CUSTOMER_REVIEWER_HTML -->';
-if (builderTemplateRaw.split(reviewerMarker).length !== 2) {
-  throw new Error('Internal builder template must contain one CUSTOMER_REVIEWER_HTML marker');
-}
-const embeddedEditor = `<script id="__logoCustomerEditorHtml" type="text/plain">${Buffer.from(customerHtmlBytes).toString('base64')}</script>`;
-const embeddedReviewer = `<script id="__logoCustomerReviewerHtml" type="text/plain">${Buffer.from(returnReviewHtmlBytes).toString('base64')}</script>`;
-// Offline "Create a project" catalogue: explicit prepared example definitions
-// only (never a customer job). Products parse as JSON and stay byte-identical;
-// logo defs likewise; binary assets embed as base64 with deterministic
-// path ordering. No instructions/history/confirmation/review travel in this
-// JSON. Bounded: three small products plus two SVG marks.
-const catalogueProductFiles = (await readdir('examples/products'))
-  .filter((file) => file.endsWith('.product.json'))
-  .sort(comparePaths);
-const catalogueProducts = await Promise.all(
-  catalogueProductFiles.map(async (file) => JSON.parse(await readFile(`examples/products/${file}`, 'utf8'))),
-);
-catalogueProducts.sort((left, right) => comparePaths(left.id, right.id));
-const catalogueLogoFiles = ['syn-mark-a.logo.json', 'syn-mark-b.logo.json'];
-const catalogueLogos = await Promise.all(
-  catalogueLogoFiles.map(async (file) => JSON.parse(await readFile(`examples/logos/${file}`, 'utf8'))),
-);
-catalogueLogos.sort((left, right) => comparePaths(left.id, right.id));
-const catalogueAssetPaths = [
-  ...new Set(catalogueLogos.flatMap((logo) => logo.assets.map((asset) => asset.uri))),
-].sort(comparePaths);
-const catalogueAssets = await Promise.all(
-  catalogueAssetPaths.map(async (assetPath) => {
-    if (!assetPath.startsWith('logos/') || assetPath.includes('..') || assetPath.includes('\\')) {
-      throw new Error(`Unexpected catalogue asset path: ${assetPath}`);
-    }
-    const bytes = new Uint8Array(await readFile(resolve(root, 'examples', assetPath)));
-    return { path: assetPath, bytesBase64: Buffer.from(bytes).toString('base64') };
-  }),
-);
-// Products and logos stay byte-identical to the prepared example files;
-// synthetic=true is applied by createProjectFromDefinitions on the draft
-// project, never stamped onto the catalogue definitions themselves.
-const catalogueJson = JSON.stringify({
-  products: catalogueProducts,
-  logos: catalogueLogos,
-  assets: catalogueAssets,
-});
-const embeddedCatalogue = `<script id="__logoBuilderCatalogue" type="application/json">${catalogueJson.replace(/<\//g, '<\\/')}</script>`;
-const builderTemplate = builderTemplateRaw.replace(editorMarker, () => embeddedEditor).replace(reviewerMarker, () => embeddedReviewer);
-let builderHtml = new TextDecoder().decode(await buildInlineHtmlFromTemplate(
-  'src/ui/internal-builder/main.ts',
-  builderTemplate,
-  'internal builder',
-));
-if (builderHtml.split('</script>').length < 2) throw new Error('Built internal builder HTML has no closing script tag for catalogue placement');
-builderHtml = builderHtml.replace('</script>', `</script>\n${embeddedCatalogue}`);
-const builderHtmlBytes = new TextEncoder().encode(builderHtml);
 
 const sha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 const project = JSON.parse(
@@ -160,14 +102,13 @@ const selfContainedHtmlBytes = await createSelfContainedHtml({
   projectPackage: issuedProjectPackage,
 });
 
-await mkdir(outputDir, { recursive: true });
-await writeFile(resolve(outputDir, 'project-package-inspector.html'), htmlBytes);
-await writeFile(resolve(outputDir, 'synthetic-zero-placement.logo-project'), zeroProjectPackage);
-await writeFile(resolve(outputDir, 'customer-configurator.html'), customerHtmlBytes);
-await writeFile(resolve(outputDir, 'synthetic-customer-self-contained.html'), selfContainedHtmlBytes);
-await writeFile(resolve(outputDir, 'customer-return-review.html'), returnReviewHtmlBytes);
-await writeFile(resolve(outputDir, 'internal-builder.html'), builderHtmlBytes);
-await writeFile(resolve(outputDir, 'trusted-issued.logo-project'), issuedProjectPackage);
+await mkdir(devDir, { recursive: true });
+await writeFile(resolve(devDir, 'project-package-inspector.html'), htmlBytes);
+await writeFile(resolve(devDir, 'synthetic-zero-placement.logo-project'), zeroProjectPackage);
+await writeFile(resolve(devDir, 'customer-configurator.html'), customerHtmlBytes);
+await writeFile(resolve(devDir, 'synthetic-customer-self-contained.html'), selfContainedHtmlBytes);
+await writeFile(resolve(devDir, 'customer-return-review.html'), returnReviewHtmlBytes);
+await writeFile(resolve(devDir, 'trusted-issued.logo-project'), issuedProjectPackage);
 const hybridEntries = [
   ['OPEN_LOGO_CONFIGURATOR.html', htmlBytes],
   ['SYNTHETIC_PACKAGE_TRANSPORT_PREVIEW.logo-project', projectPackage],
@@ -176,7 +117,7 @@ const hybridZip = zipSync(Object.fromEntries(hybridEntries), {
   level: 6,
   mtime: new Date(2000, 0, 1, 0, 0, 0),
 });
-await writeFile(resolve(outputDir, 'synthetic-package-transport-preview.zip'), hybridZip);
+await writeFile(resolve(devDir, 'synthetic-package-transport-preview.zip'), hybridZip);
 const customerHybridEntries = [
   ['customer-configurator.html', customerHtmlBytes],
   ['SYNTHETIC-CUSTOMER.logo-project', issuedProjectPackage],
@@ -185,38 +126,7 @@ const customerHybridZip = zipSync(Object.fromEntries(customerHybridEntries), {
   level: 6,
   mtime: new Date(2000, 0, 1, 0, 0, 0),
 });
-await writeFile(resolve(outputDir, 'synthetic-customer-prototype.zip'), customerHybridZip);
+await writeFile(resolve(devDir, 'synthetic-customer-prototype.zip'), customerHybridZip);
 console.log(
-  'Built ignored dist transport preview, inline synthetic customer editor/reviewer, self-contained customer HTML, hybrid customer prototype ZIP, and trusted issued baseline.',
+  'Built dev-only dist/dev transport preview, inline synthetic customer editor/reviewer, self-contained customer HTML, hybrid customer prototype ZIP, and trusted issued baseline.',
 );
-
-function comparePaths(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-async function buildInlineHtml(entryPoint, templatePath, label) {
-  let template = await readFile(templatePath, 'utf8');
-  if (templatePath.endsWith('src/ui/customer-editor/template.html')) template = withBrandMark(template);
-  return buildInlineHtmlFromTemplate(entryPoint, template, label);
-}
-async function buildInlineHtmlFromTemplate(entryPoint, template, label) {
-  template = template.replace('<!-- STATION_BRAND_STYLES -->', () => stationBrandStyles)
-    .replace('<img data-station-brand alt="FlexiTog">', () => `<img data-station-brand alt="FlexiTog" src="${BRAND_MARK_DATA_URL}">`);
-  const bundle = await build({
-    entryPoints: [entryPoint],
-    bundle: true,
-    format: 'iife',
-    platform: 'browser',
-    target: 'es2022',
-    write: false,
-    minify: true,
-    legalComments: 'inline',
-  });
-  const marker = '<!-- APP_SCRIPT -->';
-  if (template.split(marker).length !== 2) {
-    throw new Error(`${label} template must contain one APP_SCRIPT marker`);
-  }
-  const script = bundle.outputFiles[0]?.text;
-  if (script === undefined) throw new Error(`${label} bundle produced no output`);
-  const inlineScript = script.replace(/<\/script/gi, '<\\/script');
-  return new TextEncoder().encode(template.replace(marker, () => inlineScript));
-}

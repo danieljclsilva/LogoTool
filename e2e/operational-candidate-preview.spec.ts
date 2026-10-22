@@ -24,8 +24,8 @@ import type { Probe } from './helpers.js';
 
 const sha256Bytes = async (bytes: Uint8Array): Promise<string> => createHash('sha256').update(bytes).digest('hex');
 const sha256Text: Sha256HexFn = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
-const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/customer-return-review.html')).href;
-const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/trusted-issued.logo-project');
+const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-return-review.html')).href;
+const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project');
 
 type PackageParts = { referenced: ProjectPackageAssetInput[]; additional: ProjectPackageAssetInput[] };
 

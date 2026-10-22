@@ -96,16 +96,18 @@ also holds per-scope logs, `environment.txt` and `summary.txt`.
 Automated specs open built/extracted HTML themselves, but the operator must also
 open each delivery format directly, offline, in **both** branded browsers:
 
-1. `dist/internal-builder.html` — via `file://` (double-click or paste the
+1. `dist/station/Logo Station.html` — via `file://` (double-click or paste the
    `file:///C:/...` URL). Walk the guided flow once per
    `docs/internal-builder.md` on synthetic data.
-2. Hybrid ZIP: unzip `dist/*.zip` to a folder **with spaces in its name**,
+2. Hybrid ZIP: unzip `dist/dev/*.zip` to a folder **with spaces in its name**,
    open its `OPEN_LOGO_CONFIGURATOR.html` via `file://`.
-3. Self-contained HTML: copy `dist/synthetic-customer-self-contained.html`
+3. Self-contained HTML: copy `dist/dev/synthetic-customer-self-contained.html`
    alone into an empty folder and open it via `file://` — it must load with no
    siblings.
-4. `dist/customer-return-review.html` and `dist/asset-inspector.html` — open
-   via `file://` and confirm they render with no error overlay.
+4. Dev-only engineering pages `dist/dev/customer-return-review.html` and
+   `dist/dev/asset-inspector.html` — open via `file://` and confirm they render
+   with no error overlay. These are developer utilities, not the shipped
+   station; the release delivers only `dist/station/`.
 
 For each file and each browser record: renders / error overlay / console errors
 (operator: press `Ctrl+Shift+J`, confirm zero errors) / any network activity.

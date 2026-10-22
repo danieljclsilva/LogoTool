@@ -60,7 +60,7 @@ npm test
 npm run generate:models
 ```
 
-`npm run build` compiles the portable layers and bundles `dist/asset-inspector.html`
+`npm run build` compiles the portable layers and bundles `dist/dev/asset-inspector.html`
 with inline JS/CSS, Three.js and the validator. Open that file directly, disconnect
 networking, and choose either tracked GLB in `examples/models/`. The browser needs
 WebGL2 for preview and WebCrypto for hashing. All runtime dependencies are bundled;

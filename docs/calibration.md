@@ -2,7 +2,7 @@
 
 Status: provisional. The kernel plus an offline anchor-picking and
 known-distance draft panel are integrated into the internal
-`dist/asset-inspector.html` harness. Every fit stays
+`dist/dev/asset-inspector.html` harness. Every fit stays
 `productionApproved: false, pendingReview: true`. No real product measurements
 were obtained or physically validated in this development pass; production
 output integration remains pending. Phase 4 real product/Tripo

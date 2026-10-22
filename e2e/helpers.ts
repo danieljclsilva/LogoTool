@@ -6,7 +6,7 @@ import { release } from 'node:os';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 
 export const INSPECTOR_URL = pathToFileURL(
-  resolve(process.cwd(), 'dist/asset-inspector.html'),
+  resolve(process.cwd(), 'dist/dev/asset-inspector.html'),
 ).href;
 
 export interface Probe {
@@ -62,7 +62,20 @@ export async function openOfflineContext(
 export async function gotoInspector(page: Page): Promise<void> {
   await page.goto(INSPECTOR_URL);
 }
-export const BUILDER_URL = pathToFileURL(resolve(process.cwd(), 'dist/internal-builder.html')).href;
+
+// Single-entry Logo Station canonical outputs. Declared before BUILDER_URL
+// so the long-standing builder entry below aliases the shipped station.
+export const STATION_FILENAME = 'Logo Station.html';
+export const STATION_DIR = resolve(process.cwd(), 'dist/station');
+export const STATION_PATH = resolve(STATION_DIR, STATION_FILENAME);
+export const STATION_URL = pathToFileURL(STATION_PATH).href;
+
+// Canonical staff entry: the single-entry Logo Station. Every builder spec
+// exercises the shipped station output through the long-standing
+// BUILDER_URL/gotoBuilder names — a green suite can never mask a broken
+// station build with a legacy sidecar page. (Dev-only inspector output
+// keeps its own INSPECTOR_URL above.)
+export const BUILDER_URL = STATION_URL;
 
 export async function gotoBuilder(page: Page): Promise<void> {
   await page.goto(BUILDER_URL);
@@ -259,4 +272,35 @@ export async function selectCustomerOption(page: Page, name: string, value: stri
   const select = page.locator(`[data-customer-hook="${name}"]`);
   if (await select.isVisible()) await select.selectOption(value);
   else if (await select.inputValue() !== value) throw new Error(`Fixed ${name} does not offer ${value}`);
+}
+
+// Dev-only outputs (canonical copies under dist/dev/). No generated staff
+// HTML or fixture remains at the dist root: the production station lives
+// ONLY at dist/station/, dev utilities/fixtures ONLY under dist/dev/.
+export const DEV_DIR = resolve(process.cwd(), 'dist/dev');
+export const DEV_INSPECTOR_URL = pathToFileURL(resolve(DEV_DIR, 'asset-inspector.html')).href;
+export const DEV_PACKAGE_INSPECTOR_URL = pathToFileURL(
+  resolve(DEV_DIR, 'project-package-inspector.html'),
+).href;
+export const DEV_CUSTOMER_EDITOR_URL = pathToFileURL(
+  resolve(DEV_DIR, 'customer-configurator.html'),
+).href;
+export const DEV_RETURN_REVIEW_URL = pathToFileURL(
+  resolve(DEV_DIR, 'customer-return-review.html'),
+).href;
+
+/** Fail clearly when the station entry is missing instead of opening a blank page. */
+export async function assertStationPresent(): Promise<void> {
+  try {
+    await readFile(STATION_PATH);
+  } catch {
+    throw new Error(
+      `Station entry missing at ${STATION_PATH}. Run "npm run build:station" (or "npm run build") first.`,
+    );
+  }
+}
+
+export async function gotoStation(page: Page): Promise<void> {
+  await assertStationPresent();
+  await page.goto(STATION_URL);
 }

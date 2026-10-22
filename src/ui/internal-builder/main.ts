@@ -31,6 +31,8 @@ import {
   buildCandidateExport,
   canonicalize,
   importCustomerReturn,
+  newRevision,
+  recordInternalReview,
   serializeExport,
   validateLogos,
   validateProject,
@@ -42,6 +44,7 @@ import type {
   Placement,
   ProjectDocument,
   ResultCandidate,
+  ReviewDecision,
 } from '../../core/index.js';
 import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import { buildOperationSheetView, matchLogoRef } from '../../core/operation-document/index.js';
@@ -81,7 +84,7 @@ import {
   PROJECT_PACKAGE_LIMITS,
   parseProjectPackage,
 } from '../../packaging/project-package/index.js';
-import type { ProjectPackageAsset } from '../../packaging/project-package/index.js';
+import type { ProjectPackageAsset, ProjectPackageAssetInput } from '../../packaging/project-package/index.js';
 import {
   createSelfContainedHtml,
   decodeEmbeddedProjectBase64,
@@ -137,6 +140,10 @@ interface ReturnState {
   contentDigest: string;
   serializedCandidate: string;
   candidateFileName: string;
+  /** Human job handle for return-derived filenames (never a raw UUID). */
+  jobPart: string;
+  /** Return package assets (referenced + additional) for the reviewed-return save. */
+  packageAssets: ProjectPackageAsset[];
   geometryOk: boolean;
   returnFileName: string;
   baselineFileName: string;
@@ -210,7 +217,6 @@ const sizeEstimate = hook<HTMLElement>('size-estimate');
 const downloadPackage = hook<HTMLButtonElement>('download-package');
 const downloadHtml = hook<HTMLButtonElement>('download-html');
 const downloadBaseline = hook<HTMLButtonElement>('download-baseline');
-const downloadReviewer = hook<HTMLButtonElement>('download-reviewer');
 const baselineStatus = hook<HTMLElement>('baseline-status');
 const baselineFile = hook<HTMLInputElement>('baseline-file');
 const baselineChoose = hook<HTMLButtonElement>('baseline-choose');
@@ -250,6 +256,28 @@ const fileDetails = hook<HTMLElement>('file-details');
 const builderAlert = hook<HTMLElement>('builder-alert');
 const readySummary = hook<HTMLElement>('ready-summary');
 const officeSummary = hook<HTMLElement>('office-summary');
+/* In-station review decision (check step): same rules as the full reviewer. */
+const decisionCurrent = hook<HTMLElement>('review-decision-current');
+const decisionReviewer = hook<HTMLInputElement>('review-decision-reviewer');
+const decisionChoice = hook<HTMLSelectElement>('review-decision-choice');
+const decisionNote = hook<HTMLTextAreaElement>('review-decision-note');
+const decisionRecord = hook<HTMLButtonElement>('review-decision-record');
+const decisionDownload = hook<HTMLButtonElement>('review-decision-download');
+const decisionStatus = hook<HTMLElement>('review-decision-status');
+const sendToReview = hook<HTMLButtonElement>('send-to-review');
+/* In-station revised proposal (check step): office corrections via newRevision. */
+const proposalCurrent = hook<HTMLElement>('proposal-current');
+const proposalConfig = hook<HTMLSelectElement>('proposal-config');
+const proposalPlacement = hook<HTMLSelectElement>('proposal-placement');
+const proposalX = hook<HTMLInputElement>('proposal-x');
+const proposalY = hook<HTMLInputElement>('proposal-y');
+const proposalWidth = hook<HTMLInputElement>('proposal-width');
+const proposalHeight = hook<HTMLInputElement>('proposal-height');
+const proposalRotation = hook<HTMLInputElement>('proposal-rotation');
+const proposalInstructions = hook<HTMLTextAreaElement>('proposal-instructions');
+const proposalApply = hook<HTMLButtonElement>('proposal-apply');
+const proposalDownload = hook<HTMLButtonElement>('proposal-download');
+const proposalStatus = hook<HTMLElement>('proposal-status');
 /* Operation-sheet authoring hooks (review/prepare flow, check step). */
 const sheetConfig = hook<HTMLSelectElement>('sheet-config');
 const sheetSummary = hook<HTMLElement>('sheet-summary');
@@ -263,6 +291,7 @@ const sheetTechTime = hook<HTMLInputElement>('sheet-tech-time');
 const sheetTechPressure = hook<HTMLInputElement>('sheet-tech-pressure');
 const sheetTechColour = hook<HTMLInputElement>('sheet-tech-colour');
 const sheetTechThread = hook<HTMLInputElement>('sheet-tech-thread');
+const techSummary = hook<HTMLElement>('tech-summary');
 const sheetLogos = hook<HTMLElement>('sheet-logos');
 const anchorSide = hook<HTMLSelectElement>('anchor-side');
 const anchorRegion = hook<HTMLSelectElement>('anchor-region');
@@ -614,8 +643,8 @@ function invalidateOutputsForEdit(): void {
   lastReturn = null;
   sizeEstimate.textContent = 'No issued package generated yet.';
   baselineStatus.textContent = loadedBaseline !== null
-    ? `No generated delivery retained. A saved baseline (${loadedBaseline.fileName}) remains loaded for return review.`
-    : 'No issued baseline retained; generate a package first.';
+    ? `No generated delivery retained. A saved office copy (${loadedBaseline.fileName}) remains loaded for return review.`
+    : 'No office copy retained; generate a package first.';
   clearFileDetails();
   if (builderMode === 'prepare' && prepareStep === 'send') showStep('prepare', 'details');
   clearReturnReview();
@@ -663,8 +692,6 @@ function updateControls(): void {
     : 'Download project file only (advanced)';
   downloadBaseline.disabled = activeBaseline() === null || blocked;
   hook<HTMLButtonElement>('office-download').disabled = activeBaseline() === null || blocked;
-  downloadReviewer.disabled = blocked;
-  hook<HTMLButtonElement>('reviewer-copy').disabled = blocked;
   projectIdUseSource.disabled = source === null || blocked;
   projectIdNew.disabled = blocked;
   for (const input of [customerName, jobRef, issuedBy, projectIdInput, previewOnlyAck, formatSelf, formatHybrid]) input.disabled = blocked;
@@ -683,6 +710,14 @@ function updateControls(): void {
   candidateDownload.disabled = !hasReturn;
   operatorDownload.disabled = !hasReturn;
   operationPrint.disabled = !hasReturn;
+  decisionReviewer.disabled = authoringOff;
+  decisionChoice.disabled = authoringOff;
+  decisionNote.disabled = authoringOff;
+  decisionRecord.disabled = authoringOff;
+  decisionDownload.disabled = authoringOff || !hasCurrentStationReview();
+  for (const input of [proposalConfig, proposalPlacement, proposalX, proposalY, proposalWidth, proposalHeight, proposalRotation, proposalInstructions]) input.disabled = authoringOff;
+  proposalApply.disabled = authoringOff;
+  proposalDownload.disabled = authoringOff;
   returnFile.disabled = blocked || activeBaseline() === null;
   const stepButtons = document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-next"], [data-builder-hook="builder-back"]');
   for (const button of stepButtons) {
@@ -696,6 +731,7 @@ function updateControls(): void {
   if (officeNext && office === null) officeNext.hidden = true;
   modePrepare.disabled = blocked;
   modeReview.disabled = blocked;
+  sendToReview.disabled = blocked;
   for (const tab of [stepOpen, stepChoose, stepDetails, stepSend, stepOffice, stepReturn, stepCheck]) tab.disabled = blocked;
   stepChoose.disabled = blocked || source === null;
   stepDetails.disabled = blocked || source === null || !selectionValid;
@@ -799,7 +835,7 @@ function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = fa
   if (summary.configurationIds.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'No configurations in source.';
+    empty.textContent = 'No setups in source.';
     configurationList.append(empty);
   } else {
     for (const configurationId of summary.configurationIds) {
@@ -889,21 +925,29 @@ function selectedPreviewOnlyIds(): string[] {
 }
 
 /**
- * Preview-only issue gate: selected products without regions/calibrations
- * stay preview-only and block issue until the operator either prepares them
- * (asset inspector, then Import prepared product JSON) or explicitly ticks
- * "Issue preview-only (uncalibrated)". Valid zero-placement selections of
- * calibrated products are never blocked by this gate.
+ * Preview-only issue gate: selected products without measurement data stay
+ * preview-only and block issue until the operator either adds measurements
+ * with “Import prepared product definition” in Choose items or explicitly
+ * ticks "Issue preview-only (uncalibrated)". Valid zero-placement
+ * selections of measured products are never blocked by this gate.
  */
+function previewOnlyLabels(): string[] {
+  if (source === null) return [];
+  return source.project.products
+    .filter((product) => previewOnlyIds.includes(product.id))
+    .map((product) => product.name ?? product.id);
+}
+
 function refreshPreviewOnlyGate(): void {
   previewOnlyIds = selectedPreviewOnlyIds();
   if (previewOnlyIds.length === 0 || previewOnlyAck.checked) return;
-  const ids = previewOnlyIds.join(', ');
+  const labels = previewOnlyLabels();
+  const names = labels.length > 0 ? labels.join(', ') : `${previewOnlyIds.length} selected products`;
   generateStatus.hidden = false;
   generateStatus.textContent =
-    `Cannot issue yet: ${previewOnlyIds.length === 1 ? 'this product has' : 'these products have'} no regions or calibrations (${ids}). ` +
-    'Prepare measurements in the asset inspector, then add them with “Import prepared product definition” in Choose items — ' +
-    'or tick “Issue preview-only (uncalibrated)” below for an explicit preview-only handoff.';
+    `Cannot issue yet: ${names} ${labels.length === 1 ? 'has' : 'have'} no measurements. ` +
+    'Add measurements with “Import a prepared product definition” in Choose items — ' +
+    'or tick “Issue preview-only (uncalibrated)” below to send an unmeasured preview.';
 }
 
 function refreshSelectionValidation(): void {
@@ -970,8 +1014,8 @@ function clearGeneratedOutputs(): void {
   generated = null;
   sizeEstimate.textContent = 'No issued package generated yet.';
   baselineStatus.textContent = loadedBaseline !== null
-    ? `No generated delivery retained. A saved baseline (${loadedBaseline.fileName}) remains loaded for return review.`
-    : 'No issued baseline retained; generate a package first.';
+    ? `No generated delivery retained. A saved office copy (${loadedBaseline.fileName}) remains loaded for return review.`
+    : 'No office copy retained; generate a package first.';
   clearFileDetails();
   clearReturnReview();
   updateControls();
@@ -987,6 +1031,13 @@ function clearReturnReview(): void {
   handoffSummary.textContent = 'No return imported.';
   reviewFiles.replaceChildren();
   reviewChanges.replaceChildren();
+  decisionChoice.value = 'pending';
+  decisionNote.value = '';
+  decisionStatus.textContent = '';
+  proposalStatus.textContent = '';
+  renderStationDecision();
+  renderProposalEditor();
+  paintTechSummary();
   for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
   operationContainer.replaceChildren();
   operationContainer.hidden = true;
@@ -1042,7 +1093,7 @@ async function loadSourceFile(file: File): Promise<void> {
     clearGeneratedOutputs();
     previewOnlyAck.checked = false;
     previewOnlyIds = [];
-    sourceStatus.textContent = `Loaded ${file.name}: project ${summary.projectId} revision ${summary.revision}, ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} configurations, ${summary.assetPaths.length} assets.`;
+    sourceStatus.textContent = `Loaded ${file.name} (revision ${summary.revision}): ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} setups, ${summary.assetPaths.length} artwork files.`;
     refreshSelectionValidation();
     ensureAutoProjectId();
     showStep('prepare', 'choose');
@@ -1065,7 +1116,7 @@ function onSourceFileChange(): void {
 function embeddedEditorBytes(): Uint8Array {
   const nodes = document.querySelectorAll('#__logoCustomerEditorHtml');
   if (nodes.length !== 1) {
-    throw new Error('Customer configurator HTML is not embedded exactly once; rebuild dist/internal-builder.html before generating.');
+    throw new Error('Customer configurator HTML is not embedded exactly once; rebuild the station before generating.');
   }
   const node = nodes[0]!;
   if (node.tagName !== 'SCRIPT' || node.getAttribute('type') !== 'text/plain') {
@@ -1101,13 +1152,13 @@ async function generateIssued(): Promise<void> {
     // Preview-only gate (defense in depth; the button is already disabled):
     // uncalibrated selections issue only with the explicit escape checked.
     const uncalibrated = snapshot.project.products
-      .filter((product) => selection.productIds.includes(product.id) && isPreviewOnlyProduct(product))
-      .map((product) => product.id);
+      .filter((product) => selection.productIds.includes(product.id) && isPreviewOnlyProduct(product));
     if (uncalibrated.length > 0 && !previewOnlyAck.checked) {
       generateStatus.hidden = false;
+      const names = uncalibrated.map((product) => product.name ?? product.id).join(', ');
       generateStatus.textContent =
-        `Issue rejected: ${uncalibrated.join(', ')} ${uncalibrated.length === 1 ? 'has' : 'have'} no regions or calibrations. ` +
-        'Prepare measurements in the asset inspector, then add them with “Import prepared product definition” — or tick “Issue preview-only (uncalibrated)”.';
+        `Issue rejected: ${names} ${uncalibrated.length === 1 ? 'has' : 'have'} no measurements. ` +
+        'Add measurements with “Import a prepared product definition” — or tick “Issue preview-only (uncalibrated)”.';
       return;
     }
     // UI trims before calling core; core validates the trimmed value
@@ -1272,9 +1323,9 @@ async function generateIssued(): Promise<void> {
         `Format: one file (${htmlBytes.length} bytes). The customer opens OPEN_LOGO_CONFIGURATOR.html directly, nothing to unzip.`;
     }
     baselineStatus.textContent =
-      `Retained issued baseline: ${identity.projectId} revision 1 (${packageBytes.length} bytes). Save this exact file before closing the page; memory is lost on reload.`;
+      `Office copy retained: revision 1 (${packageBytes.length} bytes). Save this exact file before closing the page; memory is lost on reload.`;
     generateStatus.textContent =
-      `Issued ${identity.projectId} revision 1 for ${identity.customerLabel} / ${identity.jobReference} by ${identity.issuedBy}. Confirmation and internal review history reset before customer handoff.`;
+      `Customer file ready (revision 1) for ${identity.customerLabel} / ${identity.jobReference} by ${identity.issuedBy}. Earlier confirmations and office reviews stay in the office copy; this file starts unconfirmed.`;
     readySummary.textContent = `${identity.customerLabel} · ${identity.jobReference} · Prepared by ${identity.issuedBy}`;
     renderFileDetails(identity);
     sizeEstimate.textContent = `${hybrid ? 'ZIP package' : 'Ready-to-open customer file'} · ${((hybrid ? zipBytes!.length : htmlBytes.length) / 1024 / 1024).toFixed(1)} MB. ${hybrid ? 'Ask the customer to unzip it first.' : 'The customer opens it directly.'}`;
@@ -1283,7 +1334,7 @@ async function generateIssued(): Promise<void> {
     if (generation === generateGeneration) {
       generated = null;
       sizeEstimate.textContent = 'No issued package generated yet.';
-      baselineStatus.textContent = 'No issued baseline retained; generate a package first.';
+      baselineStatus.textContent = 'No office copy retained; generate a package first.';
       generateStatus.textContent = `Generation failed: ${error instanceof Error ? error.message : String(error)}`;
       alertBuilder('The customer file could not be created. Please try again. Your source project is unchanged.');
     }
@@ -1311,7 +1362,9 @@ function downloadBytes(bytes: Uint8Array, fileName: string, mime: string): void 
 async function downloadMasterFile(): Promise<void> {
   if (source === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
   const snapshot = source;
-  const fileName = `${safeJobPart(snapshot.project.projectId)}-prepared-master.logo-project`;
+  const stem = snapshot.fileName.replace(/\.(logo-project|zip)$/i, '');
+  const stemSafe = safeJobPart(stem);
+  const fileName = `${looksLikeUuid(stemSafe) || stemSafe === 'project' ? 'prepared-master' : `${stemSafe}-prepared-master`}.logo-project`;
   // No staged mappings: the current source package bytes travel verbatim
   // (byte-identical). Staged photo mappings are operator data that must not
   // be silently dropped: rebuild the package with the merged mappings file
@@ -1405,7 +1458,7 @@ function downloadBaselineFile(): void {
   if (baseline === null) return;
   downloadBytes(baseline.packageBytes, `${baseline.jobPart}-issued-baseline.logo-project`, 'application/zip');
   baselineStatus.textContent =
-    `Download started: issued baseline (${baseline.packageBytes.length} bytes). Save it before closing the page; memory is lost on reload.`;
+    `Download started: office copy (${baseline.packageBytes.length} bytes). Save it before closing the page; memory is lost on reload.`;
 }
 
 function compareAssetBytes(issued: readonly ProjectPackageAsset[], back: readonly ProjectPackageAsset[]): string[] {
@@ -1471,6 +1524,14 @@ function differenceLines(issued: ProjectDocument, back: ProjectDocument): string
   return rows.length > 0 ? rows : ['No configuration or instruction differences from the issued baseline.'];
 }
 
+/** Office-perspective one-line return summary (diagnostics keep exact internals). */
+function ticketSummaryText(imported: ProjectDocument, candidateDigest: string): string {
+  const decision = imported.review !== undefined ? imported.review.decision : 'pending (no current internal review)';
+  return (
+    `Project ${imported.projectId}; revision ${imported.revision}; candidate digest ${candidateDigest}; confirmation ${imported.confirmation === undefined ? 'none' : `rev ${imported.confirmation.revision} by ${imported.confirmation.confirmedBy}`} (timestamp source: returned confirmation envelope); decision ${decision}.`
+  );
+}
+
 function confirmationLine(imported: ProjectDocument, digest: string): string {
   if (imported.confirmation === undefined) return 'Customer confirmation: none; draft only.';
   // The confirmation timestamp is customer-supplied evidence carried in the
@@ -1513,6 +1574,26 @@ function safeJobPart(value: string): string {
   return part;
 }
 
+/** True for random-UUID handles: never shown in primary filenames or status. */
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
+ * Human job handle for return-derived filenames: the office-copy filename
+ * stem first (it survives reloads and carries the staff's own naming), then
+ * the baseline job part, then a safe generic fallback. UUID-shaped values
+ * are skipped at every step so no raw UUID lands in primary filenames.
+ */
+function stationJobPart(baselineFileName: string, jobPartFallback: string): string {
+  const stem = baselineFileName.replace(/\.(logo-project|zip)$/i, '').replace(/-issued-baseline$/i, '');
+  for (const value of [stem, jobPartFallback]) {
+    const safe = safeJobPart(value);
+    if (safe !== 'project' && !looksLikeUuid(safe)) return safe;
+  }
+  return 'station-return';
+}
+
 async function loadBaselineFile(file: File): Promise<void> {
   alertBuilder();
   const generation = ++baselineGeneration;
@@ -1533,7 +1614,7 @@ async function loadBaselineFile(file: File): Promise<void> {
     loadedBaseline = { fileName: file.name, jobPart: safeJobPart(parsed.project.projectId), packageBytes: bytes.slice(), issuedProject: parsed.project, issuedAssets: parsed.assets };
     // Selecting a saved baseline explicitly switches review context away from any generated delivery.
     clearGeneratedOutputs();
-    baselineLoadStatus.textContent = `Loaded saved baseline ${file.name}: project ${parsed.project.projectId} revision ${parsed.project.revision} (${bytes.length} bytes). Return review is now available.`;
+    baselineLoadStatus.textContent = `Loaded office copy ${file.name} (revision ${parsed.project.revision}, ${bytes.length} bytes). Return review is now available.`;
     showStep('review', 'return');
   } catch (error) {
     if (generation === baselineGeneration) {
@@ -1549,6 +1630,104 @@ function onBaselineFileChange(): void {
   const file = baselineFile.files?.[0];
   if (file) void loadBaselineFile(file);
   baselineFile.value = '';
+}
+
+/**
+ * Shared refresh after the in-memory return project is (re)placed: rebuilds
+ * the digest, candidate export, diffs, operation views, sheet authoring and
+ * the proposal editor from `lastReturn.imported`. Used both for fresh return
+ * imports and in-station revised proposals, so office corrections share the
+ * exact validated state as the import path. Returns false when superseded.
+ */
+async function finalizeReturnState(input: {
+  /** Validated return project to display (fresh import or revised proposal). */
+  imported: ProjectDocument;
+  baselineIssued: ProjectDocument;
+  jobPart: string;
+  baselineFileName: string;
+  returnFileName: string;
+  /** Return package assets (referenced + additional) for rebuilds/downloads. */
+  packageAssets: ProjectPackageAsset[];
+  reviewTimestamp: string;
+  statusMessage: string;
+  generation: number;
+}): Promise<boolean> {
+  const geometry = geometryLine(input.imported);
+  if (input.generation !== returnGeneration) return false;
+  const digest = await hasher.prepareProject(input.imported);
+  if (input.generation !== returnGeneration) return false;
+  const candidate: ResultCandidate = buildCandidateExport(input.imported, hasher.sha256Hex);
+  const serialized = serializeExport(candidate);
+  if (input.generation !== returnGeneration) return false;
+  const snapshot: ReturnState = {
+    imported: input.imported,
+    candidate,
+    contentDigest: digest,
+    serializedCandidate: serialized,
+    candidateFileName: '',
+    jobPart: stationJobPart(input.baselineFileName, input.jobPart),
+    packageAssets: input.packageAssets,
+    geometryOk: geometry.ok,
+    returnFileName: input.returnFileName,
+    baselineFileName: input.baselineFileName,
+    reviewTimestamp: input.reviewTimestamp,
+  };
+  lastReturn = snapshot;
+  snapshot.candidateFileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-candidate.json`;
+  const imported = snapshot.imported;
+  reviewPanel.hidden = false;
+  for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
+  const anchor = ticketSummary;
+  const confirmation = document.createElement('p');
+  confirmation.setAttribute('data-builder-dynamic', 'true');
+  confirmation.textContent = confirmationLine(imported, digest);
+  const geometrySummary = document.createElement('p');
+  geometrySummary.setAttribute('data-builder-dynamic', 'true');
+  geometrySummary.textContent = geometry.text;
+  const differenceText = differenceLines(input.baselineIssued, imported);
+  const differences = document.createElement('pre');
+  differences.setAttribute('data-builder-dynamic', 'true');
+  differences.textContent = differenceText.join('\n\n');
+  reviewPanel.insertBefore(confirmation, anchor);
+  reviewPanel.insertBefore(geometrySummary, anchor);
+  reviewPanel.insertBefore(differences, anchor);
+  renderReviewFiles();
+  renderReviewChanges(input.baselineIssued);
+  decisionChoice.value = 'pending';
+  decisionNote.value = '';
+  decisionStatus.textContent = '';
+  renderStationDecision();
+  ticketSummary.textContent = ticketSummaryText(imported, candidate.digest);
+  // Handoff summary: real filenames, exact candidate name, operator
+  // Print/Save-as-PDF instructions; customer delivery (ZIP/HTML) vs
+  // production attachments (candidate JSON + printed PDF); no Odoo.
+  handoffSummary.textContent =
+    `Return file: ${input.returnFileName}. Baseline file: ${input.baselineFileName}. Candidate file: ${snapshot.candidateFileName}. ` +
+    `Press “Print operation document”, then choose Print / Save as PDF in the browser dialog; attach the candidate JSON plus the printed PDF to the production ticket/BoM. ` +
+    `Customer delivery files (${generated !== null ? (generated.format === 'hybrid' ? `${generated.jobPart}.zip + OPEN_LOGO_CONFIGURATOR.html` : `OPEN_LOGO_CONFIGURATOR.html (self-contained, embeds ${generated.jobPart}.logo-project)`) : 'none generated this session'}) are separate from these production attachments. ` +
+    `Reviewed ${input.reviewTimestamp} (local browser clock). No Odoo calls were made; manual attachment is the only handoff.`;
+  operationContainer.replaceChildren();
+  const returnAssetBytes = new Map(snapshot.packageAssets.map((asset) => [asset.path, asset.bytes]));
+  const returnManifestBytes = returnAssetBytes.get('presentation/preview.json');
+  const returnSelections = selectOperationReferenceViews(
+    candidate.configurations,
+    returnManifestBytes,
+    returnManifestBytes !== undefined,
+    { getBytes: (path) => returnAssetBytes.get(path) },
+  );
+  const returnReferenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
+  for (const [id, selection] of Object.entries(returnSelections)) {
+    returnReferenceViews[id] = selection.views;
+  }
+  lastReturnAssets = returnAssetBytes;
+  lastReturnReferenceViews = returnReferenceViews;
+  initSheetAuthoring(candidate);
+  renderSheetPreview();
+  renderProposalEditor();
+  operationContainer.hidden = false;
+  returnStatus.textContent = input.statusMessage;
+  showStep('review', 'check');
+  return true;
 }
 
 async function loadReturnFile(file: File): Promise<void> {
@@ -1602,76 +1781,19 @@ async function loadReturnFile(file: File): Promise<void> {
       throw new Error(outcome.errors.map((error) => `${error.code}: ${error.message}`).join('; '));
     }
     const imported = outcome.project;
-    const geometry = geometryLine(imported);
-    if (generation !== returnGeneration) return;
-    const candidateDigest = await hasher.prepareProject(imported);
-    if (generation !== returnGeneration) return;
-    const candidate: ResultCandidate = buildCandidateExport(imported, hasher.sha256Hex);
-    const serialized = serializeExport(candidate);
-    if (generation !== returnGeneration) return;
     const reviewTimestamp = new Date().toISOString();
-    lastReturn = {
+    if (generation !== returnGeneration) return;
+    await finalizeReturnState({
       imported,
-      candidate,
-      contentDigest: digest,
-      serializedCandidate: serialized,
-      candidateFileName: `${baseline.jobPart}-r${imported.revision}-candidate.json`,
-      geometryOk: geometry.ok,
-      returnFileName: file.name,
+      baselineIssued: baseline.issuedProject,
+      jobPart: baseline.jobPart,
       baselineFileName: baseline.fileName,
+      returnFileName: file.name,
+      packageAssets: parsed.assets.slice(),
       reviewTimestamp,
-    };
-    reviewPanel.hidden = false;
-    for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
-    const anchor = ticketSummary;
-    const confirmation = document.createElement('p');
-    confirmation.setAttribute('data-builder-dynamic', 'true');
-    confirmation.textContent = confirmationLine(imported, digest);
-    const geometrySummary = document.createElement('p');
-    geometrySummary.setAttribute('data-builder-dynamic', 'true');
-    geometrySummary.textContent = geometry.text;
-    const differenceText = differenceLines(baseline.issuedProject, imported);
-    const differences = document.createElement('pre');
-    differences.setAttribute('data-builder-dynamic', 'true');
-    differences.textContent = differenceText.join('\n\n');
-    reviewPanel.insertBefore(confirmation, anchor);
-    reviewPanel.insertBefore(geometrySummary, anchor);
-    reviewPanel.insertBefore(differences, anchor);
-    renderReviewFiles();
-    renderReviewChanges(baseline.issuedProject);
-    const decision = imported.review !== undefined ? imported.review.decision : 'pending (no current internal review)';
-    ticketSummary.textContent =
-      `Project ${imported.projectId}; revision ${imported.revision}; candidate digest ${candidate.digest}; confirmation ${imported.confirmation === undefined ? 'none' : `rev ${imported.confirmation.revision} by ${imported.confirmation.confirmedBy}`} (timestamp source: returned confirmation envelope); decision ${decision}.`;
-    // Handoff summary: real filenames, exact candidate name, operator
-    // Print/Save-as-PDF instructions; customer delivery (ZIP/HTML) vs
-    // production attachments (candidate JSON + printed PDF); no Odoo.
-    handoffSummary.textContent =
-      `Return file: ${file.name}. Baseline file: ${baseline.fileName}. Candidate file: ${lastReturn.candidateFileName}. ` +
-      `Press “Print operation document”, then choose Print / Save as PDF in the browser dialog; attach the candidate JSON plus the printed PDF to the production ticket/BoM. ` +
-      `Customer delivery files (${generated !== null ? (generated.format === 'hybrid' ? `${generated.jobPart}.zip + OPEN_LOGO_CONFIGURATOR.html` : `OPEN_LOGO_CONFIGURATOR.html (self-contained, embeds ${generated.jobPart}.logo-project)`) : 'none generated this session'}) are separate from these production attachments. ` +
-      `Reviewed ${reviewTimestamp} (local browser clock). No Odoo calls were made; manual attachment is the only handoff.`;
-    operationContainer.replaceChildren();
-    const returnAssetBytes = new Map(parsed.assets.map((asset) => [asset.path, asset.bytes]));
-    const returnManifestBytes = returnAssetBytes.get('presentation/preview.json');
-    const returnSelections = selectOperationReferenceViews(
-      candidate.configurations,
-      returnManifestBytes,
-      returnManifestBytes !== undefined,
-      { getBytes: (path) => returnAssetBytes.get(path) },
-    );
-    const returnReferenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
-    const returnReferenceWarnings: Record<string, string> = Object.create(null);
-    for (const [id, selection] of Object.entries(returnSelections)) {
-      returnReferenceViews[id] = selection.views;
-      if (selection.warning !== null) returnReferenceWarnings[id] = selection.warning;
-    }
-    lastReturnAssets = returnAssetBytes;
-    lastReturnReferenceViews = returnReferenceViews;
-    initSheetAuthoring(candidate);
-    renderSheetPreview();
-    operationContainer.hidden = false;
-    returnStatus.textContent = 'Return imported against the active issued baseline. Internal review is pending.';
-    showStep('review', 'check');
+      statusMessage: 'Return imported against the active issued baseline. Internal review is pending.',
+      generation,
+    });
   } catch (error) {
     if (generation !== returnGeneration) return;
     returnStatus.textContent = `Could not import return ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous valid review remains unchanged.`;
@@ -1688,6 +1810,366 @@ function onReturnFileChange(): void {
   const file = returnFile.files?.[0];
   if (file) void loadReturnFile(file);
   returnFile.value = '';
+}
+
+/** True when the customer confirmation matches this exact update. */
+function stationConfirmationCurrent(snapshot: ReturnState): boolean {
+  const confirmation = snapshot.imported.confirmation;
+  return confirmation !== undefined &&
+    confirmation.revision === snapshot.imported.revision &&
+    confirmation.digest === snapshot.contentDigest;
+}
+
+/** True when a recorded office decision covers this exact update. */
+function hasCurrentStationReview(): boolean {
+  if (lastReturn === null || lastReturn.imported.review === undefined) return false;
+  const review = lastReturn.imported.review;
+  return review.revision === lastReturn.imported.revision && review.digest === lastReturn.contentDigest;
+}
+
+/** Human-readable office decision for the current update (no digests/IDs). */
+function renderStationDecision(): void {
+  if (lastReturn === null) {
+    decisionCurrent.textContent = 'No return imported.';
+    return;
+  }
+  const review = lastReturn.imported.review;
+  if (review === undefined) {
+    decisionCurrent.textContent = `No office decision recorded yet for update ${lastReturn.imported.revision}.`;
+    return;
+  }
+  const current = review.revision === lastReturn.imported.revision && review.digest === lastReturn.contentDigest;
+  decisionCurrent.textContent =
+    `${current ? 'Current' : 'Outdated'} office decision: ${review.decision} for update ${review.revision}, by ${review.reviewer} at ${review.at}.${review.note === undefined ? '' : ` Note: ${review.note}`}`;
+}
+
+async function recordStationReview(): Promise<void> {
+  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  const snapshot = lastReturn;
+  const reviewer = decisionReviewer.value.trim();
+  const decision = decisionChoice.value as ReviewDecision;
+  const note = decisionNote.value;
+  if (reviewer === '') {
+    decisionStatus.textContent = 'Type your reviewer name before recording a decision.';
+    return;
+  }
+  if (decision === 'approved' && (!snapshot.geometryOk || !stationConfirmationCurrent(snapshot))) {
+    decisionStatus.textContent = 'Approval is blocked: the customer confirmation must match this exact update, and every logo must fit its allowed area.';
+    return;
+  }
+  returnBusy = true;
+  updateControls();
+  try {
+    const digest = await hasher.prepareProject(snapshot.imported);
+    if (lastReturn !== snapshot) return;
+    if (digest !== snapshot.contentDigest || !validateProject(snapshot.imported).ok ||
+      (decision === 'approved' && !evaluateProjectGeometry(snapshot.imported).ok)) {
+      decisionStatus.textContent = 'Decision blocked: the update changed while you were reviewing. Check the latest values and try again.';
+      return;
+    }
+    const outcome = recordInternalReview(snapshot.imported, {
+      decision,
+      reviewer,
+      digestOf: digest,
+      ...(note === '' ? {} : { note }),
+    }, hasher.sha256Hex);
+    if (lastReturn !== snapshot) return;
+    if (!outcome.ok) {
+      decisionStatus.textContent = `Decision was not recorded: ${outcome.errors.map((error) => error.message).join('; ')}`;
+      return;
+    }
+    renderStationDecision();
+    ticketSummary.textContent = ticketSummaryText(snapshot.imported, snapshot.candidate.digest);
+    decisionStatus.textContent = `Recorded ${decision} for update ${snapshot.imported.revision}. This is internal workflow bookkeeping, not a production release.`;
+  } catch (error) {
+    if (lastReturn === snapshot) {
+      decisionStatus.textContent = `Decision failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    if (lastReturn === snapshot) {
+      returnBusy = false;
+      updateControls();
+    }
+  }
+}
+
+async function downloadReviewedReturn(): Promise<void> {
+  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  const snapshot = lastReturn;
+  if (!hasCurrentStationReview()) {
+    decisionStatus.textContent = 'Record a current office decision before saving the reviewed return.';
+    return;
+  }
+  returnBusy = true;
+  updateControls();
+  try {
+    const referenced: ProjectPackageAssetInput[] = [];
+    const additional: ProjectPackageAssetInput[] = [];
+    for (const asset of snapshot.packageAssets) {
+      (asset.kind === 'referenced' ? referenced : additional).push({ path: asset.path, bytes: asset.bytes });
+    }
+    const bytes = await createProjectPackage({
+      project: snapshot.imported,
+      assets: referenced,
+      additionalAssets: additional,
+    }, { sha256: hasher.sha256Bytes });
+    if (lastReturn !== snapshot) {
+      decisionStatus.textContent = 'Save discarded because the reviewed update changed while its file was being prepared.';
+      return;
+    }
+    const fileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-reviewed.logo-project`;
+    downloadBytes(bytes, fileName, 'application/zip');
+    decisionStatus.textContent = `Saved ${fileName} (${bytes.length} bytes). Keep it with the office copy.`;
+  } catch (error) {
+    if (lastReturn === snapshot) {
+      decisionStatus.textContent = `Reviewed return could not be saved: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    if (lastReturn === snapshot) {
+      returnBusy = false;
+      updateControls();
+    }
+  }
+}
+
+/** Human label for a placement row: position, artwork and area names. */
+function proposalPlacementLabel(configId: string, index: number): string {
+  const imported = lastReturn?.imported;
+  const configuration = imported?.configurations.find((entry) => entry.id === configId);
+  const placement = configuration?.placements[index];
+  if (placement === undefined) return `Placement ${index + 1}`;
+  const product = imported?.products.find((entry) => entry.id === configuration?.productId);
+  const region = product?.regions.find((entry) => entry.id === placement.regionId);
+  const logo = imported?.logos.find((entry) => entry.id === placement.logoId);
+  return `${index + 1}. ${logo?.name ?? placement.logoId} — ${region?.name ?? placement.regionId}`;
+}
+
+function refillProposalInputs(): void {
+  const imported = lastReturn?.imported;
+  const configuration = imported?.configurations.find((entry) => entry.id === proposalConfig.value);
+  const placement = configuration?.placements[Number(proposalPlacement.value)];
+  const set = (input: HTMLInputElement, value: string): void => {
+    if (document.activeElement !== input) input.value = value;
+  };
+  set(proposalX, placement === undefined ? '' : String(placement.pos.xMm));
+  set(proposalY, placement === undefined ? '' : String(placement.pos.yMm));
+  set(proposalWidth, placement === undefined ? '' : String(placement.widthMm));
+  set(proposalHeight, placement === undefined ? '' : String(placement.heightMm));
+  set(proposalRotation, placement === undefined ? '' : String(placement.rotationDeg));
+  if (document.activeElement !== proposalInstructions) proposalInstructions.value = imported?.instructions ?? '';
+}
+
+function refillProposalPlacements(keep?: string): void {
+  const selected = keep ?? proposalPlacement.value;
+  proposalPlacement.replaceChildren();
+  const imported = lastReturn?.imported;
+  const configuration = imported?.configurations.find((entry) => entry.id === proposalConfig.value);
+  for (const [index] of (configuration?.placements ?? []).entries()) {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = proposalPlacementLabel(configuration!.id, index);
+    proposalPlacement.append(option);
+  }
+  if ([...proposalPlacement.options].some((option) => option.value === selected)) proposalPlacement.value = selected;
+  refillProposalInputs();
+}
+
+function renderProposalEditor(): void {
+  const keepConfig = proposalConfig.value;
+  const keepPlacement = proposalPlacement.value;
+  proposalConfig.replaceChildren();
+  proposalPlacement.replaceChildren();
+  if (lastReturn === null) {
+    proposalCurrent.textContent = 'No return imported.';
+    for (const input of [proposalX, proposalY, proposalWidth, proposalHeight, proposalRotation]) input.value = '';
+    proposalInstructions.value = '';
+    return;
+  }
+  const imported = lastReturn.imported;
+  for (const config of lastReturn.candidate.configurations) {
+    const option = document.createElement('option');
+    option.value = config.id;
+    option.textContent = configDisplayName(config);
+    proposalConfig.append(option);
+  }
+  if (lastReturn.candidate.configurations.some((config) => config.id === keepConfig)) proposalConfig.value = keepConfig;
+  refillProposalPlacements(keepPlacement);
+  proposalCurrent.textContent =
+    `Update ${imported.revision}: ${imported.configurations.length} product option(s). Applying creates update ${imported.revision + 1}.`;
+}
+
+/**
+ * Human-readable geometry refusal for the proposal status line: product /
+ * option / logo names plus the domain reason. Technical config/placement IDs
+ * stay in the "File and measurement details" diagnostics, never here.
+ */
+function proposalFitFailures(
+  snapshot: ReturnState,
+  fit: { placements: Array<{ ok: boolean; configurationId: string; placementIndex: number; reason: string }> },
+): string {
+  return fit.placements.filter((item) => !item.ok).map((item) => {
+    const configuration = snapshot.imported.configurations.find((entry) => entry.id === item.configurationId);
+    const product = snapshot.imported.products.find((entry) => entry.id === configuration?.productId);
+    const variant = product?.variants.find((entry) => entry.id === configuration?.variantId);
+    const placement = configuration?.placements[item.placementIndex];
+    const logo = snapshot.imported.logos.find((entry) => entry.id === placement?.logoId);
+    return `${product?.name ?? 'Unnamed product'} / ${variant?.name ?? 'unnamed option'} — ${logo?.name ?? 'unnamed logo'}: ${item.reason}`;
+  }).join('; ');
+}
+
+/** Read one proposal number with the reviewer's finite-number wording. */
+function readProposalNumber(input: HTMLInputElement, label: string): number | null {
+  if (input.value.trim() === '') {
+    proposalStatus.textContent = `Revised proposal blocked: ${label} must be a finite number.`;
+    return null;
+  }
+  const value = Number(input.value);
+  if (!Number.isFinite(value)) {
+    proposalStatus.textContent = `Revised proposal blocked: ${label} must be a finite number.`;
+    return null;
+  }
+  return value;
+}
+
+/**
+ * In-station revised proposal: office corrections to one placement's
+ * geometry plus the customer-facing project note, applied as a new revision
+ * through domain `newRevision` (confirmation/review history preserved,
+ * current confirmation and review cleared). Geometry is gated exactly like
+ * the reviewer: every logo must fit its allowed area.
+ */
+async function applyStationProposal(): Promise<void> {
+  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  const snapshot = lastReturn;
+  const generation = returnGeneration;
+  const configuration = snapshot.imported.configurations.find((entry) => entry.id === proposalConfig.value);
+  if (configuration === undefined) {
+    proposalStatus.textContent = 'Choose a product option before applying.';
+    return;
+  }
+  const placementIndex = Number(proposalPlacement.value);
+  const placement = configuration.placements[placementIndex];
+  let numbers: { xMm: number; yMm: number; widthMm: number; heightMm: number; rotationDeg: number } | null = null;
+  if (placement !== undefined) {
+    const xMm = readProposalNumber(proposalX, 'X centre (mm)');
+    const yMm = readProposalNumber(proposalY, 'Y centre (mm)');
+    const widthMm = readProposalNumber(proposalWidth, 'Width (mm)');
+    const heightMm = readProposalNumber(proposalHeight, 'Height (mm)');
+    const rotationDeg = readProposalNumber(proposalRotation, 'Clockwise rotation (°)');
+    if (xMm === null || yMm === null || widthMm === null || heightMm === null || rotationDeg === null) return;
+    numbers = { xMm, yMm, widthMm, heightMm, rotationDeg };
+  }
+  const instructions = proposalInstructions.value;
+  const placementChanged = placement !== undefined && numbers !== null && (
+    placement.pos.xMm !== numbers.xMm || placement.pos.yMm !== numbers.yMm ||
+    placement.widthMm !== numbers.widthMm || placement.heightMm !== numbers.heightMm ||
+    placement.rotationDeg !== numbers.rotationDeg
+  );
+  const instructionsChanged = (snapshot.imported.instructions ?? '') !== instructions;
+  if (!placementChanged && !instructionsChanged) {
+    proposalStatus.textContent = 'No changes to apply: the numbers and note already match this update.';
+    return;
+  }
+  let next: ProjectDocument;
+  try {
+    next = newRevision(snapshot.imported, (draft) => {
+      const draftConfiguration = draft.configurations.find((entry) => entry.id === configuration.id);
+      if (draftConfiguration === undefined) throw new Error('Selected product option disappeared.');
+      if (placement !== undefined && numbers !== null) {
+        const current = draftConfiguration.placements[placementIndex];
+        if (current === undefined) throw new Error('Selected logo placement disappeared.');
+        draftConfiguration.placements[placementIndex] = {
+          ...current,
+          pos: { xMm: numbers.xMm, yMm: numbers.yMm },
+          widthMm: numbers.widthMm,
+          heightMm: numbers.heightMm,
+          rotationDeg: numbers.rotationDeg,
+        };
+      }
+      if (instructions === '') delete draft.instructions;
+      else draft.instructions = instructions;
+    });
+  } catch (error) {
+    proposalStatus.textContent = `Revised proposal was not created: ${error instanceof Error ? error.message : String(error)}`;
+    return;
+  }
+  const fit = evaluateProjectGeometry(next);
+  if (!fit.ok) {
+    proposalStatus.textContent = `Revised proposal blocked: ${proposalFitFailures(snapshot, fit)}. Every logo must fit its allowed area and avoid exclusion zones.`;
+    return;
+  }
+  returnBusy = true;
+  updateControls();
+  try {
+    if (lastReturn !== snapshot || generation !== returnGeneration) return;
+    const baseline = activeBaseline();
+    if (baseline === null) {
+      proposalStatus.textContent = 'Office copy is no longer available; choose it again before applying.';
+      return;
+    }
+    const applied = await finalizeReturnState({
+      imported: next,
+      baselineIssued: baseline.issuedProject,
+      jobPart: baseline.jobPart,
+      baselineFileName: baseline.fileName,
+      returnFileName: snapshot.returnFileName,
+      packageAssets: snapshot.packageAssets,
+      reviewTimestamp: new Date().toISOString(),
+      statusMessage: `Applied revised proposal as update ${next.revision}. Earlier confirmations and reviews stay in history; the new update needs customer confirmation before approval.`,
+      generation,
+    });
+    if (!applied) return;
+    proposalStatus.textContent =
+      `Applied revised proposal as update ${next.revision}. Earlier confirmations and reviews stay in history; the new update needs customer confirmation before approval. Sheet drafts for the earlier update were cleared.`;
+  } catch (error) {
+    if (generation === returnGeneration) {
+      proposalStatus.textContent = `Revised proposal failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    // finalizeReturnState replaces lastReturn, so ownership here is the
+    // generation token (a newer load bumps it first and owns the flag).
+    if (generation === returnGeneration) {
+      returnBusy = false;
+      updateControls();
+    }
+  }
+}
+
+async function downloadStationProposal(): Promise<void> {
+  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  const snapshot = lastReturn;
+  const generation = returnGeneration;
+  returnBusy = true;
+  updateControls();
+  try {
+    if (generation !== returnGeneration || lastReturn !== snapshot) return;
+    const referenced: ProjectPackageAssetInput[] = [];
+    const additional: ProjectPackageAssetInput[] = [];
+    for (const asset of snapshot.packageAssets) {
+      (asset.kind === 'referenced' ? referenced : additional).push({ path: asset.path, bytes: asset.bytes });
+    }
+    const bytes = await createProjectPackage({
+      project: snapshot.imported,
+      assets: referenced,
+      additionalAssets: additional,
+    }, { sha256: hasher.sha256Bytes });
+    if (generation !== returnGeneration || lastReturn !== snapshot) {
+      proposalStatus.textContent = 'Save discarded because the update changed while its file was being prepared.';
+      return;
+    }
+    const fileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-proposal.logo-project`;
+    downloadBytes(bytes, fileName, 'application/zip');
+    proposalStatus.textContent = `Saved ${fileName} (${bytes.length} bytes). Send it to the customer as the new update; the customer must confirm it before approval.`;
+  } catch (error) {
+    if (generation === returnGeneration && lastReturn === snapshot) {
+      proposalStatus.textContent = `Revised proposal could not be saved: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  } finally {
+    if (generation === returnGeneration) {
+      returnBusy = false;
+      updateControls();
+    }
+  }
 }
 
 async function downloadCandidateFile(): Promise<void> {
@@ -1788,33 +2270,6 @@ function downloadOperatorFile(): void {
   returnStatus.textContent = `Download started: ${fileName}.`;
 }
 
-function embeddedReviewerBytes(): Uint8Array {
-  const nodes = document.querySelectorAll('#__logoCustomerReviewerHtml');
-  if (nodes.length === 0) {
-    throw new Error('Customer return reviewer HTML is not embedded; open dist/customer-return-review.html offline via file:// instead.');
-  }
-  if (nodes.length !== 1) {
-    throw new Error('Customer return reviewer HTML is not embedded exactly once.');
-  }
-  const node = nodes[0]!;
-  if (node.tagName !== 'SCRIPT' || node.getAttribute('type') !== 'text/plain') {
-    throw new Error('Embedded reviewer block has an unexpected element shape.');
-  }
-  return decodeEmbeddedProjectBase64(node.textContent ?? '');
-}
-
-function downloadReviewerFile(): void {
-  try {
-    const bytes = embeddedReviewerBytes();
-    downloadBytes(bytes, 'CUSTOMER_RETURN_REVIEW.html', 'text/html');
-    baselineLoadStatus.textContent =
-      `Downloaded CUSTOMER_RETURN_REVIEW.html (${bytes.length} bytes). Open it offline via file:// for full decision/reproposal support; or open dist/customer-return-review.html.`;
-  } catch (error) {
-    baselineLoadStatus.textContent =
-      `Reviewer download unavailable: ${error instanceof Error ? error.message : String(error)} Open dist/customer-return-review.html offline via file:// instead.`;
-  }
-}
-
 interface BuilderCatalogue {
   products: ProjectDocument['products'];
   logos: ProjectDocument['logos'];
@@ -1823,7 +2278,7 @@ interface BuilderCatalogue {
 function readEmbeddedCatalogue(): BuilderCatalogue {
   const node = document.querySelector('#__logoBuilderCatalogue');
   if (node === null) {
-    throw new Error('Example product catalogue is not embedded; rebuild dist/internal-builder.html before creating a project.');
+    throw new Error('Example product catalogue is not embedded; rebuild the station before creating a project.');
   }
   if (node.tagName !== 'SCRIPT' || node.getAttribute('type') !== 'application/json') {
     throw new Error('Embedded example catalogue has an unexpected element shape.');
@@ -2231,7 +2686,7 @@ async function addProductFromStaged(): Promise<void> {
     refreshSelectionValidation();
     refreshMappingOptions();
     if (generation !== productGeneration) return;
-    productStatus.textContent = `Added preview-only product ${productId} (${views.length} view${views.length === 1 ? '' : 's'}${models.length ? ', 3D model' : ''}). It carries no measurements and cannot host placements; missing sides are absent, never invented.${historyNote}`;
+    productStatus.textContent = `Added preview-only product ${made.product.name ?? productId} (${views.length} view${views.length === 1 ? '' : 's'}${models.length ? ', 3D model' : ''}). It carries no measurements and cannot host placements; missing sides are absent, never invented.${historyNote}`;
   } catch (error) {
     if (generation === productGeneration) {
       productStatus.textContent = `Could not add product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
@@ -2354,7 +2809,7 @@ async function importPreparedProductFile(file: File): Promise<void> {
     refreshSelectionValidation();
     refreshMappingOptions();
     if (generation !== productGeneration) return;
-    productStatus.textContent = `Imported prepared product ${importedProductId} (${newConfigIds.size} zero-placement setup${newConfigIds.size === 1 ? '' : 's'}). Millimetre regions and calibration refs are explicit and provisional, pending review — never production-approved.${evidenceAdditions.length === 0 ? ' No bridge evidence was supplied.' : ' Bridge evidence ships with the package.'}`;
+    productStatus.textContent = `Imported prepared product with ${newConfigIds.size} zero-placement setup${newConfigIds.size === 1 ? '' : 's'}. Millimetre regions and calibration refs are explicit and provisional, pending review — never production-approved.${evidenceAdditions.length === 0 ? ' No bridge evidence was supplied.' : ' Bridge evidence ships with the package.'}`;
   } catch (error) {
     if (generation === productGeneration) {
       productStatus.textContent = `Could not import prepared product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
@@ -2441,8 +2896,6 @@ generateButton.addEventListener('click', () => void generateIssued());
 downloadPackage.addEventListener('click', downloadPackageFile);
 downloadHtml.addEventListener('click', downloadHtmlFile);
 downloadBaseline.addEventListener('click', downloadBaselineFile);
-downloadReviewer.addEventListener('click', downloadReviewerFile);
-hook<HTMLButtonElement>('reviewer-copy').addEventListener('click', downloadReviewerFile);
 hook<HTMLButtonElement>('office-download').addEventListener('click', downloadBaselineFile);
 hook<HTMLButtonElement>('preview-document').addEventListener('click', () => {
   const open = document.body.classList.toggle('show-operation-preview');
@@ -2453,6 +2906,16 @@ baselineChoose.addEventListener('click', () => baselineFile.click());
 baselineFile.addEventListener('change', onBaselineFileChange);
 returnFile.addEventListener('change', onReturnFileChange);
 candidateDownload.addEventListener('click', () => void downloadCandidateFile());
+decisionRecord.addEventListener('click', () => void recordStationReview());
+decisionDownload.addEventListener('click', () => void downloadReviewedReturn());
+proposalConfig.addEventListener('change', () => refillProposalPlacements());
+proposalPlacement.addEventListener('change', () => refillProposalInputs());
+proposalApply.addEventListener('click', () => void applyStationProposal());
+proposalDownload.addEventListener('click', () => void downloadStationProposal());
+sendToReview.addEventListener('click', () => {
+  if (loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  showStep('review', activeBaseline() !== null ? 'return' : 'office');
+});
 operatorDownload.addEventListener('click', downloadOperatorFile);
 operationPrint.addEventListener('click', () => {
   if (lastReturn === null || loading || generating || baselineBusy || returnBusy) return;
@@ -3687,6 +4150,7 @@ function buildCurrentSheetView(): OperationSheetView | null {
 
 /** Rebuild the one-sheet preview from the current return + department authoring. */
 function renderSheetPreview(): void {
+  paintTechSummary();
   const current = activeReturn();
   if (current === null || lastReturnAssets === null) return;
   const view = buildCurrentSheetView();
@@ -3698,6 +4162,14 @@ function renderSheetPreview(): void {
   sheetSummary.textContent =
     `${operationSheetSummary(view)} · ${operationSheetPageCount(view, lookup)} printed page(s). ` +
     `Customer notes stay read-only source context above and never print; only department text prints as operational instructions.`;
+}
+
+/** Live count of filled technique settings on the disclosure summary. */
+function paintTechSummary(): void {
+  const authoring = activeSheetConfigId !== null ? sheetAuthoring.get(activeSheetConfigId) : undefined;
+  const count = authoring === undefined ? 0 : [authoring.tech.temperature, authoring.tech.time, authoring.tech.pressure, authoring.tech.colour, authoring.tech.thread]
+    .filter((value) => value.trim() !== '').length;
+  techSummary.textContent = count === 0 ? '' : ` · ${count} set`;
 }
 
 function displayNameForLogo(candidate: ResultCandidate, placement: ExportPlacement, index: number, businessCode: string): string {
@@ -3718,10 +4190,10 @@ function describeLogoMeasurement(
   placement: ExportPlacement,
   placements: readonly ExportPlacement[],
   measurement: DimensionMeasurement,
-): { text: string; ok: boolean } {
-  if (measurement.anchorId === '') return { text: 'No anchor chosen — setup needed.', ok: false };
+): { text: string; ok: boolean; primary: string | null } {
+  if (measurement.anchorId === '') return { text: 'No anchor chosen — pick one from the Anchor list above.', ok: false, primary: null };
   const anchor = authorAnchors.find((entry) => entry.id === measurement.anchorId);
-  if (!anchor) return { text: 'The chosen anchor is gone — pick another below or set one up.', ok: false };
+  if (!anchor) return { text: 'The chosen anchor is gone — pick another from the Anchor list above or set one up below.', ok: false, primary: null };
   const logoRef = logoRefForPlacement(placement, placements);
   const measured = measurePlacement(candidate, placement, authorAnchors, [{
     logoRef,
@@ -3736,9 +4208,11 @@ function describeLogoMeasurement(
     const honesty = first.touchesArtwork
       ? 'The dimension line touches the artwork.'
       : 'The dimension line starts off-artwork: the photo draws a dashed extension linking the artwork corner.';
-    return { text: `${value} mm — ${first.label}; from ${first.fromAnchor} to ${first.toEdge}. ${honesty}`, ok: true };
+    const primary =
+      `${value} mm · ${anchor.name} → ${edgeWord(measurement.edge)} edge · ${conventionWord(measurement.convention)}${first.touchesArtwork ? '' : ' · extended'}`;
+    return { text: `${value} mm — ${first.label}; from ${first.fromAnchor} to ${first.toEdge}. ${honesty}`, ok: true, primary };
   }
-  return { text: `${measured.unfinished[0] ?? 'No measurement — setup needed.'}`, ok: false };
+  return { text: `${measured.unfinished[0] ?? 'No measurement — setup needed.'}`, ok: false, primary: null };
 }
 
 function renderLogoRows(): void {
@@ -3799,8 +4273,8 @@ function renderLogoRows(): void {
     const list = document.createElement('div');
     list.setAttribute('data-measurement-list', '');
     list.setAttribute('aria-label', `Measurements for logo ${index + 1}`);
-    const EDGE_OPTIONS = [['minX', 'left edge (min-X)'], ['maxX', 'right edge (max-X)'], ['minY', 'bottom edge (min-Y)'], ['maxY', 'top edge (max-Y)']] as const;
-    const CONVENTION_OPTIONS = [['dx', 'horizontal (dx)'], ['dy', 'vertical (dy)'], ['shortest-to-edge', 'shortest (to edge)']] as const;
+    const EDGE_OPTIONS = [['minX', 'left'], ['maxX', 'right'], ['minY', 'bottom'], ['maxY', 'top']] as const;
+    const CONVENTION_OPTIONS = [['dx', 'Horizontal'], ['dy', 'Vertical'], ['shortest-to-edge', 'Shortest']] as const;
     row.measurements.forEach((measurement, measureIndex) => {
       const rowBox = document.createElement('div');
       rowBox.className = 'sheet-measurement-row';
@@ -3895,10 +4369,26 @@ function renderLogoRows(): void {
       result.setAttribute('role', 'status');
       result.setAttribute('aria-label', `Measurement ${measureIndex + 1} result for logo ${index + 1}`);
       rowBox.append(result);
+      const detailWrap = document.createElement('details');
+      detailWrap.className = 'disclosure';
+      const detailTitle = document.createElement('summary');
+      detailTitle.textContent = 'Details';
+      const detailBody = document.createElement('p');
+      detailBody.className = 'muted';
+      detailWrap.append(detailTitle, detailBody);
+      rowBox.append(detailWrap);
       function paintMeasurementResult(): void {
         const described = describeLogoMeasurement(current!.candidate, placement, config!.placements, measurement);
-        result.textContent = described.text;
-        result.className = described.ok ? 'sheet-logo-result' : 'sheet-logo-unfinished';
+        if (described.ok && described.primary !== null) {
+          result.textContent = described.primary;
+          result.className = 'sheet-logo-result';
+          detailBody.textContent = described.text;
+          detailWrap.hidden = false;
+        } else {
+          result.textContent = described.text;
+          result.className = 'sheet-logo-unfinished';
+          detailWrap.hidden = true;
+        }
       }
       paintMeasurementResult();
       list.append(rowBox);

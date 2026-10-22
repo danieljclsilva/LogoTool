@@ -1740,7 +1740,12 @@ export function operationSheetStyles(): string {
     @page { size: A4 landscape; margin: 10mm 10mm 12mm; }
     @media print {
       body, .opsheet-set { background: transparent; }
-      .opsheet-set-summary { break-inside: avoid; }
+      /* The set summary is screen-only: every printed page already repeats
+         its product/variant context in its own header, and the summary div
+         emitted outside the planned pages can fragment the first print page
+         (observed: 3 sheets → 4 PDF pages with a blank p2). Screen keeps it
+         so no product/variant is silently lost before printing. */
+      .opsheet-set-summary { display: none; }
       .opsheet { border: none; border-radius: 0; padding: 0; margin: 0; min-height: 186mm; display: flex; flex-direction: column; }
       .opsheet-footer-band { margin-top: auto; }
       .opsheet-instructions p { orphans: 3; widows: 3; }

@@ -13,8 +13,8 @@ import type { ProjectPackageSha256 } from '../src/packaging/project-package/inde
 import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-html/index.js';
 
 // Create-a-project acceptance (Phase "Create" extension of the guided
-// proof-desk redesign). Opens the already-built dist/internal-builder.html
-// offline through file:// (the spec never rebuilds; `npm run build` runs
+// proof-desk redesign). Opens the already-built single-entry
+// dist/station/Logo Station.html offline through file:// (the spec never rebuilds; `npm run build` runs
 // first). Every test asserts zero console/page errors and zero HTTP(S)
 // requests.
 //
@@ -87,7 +87,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
       browserVersion: browser.version(),
       viewport,
       offline: true,
-      entryPoint: 'file://dist/internal-builder.html',
+      entryPoint: 'file://dist/station/Logo Station.html',
       prototype: 'create a project',
     }, null, 2),
   });
@@ -187,10 +187,10 @@ async function createCustomerFile(page: Page, issuedProjectId: string): Promise<
   await expect(primary).toContainText('Create customer file');
   await primary.click();
   await expect(await shown(page, 'generate-status')).toContainText(
-    `Issued ${issuedProjectId} revision 1`,
+    `Customer file ready (revision 1)`,
   );
   await expect(await shown(page, 'baseline-status')).toContainText(
-    `Retained issued baseline: ${issuedProjectId} revision 1`,
+    `Office copy retained: revision 1`,
   );
 }
 
@@ -515,7 +515,7 @@ test('create customer journey adds a new raster logo and reviews the return', as
     await builder(fresh, 'baseline-file').setInputFiles({
       name: baseline.name, mimeType: 'application/zip', buffer: Buffer.from(baseline.bytes),
     });
-    await expect(builder(fresh, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(builder(fresh, 'baseline-load-status')).toContainText('Loaded office copy');
     await revealBuilderControl(fresh, 'return-file');
     await builder(fresh, 'return-file').setInputFiles({
       name: 'created-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returned.bytes),

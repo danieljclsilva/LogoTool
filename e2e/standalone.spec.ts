@@ -67,7 +67,7 @@ test('standalone copy runs with no sibling dependencies', async ({
 }) => {
   const dir = await fs.mkdtemp(join(tmpdir(), 'logotool inspector copy '));
   const copied = join(dir, 'asset-inspector.html');
-  await fs.copyFile('dist/asset-inspector.html', copied);
+  await fs.copyFile('dist/dev/asset-inspector.html', copied);
   const { context, page, probe } = await openOfflineContext(browser);
   try {
     await page.goto(pathToFileURL(copied).href);

@@ -41,7 +41,7 @@ interface DeferredDigest {
 }
 
 async function unpackPrototype(): Promise<LocalPrototype> {
-  const archive = new Uint8Array(await fs.readFile(resolve('dist/synthetic-customer-prototype.zip')));
+  const archive = new Uint8Array(await fs.readFile(resolve('dist/dev/synthetic-customer-prototype.zip')));
   const entries = unzipSync(archive);
   const names = Object.keys(entries).sort();
   expect(names).toEqual([HTML_ENTRY, PROJECT_ENTRY].sort());

@@ -11,7 +11,7 @@ import { openOfflineContext, assertCleanProbe, revealCustomerControl, selectCust
 type ViewsSide = 'front' | 'back' | 'left' | 'right';
 
 const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-const editor = pathToFileURL(resolve('dist/customer-configurator.html')).href;
+const editor = pathToFileURL(resolve('dist/dev/customer-configurator.html')).href;
 const hook = (page: Page, name: string) => page.locator(`[data-customer-hook="${name}"]`);
 
 /** Synthetic canvas raster (mirrors e2e/multiview-viewer.spec.ts). */
@@ -62,7 +62,7 @@ async function fixtureBase(): Promise<{
   project: ProjectDocument;
   assets: Array<{ path: string; kind: string; bytes: Uint8Array }>;
 }> {
-  const parsed = await parseProjectPackage(new Uint8Array(await readFile(resolve('dist/trusted-issued.logo-project'))), { sha256 });
+  const parsed = await parseProjectPackage(new Uint8Array(await readFile(resolve('dist/dev/trusted-issued.logo-project'))), { sha256 });
   return { project: parsed.project, assets: parsed.assets as Array<{ path: string; kind: string; bytes: Uint8Array }> };
 }
 

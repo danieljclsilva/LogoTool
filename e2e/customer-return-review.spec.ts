@@ -23,8 +23,8 @@ import type { ProjectPackageAsset, ProjectPackageAssetInput } from '../src/packa
 
 const sha256Bytes = async (bytes: Uint8Array): Promise<string> => createHash('sha256').update(bytes).digest('hex');
 const sha256Text: Sha256HexFn = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
-const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/customer-return-review.html')).href;
-const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/trusted-issued.logo-project');
+const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-return-review.html')).href;
+const TRUSTED_BASELINE_PATH = resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project');
 
 type PackageParts = { referenced: ProjectPackageAssetInput[]; additional: ProjectPackageAssetInput[] };
 
@@ -50,7 +50,7 @@ async function readTrustedBaseline(): Promise<{ bytes: Uint8Array; project: Proj
 }
 
 async function unpackCustomerApp(): Promise<{ directory: string; htmlPath: string; projectPath: string; projectBytes: Uint8Array }> {
-  const archive = new Uint8Array(await readFile(resolve(process.cwd(), 'dist/synthetic-customer-prototype.zip')));
+  const archive = new Uint8Array(await readFile(resolve(process.cwd(), 'dist/dev/synthetic-customer-prototype.zip')));
   const entries = unzipSync(archive);
   assert.deepEqual(Object.keys(entries).sort(), ['customer-configurator.html', 'SYNTHETIC-CUSTOMER.logo-project'].sort());
   const html = entries['customer-configurator.html'];

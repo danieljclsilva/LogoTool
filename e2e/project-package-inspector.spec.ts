@@ -27,7 +27,7 @@ interface LocalPreview {
 }
 
 async function unpackPreview(): Promise<LocalPreview> {
-  const archive = await fs.readFile(resolve('dist/synthetic-package-transport-preview.zip'));
+  const archive = await fs.readFile(resolve('dist/dev/synthetic-package-transport-preview.zip'));
   const entries = unzipSync(archive);
   const names = Object.keys(entries);
   const htmlName = names.find((name) => name.endsWith('.html'));
@@ -40,7 +40,7 @@ async function unpackPreview(): Promise<LocalPreview> {
   const projectPath = join(directory, 'synthetic multi-project.logo-project');
   const emptyProjectPath = join(directory, 'synthetic zero-placement.logo-project');
   const projectBytes = Buffer.from(entries[projectName]!);
-  const emptyProjectBytes = await fs.readFile(resolve('dist/synthetic-zero-placement.logo-project'));
+  const emptyProjectBytes = await fs.readFile(resolve('dist/dev/synthetic-zero-placement.logo-project'));
   await Promise.all([
     fs.writeFile(htmlPath, Buffer.from(entries[htmlName]!)),
     fs.writeFile(projectPath, projectBytes),

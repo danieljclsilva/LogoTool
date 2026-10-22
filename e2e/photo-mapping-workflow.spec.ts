@@ -51,7 +51,7 @@ async function syntheticPng(page: Page, color: string): Promise<Uint8Array> {
 }
 
 async function trustedBase(): Promise<{ project: ProjectDocument; assets: Array<{ path: string; kind: string; bytes: Uint8Array }> }> {
-  const parsed = await parseProjectPackage(new Uint8Array(await readFile(resolve('dist/trusted-issued.logo-project'))), { sha256 });
+  const parsed = await parseProjectPackage(new Uint8Array(await readFile(resolve('dist/dev/trusted-issued.logo-project'))), { sha256 });
   return { project: parsed.project, assets: parsed.assets as Array<{ path: string; kind: string; bytes: Uint8Array }> };
 }
 
@@ -250,7 +250,7 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     // ---- Staff review: baseline holds, candidate matches, proof is provisional. ----
     await (await shown(page, 'mode-review')).click();
     await (await shown(page, 'baseline-file')).setInputFiles({ name: 'mapping-baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline) });
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
     await (await shown(page, 'return-file')).setInputFiles({ name: 'mapping-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(savedReturn) });
     await expect(await shown(page, 'review-panel')).toBeVisible();
     await expect(await shown(page, 'review-changes')).toContainText('Mapped proof instructions.');
@@ -606,7 +606,7 @@ test('mapped proof print layout stays compact on two sides', async ({ browser })
     }, { sha256 });
     await (await shown(page, 'mode-review')).click();
     await (await shown(page, 'baseline-file')).setInputFiles({ name: 'baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baselineBytes) });
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
     await (await shown(page, 'return-file')).setInputFiles({ name: 'proof-print-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returnBytes) });
     await expect(await shown(page, 'review-panel')).toBeVisible();
     await (await shown(page, 'preview-document')).click();
@@ -646,7 +646,7 @@ test('mapped proof print layout stays compact on two sides', async ({ browser })
 async function openBrowserForCustomer(browser: Browser): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  await page.goto(pathToFileURL(resolve(process.cwd(), 'dist/customer-configurator.html')).href);
+  await page.goto(pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-configurator.html')).href);
   return { context, page };
 }
 

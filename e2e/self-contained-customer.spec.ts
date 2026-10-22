@@ -41,7 +41,7 @@ interface Probe {
 async function copyArtifactToTemp(): Promise<{ directory: string; htmlPath: string }> {
   const directory = await fs.mkdtemp(join(tmpdir(), 'LogoTool self-contained customer '));
   const htmlPath = join(directory, 'synthetic customer self-contained.html');
-  await fs.copyFile(resolve('dist', SELF_CONTAINED_ENTRY), htmlPath);
+  await fs.copyFile(resolve('dist/dev', SELF_CONTAINED_ENTRY), htmlPath);
   return { directory, htmlPath };
 }
 
@@ -153,7 +153,7 @@ async function buildSelfContainedFromProject(
   assets: { path: string; bytes: Uint8Array }[],
 ): Promise<Uint8Array> {
   const projectPackage = await createProjectPackage({ project, assets }, { sha256 });
-  const htmlBytes = await fs.readFile(resolve('dist', CUSTOMER_HTML_ENTRY));
+  const htmlBytes = await fs.readFile(resolve('dist/dev', CUSTOMER_HTML_ENTRY));
   return createSelfContainedHtml({ html: htmlBytes, projectPackage });
 }
 
@@ -176,7 +176,7 @@ async function createReplacementPackage(sourceBytes: Uint8Array, projectId: stri
 }
 
 async function createMalformedSelfContained(variant: 'invalid-base64' | 'invalid-package' | 'oversized' | 'duplicate'): Promise<Uint8Array> {
-  const htmlBytes = await fs.readFile(resolve('dist', CUSTOMER_HTML_ENTRY));
+  const htmlBytes = await fs.readFile(resolve('dist/dev', CUSTOMER_HTML_ENTRY));
   const html = htmlBytes.toString('utf8');
   const payload = variant === 'oversized' ? 'A'.repeat(MAX_EMBEDDED_PROJECT_BASE64_CHARS + 4)
     : variant === 'invalid-base64' ? '!!!!'
@@ -200,7 +200,7 @@ test('auto-loads the exact embedded project, revision, and asset count', async (
     await expect(page.locator('[data-customer-hook="configuration"] option')).toHaveCount(2);
     const draftPath = join(directory, 'initial draft.logo-project');
     const savedBytes = await saveDownloadedFile(page, draftPath, () => page.locator('[data-customer-hook="save-draft-top"]').click());
-    const issuedBytes = await fs.readFile(resolve('dist/trusted-issued.logo-project'));
+    const issuedBytes = await fs.readFile(resolve('dist/dev/trusted-issued.logo-project'));
     const embeddedBytes = extractEmbeddedProjectPackage(await fs.readFile(htmlPath));
     expect(Buffer.from(embeddedBytes!)).toEqual(issuedBytes);
     const saved = await parseProjectPackage(savedBytes, { sha256 });
@@ -260,7 +260,7 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     expect(saved.project.revision).toBe(editedRevision);
     expect(saved.project.instructions).toBe('Self-contained edit instructions.');
     expect(saved.project.confirmation?.revision).toBe(editedRevision);
-    const issuedBytes = await fs.readFile(resolve('dist/trusted-issued.logo-project'));
+    const issuedBytes = await fs.readFile(resolve('dist/dev/trusted-issued.logo-project'));
     const issued = await parseProjectPackage(issuedBytes, { sha256 });
     expect(saved.assets).toEqual(issued.assets);
     expect(saved.project.products).toEqual(issued.project.products);
@@ -282,8 +282,8 @@ test('edit, confirm, save, and reopen round-trips values through the embedded pa
     const reviewPage = await context.newPage();
     reviewPage.on('pageerror', (error) => probe.pageErrors.push(String(error)));
     reviewPage.on('console', (message) => { if (message.type() === 'error') probe.consoleErrors.push(message.text()); });
-    await reviewPage.goto(pathToFileURL(resolve('dist/customer-return-review.html')).href);
-    await reviewPage.locator('[data-review-hook="baseline-file"]').setInputFiles(resolve('dist/trusted-issued.logo-project'));
+    await reviewPage.goto(pathToFileURL(resolve('dist/dev/customer-return-review.html')).href);
+    await reviewPage.locator('[data-review-hook="baseline-file"]').setInputFiles(resolve('dist/dev/trusted-issued.logo-project'));
     await expect(reviewPage.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
     await reviewPage.locator('[data-review-hook="return-file"]').setInputFiles(savedPath);
     await expect(reviewPage.locator('[data-review-hook="confirmation"]')).toContainText(`Current for revision ${editedRevision}`);
@@ -346,7 +346,7 @@ test('malformed embedded data shows a useful error and leaves the chooser usable
       }
       await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('Not loaded');
       await expect(page.locator('[data-customer-hook="choose"]')).toBeEnabled();
-      await choosePackage(page, resolve('dist/trusted-issued.logo-project'));
+      await choosePackage(page, resolve('dist/dev/trusted-issued.logo-project'));
       await expect(page.locator('[data-customer-hook="status"]')).toContainText('Opened trusted-issued.logo-project');
       expectOfflineClean(probe);
     } finally {
@@ -357,13 +357,13 @@ test('malformed embedded data shows a useful error and leaves the chooser usable
 });
 
 test('oversized embedded data is rejected by the packaging boundary and never shipped', async () => {
-  const htmlBytes = await fs.readFile(resolve('dist', CUSTOMER_HTML_ENTRY));
+  const htmlBytes = await fs.readFile(resolve('dist/dev', CUSTOMER_HTML_ENTRY));
   const oversized = new Uint8Array(PROJECT_PACKAGE_LIMITS.maxArchiveBytes + 1);
   expect(() => createSelfContainedHtml({ html: htmlBytes, projectPackage: oversized })).toThrow(
     new RegExp(`exceeds ${PROJECT_PACKAGE_LIMITS.maxArchiveBytes} bytes`),
   );
 
-  const artifact = await fs.readFile(resolve('dist', SELF_CONTAINED_ENTRY));
+  const artifact = await fs.readFile(resolve('dist/dev', SELF_CONTAINED_ENTRY));
   const extracted = extractEmbeddedProjectPackage(artifact);
   expect(extracted).not.toBeNull();
   expect(extracted!.length).toBeLessThanOrEqual(PROJECT_PACKAGE_LIMITS.maxArchiveBytes);
@@ -371,7 +371,7 @@ test('oversized embedded data is rejected by the packaging boundary and never sh
 
 test('deterministic obsolete startup replacement wins over a delayed embedded digest', async ({ browser }) => {
   const { directory, htmlPath } = await copyArtifactToTemp();
-  const artifactBytes = await fs.readFile(resolve('dist', SELF_CONTAINED_ENTRY));
+  const artifactBytes = await fs.readFile(resolve('dist/dev', SELF_CONTAINED_ENTRY));
   const issuedBytes = extractEmbeddedProjectPackage(artifactBytes);
   assert.ok(issuedBytes, 'The shipped self-contained artifact must contain an embedded package.');
   const replacementBytes = await createReplacementPackage(issuedBytes, 'SYN-PROJ-REPLACEMENT-001');

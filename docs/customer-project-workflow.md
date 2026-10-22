@@ -61,7 +61,7 @@ The same project format serves repeated review cycles and future reorders.
 
 ## Implemented synthetic prototype boundary
 
-The generated `dist/synthetic-customer-prototype.zip` contains a fully inline
+The generated `dist/dev/synthetic-customer-prototype.zip` contains a fully inline
 editor and a synthetic issued `.logo-project`. The build clones the multi-product
 fixture as a new revision-1 issue, deliberately clearing current confirmation,
 internal review and prior approval histories; it never edits the source example.
@@ -78,9 +78,11 @@ definition. These are synthetic fixture values, not real product measurements,
 photo landmarks or a surface mapping. The prototype is planar; it makes no 3D or
 curved-surface placement claim.
 
-`dist/customer-return-review.html` is a separate internal harness with two
+`dist/dev/customer-return-review.html` is a dev-only internal harness with two
 explicit file pickers: a locally selected trusted-issued baseline and a separate
-customer return. The page guides opening both files, checking the return and
+customer return. (Staff review, decisions and revised proposals live in the
+station itself at `dist/station/Logo Station.html`; the dev page exists for
+engineering regression tests.) The page guides opening both files, checking the return and
 recording a review. Differences stay visible before the decision. Optional
 layout changes and export data use separate collapsed sections; the printable
 operation document remains linked from the review. It imports through `importCustomerReturn`,

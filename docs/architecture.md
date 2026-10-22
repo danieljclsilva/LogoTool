@@ -102,17 +102,17 @@ only after current fit/validation. Customer-visible edits create a new revision
 and clear current confirmation/review. The returned file's customer confirmation
 is evidence text, and the local baseline/reviewer identity are not authentication.
 
-`scripts/build-package-preview.mjs` preserves the previous transport preview and
-emits `dist/customer-configurator.html`, `dist/customer-return-review.html`,
-`dist/synthetic-customer-prototype.zip`, and development-only
-`dist/trusted-issued.logo-project`. The issue project is a clean revision-1 clone
+The dev preview build (`npm run build:dev:preview`, via the shared station assembly) preserves the previous transport preview and
+emits dev-only `dist/dev/customer-configurator.html`, `dist/dev/customer-return-review.html`,
+`dist/dev/synthetic-customer-prototype.zip`, and development-only
+`dist/dev/trusted-issued.logo-project`. The issue project is a clean revision-1 clone
 of a synthetic source fixture; source examples and binary assets are unchanged.
 Phase 9 adds `src/packaging/self-contained-html`, a browser-independent wrapper
 that inserts the issued package as bounded inert base64 into the inline editor.
 `self-contained-bootstrap.ts` decodes the data and uses the same atomic source
 loader as files, including editor limits and obsolete-load rejection. Both modes
 save the same project transport; `src/core` and canonical schemas are unchanged.
-The build emits `dist/synthetic-customer-self-contained.html` alongside the hybrid
+The build emits `dist/dev/synthetic-customer-self-contained.html` alongside the hybrid
 artifacts. Real calibration, curved/3D mapping, production output, Windows delivery
 remain outside this prototype. Phase 11 adds a local-source Internal Builder; see `internal-builder.md`.
 Transport format, path/decompression limits and ZIP restrictions are documented

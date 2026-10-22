@@ -15,8 +15,8 @@ import { confirmRevision, contentDigest, newRevision } from '../src/core/index.j
 import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 
 // Internal-builder acceptance (guided proof-desk redesign). Opens the
-// already-built dist/internal-builder.html offline through file:// (the spec
-// never rebuilds; `npm run build` runs first). Every test asserts zero
+// already-built single-entry dist/station/Logo Station.html offline through
+// file:// (the spec never rebuilds; `npm run build` runs first). Every test asserts zero
 // console/page errors and zero HTTP(S) requests.
 //
 // Guided UI (src/ui/internal-builder/template.html):
@@ -51,7 +51,7 @@ import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 //   with the format choice behind More options; manual overrides are kept.
 //   Format defaults to self-contained HTML; ZIP is the More-options
 //   alternative. `Create customer file` is the single primary; success reads
-//   `Issued <id> revision 1 …` and advances to Save & send.
+//   `Customer file ready (revision 1) …` and advances to Save & send.
 // - Save & send offers TWO plain file actions: `Save office copy` (the
 //   retained issued baseline, byte-identical to the issued project — save it
 //   before closing, browser memory is lost) and `Save customer file` (the
@@ -64,9 +64,9 @@ import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 
-const TRUSTED_SOURCE_PATH = resolve(process.cwd(), 'dist/trusted-issued.logo-project');
+const TRUSTED_SOURCE_PATH = resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project');
 const TRUSTED_SOURCE_NAME = 'trusted-issued.logo-project';
-const ALT_SOURCE_PATH = resolve(process.cwd(), 'dist/synthetic-zero-placement.logo-project');
+const ALT_SOURCE_PATH = resolve(process.cwd(), 'dist/dev/synthetic-zero-placement.logo-project');
 const ALT_SOURCE_NAME = 'synthetic-zero-placement.logo-project';
 
 const CUSTOMER = 'Acme Athletics';
@@ -121,7 +121,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
       browserVersion: browser.version(),
       viewport,
       offline: true,
-      entryPoint: 'file://dist/internal-builder.html',
+      entryPoint: 'file://dist/station/Logo Station.html',
       prototype: 'internal builder',
     }, null, 2),
   });
@@ -261,10 +261,10 @@ async function createCustomerFile(page: Page, issuedProjectId: string): Promise<
   await expect(primary).toContainText('Create customer file');
   await primary.click();
   await expect(await shown(page, 'generate-status')).toContainText(
-    `Issued ${issuedProjectId} revision 1`,
+    `Customer file ready (revision 1)`,
   );
   await expect(await shown(page, 'baseline-status')).toContainText(
-    `Retained issued baseline: ${issuedProjectId} revision 1`,
+    `Office copy retained: revision 1`,
   );
 }
 
@@ -311,7 +311,7 @@ test('guided preparation flows from open to deliberate selection to details', as
 
     await loadSourceFile(page, TRUSTED_SOURCE_PATH, TRUSTED_SOURCE_NAME);
     await expect(builder(page, 'source-status')).toContainText(
-      'Loaded trusted-issued.logo-project: project SYN-PROJ-MULTI-001 revision 1',
+      'Loaded trusted-issued.logo-project (revision 1)',
     );
     // A successful load progresses to Choose items.
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
@@ -681,7 +681,7 @@ test('fractional millimetres render rounded once in staff return comparisons', a
   const { context, page, probe } = await openBuilder(browser);
   try {
     await (await shown(page, 'baseline-file')).setInputFiles({ name: 'office-copy.logo-project', mimeType: 'application/zip', buffer: Buffer.from(issuedBytes) });
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
     await (await shown(page, 'step-return')).click();
     await (await shown(page, 'return-file')).setInputFiles({ name: 'fractional-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returnedBytes) });
     await expect(await shown(page, 'review-panel')).toBeVisible();
@@ -745,7 +745,7 @@ test('clears generated outputs and the baseline when a different source loads', 
     await createCustomerFile(page, 'ACME-BLD-STALE-01');
     await expect(await shown(page, 'download-package')).toBeEnabled();
     await expect(await shown(page, 'download-baseline')).toBeEnabled();
-    await expect(builder(page, 'baseline-status')).toContainText('Retained issued baseline');
+    await expect(builder(page, 'baseline-status')).toContainText('Office copy retained');
 
     const altBytes = new Uint8Array(await readFile(ALT_SOURCE_PATH));
     await dropSourceFile(page, altBytes, ALT_SOURCE_NAME);
@@ -754,7 +754,7 @@ test('clears generated outputs and the baseline when a different source loads', 
     await expect(builder(page, 'download-html')).toBeDisabled();
     await expect(builder(page, 'download-baseline')).toBeDisabled();
     await expect(builder(page, 'review-panel')).toBeHidden();
-    await expect(await shown(page, 'baseline-status')).toContainText('No issued baseline retained');
+    await expect(await shown(page, 'baseline-status')).toContainText('No office copy retained');
     await expect(await shown(page, 'size-estimate')).toHaveText('No issued package generated yet.');
     expectOfflineClean(probe);
   } finally {
@@ -863,7 +863,7 @@ test('saves two files, opens the customer file, and reviews the return against t
     await expect(fresh.locator('[data-builder-step="office"]')).toContainText('Choose office copy');
     await expect(fresh.locator('[data-builder-step="check"]')).toBeHidden();
     await (await shown(fresh, 'baseline-file')).setInputFiles({ name: baseline.name, mimeType: 'application/zip', buffer: Buffer.from(baseline.bytes) });
-    await expect(await shown(fresh, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(fresh, 'baseline-load-status')).toContainText('Loaded office copy');
     // Loading a saved baseline never implies a customer delivery exists.
     await expect(builder(fresh, 'download-package')).toBeDisabled();
     // The office-copy download lives on Save & send: visit it explicitly.
@@ -897,20 +897,13 @@ test('saves two files, opens the customer file, and reviews the return against t
     await fresh.emulateMedia({ media: 'screen' });
     await expect(await shown(fresh, 'handoff-summary')).toContainText(candidateFile.name);
     await expect(builder(fresh, 'handoff-summary')).toContainText('builder-return.logo-project');
-    // The standalone reviewer download lives on Save & send: visit it explicitly.
+    // No second application: the standalone reviewer download is gone from
+    // the station (proposal editing + decision recording live in Check &
+    // prepare). The return under review already offers an in-station proposal.
     await (await shown(fresh, 'step-check')).click();
-    const reviewer = await readDownload(fresh, 'reviewer.html', () =>
-      shown(fresh, 'reviewer-copy').then((control) => control.click()),
-    );
-    const reviewerPath = join(directory, 'separate-reviewer.html');
-    await writeFile(reviewerPath, reviewer.bytes);
-    const reviewerPage = await context.newPage();
-    attachPageProbe(reviewerPage, probe);
-    await reviewerPage.goto(pathToFileURL(reviewerPath).href);
-    await expect(reviewerPage.locator('h1')).toHaveText('Review a customer return');
-    await reviewerPage.locator('[data-review-hook="baseline-file"]').setInputFiles({ name: baseline.name, mimeType: 'application/zip', buffer: Buffer.from(baseline.bytes) });
-    await reviewerPage.locator('[data-review-hook="return-file"]').setInputFiles({ name: 'builder-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returned.bytes) });
-    await expect(reviewerPage.locator('[data-review-hook="status"]')).toContainText('Return checked');
+    await expect(builder(fresh, 'reviewer-copy')).toHaveCount(0);
+    await expect(builder(fresh, 'download-reviewer')).toHaveCount(0);
+    await expect(await shown(fresh, 'proposal-current')).toContainText('Update 2');
     await fresh.screenshot({ path: test.info().outputPath('builder-return-desktop.png'), fullPage: true });
     await fresh.setViewportSize({ width: 390, height: 844 });
     expect(await fresh.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -919,7 +912,7 @@ test('saves two files, opens the customer file, and reviews the return against t
     await fresh.screenshot({ path: test.info().outputPath('builder-return-mobile.png'), fullPage: true });
     // Explicitly selecting a saved baseline replaces the generated review context.
     await (await shown(page, 'baseline-file')).setInputFiles(TRUSTED_SOURCE_PATH);
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
     await expect(builder(page, 'download-package')).toBeDisabled();
     await (await shown(page, 'return-file')).setInputFiles(TRUSTED_SOURCE_PATH);
     await expect(await shown(page, 'ticket-summary')).toContainText('SYN-PROJ-MULTI-001');

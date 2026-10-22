@@ -15,16 +15,17 @@
 - [ ] Phase 8 — Hybrid project package (PARTIAL 2026-10-14: deterministic `.logo-project` transport plus a synthetic offline planar customer editor and separate baseline-based return reviewer. Integrated Node and offline DOM verification is recorded below; the Windows release gate remains pending. Real calibration/artwork mapping, production-ready export and finalized schemas are out of scope; see `docs/project-packaging.md`.)
 - [ ] Phase 9 — Self-contained HTML (PARTIAL 2026-10-14: reusable browser-independent `src/packaging/self-contained-html` module embeds the same binary `.logo-project` into a single HTML file; the customer editor auto-loads the embedded package on startup through the same atomic parse pipeline, preserves Choose Project/drop, and exports the identical editable `.logo-project` return. Node tests cover determinism, round-trip, size limits, and injection resistance; a new Playwright spec exercises auto-load, edit/confirm/save/reopen, zero-placement, malformed embedded data, obsolete-startup replacement, and desktop/mobile viewports. The Windows `file://` release gate remains untested.)
 - [ ] Phase 10 — Production export (PARTIAL 2026-10-15: internal return reviewer shows an operational candidate preview and downloads deterministic JSON through the existing `buildCandidateExport`/`serializeExport` contract. A browser-printable pending-review operation-document preview now derives from the same canonical snapshot, includes project/revision/digest, all configurations including zero placements, consistent placement numbering, exact unrounded mm dimensions/centre/rotation, frame axes/origin, calibration identity/version, artwork asset references as inert text, method and project/placement instructions, and dimensioned planar SVG positioning diagrams with safe polygons/exclusions and rotated bbox footprints. Status is always `candidate-pending-review`, including after internal workflow approval. Canonical schemas remain provisional; production-ready PDF output, real artwork/product rendering and Odoo attachment remain pending.)
-- [ ] Phase 11 — Internal Builder (PARTIAL 2026-10-15: local validated source selection of products/variants/artwork, clean revision-1 issues with explicit identity, both delivery formats, deterministic bytes and exact saved-baseline restoration, return comparison, candidate JSON and operation-document Print / Save as PDF. Separate full reviewer downloadable for decisions/reproposal. Synthetic calibration and Windows release gates remain pending; see `docs/internal-builder.md`.)
+- [ ] Phase 11 — Internal Builder (PARTIAL 2026-10-15: local validated source selection of products/variants/artwork, clean revision-1 issues with explicit identity, both delivery formats, deterministic bytes and exact saved-baseline restoration, return comparison, in-station decisions and revised proposals, candidate JSON and operation-document Print / Save as PDF. Synthetic calibration and Windows release gates remain pending; see `docs/internal-builder.md`.)
 
 ## Phase 11 — Internal Builder (Codex-validated 2026-10-15)
 
 The pure `src/core/project-builder` kernel selects source snapshots and creates
 clean revision-1 issues with explicit project identity; missing default variant
-configurations start empty. `src/ui/internal-builder` builds to
-`dist/internal-builder.html`, with the inline customer editor and full reviewer
+configurations start empty. `src/ui/internal-builder` builds to the single
+staff entry `dist/station/Logo Station.html`, with the inline customer editor
 embedded once. It generates both formats, saves/restores exact issued baselines,
-compares returns and prepares pending candidate JSON/operation-document handoff.
+compares returns, records decisions, revises proposals in place, and prepares
+pending candidate JSON/operation-document handoff.
 Usage and limits are in `docs/internal-builder.md`.
 
 Independent validation: typecheck passed; 379/379 Node tests; full offline

@@ -25,7 +25,7 @@ const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').updat
 const sha256Text: Sha256HexFn = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 const FIXTURE_PATH = resolve(process.cwd(), 'e2e/fixtures/prepared-bridge-product.json');
-const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/customer-return-review.html')).href;
+const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-return-review.html')).href;
 
 const CUSTOMER = 'Acme Athletics';
 const ISSUED_BY = 'Internal operator';
@@ -69,7 +69,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
       browserVersion: browser.version(),
       viewport,
       offline: true,
-      entryPoint: 'file://dist/internal-builder.html',
+      entryPoint: 'file://dist/station/Logo Station.html',
       prototype: 'prepared product import',
     }, null, 2),
   });
@@ -95,7 +95,7 @@ async function importPreparedFixture(page: Page): Promise<void> {
   // file input itself drives the import, so automation sets files directly.
   await expect(await shown(page, 'prepared-product-add')).toBeEnabled();
   await (await shown(page, 'prepared-product-file')).setInputFiles(FIXTURE_PATH);
-  await expect(await shown(page, 'product-status')).toContainText('Imported prepared product SYN-BRIDGE-001');
+  await expect(await shown(page, 'product-status')).toContainText('Imported prepared product with');
 }
 
 async function issueCustomerFile(page: Page, job: string): Promise<{ issuedProjectId: string }> {
@@ -107,7 +107,7 @@ async function issueCustomerFile(page: Page, job: string): Promise<{ issuedProje
   const issuedProjectId = await builder(page, 'project-id').inputValue();
   assert.ok(issuedProjectId.length > 0);
   await (await shown(page, 'generate')).click();
-  await expect(await shown(page, 'generate-status')).toContainText(`Issued ${issuedProjectId} revision 1`);
+  await expect(await shown(page, 'generate-status')).toContainText(`Customer file ready (revision 1)`);
   return { issuedProjectId };
 }
 

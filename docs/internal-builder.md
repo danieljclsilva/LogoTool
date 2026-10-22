@@ -1,4 +1,9 @@
-# Internal Builder (Phase 11)
+# Internal Builder (the Logo Station)
+
+The guided Builder is the single staff entry: run `npm run build`, then open
+`dist/station/Logo Station.html` directly with the network disabled. No other
+staff HTML page is part of the delivery; developer-only inspection pages live
+under `dist/dev/`.
 
 The guided Builder creates new drafts from bundled prepared definitions or
 opens an existing local validated `.logo-project`. It uses the existing domain, customer editor,
@@ -8,9 +13,9 @@ operators download files and attach them to their normal handoff manually.
 
 ## Start and issue
 
-Run `npm run build`, then open `dist/internal-builder.html` directly with the
+Run `npm run build`, then open `dist/station/Logo Station.html` directly with the
 network disabled. For a synthetic demonstration, choose **Create a project**; no project file
-is required. To exercise Open, choose `dist/trusted-issued.logo-project`. All fixtures and calibrations
+is required. To exercise Open, choose `dist/dev/trusted-issued.logo-project`. All fixtures and calibrations
 used in tests are synthetic; optional raster reference photos and artwork
 thumbnails are visual aids only.
 
@@ -66,7 +71,7 @@ Preparation starts on **Start**, a guided sequence of one task at a time:
 The bundled creation catalogue embeds explicit prepared definitions only —
 currently the three example products in `examples/products/` plus the two SVG
 marks in `examples/logos/` (byte-identical to those files, `synthetic=true`
-on the issued draft) — built by `scripts/build-package-preview.mjs` into
+on the issued draft) — built by the shared `scripts/station-assembly.mjs` module into
 `<script id="__logoBuilderCatalogue">`. It never ships an old customer job,
 history, instructions or confirmation, and no production catalogue is
 claimed. Add-logo artwork ships as referenced `original` bytes within the
@@ -86,9 +91,9 @@ project bytes embedded and automatically loaded: the customer opens it
 directly, nothing to unzip. Hybrid delivery is `<JOB>.zip` containing
 `OPEN_LOGO_CONFIGURATOR.html` and `<JOB>.logo-project`, which the customer
 opens and loads with Choose Project or drag and drop. The primary **Save
-customer file** action delivers the selected format. A secondary advanced file
-(project-only in self-contained mode, configurator-only in hybrid mode) and
-the standalone return reviewer live behind disclosures; they are for special
+customer file** action delivers the selected format, sent to the customer
+manually. A secondary advanced file (project-only in self-contained mode,
+configurator-only in hybrid mode) lives behind a disclosure for special
 cases only. The saved office copy is byte-identical to the issued project in
 either format. Regenerating identical input produces identical project, HTML
 and ZIP bytes.
@@ -182,10 +187,19 @@ and records no approvals.
 The handoff summary identifies the actual return, baseline and candidate
 filenames and PDF steps.
 
-**Save full reviewer** saves a separate inline HTML page for internal
-decisions and revised customer proposals. Open it offline and select the saved
-baseline and return. Its existing approval/reconfirmation rules still apply.
-Downloading it does not open it. The Builder's embedded preview itself does not record internal decisions.
+**Revise proposal** (optional, in Check & prepare after the operation-sheet
+and decision blocks) edits one placement's geometry plus the project note and
+applies them as a new customer update through the same validated return
+state — no second application, no re-import. The new update clears the
+current confirmation and needs the customer to reconfirm before any approval.
+**Save revised proposal** downloads the `<job>-r<rev>-proposal.logo-project`
+file for the customer. **Review decision** (optional office bookkeeping,
+same section) records the office decision for the current update with the
+same confirmation/fit gates the reviewer enforced; approval stays internal
+bookkeeping, never a production release. **Save reviewed return** keeps the
+decided return with the office copy. A developer-only standalone reviewer
+page remains under `dist/dev/` for engineering tests; it is not staff
+workflow.
 
 ## Remaining gates
 

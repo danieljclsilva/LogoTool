@@ -1,11 +1,82 @@
-# LogoTool
+# LogoTool — make the operation sheet
 
-Phase 1 Odoo discovery remains in progress; initial findings are in
-[docs/odoo-discovery.md](docs/odoo-discovery.md), with detailed evidence under
-`private/`. Evidence-audit tooling is implemented. Phase 8 now includes a
-provisional transport preview plus editable synthetic planar customer/review
-workflows. Real calibration, production readiness and Windows delivery are not
-implemented or approved.
+LogoTool is FlexiTog's offline Logo Station: staff prepare a customer project,
+issue the customer file, review the return, and produce ONE branded operation
+sheet (A4 landscape) plus minimal operator data for production. Everything runs
+offline from local files — no installation, server, CDN, or network connection.
+
+## Operator Quickstart — one entry, one flow
+
+Build once, then open exactly one staff page:
+
+```sh
+npm run build
+# then open dist/station/Logo Station.html directly via file://, networking disabled
+```
+
+One guided flow in that same tool:
+
+1. **Prepare** — Start (create a project or open an existing one) → Choose items
+   (products, options, logos) → Customer details → Save & send. Keep the saved
+   **office copy**: browser memory is lost on reload.
+2. **Customer** — send the customer file; the customer edits, confirms and
+   returns a `.logo-project` (by email, USB or drive — the station never sends
+   anything itself).
+3. **Return** — Review a return: choose the office copy first, then the return,
+   and read the full diff. Optionally record the office decision or revise the
+   proposal in place; a revised update needs the customer to reconfirm before
+   any approval.
+4. **Sheet** — Check & prepare: author department instructions and selected
+   anchor-to-logo dimensions, then Preview operation document →
+   **Print / save PDF** (exactly one A4 landscape page for the ordinary
+   one-product/two-logo job) and **Save operator data** (minimal JSON carrying
+   the same business data, no ids or digests).
+
+Full steps, limits and honesty rules: [docs/internal-builder.md](docs/internal-builder.md).
+Physical pilot checklist: [docs/operator-pilot-checklist.md](docs/operator-pilot-checklist.md).
+Release gate: [docs/release-acceptance.md](docs/release-acceptance.md)
+(UNTESTED on Windows so far) plus `scripts/run-windows-acceptance.ps1`.
+
+## Customer delivery formats (same canonical project, your choice at issue)
+
+- **One file the customer opens directly** (recommended): self-contained HTML
+  with the issued project embedded — nothing to unzip.
+- **ZIP with the setup files inside**: `OPEN_LOGO_CONFIGURATOR.html` plus the
+  `<JOB>.logo-project`, opened with Choose Project or drag and drop.
+
+Regenerating identical input produces identical bytes. Both formats preserve
+exact original artwork bytes, and customer notes never become department
+instructions automatically.
+
+## Output tree and commands
+
+```text
+dist/station/Logo Station.html   # the only staff application (open via file://)
+dist/station/assets/             # only if the station build needs support files
+dist/dev/                        # developer-only inspection/fixture pages (never shipped)
+```
+
+```sh
+npm run build                # station + dev (default)
+npm run build:station        # station entry only
+npm run build:dev:preview    # dev-only synthetic customer/reviewer artifacts
+npm run build:dev:inspector  # dev-only asset inspector
+npm run typecheck && npm test
+npm run test:e2e             # offline Chromium gate (build + file:// suite)
+npm run test:e2e:chrome      # real Google Chrome (needs the browser installed)
+npm run test:e2e:edge        # real Microsoft Edge (needs the browser installed)
+```
+
+Customer runtime packages need no Node or Python; build tooling and the
+commands above are development-only. See [offline testing](docs/offline-testing.md)
+for suite layout and evidence, and the [release gate](docs/release-acceptance.md)
+for the Windows procedure.
+
+## Developer and historical detail
+
+The sections below record developer tooling, domain state and milestone
+history. Operators can stop at the Quickstart above.
+
 
 ## Phase 1 evidence audit
 
@@ -34,31 +105,13 @@ TypeScript core and developer tooling are present. Three.js powers the internal 
 
 Schema finalization awaits the unresolved Phase 1 exit criteria in [docs/odoo-discovery.md](docs/odoo-discovery.md). Progress through the remaining milestones is tracked in [docs/development-status.md](docs/development-status.md).
 
-## Provisional foundations
+## Provisional foundations (developer commands)
 
-Use Node.js 22.18+ (verified here on 26.10) for development only:
+Use Node.js 22.18+ (verified here on 26.10) for development only. Main build/test
+commands live in [Output tree and commands](#output-tree-and-commands) above;
+additionally `python3 -m unittest discover -s tests -v` runs the Python
+developer-tooling tests.
 
-```sh
-npm ci
-npx playwright install chromium # setup only (may need network)
-npm run typecheck
-npm test
-npm run test:e2e # offline inspector + Phase 8 workflows (build + Chromium)
-python3 -m unittest discover -s tests -v
-```
-
-`npm test` builds the TypeScript code first; `npm run build` also works separately.
-`npm run build:package-preview` builds the unchanged transport preview and the
-synthetic customer/reviewer artifacts under ignored `dist/`. Run
-`npm run build:customer-prototype` to build those package artifacts directly.
-They are a functional synthetic prototype, not production output; see
-[project packaging](docs/project-packaging.md).
-Customer runtime packages are intended to need no Node or Python; build tooling is development-only.
-Real Chrome/Edge runs: `npm run test:e2e:chrome`, `npm run test:e2e:edge`,
-`npm run test:e2e:matrix`. See [offline testing](docs/offline-testing.md).
-Windows release gate (UNTESTED on Windows so far): [docs/release-acceptance.md](docs/release-acceptance.md)
-plus `scripts/run-windows-acceptance.ps1` run the same suites on a Windows host
-and write a portable report; see also the [release-readiness checklist](docs/release-readiness.md).
 
 Implemented: generalized products/variants/regions, mm placements with explicit
 frames and calibration references, schema and reference validation, canonical
@@ -114,9 +167,9 @@ pending-review bundle. The source survives target asset changes; preview and
 export leave the target's placements unchanged.
 
 
-## Internal asset inspector (Phase 4 partial + Phase 5 draft panel)
+## Internal asset inspector (developer utility)
 
-Run `npm run build`, then open `dist/asset-inspector.html` directly through `file://`.
+Run `npm run build`, then open `dist/dev/asset-inspector.html` directly through `file://`.
 Choose `examples/models/synthetic-block.glb` or `synthetic-tetra.glb` to inspect,
 orbit, fit/reset, toggle wireframe and download original bytes plus provenance.
 The provisional calibration draft below the preview supports armed surface
@@ -131,19 +184,19 @@ See [asset pipeline](docs/asset-pipeline.md) and [prototype findings](docs/proto
 
 ## Project package transport preview
 
-Run `npm run build:package-preview`, unzip
-`dist/synthetic-package-transport-preview.zip`, and open
+Run `npm run build`, unzip
+`dist/dev/synthetic-package-transport-preview.zip`, and open
 `OPEN_LOGO_CONFIGURATOR.html` through `file://`. Choose Project or drag/drop
 loads the `.logo-project` for metadata and mm-placement inspection. This
 transport-only page remains unchanged.
 
 ## Synthetic customer prototype (Phase 8 partial)
 
-Run `npm run build:customer-prototype`, unzip
-`dist/synthetic-customer-prototype.zip`, and open `customer-configurator.html`
+Run `npm run build`, unzip
+`dist/dev/synthetic-customer-prototype.zip`, and open `customer-configurator.html`
 through `file://`. The package contains `SYNTHETIC-CUSTOMER.logo-project`;
-Choose Project or drag/drop opens it. The separate
-`dist/customer-return-review.html` imports a return only against a separately
+Choose Project or drag/drop opens it. The dev-only
+`dist/dev/customer-return-review.html` imports a return only against a separately
 selected local issued baseline and downloads reviewed or revised project files.
 The editor preserves asset bytes, edits mm placements/instructions, and labels
 customer confirmation as pending internal review. Footprints are inert labelled
@@ -151,7 +204,7 @@ boxes on schematic synthetic regions, not artwork or garment renders. Real
 calibration, physical validation and Windows Chrome/Edge release acceptance
 remain unverified.
 
-The same build also emits `dist/synthetic-customer-self-contained.html`
+The same build emits `dist/dev/synthetic-customer-self-contained.html`
 (Phase 9 partial). Copy this single HTML file anywhere and open it locally:
 the synthetic issued project loads automatically, with no sibling files.
 Choose Project/drop can replace it; draft and confirmed downloads use the same

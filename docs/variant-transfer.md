@@ -260,8 +260,8 @@ Single-string atomic failures, one per rejected transfer:
 
 `src/ui/variant-transfer/` (`variant-transfer-panel.ts`,
 `variant-transfer-fragment.html`) is bound by the calibration panel host in
-`src/ui/calibration/panel.ts` and inlined into `dist/asset-inspector.html` by
-`scripts/build-inspector.mjs`. Behaviour:
+`src/ui/calibration/panel.ts` and inlined into `dist/dev/asset-inspector.html` by
+scripts (dev build). Behaviour:
 
 - Capture freezes a VALID CURRENT placement bundle (via `buildPlacementBundle`)
   as an immutable source snapshot: committed draft only, never a drag

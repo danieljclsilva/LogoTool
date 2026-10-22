@@ -117,8 +117,9 @@ npm run test:e2e:chrome   # build + real Google Chrome (channel: chrome)
 npm run test:e2e:edge     # build + real Microsoft Edge (channel: msedge)
 npm run test:e2e:matrix   # build + all three projects (requires Chrome AND Edge)
 npm run test:e2e -- --project=chrome   # --project selection passthrough
-npm run build:package-preview # transport preview + synthetic customer/reviewer artifacts
-npm run build:customer-prototype # standalone inline customer/reviewer package build
+npm run build:station       # single-entry station only: dist/station/Logo Station.html
+npm run build:dev:preview   # dev-only transport preview + synthetic customer/reviewer artifacts (dist/dev/)
+npm run build:dev:inspector # dev-only asset inspector (dist/dev/asset-inspector.html)
 ```
 
 `npm run typecheck` checks domain, viewer, and e2e/config TypeScript.

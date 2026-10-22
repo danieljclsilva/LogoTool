@@ -210,7 +210,7 @@ async function createCustomerFile(page: Page, issuedProjectId: string): Promise<
   const primary = await shown(page, 'generate');
   await expect(primary).toContainText('Create customer file');
   await primary.click();
-  await expect(await shown(page, 'generate-status')).toContainText(`Issued ${issuedProjectId} revision 1`);
+  await expect(await shown(page, 'generate-status')).toContainText(`Customer file ready (revision 1)`);
 }
 
 async function readDownload(page: Page, fileName: string, trigger: () => Promise<void>): Promise<Uint8Array> {
@@ -460,7 +460,7 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
   try {
     // Seed a real v1 package in Node: take the trusted baseline project,
     // attach one v1 reference image as additional assets, and load it.
-    const trusted = await parseProjectPackage(new Uint8Array(await readFile(resolve(process.cwd(), 'dist/trusted-issued.logo-project'))), { sha256 });
+    const trusted = await parseProjectPackage(new Uint8Array(await readFile(resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project'))), { sha256 });
     await startCatalogue(page);
     const legacyPng = await syntheticPng(page, '#6b4b12', 20, 10);
     const legacy = trusted.project.configurations[0]!;
@@ -527,7 +527,7 @@ test('over-budget presentation add is rejected and leaves prior state untouched'
   try {
     // Seed a 32-entry v2 history package; the next single-view add is the
     // 33rd entry and must be rejected with prior state untouched.
-    const trusted = await parseProjectPackage(new Uint8Array(await readFile(resolve(process.cwd(), 'dist/trusted-issued.logo-project'))), { sha256 });
+    const trusted = await parseProjectPackage(new Uint8Array(await readFile(resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project'))), { sha256 });
     await startCatalogue(page);
     const seedPng = await syntheticPng(page, '#12394b', 20, 10);
     const seed = trusted.project.configurations[0]!;

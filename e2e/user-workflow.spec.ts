@@ -1,9 +1,10 @@
-import { gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
+import { BUILDER_URL, STATION_DIR, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
+import { countPdfPages } from './sheet-fixtures.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,9 +21,9 @@ import type { ProjectPackageSha256 } from '../src/packaging/project-package/inde
 // raster logo, issue in one format, real offline customer editing with
 // unsafe-fit rejection and reconfirmation, draft/return downloads, reopen,
 // fresh staff review with candidate + operation document, invalid/wrong-file
-// preservation, a downloaded full-reviewer proposal loop, and mobile shots.
+// preservation, an in-station proposal loop, and mobile shots.
 // Only tracked synthetic fixtures are used (e2e/fixtures/*, examples/*,
-// dist/trusted-issued.logo-project as the wrong-baseline fixture); the only
+// dist/dev/trusted-issued.logo-project as the wrong-baseline fixture); the only
 // synthesized bytes are a tiny in-spec PNG and downloads preserved under
 // test.info().outputPath. Every page asserts zero console/page errors and
 // zero HTTP(S) requests.
@@ -72,10 +73,6 @@ function customer(page: Page, name: string) {
   return page.locator(`[data-customer-hook="${name}"]`);
 }
 
-function review(page: Page, name: string) {
-  return page.locator(`[data-review-hook="${name}"]`);
-}
-
 async function downloadTo(
   page: Page,
   fileName: string,
@@ -97,15 +94,6 @@ function expectOfflineClean(probe: Probe): void {
   expect(probe.pageErrors).toEqual([]);
   expect(probe.consoleErrors).toEqual([]);
   expect(probe.networkRequests).toEqual([]);
-}
-
-async function openReviewDisclosure(page: Page, hook: string): Promise<void> {
-  const target = review(page, hook);
-  const details = target.locator('xpath=ancestor::details[1]');
-  if ((await details.count()) > 0 && (await details.getAttribute('open')) === null) {
-    await details.locator(':scope > summary').click();
-  }
-  await expect(target).toBeVisible();
 }
 
 async function setCustomerNumber(page: Page, hook: string, value: number): Promise<void> {
@@ -152,7 +140,12 @@ function bbox(points: Point2[]): { minX: number; minY: number; maxX: number; max
   return { minX, minY, maxX, maxY };
 }
 
-async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Promise<void> {
+async function runUserWorkflow(
+  browser: Browser,
+  format: 'self' | 'hybrid',
+  stationUrl: string = BUILDER_URL,
+  withPdf = false,
+): Promise<void> {
   const jobRef = format === 'self' ? 'WF-SELF-01' : 'WF-HYB-01';
   const probe: Probe = { pageErrors: [], consoleErrors: [], networkRequests: [] };
   const viewport = { width: 1280, height: 900 };
@@ -166,8 +159,9 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
       browserVersion: browser.version(),
       viewport,
       offline: true,
-      entryPoint: 'file://dist/internal-builder.html',
+      entryPoint: stationUrl,
       format,
+      withPdf,
     }, null, 2),
   });
   const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport });
@@ -179,7 +173,7 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     // ---- Builder: Start a genuinely new job (primary Create path). ----
     const page = await context.newPage();
     watchPage(page, probe);
-    await gotoBuilder(page);
+    await page.goto(stationUrl);
     await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
     await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
     await shoot(page, `${format}-01-start`);
@@ -191,7 +185,7 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     // Import the prepared inspector-bridge product through the real file input.
     await (await shown(page, 'prepared-product-file')).setInputFiles(FIXTURE_PATH);
     await expect(await shown(page, 'product-status')).toContainText(
-      'Imported prepared product SYN-BRIDGE-001',
+      'Imported prepared product with',
     );
     // Add a locally synthesized raster logo through the real file input.
     await (await shown(page, 'logo-file')).setInputFiles({
@@ -269,7 +263,7 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     assert.ok(issuedProjectId.length > 0, 'expected an automatic project ID');
     await (await shown(page, 'generate')).click();
     await expect(await shown(page, 'generate-status')).toContainText(
-      `Issued ${issuedProjectId} revision 1`,
+      `Customer file ready (revision 1)`,
     );
     await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
     await shoot(page, `${format}-03-issued`);
@@ -294,7 +288,7 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     assert.ok(otherProjectId.length > 0 && otherProjectId !== issuedProjectId, 'expected a fresh project ID');
     await (await shown(page, 'generate')).click();
     await expect(await shown(page, 'generate-status')).toContainText(
-      `Issued ${otherProjectId} revision 1`,
+      `Customer file ready (revision 1)`,
     );
     await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
     await downloadTo(page, `${jobRef}-office-copy-2.logo-project`, () =>
@@ -553,14 +547,14 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     // ---- Fresh staff Builder review: office copy first, then the return. ----
     const fresh = await context.newPage();
     watchPage(fresh, probe);
-    await gotoBuilder(fresh);
+    await fresh.goto(stationUrl);
     await (await shown(fresh, 'mode-review')).click();
     await expect(fresh.locator('[data-builder-step="office"]')).toBeVisible();
     await expect(fresh.locator('[data-builder-step="office"]')).toContainText('Choose office copy');
     await (await shown(fresh, 'baseline-file')).setInputFiles(
       test.info().outputPath(`${jobRef}-office-copy.logo-project`),
     );
-    await expect(await shown(fresh, 'baseline-load-status')).toContainText('Loaded saved baseline');
+    await expect(await shown(fresh, 'baseline-load-status')).toContainText('Loaded office copy');
     await (await shown(fresh, 'step-return')).click();
     await (await shown(fresh, 'return-file')).setInputFiles(
       test.info().outputPath(`${jobRef}-return.logo-project`),
@@ -621,6 +615,40 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await expect(operation).not.toContainText('Status: candidate-pending-review');
     await expect(operation).toContainText('setup needed before production');
     await shoot(fresh, `${format}-10-operation-document`);
+    if (withPdf) {
+      // Department authoring + actual one-page branded PDF on the same page.
+      await (await shown(fresh, 'sheet-customer')).fill('Fresh Copy Athletics');
+      await (await shown(fresh, 'sheet-reference')).fill(`FRESH-${format}-01`);
+      await (await shown(fresh, 'sheet-instructions')).fill(
+        'Press the bridge emblem at 160°C for 15 seconds with medium pressure. Check all four edges visually before packing.',
+      );
+      // The preview button toggles: open it only if a previous block closed it.
+      if ((await builder(fresh, 'preview-document').getAttribute('aria-expanded')) !== 'true') {
+        await (await shown(fresh, 'preview-document')).click();
+      }
+      const pdfOperation = await shown(fresh, 'operation-container');
+      await expect(pdfOperation).toBeVisible();
+      await expect(pdfOperation.locator('.opsheet').first()).toBeVisible();
+      const pdfBytes = await fresh.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
+      await writeFile(test.info().outputPath(`${format}-fresh-copy.pdf`), pdfBytes);
+      // Multi-configuration journey: one branded sheet per product/option.
+      // Exact pagination is a contract, not a hope: the 3-sheet set must
+      // print exactly 3 pages (the set summary is screen-only so it cannot
+      // fragment the first page; every printed page repeats its own header
+      // context). Single-sheet exactness is additionally pinned by the
+      // station-entry fresh-copy leg and operation-sheet-print.spec.ts.
+      const sheetCount = await pdfOperation.locator('section.opsheet').count();
+      assert.ok(sheetCount >= 1, 'expected at least one operation sheet');
+      expect(countPdfPages(new Uint8Array(pdfBytes))).toBe(sheetCount);
+      const pdfOperatorEvent = fresh.waitForEvent('download');
+      await (await shown(fresh, 'operator-download')).click();
+      const pdfOperatorFile = await pdfOperatorEvent;
+      const pdfOperatorPath = await pdfOperatorFile.path();
+      assert.ok(pdfOperatorPath, 'operator download path is available');
+      const pdfOperatorPayload = JSON.parse(await readFile(pdfOperatorPath, 'utf8')) as { format: string };
+      expect(pdfOperatorPayload.format).toBe('operation-export/1');
+      await shoot(fresh, `${format}-10b-operation-pdf`);
+    }
     await fresh.emulateMedia({ media: 'print' });
     await expect(fresh.locator('main#internal-builder')).toBeHidden();
     await expect(fresh.locator('.opsheet').first()).toBeVisible();
@@ -645,60 +673,33 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     await expect(await shown(fresh, 'return-status')).toContainText('baseline-project-mismatch');
     await expect(builder(fresh, 'ticket-summary')).toHaveText(priorSummary ?? '');
 
-    // Download the full reviewer and continue the loop inside it.
+    // In-station revised proposal: no second application. The office revises
+    // one bridge placement plus the project note in the same station; the
+    // new update needs customer confirmation before any approval.
     await (await shown(fresh, 'step-check')).click();
-    const reviewerHtml = await downloadTo(fresh, `${jobRef}-reviewer.html`, () =>
-      shown(fresh, 'reviewer-copy').then((control) => control.click()),
+    await expect(await shown(fresh, 'proposal-current')).toContainText(`Update ${returnedProject.revision}`);
+    await (await shown(fresh, 'proposal-config')).selectOption(bridgeConfigId);
+    await (await shown(fresh, 'proposal-placement')).selectOption('0');
+    const proposalX = Number(await builder(fresh, 'proposal-x').inputValue());
+    await (await shown(fresh, 'proposal-x')).fill(String(proposalX + 2));
+    await (await shown(fresh, 'proposal-instructions')).fill('Revised proposal instructions.');
+    await (await shown(fresh, 'proposal-apply')).click();
+    await expect(await shown(fresh, 'proposal-status')).toContainText(
+      `Applied revised proposal as update ${returnedProject.revision + 1}`,
     );
-    const reviewerPath = join(directory, 'full reviewer.html');
-    await writeFile(reviewerPath, reviewerHtml.bytes);
-    const reviewerUrl = pathToFileURL(reviewerPath).href;
-
-    const reviewer = await context.newPage();
-    watchPage(reviewer, probe);
-    await reviewer.goto(reviewerUrl);
-    await expect(reviewer.locator('h1')).toHaveText('Review a customer return');
-    await review(reviewer, 'baseline-file').setInputFiles({
-      name: `${jobRef}-office-copy.logo-project`,
-      mimeType: 'application/zip',
-      buffer: Buffer.from(officeCopy.bytes),
-    });
-    await expect(review(reviewer, 'status')).toContainText('Opened the saved copy');
-    await review(reviewer, 'return-file').setInputFiles({
-      name: `${jobRef}-return.logo-project`,
-      mimeType: 'application/zip',
-      buffer: Buffer.from(returned.bytes),
-    });
-    await expect(review(reviewer, 'review-panel')).toBeVisible();
-    await expect(review(reviewer, 'confirmation')).toContainText(
-      `Current for revision ${returnedProject.revision}`,
+    const proposal = await downloadTo(fresh, `${jobRef}-proposal.logo-project`, () =>
+      shown(fresh, 'proposal-download').then((control) => control.click()),
     );
-    await expect(review(reviewer, 'geometry')).toContainText('Valid:');
-    await expect(review(reviewer, 'differences')).toContainText('ISSUED');
-    await expect(review(reviewer, 'differences')).toContainText('RETURNED');
-
-    await review(reviewer, 'reviewer').fill('Local reviewer');
-    await review(reviewer, 'decision').selectOption('changesRequested');
-    await review(reviewer, 'note').fill('Move the first bridge mark slightly.');
-    await review(reviewer, 'record-review').click();
-    await expect(review(reviewer, 'internal-review')).toContainText('changesRequested');
-
-    await openReviewDisclosure(reviewer, 'save-proposal');
-    const proposalX = Number(await review(reviewer, 'x').inputValue());
-    await review(reviewer, 'x').fill(String(proposalX + 2));
-    await review(reviewer, 'instructions').fill('Revised proposal instructions.');
-    const proposal = await downloadTo(reviewer, `${jobRef}-proposal.logo-project`, () =>
-      review(reviewer, 'save-proposal').click(),
-    );
+    expect(proposal.name).toMatch(/-r\d+-proposal\.logo-project$/);
     const revised = (await parseProjectPackage(proposal.bytes, { sha256: sha256bytes })).project;
-    // Proposal inputs auto-apply per changed field (x, then instructions),
-    // so the two edits land as two successive revisions.
-    expect(revised.revision).toBe(returnedProject.revision + 2);
+    // One in-station apply lands geometry + note as a single new revision.
+    expect(revised.revision).toBe(returnedProject.revision + 1);
     expect(revised.confirmation).toBeUndefined();
     expect(revised.instructions).toBe('Revised proposal instructions.');
     const revisedBridge = revised.configurations.find((entry) => entry.id === bridgeConfigId);
     assert.ok(revisedBridge && revisedBridge.placements.length > 0, 'proposal should keep bridge placements');
-    await shoot(reviewer, `${format}-11-reviewer-proposal`);
+    expect(revisedBridge.placements[0]!.pos.xMm).toBe(proposalX + 2);
+    await shoot(fresh, `${format}-11-station-proposal`);
 
     // The customer sees the stale confirmation, reconfirms, and returns it.
     await customer(editor, 'file-input').setInputFiles(test.info().outputPath(`${jobRef}-proposal.logo-project`));
@@ -718,36 +719,27 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     expect(reconfirmedProject.confirmation?.revision).toBe(revised.revision);
     expect(reconfirmedProject.confirmation?.confirmedBy).toBe('Workflow customer again');
 
-    // Fresh reviewer against the original baseline: approve, still pending production.
-    const final = await context.newPage();
-    watchPage(final, probe);
-    await final.goto(reviewerUrl);
-    await expect(final.locator('h1')).toHaveText('Review a customer return');
-    await review(final, 'baseline-file').setInputFiles({
-      name: `${jobRef}-office-copy.logo-project`,
-      mimeType: 'application/zip',
-      buffer: Buffer.from(officeCopy.bytes),
-    });
-    await expect(review(final, 'status')).toContainText('Opened the saved copy');
-    await review(final, 'return-file').setInputFiles({
-      name: `${jobRef}-reconfirmed.logo-project`,
-      mimeType: 'application/zip',
-      buffer: Buffer.from(reconfirmed.bytes),
-    });
-    await expect(review(final, 'review-panel')).toBeVisible();
-    await expect(review(final, 'confirmation')).toContainText(`Current for revision ${revised.revision}`);
-    await expect(review(final, 'geometry')).toContainText('Valid:');
-    await review(final, 'reviewer').fill('Final reviewer');
-    await review(final, 'decision').selectOption('approved');
-    await review(final, 'note').fill('Internal workflow approval; still pending production.');
-    await review(final, 'record-review').click();
-    await expect(review(final, 'internal-review')).toContainText('approved');
-    await expect(review(final, 'status')).toContainText('not a production release');
-    await shoot(final, `${format}-12-reconfirmed-review`);
-
-    const reviewedDownload = await downloadTo(final, `${jobRef}-reviewed.logo-project`, () =>
-      review(final, 'save-reviewed').click(),
+    // Final staff decision in the same station: import the reconfirmed
+    // return, record approval, save the reviewed return. No second page.
+    await (await shown(fresh, 'step-return')).click();
+    await (await shown(fresh, 'return-file')).setInputFiles(
+      test.info().outputPath(`${jobRef}-reconfirmed.logo-project`),
     );
+    await expect(await shown(fresh, 'review-panel')).toBeVisible();
+    await (await shown(fresh, 'step-check')).click();
+    await (await shown(fresh, 'review-decision-reviewer')).fill('Final reviewer');
+    await (await shown(fresh, 'review-decision-choice')).selectOption('approved');
+    await (await shown(fresh, 'review-decision-note')).fill('Internal workflow approval; still pending production.');
+    await (await shown(fresh, 'review-decision-record')).click();
+    await expect(await shown(fresh, 'review-decision-status')).toContainText(
+      `Recorded approved for update ${revised.revision}`,
+    );
+    await shoot(fresh, `${format}-12-reconfirmed-review`);
+
+    const reviewedDownload = await downloadTo(fresh, `${jobRef}-reviewed.logo-project`, () =>
+      shown(fresh, 'review-decision-download').then((control) => control.click()),
+    );
+    expect(reviewedDownload.name).toMatch(/-r\d+-reviewed\.logo-project$/);
     const reviewedProject = (await parseProjectPackage(reviewedDownload.bytes, { sha256: sha256bytes })).project;
     expect(reviewedProject.review?.decision).toBe('approved');
     expect(reviewedProject.revision).toBe(revised.revision);
@@ -759,9 +751,8 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     expect(reviewedProject.instructions).toBe('Revised proposal instructions.');
     expect(reviewedProject.reviewHistory ?? []).toEqual(issued.project.reviewHistory ?? []);
 
-    await openReviewDisclosure(final, 'candidate-download');
-    const finalCandidateFile = await downloadTo(final, `${jobRef}-final-candidate.json`, () =>
-      review(final, 'candidate-download').click(),
+    const finalCandidateFile = await downloadTo(fresh, `${jobRef}-final-candidate.json`, () =>
+      shown(fresh, 'candidate-download').then((control) => control.click()),
     );
     const finalCandidate = JSON.parse(Buffer.from(finalCandidateFile.bytes).toString('utf8')) as {
       revision: number;
@@ -771,21 +762,21 @@ async function runUserWorkflow(browser: Browser, format: 'self' | 'hybrid'): Pro
     expect(finalCandidate.revision).toBe(revised.revision);
     expect(finalCandidate.status).toBe('candidate-pending-review');
     expect(finalCandidate.digest).toBe(buildCandidateExport(reconfirmedProject, sha256text).digest);
-    await expect(review(final, 'candidate-status')).toContainText('candidate-pending-review');
     // The operator sheet carries business data only: no review status, no
     // digest, no customer notes (the reconfirmed project instructions stay
-    // source context). Nothing is authored on this read-only page, so every
+    // source context). Nothing is authored on this read-only view, so every
     // logo honestly reports setup needed.
-    await expect(review(final, 'operation-document-container').locator('.opsheet').first()).toBeVisible();
-    await expect(review(final, 'operation-document-container')).not.toContainText('Status: candidate-pending-review');
-    await expect(review(final, 'operation-document-container')).not.toContainText('candidate-pending-review');
-    await expect(review(final, 'operation-document-container')).not.toContainText(finalCandidate.digest);
-    await expect(review(final, 'operation-document-container')).not.toContainText('Revised proposal instructions.');
-    await expect(review(final, 'operation-document-container')).toContainText('setup needed before production');
+    await (await shown(fresh, 'preview-document')).click();
+    const finalSheet = await shown(fresh, 'operation-container');
+    await expect(finalSheet.locator('.opsheet').first()).toBeVisible();
+    await expect(finalSheet).not.toContainText('candidate-pending-review');
+    await expect(finalSheet).not.toContainText(finalCandidate.digest);
+    await expect(finalSheet).not.toContainText('Revised proposal instructions.');
+    await expect(finalSheet).toContainText('setup needed before production');
 
-    await final.setViewportSize({ width: 390, height: 844 });
-    expect(await final.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await shoot(final, `${format}-13-review-mobile`);
+    await fresh.setViewportSize({ width: 390, height: 844 });
+    expect(await fresh.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await shoot(fresh, `${format}-13-review-mobile`);
 
     expectOfflineClean(probe);
   } finally {
@@ -801,3 +792,20 @@ test('whole-workflow journey through the self-contained customer file', async ({
 test('whole-workflow journey through the hybrid ZIP customer file', async ({ browser }) => {
   await runUserWorkflow(browser, 'hybrid');
 });
+
+for (const format of ['self', 'hybrid'] as const) {
+test(`whole-workflow journey from a fresh station copy (${format} customer file)`, async ({ browser }) => {
+  // The complete staff journey — prepare, issue, customer edit/confirm,
+  // same-station check, in-station proposal, reconfirmation, approval,
+  // candidate, operation sheet and PDF — running every staff page from a
+  // fresh copy of dist/station with spaces in its path, keeping the actual
+  // downloaded customer bytes throughout. No repo-checkout dependence.
+  const stationCopy = await mkdtemp(join(tmpdir(), 'Logo Station copy '));
+  try {
+    await cp(STATION_DIR, stationCopy, { recursive: true });
+    await runUserWorkflow(browser, format, pathToFileURL(join(stationCopy, 'Logo Station.html')).href, true);
+  } finally {
+    await rm(stationCopy, { recursive: true, force: true });
+  }
+});
+}
