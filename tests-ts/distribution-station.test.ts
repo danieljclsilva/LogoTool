@@ -88,7 +88,24 @@ describe("distribution: single-entry station tree", () => {
     // along in the production station entry.
     assert.ok(!html.includes("__logoCustomerReviewerHtml"), "station entry must not embed the reviewer runtime");
     assert.ok(!html.includes("<script src="), "station entry must not load external scripts");
-    assert.ok(!html.includes("<link "), "station entry must not load external stylesheets");
+    // Stylesheets must be inline or absent: reject network (http/https,
+    // protocol-relative) and sibling-file stylesheet dependencies, while
+    // allowing the embedded data-URI favicon (rel="icon" is not a stylesheet).
+    for (const match of html.matchAll(/<link\b[^>]*>/g)) {
+      const tag = match[0];
+      const rel = /rel="([^"]*)"/.exec(tag)?.[1] ?? "";
+      const href = /href="([^"]*)"/.exec(tag)?.[1] ?? "";
+      assert.ok(
+        rel.split(/\s+/).includes("icon") && href.startsWith("data:"),
+        `station entry link must be an embedded data-URI favicon, got: ${tag.slice(0, 120)}`,
+      );
+    }
+    // The favicon itself is an embedded data URI: no remote fetch, no
+    // relative file that could 404 offline (e.g. /favicon.ico).
+    assert.ok(
+      /<link rel="icon" href="data:[^"]+"/.test(html),
+      "station entry must carry an embedded data-URI favicon",
+    );
   });
 
   it("station survives a fresh copy into a temp dir with spaces in path", async () => {
