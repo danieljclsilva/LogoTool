@@ -106,6 +106,62 @@
     .anchor-setup-field input { width: 10rem; max-width: 40vw; }
     .anchor-setup-field.anchor-setup-number input { width: 6.5rem; }
     .anchor-setup-remove { width: auto; flex: none; }
+    .anchor-setup-stage { background: #fff; }
+    /* Visual product workspace: large white stage, tabs, tools. Class contract
+       owned by product-setup-view.ts (lead applies the styles verbatim). */
+    .product-setup-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .product-setup-tab { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 14px; cursor: pointer; font: inherit; }
+    .product-setup-tab.is-active { background: var(--red); border-color: var(--red); color: #fff; font-weight: 700; }
+    .product-setup-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .product-setup-tool { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+    .product-setup-tool.is-active { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); font-weight: 700; }
+    .product-setup-figure { margin: 12px 0; }
+    .product-setup-stage { position: relative; max-width: 720px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .product-setup-photo { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+    .product-setup-overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    .product-setup-overlay[data-tool="safe-area"] { cursor: crosshair; }
+    .product-setup-overlay[data-tool="anchor"] { cursor: copy; }
+    .product-setup-safe { fill: rgba(11, 108, 171, 0.08); stroke: #0b6cab; stroke-width: 2; }
+    .product-setup-draft { fill: none; stroke: #0b6cab; stroke-width: 2; stroke-dasharray: 8 5; }
+    .product-setup-vertices .product-setup-vertex, .product-setup-midpoint { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: move; }
+    .product-setup-vertex:focus, .product-setup-midpoint:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .product-setup-vertex.is-selected { stroke: var(--red); }
+    .product-setup-anchors .product-setup-anchor { cursor: move; }
+    .product-setup-anchor:focus { outline: none; }
+    .product-setup-anchor:focus .product-setup-dot { stroke: var(--focus); stroke-width: 4; }
+    .product-setup-anchor.is-selected .product-setup-dot { stroke: var(--red); }
+    .product-setup-dot { fill: #d20a2e; stroke: #fff; stroke-width: 2.5; }
+    .product-setup-dot.is-reference { fill: #8a97a3; }
+    .product-setup-tag { fill: #192d3d; font-size: 13px; font-weight: 650; paint-order: stroke; stroke: #fff; stroke-width: 4px; pointer-events: none; }
+    .product-setup-drawing .product-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
+    .product-setup-draw-first { r: 11; }
+    .product-setup-panel { display: grid; gap: 8px; margin-top: 10px; }
+    .product-setup-list { display: grid; gap: 8px; }
+    .product-setup-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; border-top: 1px solid var(--line); padding: 8px 2px; }
+    .product-setup-field { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; }
+    .product-setup-number input { width: 6.5rem; }
+    .product-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .product-setup-savebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--line); }
+    .product-setup-status { min-height: 1.5em; }
+    .product-setup-heading { margin: 1.2em 0 .2em; font-size: 1.05rem; }
+    .product-setup-pick.is-selected { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+    .product-setup-advanced { margin-top: 10px; }
+    .product-setup-advanced-list { display: grid; gap: 4px; font-size: .9rem; }
+    .product-setup-chooser { display: flex; flex-wrap: wrap; gap: 10px; }
+    .product-setup-chooser[data-count="1"] { display: none; }
+    /* Guided measured-area setup: photo + click overlay + compact form. */
+    .guided-scale-stage { position: relative; max-width: 640px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .guided-scale-photo { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+    .guided-scale-overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    .guided-scale-corner { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; }
+    .guided-scale-corner.is-first { fill: #0b6cab; }
+    .guided-scale-label { fill: #192d3d; font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
+    /* Staff 3D reference: actual model on white, orbit only, never calibrated. */
+    .product-model-stage { position: relative; max-width: 720px; height: 360px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .product-model-stage canvas { display: block; width: 100%; height: 100%; }
+    .anchor-setup-drawing .anchor-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
+    .anchor-setup-draw-first { r: 11; }
+    .anchor-setup-midpoint { fill: #fff; stroke: #0b6cab; stroke-width: 2; cursor: copy; }
     .sheet-logo-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
     .sheet-logo-card h4 { margin: 0 0 6px; font-size: 1.05rem; }
     .sheet-measurement-row { border-top: 1px solid var(--line); padding: 10px 0 4px; margin-top: 10px; }
@@ -215,9 +271,9 @@
         <div class="desk">
           <div>
             <h2 class="task-title">Start a customer project</h2>
-            <p class="task-sub">Start an empty draft, try synthetic demo data, or open a project file supplied for this job.</p>
-            <div class="actions"><button type="button" class="btn-primary" data-builder-hook="start-create">Create a project</button><button type="button" class="btn-secondary" data-builder-hook="demo-create">Try demo data</button></div>
-            <p class="muted" data-builder-hook="create-status" role="status" aria-live="polite">Creating starts an empty draft (nothing selected). Demo data is synthetic and opts in explicitly. Example products are synthetic demonstrations, not production items. Nothing is uploaded.</p>
+            <p class="task-sub">Start an empty draft, or open a project file supplied for this job.</p>
+            <div class="actions"><button type="button" class="btn-primary" data-builder-hook="start-create">Create a project</button></div>
+            <p class="muted" data-builder-hook="create-status" role="status" aria-live="polite">Creating starts an empty draft (nothing selected, no example content). Nothing is uploaded.</p>
             <details class="disclosure">
               <summary data-builder-hook="start-open-toggle">Open an existing project</summary>
               <div class="body">
@@ -229,7 +285,7 @@
           </div>
           <aside class="desk-rail" aria-label="About this step">
             <h3 class="rail-title">Before you start</h3>
-            <p class="muted">Creating starts an empty draft from example products — nothing is pre-selected. “Try demo data” selects the synthetic example explicitly. Opening keeps your current project unless the new file is valid.</p>
+            <p class="muted">Creating starts a truly empty draft — no products, no example content. Add your real product next, or open an existing project file. Opening keeps your current project unless the new file is valid.</p>
           </aside>
         </div>
       </section>
@@ -238,23 +294,41 @@
         <div class="desk">
           <div>
             <h2 class="task-title">Choose what to include</h2>
-            <p class="task-sub">Nothing is selected. Tick only what the customer needs.</p>
-            <p class="muted" data-builder-hook="catalogue-note" hidden>Example products — not for production.</p>
+            <p class="task-sub">Nothing is selected. Add your real product first, then tick only what the customer needs.</p>
             <h3 class="group-title">Products</h3>
             <div class="rows" data-builder-hook="product-list"><p class="muted">No project loaded yet.</p></div>
-            <details class="disclosure">
-              <summary>Add a provisional product (advanced setup)</summary>
+            <h3 class="group-title">Set up product</h3>
+            <p class="muted">Work directly on the product photo: draw the safe area, click to place anchors, then save once. The photo is only a reference — all positions are stored in millimetres.</p>
+            <div class="product-setup-chooser">
+              <label class="field" data-workspace-when="multi-product">Product<select data-builder-hook="workspace-product" aria-label="Workspace product"></select></label>
+              <label class="field" data-workspace-when="multi-variant">Option<select data-builder-hook="workspace-variant" aria-label="Workspace option"></select></label>
+            </div>
+            <p class="muted" data-builder-hook="workspace-status" role="status" aria-live="polite"></p>
+            <div data-builder-hook="product-workspace"></div>
+            <div data-builder-hook="guided-scale" hidden></div>
+            <div data-builder-hook="product-model" hidden>
+              <p class="muted">Drag to rotate the model. For measured setup, add the model and a side photo together under “Add another product”.</p>
+              <div class="product-model-stage" data-builder-hook="product-model-stage"><canvas data-builder-hook="product-model-canvas"></canvas></div>
+              <p class="muted" data-builder-hook="product-model-status" role="status"></p>
+            </div>
+            <details class="disclosure" data-builder-hook="add-product-disclosure" open>
+              <summary data-builder-hook="add-product-summary">Add a product</summary>
               <div class="body">
-              <p class="muted">Add a provisional, uncalibrated product from staged files. One 3D model (.glb), one flat image (PNG, JPEG, WebP), or one assigned side view (front/back/left/right) is enough; each assigned image attaches to its named side only. The product carries no measurements and cannot host placements; missing sides are simply absent, never invented.</p>
-            <label class="field">Product name<input data-builder-hook="product-name" type="text" autocomplete="off" placeholder="e.g. Team jacket — provisional"></label>
+            <p class="muted">One 3D model (.glb), one flat image (PNG, JPEG, WebP), or assigned side-view images (front/back/left/right) is enough. Each image stays on its named side.</p>
+            <label class="field">Product name<input data-builder-hook="product-name" type="text" autocomplete="off" placeholder="e.g. Team jacket"></label>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-choose">Choose model or image</button><button type="button" class="btn-secondary" data-builder-hook="product-add">Add product from staged files</button><input data-builder-hook="product-file" type="file" accept=".glb,.png,.jpg,.jpeg,.webp" aria-label="Choose one product file: a 3D model (.glb) or a flat image (PNG, JPEG, WebP)"></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-front">Assign front view image</button><input data-builder-hook="product-view-front-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the front view image"><label class="field">Front view label<input data-builder-hook="product-view-front-label" type="text" autocomplete="off" placeholder="e.g. Front"></label></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-back">Assign back view image</button><input data-builder-hook="product-view-back-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the back view image"><label class="field">Back view label<input data-builder-hook="product-view-back-label" type="text" autocomplete="off" placeholder="e.g. Back"></label></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-left">Assign left side image</button><input data-builder-hook="product-view-left-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the left side image"><label class="field">Left side label<input data-builder-hook="product-view-left-label" type="text" autocomplete="off" placeholder="e.g. Left side"></label></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="product-view-right">Assign right side image</button><input data-builder-hook="product-view-right-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose the right side image"><label class="field">Right side label<input data-builder-hook="product-view-right-label" type="text" autocomplete="off" placeholder="e.g. Right side"></label></div>
-            <p class="muted">Optional per-view labels are attached to the named side only. Only explicitly assigned sides travel with the product; a lone back, left, or right image stays on that side and is never duplicated into front.</p>
+            <p class="muted">Labels are optional and stay on their named side.</p>
+              <p class="muted" data-builder-hook="product-status" role="status" aria-live="polite"></p>
               </div>
             </details>
+            <details class="disclosure">
+              <summary>Advanced product setup</summary>
+              <div class="body">
+                <h4 class="group-title">Prepared import (alternative path)</h4>
             <details class="disclosure">
               <summary>Import a prepared product definition</summary>
               <div class="body">
@@ -263,7 +337,6 @@
                 <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="prepared-product-add">Import prepared product JSON</button><input data-builder-hook="prepared-product-file" type="file" accept=".json,application/json" aria-label="Choose a prepared product definition JSON file"></div>
               </div>
             </details>
-            <p class="muted" data-builder-hook="product-status" role="status" aria-live="polite"></p>
             <details class="disclosure" data-builder-hook="mapping-disclosure">
               <summary>Map artwork photos (optional visual trial)</summary>
               <div class="body">
@@ -272,7 +345,7 @@
                 <label class="field">Option (variant)<select data-builder-hook="mapping-variant" aria-label="Mapping variant"></select></label>
                 <label class="field">Region<select data-builder-hook="mapping-region" aria-label="Mapping region"></select></label>
                 <p class="muted" data-builder-hook="mapping-frame" role="status"></p>
-                <label class="field">Side<select data-builder-hook="mapping-side" aria-label="Mapping side"><option value="front">front</option><option value="back">back</option><option value="left">left</option><option value="right">right</option></select></label>
+                <label class="field">Side<select data-builder-hook="mapping-side" aria-label="Mapping side"><option value="front">Front</option><option value="back">Back</option><option value="left">Left</option><option value="right">Right</option></select></label>
                 <label class="field">Photo<select data-builder-hook="mapping-photo" aria-label="Mapping photo"></select></label>
                 <p class="muted" data-builder-hook="mapping-photo-status" role="status"></p>
                 <fieldset>
@@ -292,25 +365,11 @@
               <div class="body">
             <div class="file-action">
               <button type="button" class="btn-secondary" data-builder-hook="save-master" disabled>Save prepared master</button>
-              <p class="muted">Downloads the current source package byte-identical, for reuse as prepared input. Reopen it with “Open an existing project”. Anchors authored below and staged photo mappings travel with the master.</p>
+              <p class="muted">Downloads the current source package byte-identical, for reuse as prepared input. Reopen it with “Open an existing project”. Anchors authored in Set up product and staged photo mappings travel with the master.</p>
               <p class="muted" data-builder-hook="master-status" role="status" aria-live="polite"></p>
             </div>
               </div>
             </details>
-            <details class="disclosure" data-builder-hook="prep-setup-disclosure">
-              <summary>Anchor + safe-area setup (product preparation)</summary>
-              <div class="body">
-                <p class="muted">Prepare reusable product setup here: click the product photo to create named anchors (inverse-mapped to region millimetres through the evaluated mapping — never guessed from photo bounds) and drag safe-area corners to stage a proposal. Packaged mappings load automatically; staged mappings from “Map artwork photos” apply on top. “Apply safe area to prepared product” writes a staged proposal into the source product (prepare context only); the saved master then carries it for reuse. Anchors travel in the master as a versioned sidecar.</p>
-                <p class="muted" data-builder-hook="prep-setup-mapping-note" role="status"></p>
-                <label class="field">Product<select data-builder-hook="prep-setup-product" aria-label="Setup product"></select></label>
-                <label class="field">Option (variant)<select data-builder-hook="prep-setup-variant" aria-label="Setup variant"></select></label>
-                <label class="field">Region<select data-builder-hook="prep-setup-region" aria-label="Setup region"></select></label>
-                <label class="field">Photo (side)<select data-builder-hook="prep-setup-side" aria-label="Setup photo side"></select></label>
-                <label class="field">Photo<select data-builder-hook="prep-setup-photo" aria-label="Setup photo"></select></label>
-                <p class="muted" data-builder-hook="prep-setup-status" role="status" aria-live="polite"></p>
-                <div data-builder-hook="prep-setup"></div>
-                <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="prep-setup-apply">Apply safe area to prepared product</button></div>
-                <p class="muted" data-builder-hook="prep-setup-apply-status" role="status" aria-live="polite"></p>
               </div>
             </details>
             <h3 class="group-title">Logos</h3>
@@ -370,7 +429,7 @@
           <aside class="desk-rail" aria-label="Create the file">
             <h3 class="rail-title">Create the file</h3>
             <p class="muted">Makes the customer package from the items chosen above.</p>
-            <p class="muted">Products without measurements stay preview-only: issue is blocked until you add measurements with “Import a prepared product definition” in Choose items — or tick the explicit preview-only escape below. Selections with zero placements on measured products still issue normally.</p>
+            <p class="muted">Set measurements visually under “Set up product” in Choose items, or choose preview-only below to send an unmeasured preview.</p>
             <fieldset>
               <label><input data-builder-hook="preview-only-acknowledge" type="checkbox"> Issue preview-only (uncalibrated)</label>
             </fieldset>

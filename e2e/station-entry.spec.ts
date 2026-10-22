@@ -7,7 +7,8 @@ import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
-import { parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import {
   BUILDER_URL,
@@ -31,6 +32,51 @@ const sha256bytes: ProjectPackageSha256 = async (bytes) => createHash('sha256').
 
 function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
+}
+
+/** Explicit synthetic fixture package (no demo UI in the station). */
+async function syntheticCataloguePackage(): Promise<Uint8Array> {
+  const { readdir: readDir, readFile: readBytes } = await import('node:fs/promises');
+  const productFiles = (await readDir(resolve(process.cwd(), 'examples/products')))
+    .filter((file: string) => file.endsWith('.product.json'))
+    .sort();
+  const products = await Promise.all(productFiles.map(async (file: string) =>
+    JSON.parse(await readBytes(resolve(process.cwd(), `examples/products/${file}`), 'utf8'))));
+  products.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const logos = await Promise.all(['syn-mark-a.logo.json', 'syn-mark-b.logo.json'].map(async (file: string) =>
+    JSON.parse(await readBytes(resolve(process.cwd(), `examples/logos/${file}`), 'utf8'))));
+  logos.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const assetPaths = [...new Set(logos.flatMap((logo: { assets: Array<{ uri: string }> }) => logo.assets.map((asset) => asset.uri)))].sort();
+  const assets = await Promise.all(assetPaths.map(async (uri) => ({
+    path: uri,
+    bytes: new Uint8Array(await readBytes(resolve(process.cwd(), 'examples', uri as string))),
+    kind: 'referenced' as const,
+  })));
+  const draft = createProjectFromDefinitions({ products, logos, projectId: 'SYN-PROJ-FIXTURE-001', synthetic: true });
+  if (!draft.ok) throw new Error(`fixture draft invalid: ${draft.errors.map((error) => error.message).join('; ')}`);
+  return createProjectPackage({ project: draft.project, assets }, { sha256: sha256bytes });
+}
+
+async function openSyntheticCatalogue(page: Page): Promise<void> {
+  const bytes = await syntheticCataloguePackage();
+  await (await shown(page, 'source-file')).setInputFiles({
+    name: 'synthetic-catalogue.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
+  });
+  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
+  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+}
+
+/** Tick every checkbox in a selection list with real change events. */
+async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
+  await (await shown(page, listHook)).locator('input[type="checkbox"]').evaluateAll((nodes) => {
+    for (const node of nodes) {
+      const box = node as HTMLInputElement;
+      if (!box.checked) {
+        box.checked = true;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  });
 }
 
 async function shown(page: Page, name: string) {
@@ -133,9 +179,14 @@ test('fresh-copied station issues both customer formats offline with no repo dep
     await expect(await shown(page, 'source-status')).toContainText('Could not load bad-source.logo-project');
     await expect(builder(page, 'source-status')).toContainText('The previous source remains unchanged.');
 
-    // Normal path still works afterwards: demo data → details → issue.
-    await (await shown(page, 'demo-create')).click();
+    // Normal path still works afterwards: an explicit synthetic fixture
+    // package (same example definitions the old embedded catalogue
+    // carried) → select all → details → issue.
+    await openSyntheticCatalogue(page);
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await checkAllBoxes(page, 'product-list');
+    await checkAllBoxes(page, 'logo-list');
+    await checkAllBoxes(page, 'configuration-list');
     await (await shown(page, 'builder-next')).click();
     await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
     await (await shown(page, 'customer-name')).fill('Station Smoke');

@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
 import { BUILDER_URL, gotoBuilder, revealBuilderControl } from './helpers.js';
-import { parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-html/index.js';
 
@@ -22,17 +23,16 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 // - step-open tab reads "Start" ([data-builder-hook="step-open"], panel
 //   [data-builder-step="open"] aria "Start"). Primary
 //   [data-builder-hook="start-create"] ("Create a project") starts a genuinely
-//   new EMPTY draft: nothing is pre-selected, so bundled examples can never
-//   leak into a real job. [data-builder-hook="demo-create"] ("Try demo data")
-//   explicitly opts into the synthetic example selection. No uploading or
-//   opening an existing job; NO setInputFiles for a project is used to reach
-//   Choose items on this path.
+//   new EMPTY draft: nothing is pre-selected, no example content exists in
+//   the station, so nothing synthetic can leak into a real job. There is no
+//   demo UI: tests needing example products open an explicit synthetic
+//   fixture package through the real source-file chooser
+//   (openSyntheticCatalogue below — the same example definitions the old
+//   embedded catalogue carried, now an explicit import).
 // - [data-builder-hook="start-open-toggle"] is the summary of the Open-existing
 //   <details>, which stays OPEN by default, so source-choose/source-drop stay
 //   visible and the old Open flows are untouched.
-// - Choose items carries [data-builder-hook="catalogue-note"] ("Example
-//   products — not for production.", hidden unless catalogue-created),
-//   [data-builder-hook="logo-add"] + [data-builder-hook="logo-file"] (accepts
+// - Choose items carries [data-builder-hook="logo-add"] + [data-builder-hook="logo-file"] (accepts
 //   PNG/JPEG/WebP; setInputFiles via the real file chooser) and
 //   [data-builder-hook="logo-status"]. Imported logos render as normal checked
 //   rows in logo-list with readable names; selection/identity/generation flows
@@ -295,7 +295,43 @@ async function expectedCatalogue() {
   return { products, logos };
 }
 
-test('create starts a fresh example draft without opening a project file', async ({ browser }) => {
+/**
+ * Explicit synthetic fixture package: the same example definitions the old
+ * embedded catalogue carried (examples/products + syn-mark logos), drafted
+ * through the same createProjectFromDefinitions contract — but opened
+ * explicitly through the source-file chooser, never preloaded or demoed.
+ */
+async function syntheticCataloguePackage(): Promise<Uint8Array> {
+  const productFiles = (await readdir(resolve(process.cwd(), 'examples/products')))
+    .filter((file) => file.endsWith('.product.json'))
+    .sort();
+  const products = await Promise.all(productFiles.map(async (file) =>
+    JSON.parse(await readFile(resolve(process.cwd(), `examples/products/${file}`), 'utf8'))));
+  products.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const logos = await Promise.all(['syn-mark-a.logo.json', 'syn-mark-b.logo.json'].map(async (file) =>
+    JSON.parse(await readFile(resolve(process.cwd(), `examples/logos/${file}`), 'utf8'))));
+  logos.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const assetPaths = [...new Set(logos.flatMap((logo: { assets: Array<{ uri: string }> }) => logo.assets.map((asset) => asset.uri)))].sort();
+  const assets = await Promise.all(assetPaths.map(async (uri) => ({
+    path: uri,
+    bytes: new Uint8Array(await readFile(resolve(process.cwd(), 'examples', uri as string))),
+    kind: 'referenced' as const,
+  })));
+  const draft = createProjectFromDefinitions({ products, logos, projectId: 'SYN-PROJ-FIXTURE-001', synthetic: true });
+  if (!draft.ok) throw new Error(`fixture draft invalid: ${draft.errors.map((error) => error.message).join('; ')}`);
+  return createProjectPackage({ project: draft.project, assets }, { sha256 });
+}
+
+/** Open the explicit synthetic fixture through the real source chooser. */
+async function openSyntheticCatalogue(page: Page): Promise<void> {
+  const bytes = await syntheticCataloguePackage();
+  await (await shown(page, 'source-file')).setInputFiles({
+    name: 'synthetic-catalogue.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
+  });
+  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
+}
+
+test('create starts a truly empty draft with no demo UI', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     // Start screen: primary Create, secondary open-existing disclosure that
@@ -309,24 +345,29 @@ test('create starts a fresh example draft without opening a project file', async
     await expect(page.locator('[data-builder-step="choose"]')).toBeHidden();
 
     // Create WITHOUT setInputFiles for any project file. New drafts start
-    // empty: nothing is pre-selected, so the operator cannot accidentally
-    // issue bundled mock items as a real job.
+    // empty: nothing is pre-selected and no demo UI exists anywhere, so no
+    // synthetic content can leak into a real job.
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    await expect(await shown(page, 'catalogue-note')).toBeVisible();
-    await expect(await shown(page, 'catalogue-note')).toHaveText('Example products — not for production.');
+    await expect(builder(page, 'demo-create')).toHaveCount(0);
+    await expect(builder(page, 'catalogue-note')).toHaveCount(0);
+    await expect(await shown(page, 'create-status')).toContainText('empty draft');
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
-    // Explicit demo opt-in restores the full example selection.
-    await (await shown(page, 'demo-create')).click();
-    expect(await checkedTopLevelIds(page, 'product-list')).toEqual(EXPECTED_PRODUCTS);
+    // The explicit path restores the example selection: open the synthetic
+    // fixture package through the real source chooser.
+    await openSyntheticCatalogue(page);
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
     for (const productId of EXPECTED_PRODUCTS) {
       expect((await variantIds(page, productId)).length).toBeGreaterThan(0);
     }
     expect((await variantIds(page, 'SYN-TEE-001')).sort()).toEqual(['SYN-TEE-M', 'SYN-TEE-XL']);
-    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(EXAMPLE_LOGO_IDS);
     await expect(await shown(page, 'product-list')).toContainText('Synthetic Tee');
     await expect(await shown(page, 'logo-list')).toContainText('Synthetic Mark B');
+    // Select the explicitly imported examples to continue (empty start
+    // leaves everything unchecked; nothing is ever pre-selected).
+    await setListSelection(page, 'product-list', EXPECTED_PRODUCTS);
+    await setListSelection(page, 'logo-list', EXAMPLE_LOGO_IDS);
     // New drafts clear identity inputs; the issued ID is a fresh local ID.
     await (await shown(page, 'step-details')).click();
     await expect(await shown(page, 'customer-name')).toHaveValue('');
@@ -347,6 +388,7 @@ test('create generates revision-1 issues with prepared catalogue identity and ze
     const { products: fixtureProducts, logos: fixtureLogos } = await expectedCatalogue();
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await openSyntheticCatalogue(page);
     // Narrow the selection: tee + cap products, synthetic mark A only.
     await setListSelection(page, 'product-list', ['SYN-TEE-001', 'SYN-CAP-001']);
     await setListSelection(page, 'logo-list', ['SYN-LOGO-A']);
@@ -435,6 +477,7 @@ test('create customer journey adds a new raster logo and reviews the return', as
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await openSyntheticCatalogue(page);
     await setListSelection(page, 'product-list', ['SYN-TEE-001']);
     await setListSelection(page, 'logo-list', []);
     await selectConfigurationsForProducts(page, ['SYN-TEE-001']);
@@ -536,6 +579,7 @@ test('create supports zero logos and distinct duplicate logo filenames', async (
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await openSyntheticCatalogue(page);
     await setListSelection(page, 'product-list', ['SYN-CAP-001']);
     await setListSelection(page, 'logo-list', []);
     await selectConfigurationsForProducts(page, ['SYN-CAP-001']);
@@ -585,8 +629,11 @@ test('a new create resets a previously opened job and its logos', async ({ brows
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    // Empty start: take the explicit demo selection, then add the job logo.
-    await (await shown(page, 'demo-create')).click();
+    // Explicit fixture import, then add the job logo. Tick products and the
+    // fixture logos (empty start leaves everything unchecked).
+    await openSyntheticCatalogue(page);
+    await setListSelection(page, 'product-list', EXPECTED_PRODUCTS);
+    await setListSelection(page, 'logo-list', EXAMPLE_LOGO_IDS);
     const png = await syntheticPngBytes(page);
     await addLogo(page, 'first.png', 'image/png', png);
     await (await shown(page, 'builder-next')).click();
@@ -602,12 +649,14 @@ test('a new create resets a previously opened job and its logos', async ({ brows
     await (await shown(page, 'step-open')).click();
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    await expect(await shown(page, 'catalogue-note')).toBeVisible();
+    await expect(builder(page, 'catalogue-note')).toHaveCount(0);
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
-    await (await shown(page, 'demo-create')).click();
+    await openSyntheticCatalogue(page);
+    expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
+    await setListSelection(page, 'product-list', EXPECTED_PRODUCTS);
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual(EXPECTED_PRODUCTS);
-    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(EXAMPLE_LOGO_IDS);
+    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
     await (await shown(page, 'step-details')).click();
     await expect(await shown(page, 'customer-name')).toHaveValue('');
     await expect(await shown(page, 'job-ref')).toHaveValue('');
@@ -626,8 +675,9 @@ test('hostile logo uploads retain prior good state with zero errors or requests'
   try {
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    // Explicit demo opt-in restores the example selection under test.
-    await (await shown(page, 'demo-create')).click();
+    // Explicit fixture import restores the example selection under test.
+    await openSyntheticCatalogue(page);
+    await setListSelection(page, 'logo-list', EXAMPLE_LOGO_IDS);
     const png = await syntheticPngBytes(page);
     await addLogo(page, 'good.png', 'image/png', png);
     const goodIds = await checkedTopLevelIds(page, 'logo-list');
@@ -710,12 +760,13 @@ test('hostile logo uploads retain prior good state with zero errors or requests'
       const gate = globalThis as unknown as { holdDecode?: { done: boolean } };
       return gate.holdDecode?.done;
     })).toBe(true);
-    // The stale decode must not install anything; the fresh empty draft only
-    // regains the examples through the explicit demo opt-in.
+    // The stale decode must not install anything; the fresh empty draft has
+    // no demo to regain — it stays empty until an explicit import.
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
     expect(await page.locator('[data-builder-hook="logo-list"]').getByText('held', { exact: false }).count()).toBe(0);
-    await (await shown(page, 'demo-create')).click();
-    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual(EXAMPLE_LOGO_IDS);
+    await expect(builder(page, 'demo-create')).toHaveCount(0);
+    await openSyntheticCatalogue(page);
+    expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
     expect(await page.locator('[data-builder-hook="logo-list"]').getByText('held', { exact: false }).count()).toBe(0);
     expectOfflineClean(probe);
   } finally {
@@ -729,7 +780,8 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844
     try {
       await (await shown(page, 'start-create')).click();
       await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-      await expect(await shown(page, 'catalogue-note')).toContainText('Example products — not for production.');
+      await expect(builder(page, 'demo-create')).toHaveCount(0);
+      await openSyntheticCatalogue(page);
       await setListSelection(page, 'product-list', ['SYN-TEE-001']);
       await setListSelection(page, 'logo-list', ['SYN-LOGO-A']);
       await selectConfigurationsForProducts(page, ['SYN-TEE-001']);
@@ -760,6 +812,7 @@ test('adding artwork preserves product, option, setup and logo choices', async (
   try {
     await builder(page,'start-create').click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await openSyntheticCatalogue(page);
     await setListSelection(page,'product-list',['SYN-TEE-001']);
     await setListSelection(page,'logo-list',[]);
     const setups=await shown(page,'configuration-list');

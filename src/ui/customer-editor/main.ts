@@ -979,7 +979,9 @@ async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
       const wrap = mode3dWrap ??
         document.querySelector<HTMLElement>('[data-customer-hook="mode-3d-wrap"]');
       if (!canvasElement || !wrap) return null;
-      const attached = module.ModelViewer.attach({ canvas: canvasElement, container: wrap });
+      // Released customer preview: explicit white stage (the dev-inspector
+      // default stays dark). Photo originals are untouched (DOM images).
+      const attached = module.ModelViewer.attach({ canvas: canvasElement, container: wrap, background: 0xffffff });
       const viewer = attached.viewer;
       if (!viewer) return null;
       // Page scroll wins: OrbitControls must never trap plain wheel events

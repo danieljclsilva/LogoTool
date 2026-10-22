@@ -42,7 +42,7 @@ import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 //   variant checkboxes (`[data-product]`); logo list is flat;
 //   configuration-list lives inside the collapsed `Choose specific setups`
 //   disclosure. Nothing is pre-selected on source load (empty start); the
-//   operator ticks products/logos/setups deliberately or uses Try demo data.
+//   operator ticks products/logos/setups deliberately (no demo UI exists).
 //   counts the actual selection; selection-error reports invalid selections
 //   here, so Continue never needs job identity.
 // - Customer details shows only Customer name / Job reference / Prepared by.

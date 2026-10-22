@@ -11,7 +11,8 @@ import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
 import { buildCandidateExport } from '../src/core/index.js';
 import type { Sha256HexFn } from '../src/core/index.js';
-import { parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
 // Whole-workflow browser QA: one coherent user journey per issued format,
@@ -71,6 +72,36 @@ async function shown(page: Page, name: string) {
 
 function customer(page: Page, name: string) {
   return page.locator(`[data-customer-hook="${name}"]`);
+}
+
+async function syntheticCataloguePackage(): Promise<Uint8Array> {
+  const productFiles = (await readdir(resolve(process.cwd(), 'examples/products')))
+    .filter((file: string) => file.endsWith('.product.json'))
+    .sort();
+  const products = await Promise.all(productFiles.map(async (file: string) =>
+    JSON.parse(await readFile(resolve(process.cwd(), `examples/products/${file}`), 'utf8'))));
+  products.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const logos = await Promise.all(['syn-mark-a.logo.json', 'syn-mark-b.logo.json'].map(async (file: string) =>
+    JSON.parse(await readFile(resolve(process.cwd(), `examples/logos/${file}`), 'utf8'))));
+  logos.sort((left: { id: string }, right: { id: string }) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const assetPaths = [...new Set(logos.flatMap((logo: { assets: Array<{ uri: string }> }) => logo.assets.map((asset) => asset.uri)))].sort();
+  const assets = await Promise.all(assetPaths.map(async (uri) => ({
+    path: uri,
+    bytes: new Uint8Array(await readFile(resolve(process.cwd(), 'examples', uri as string))),
+    kind: 'referenced' as const,
+  })));
+  const draft = createProjectFromDefinitions({ products, logos, projectId: 'SYN-PROJ-FIXTURE-001', synthetic: true });
+  if (!draft.ok) throw new Error(`fixture draft invalid: ${draft.errors.map((error) => error.message).join('; ')}`);
+  return createProjectPackage({ project: draft.project, assets }, { sha256: sha256bytes });
+}
+
+async function openSyntheticCatalogue(page: Page): Promise<void> {
+  const bytes = await syntheticCataloguePackage();
+  await (await shown(page, 'source-file')).setInputFiles({
+    name: 'synthetic-catalogue.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
+  });
+  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
+  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
 }
 
 async function downloadTo(
@@ -180,7 +211,11 @@ async function runUserWorkflow(
 
     await (await shown(page, 'start-create')).click();
     await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    await expect(await shown(page, 'catalogue-note')).toContainText('not for production');
+    await expect(builder(page, 'demo-create')).toHaveCount(0);
+    await expect(await shown(page, 'create-status')).toContainText('empty draft');
+    // Explicit synthetic catalogue fixture (same example definitions the old
+    // embedded catalogue carried) through the real source chooser.
+    await openSyntheticCatalogue(page);
 
     // Import the prepared inspector-bridge product through the real file input.
     await (await shown(page, 'prepared-product-file')).setInputFiles(FIXTURE_PATH);

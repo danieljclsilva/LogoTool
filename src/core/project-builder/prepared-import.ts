@@ -204,13 +204,39 @@ function nextConfigId(taken: Set<string>): string {
  * validated sidecar and original area-bundle export for the caller to
  * package as additional assets.
  */
+/**
+ * The two legitimate empty-products minimum errors a well-formed empty draft
+ * produces under full project validation. Only these are waived for the
+ * zero-product base; everything else still fails. Matched on code + path +
+ * the exact stable message (both pinned by unit tests below).
+ */
+function isEmptyProductsMinimumError(error: ValidationError): boolean {
+  if (error.path !== 'products') return false;
+  if (error.code === 'bad-shape' && error.message === 'project needs at least 1 product snapshot') return true;
+  return error.code === 'schema-reject' && error.message.includes('minItems');
+}
+
 export function appendPreparedProduct(
   project: ProjectDocument,
   input: unknown,
 ): AppendPreparedProductResult {
   const errors: ValidationError[] = [];
+  // Base-project gate: never build on a corrupt project. A well-formed but
+  // still-empty draft (zero products, straight from Create) is not corrupt:
+  // validate it fully and waive ONLY the two legitimate empty-products
+  // minimum errors (schema minItems + at-least-1 snapshot). Every other
+  // structural or semantic error still fails, and validation never throws —
+  // malformed empty bases (e.g. missing configurations) return errors instead
+  // of crashing on the append below.
+  const baseEmpty =
+    typeof project === 'object' && project !== null &&
+    Array.isArray((project as { products?: unknown }).products) &&
+    ((project as { products: unknown[] }).products.length === 0);
   const structural = validateProject(project);
-  if (!structural.ok) return { ok: false, errors: structural.errors };
+  const baseErrors = baseEmpty
+    ? structural.errors.filter((entry) => !isEmptyProductsMinimumError(entry))
+    : structural.errors;
+  if (baseErrors.length > 0) return { ok: false, errors: baseErrors };
   const parsed = parsePreparedImport(input);
   if (!parsed.ok) return parsed;
 

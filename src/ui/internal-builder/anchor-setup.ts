@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 /**
  * Visual anchor + safe-area setup (one-time product setup, reusable).
  *
@@ -104,7 +105,15 @@ function displayMm1(value: number): string {
   return `${(Math.round(value * 10) / 10).toFixed(1)}`;
 }
 
-function polygonArea(points: ReadonlyArray<AnchorSetupMm>): number {
+// ---- Pure safe-area geometry (DOM-free; unit-tested without a browser). ----
+
+/** Outcome of validating a candidate safe-area polygon (region-frame mm). */
+export type SafeAreaValidation =
+  | { ok: true; reason: null }
+  | { ok: false; reason: string };
+
+/** Signed polygon area via the shoelace sum, in square millimetres. */
+export function polygonSignedAreaMm(points: ReadonlyArray<AnchorSetupMm>): number {
   let area = 0;
   for (let i = 0; i < points.length; i += 1) {
     const a = points[i]!;
@@ -112,6 +121,117 @@ function polygonArea(points: ReadonlyArray<AnchorSetupMm>): number {
     area += a.x * b.y - b.x * a.y;
   }
   return area / 2;
+}
+
+function orientationMm(a: AnchorSetupMm, b: AnchorSetupMm, c: AnchorSetupMm): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function onSegmentMm(a: AnchorSetupMm, b: AnchorSetupMm, c: AnchorSetupMm): boolean {
+  return (
+    Math.min(a.x, c.x) <= b.x && b.x <= Math.max(a.x, c.x) &&
+    Math.min(a.y, c.y) <= b.y && b.y <= Math.max(a.y, c.y)
+  );
+}
+
+/** True when the closed segments p1–p2 and p3–p4 touch or cross. */
+export function segmentsIntersectMm(
+  p1: AnchorSetupMm,
+  p2: AnchorSetupMm,
+  p3: AnchorSetupMm,
+  p4: AnchorSetupMm,
+): boolean {
+  const d1 = orientationMm(p3, p4, p1);
+  const d2 = orientationMm(p3, p4, p2);
+  const d3 = orientationMm(p1, p2, p3);
+  const d4 = orientationMm(p1, p2, p4);
+  if (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  ) {
+    return true;
+  }
+  if (d1 === 0 && onSegmentMm(p3, p1, p4)) return true;
+  if (d2 === 0 && onSegmentMm(p3, p2, p4)) return true;
+  if (d3 === 0 && onSegmentMm(p1, p3, p2)) return true;
+  if (d4 === 0 && onSegmentMm(p1, p4, p2)) return true;
+  return false;
+}
+
+/** True when any two non-adjacent polygon edges touch or cross. */
+export function polygonIsSelfIntersecting(points: ReadonlyArray<AnchorSetupMm>): boolean {
+  const n = points.length;
+  if (n < 4) return false;
+  for (let i = 0; i < n; i += 1) {
+    const a1 = points[i]!;
+    const a2 = points[(i + 1) % n]!;
+    for (let j = i + 1; j < n; j += 1) {
+      if (j === i + 1) continue;
+      if (i === 0 && j === n - 1) continue;
+      const b1 = points[j]!;
+      const b2 = points[(j + 1) % n]!;
+      if (segmentsIntersectMm(a1, a2, b1, b2)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Validate a candidate safe-area polygon. Refuses degenerate (<3 or
+ * coincident corners), non-finite, zero-area and self-intersecting
+ * polygons with a concise actionable reason; never throws.
+ */
+export function validateSafeAreaPolygon(
+  points: ReadonlyArray<AnchorSetupMm>,
+): SafeAreaValidation {
+  if (points.length < 3) {
+    return { ok: false, reason: 'at least 3 finite corners are required (click the photo to add more corners).' };
+  }
+  for (let i = 0; i < points.length; i += 1) {
+    const corner = points[i]!;
+    if (!isFiniteMm(corner.x) || !isFiniteMm(corner.y)) {
+      return { ok: false, reason: `corner ${i + 1} is not a finite millimetre position (move it onto the mapped photo).` };
+    }
+  }
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    if (Math.hypot(b.x - a.x, b.y - a.y) <= 1e-9) {
+      const next = ((i + 1) % points.length) + 1;
+      return { ok: false, reason: `corners ${i + 1} and ${next} coincide (move or remove one).` };
+    }
+  }
+  if (Math.abs(polygonSignedAreaMm(points)) <= 1e-9) {
+    return { ok: false, reason: 'the polygon has zero area — corners must span a real area (move a corner).' };
+  }
+  if (polygonIsSelfIntersecting(points)) {
+    return { ok: false, reason: 'polygon edges cross — move a corner so no edges cross.' };
+  }
+  return { ok: true, reason: null };
+}
+
+/**
+ * Close/finish rule for an in-progress drawing: finishing is offered once
+ * at least 3 finite corners exist. Full geometry (area, crossings) is
+ * validated on commit by {@link validateSafeAreaPolygon}.
+ */
+export function canCloseDrawnPolygon(
+  corners: ReadonlyArray<AnchorSetupMm>,
+): SafeAreaValidation {
+  if (corners.length < 3) {
+    const missing = 3 - corners.length;
+    return {
+      ok: false,
+      reason: `add at least ${missing} more corner${missing === 1 ? '' : 's'} before finishing (Enter closes with 3 or more).`,
+    };
+  }
+  for (let i = 0; i < corners.length; i += 1) {
+    const corner = corners[i]!;
+    if (!isFiniteMm(corner.x) || !isFiniteMm(corner.y)) {
+      return { ok: false, reason: `corner ${i + 1} is not finite (re-place it before finishing).` };
+    }
+  }
+  return { ok: true, reason: null };
 }
 
 let anchorCounter = 0;
@@ -147,11 +267,30 @@ export function createAnchorSetup(
   let pendingVertexBase: AnchorSetupMm[] | null = null;
   /** Live vertex handle for direct position updates during a drag. */
   let pendingVertexHandle: SVGCircleElement | null = null;
+  /**
+   * Active fresh-polygon drawing (region-frame mm corners), or null when no
+   * drawing is in flight. Survives refresh() so each click repaints; dropped
+   * when the scope changes, cancelled by Escape, committed by Finish/Enter/
+   * first-handle-click/double-click. Never commits invalid geometry.
+   */
+  let drawCorners: AnchorSetupMm[] | null = null;
+  let drawScopeKey: string | null = null;
 
   /** Escape aborts any in-flight drag with no commit (handlers re-render). */
   const cancelDragOnEscape = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || destroyed) return;
-    if (dragAnchor === null && dragVertex === null) return;
+    if (dragAnchor === null && dragVertex === null) {
+      const target = event.target;
+      const editable = target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement;
+      if (drawCorners !== null && !editable) {
+        drawCorners = null;
+        drawScopeKey = null;
+        refresh();
+      }
+      return;
+    }
     dragAnchor = null;
     dragVertex = null;
     pendingAnchorMm = null;
@@ -231,12 +370,9 @@ export function createAnchorSetup(
       callbacks.onSafeAreaProposal(null, null);
       return;
     }
-    if (staged.length < 3 || !staged.every((point) => isFiniteMm(point.x) && isFiniteMm(point.y))) {
-      callbacks.onStatus('Safe-area proposal refused: at least 3 finite corners are required.');
-      return;
-    }
-    if (Math.abs(polygonArea(staged)) <= 1e-9) {
-      callbacks.onStatus('Safe-area proposal refused: the staged polygon is degenerate (zero area).');
+    const check = validateSafeAreaPolygon(staged);
+    if (!check.ok) {
+      callbacks.onStatus(`Safe-area proposal refused: ${check.reason}`);
       return;
     }
     const corners = staged.map((point) => `(${displayMm1(point.x)}, ${displayMm1(point.y)})`).join(', ');
@@ -281,6 +417,12 @@ export function createAnchorSetup(
       return;
     }
     const input = resolved;
+    const inputScopeKey = scopeKeyOf(input.scope);
+    if (drawCorners !== null && drawScopeKey !== inputScopeKey) {
+      drawCorners = null;
+      drawScopeKey = null;
+    }
+    const drawing = drawCorners !== null;
 
     const statusBox = document.createElement('p');
     statusBox.className = 'muted';
@@ -323,7 +465,22 @@ export function createAnchorSetup(
     svg.setAttribute('viewBox', `0 0 ${input.photo.widthPx} ${input.photo.heightPx}`);
     svg.setAttribute('class', 'anchor-setup-overlay');
     svg.setAttribute('role', 'group');
+    svg.setAttribute('tabindex', '0');
+    svg.setAttribute('data-fkey', `anchor-setup-stage-${input.scope.regionId}`);
     svg.setAttribute('aria-label', `Anchor setup overlay for region ${input.scope.regionName ?? input.scope.regionId}`);
+    svg.addEventListener('keydown', (event) => {
+      if (drawCorners === null) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finishDrawing(input, paintPageStatus, refresh);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        drawCorners = null;
+        drawScopeKey = null;
+        paintPageStatus('Drawing cancelled; nothing was committed.');
+        refresh();
+      }
+    });
     stage.append(svg);
     figure.append(stage);
     container.append(figure, statusBox);
@@ -395,6 +552,95 @@ export function createAnchorSetup(
       });
     };
     paintVertices();
+
+    if (drawing) {
+      // In-progress fresh polygon: open polyline plus one handle per draft
+      // corner. The first corner doubles as the close/finish handle.
+      const draft = drawCorners ?? [];
+      const draftLayer = document.createElementNS(svgNS, 'g');
+      draftLayer.setAttribute('class', 'anchor-setup-drawing');
+      svg.append(draftLayer);
+      const line = document.createElementNS(svgNS, 'polyline');
+      line.setAttribute('class', 'anchor-setup-draft');
+      const linePts: string[] = [];
+      for (const corner of draft) {
+        const px = mmToPhoto(input, corner);
+        if (!px) continue;
+        linePts.push(`${px.x},${px.y}`);
+      }
+      if (draft.length >= 3 && linePts.length === draft.length && linePts[0] !== undefined) {
+        linePts.push(linePts[0]);
+      }
+      line.setAttribute('points', linePts.join(' '));
+      draftLayer.append(line);
+      draft.forEach((corner, index) => {
+        const px = mmToPhoto(input, corner);
+        if (!px) return;
+        const handle = document.createElementNS(svgNS, 'circle');
+        handle.setAttribute('class', index === 0 ? 'anchor-setup-draw anchor-setup-draw-first' : 'anchor-setup-draw');
+        handle.setAttribute('cx', String(px.x));
+        handle.setAttribute('cy', String(px.y));
+        handle.setAttribute('r', index === 0 ? '10' : '7');
+        handle.setAttribute('tabindex', '0');
+        handle.setAttribute('role', 'button');
+        handle.setAttribute('data-fkey', `draw-corner-${input.scope.regionId}-${index}`);
+        handle.setAttribute(
+          'aria-label',
+          index === 0
+            ? `First draft corner at ${displayMm1(corner.x)}, ${displayMm1(corner.y)} millimetres. Activate to finish the safe area.`
+            : `Draft corner ${index + 1} at ${displayMm1(corner.x)}, ${displayMm1(corner.y)} millimetres.`,
+        );
+        handle.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (index === 0) finishDrawing(input, paintPageStatus, refresh);
+        });
+        handle.addEventListener('keydown', (event) => {
+          if ((event.key === 'Enter' || event.key === ' ') && index === 0) {
+            event.preventDefault();
+            finishDrawing(input, paintPageStatus, refresh);
+          }
+        });
+        draftLayer.append(handle);
+      });
+    } else if (stagedOrOriginal.length >= 3) {
+      // Edge-midpoint handles insert a corner into the staged polygon with
+      // one click/Enter (a proposal only — the approved product is unchanged).
+      const midLayer = document.createElementNS(svgNS, 'g');
+      midLayer.setAttribute('class', 'anchor-setup-midpoints');
+      svg.append(midLayer);
+      stagedOrOriginal.forEach((point, index) => {
+        const next = stagedOrOriginal[(index + 1) % stagedOrOriginal.length]!;
+        const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
+        const px = mmToPhoto(input, mid);
+        if (!px) return;
+        const plus = document.createElementNS(svgNS, 'circle');
+        plus.setAttribute('class', 'anchor-setup-midpoint');
+        plus.setAttribute('cx', String(px.x));
+        plus.setAttribute('cy', String(px.y));
+        plus.setAttribute('r', '5');
+        plus.setAttribute('tabindex', '0');
+        plus.setAttribute('role', 'button');
+        plus.setAttribute('data-fkey', `vertex-insert-${input.scope.regionId}-${index}`);
+        plus.setAttribute(
+          'aria-label',
+          `Insert a safe-area corner on edge ${index + 1} (stages a proposal).`,
+        );
+        const insert = (): void => {
+          insertVertex(input, index, mid, paintPageStatus, refresh);
+        };
+        plus.addEventListener('click', (event) => {
+          event.stopPropagation();
+          insert();
+        });
+        plus.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            insert();
+          }
+        });
+        midLayer.append(plus);
+      });
+    }
 
     // Anchor markers (id -> live elements for drag painting).
     const anchorLayer = document.createElementNS(svgNS, 'g');
@@ -533,12 +779,11 @@ export function createAnchorSetup(
       } else if (vertexIndex !== null && vertexBase !== null) {
         // Single commit for the whole drag; validity is re-checked here so a
         // degenerate drop restores the polygon instead of staging it.
-        if (vertexBase.length >= 3 &&
-          vertexBase.every((point) => isFiniteMm(point.x) && isFiniteMm(point.y)) &&
-          Math.abs(polygonArea(vertexBase)) > 1e-9) {
+        const check = validateSafeAreaPolygon(vertexBase);
+        if (check.ok) {
           proposeSafeArea(input, vertexBase);
         } else {
-          paintPageStatus('Safe-area proposal refused: the dragged polygon needs at least 3 finite corners with non-zero area.');
+          paintPageStatus(`Safe-area proposal refused: ${check.reason}`);
         }
       }
       refresh();
@@ -554,7 +799,8 @@ export function createAnchorSetup(
       refresh();
     });
 
-    // Click (no drag) on empty photo area creates a named anchor.
+    // Click (no drag) on empty photo area creates a named anchor — unless a
+    // fresh-polygon drawing is in flight, in which case clicks stage corners.
     let downAt: { x: number; y: number } | null = null;
     svg.addEventListener('pointerdown', (event) => {
       downAt = { x: event.clientX, y: event.clientY };
@@ -562,7 +808,27 @@ export function createAnchorSetup(
     svg.addEventListener('click', (event) => {
       if (dragAnchor !== null || dragVertex !== null) return;
       if (downAt && Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 6) return;
-      if ((event.target as Element).closest?.('.anchor-setup-anchor, .anchor-setup-vertex')) return;
+      if ((event.target as Element).closest?.('.anchor-setup-anchor, .anchor-setup-vertex, .anchor-setup-midpoint')) return;
+      const draft = drawCorners;
+      if (draft !== null) {
+        // Fresh-polygon draw mode: clicks stage draft corners (same
+        // inverse-mapped mm math as anchor clicks), never anchors.
+        if ((event.target as Element).closest?.('.anchor-setup-draw')) return;
+        const photo = eventPhotoPoint(svg, event);
+        const mm = photoToMm(input, photo.x, photo.y);
+        if (!mm) {
+          paintPageStatus('Corner not added: the click falls outside the evaluated mapping.');
+          return;
+        }
+        drawCorners = [...draft, mm];
+        drawScopeKey = inputScopeKey;
+        paintPageStatus(
+          `Draft corner ${drawCorners.length} at ${displayMm1(mm.x)}, ${displayMm1(mm.y)} mm. ` +
+          `Finish with Enter, the first corner, or a double-click; Escape cancels with no commit.`,
+        );
+        refresh();
+        return;
+      }
       const photo = eventPhotoPoint(svg, event);
       const mm = photoToMm(input, photo.x, photo.y);
       if (!mm) {
@@ -589,6 +855,17 @@ export function createAnchorSetup(
         `“${input.scope.regionName ?? input.scope.regionId}”. Rename it below if needed.`,
       );
       refresh();
+    });
+
+    // Double-click closes an in-progress drawing. The double-click's two
+    // clicks each staged a corner, so the trailing duplicate is dropped.
+    svg.addEventListener('dblclick', (event) => {
+      const draft = drawCorners;
+      if (draft === null) return;
+      event.preventDefault();
+      drawCorners = draft.length >= 4 ? draft.slice(0, -1) : draft.slice();
+      drawScopeKey = inputScopeKey;
+      finishDrawing(input, paintPageStatus, refresh);
     });
 
     renderAnchorList(input, paintPageStatus, refresh, commitAnchors, scopeKeyOf(input.scope));
@@ -700,6 +977,11 @@ export function createAnchorSetup(
     refreshSelf: () => void,
     propose: (scopeInput: AnchorSetupInput, staged: AnchorSetupMm[] | null) => void,
   ): void {
+    const draft = drawCorners;
+    if (draft !== null) {
+      renderDrawingPanel(input, draft, paintPageStatus, refreshSelf);
+      return;
+    }
     const heading = document.createElement('h4');
     heading.className = 'anchor-setup-heading';
     const points = input.stagedSafeArea ?? input.safeArea;
@@ -710,8 +992,9 @@ export function createAnchorSetup(
     const hint = document.createElement('p');
     hint.className = 'muted';
     hint.textContent =
-      'Corner handles drag on the photo and move with arrow keys like anchors. ' +
-      'Removing or moving a corner stages a proposal: the issued product keeps its approved safe area. ' +
+      'Corner handles drag on the photo and move with arrow keys like anchors; ' +
+      '“+” edge handles insert a corner. ' +
+      'Removing, moving or inserting a corner stages a proposal: the issued product keeps its approved safe area. ' +
       'To apply a staged proposal, open the source in Prepare → Choose items → “Anchor + safe-area setup (product preparation)”.';
     container.append(hint);
     const actions = document.createElement('div');
@@ -732,8 +1015,26 @@ export function createAnchorSetup(
     if (points.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'This region carries no safe-area polygon; nothing to stage.';
+      empty.textContent = 'This region carries no safe-area polygon yet. Draw one fresh on the photo: every click stages a corner in region millimetres.';
       container.append(empty);
+      const start = document.createElement('button');
+      start.type = 'button';
+      start.className = 'btn-secondary';
+      start.textContent = 'Draw safe area';
+      start.setAttribute('data-fkey', `draw-start-${input.scope.regionId}`);
+      start.addEventListener('click', () => {
+        drawCorners = [];
+        drawScopeKey = scopeKeyOf(input.scope);
+        paintPageStatus(
+          'Drawing: click the product photo to add safe-area corners. ' +
+          'Finish with Enter, the first corner, or a double-click; Escape cancels with no commit.',
+        );
+        refreshSelf();
+      });
+      const startActions = document.createElement('div');
+      startActions.className = 'actions';
+      startActions.append(start);
+      container.append(startActions);
       return;
     }
     const list = document.createElement('div');
@@ -757,6 +1058,126 @@ export function createAnchorSetup(
       list.append(row);
     });
     container.append(list);
+  }
+
+  function renderDrawingPanel(
+    input: AnchorSetupInput,
+    draft: AnchorSetupMm[],
+    paintPageStatus: (message: string) => void,
+    refreshSelf: () => void,
+  ): void {
+    const heading = document.createElement('h4');
+    heading.className = 'anchor-setup-heading';
+    heading.textContent = `Drawing safe area (${draft.length} corner${draft.length === 1 ? '' : 's'} — nothing committed)`;
+    container.append(heading);
+    const hint = document.createElement('p');
+    hint.className = 'muted';
+    hint.textContent =
+      'Click the product photo to add corners in region millimetres. ' +
+      'Finish with Enter, the first (larger) corner, or a double-click; Escape cancels with no commit. ' +
+      'Invalid geometry (fewer than 3 corners, zero area, crossing edges) is refused and the draft stays open.';
+    container.append(hint);
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const finish = document.createElement('button');
+    finish.type = 'button';
+    finish.className = 'btn-secondary';
+    finish.textContent = 'Finish safe area';
+    finish.setAttribute('data-fkey', `draw-finish-${input.scope.regionId}`);
+    finish.addEventListener('click', () => {
+      finishDrawing(input, paintPageStatus, refreshSelf);
+    });
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn-secondary';
+    cancel.textContent = 'Cancel drawing';
+    cancel.setAttribute('data-fkey', `draw-cancel-${input.scope.regionId}`);
+    cancel.addEventListener('click', () => {
+      drawCorners = null;
+      drawScopeKey = null;
+      paintPageStatus('Drawing cancelled; nothing was committed.');
+      refreshSelf();
+    });
+    actions.append(finish, cancel);
+    container.append(actions);
+    if (draft.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'No corners yet — click the photo above to place the first one.';
+      container.append(empty);
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'anchor-setup-list';
+    draft.forEach((corner, index) => {
+      const row = document.createElement('div');
+      row.className = 'anchor-setup-row';
+      const label = document.createElement('span');
+      label.className = 'muted';
+      label.textContent = `Draft corner ${index + 1}: ${displayMm1(corner.x)}, ${displayMm1(corner.y)} mm`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn-secondary anchor-setup-remove';
+      remove.textContent = 'Remove corner';
+      remove.setAttribute('aria-label', `Remove draft corner ${index + 1}`);
+      remove.setAttribute('data-fkey', `draw-remove-${input.scope.regionId}-${index}`);
+      remove.addEventListener('click', () => {
+        const next = drawCorners;
+        if (!next) return;
+        next.splice(index, 1);
+        drawCorners = [...next];
+        paintPageStatus(`Removed draft corner ${index + 1} (nothing committed).`);
+        refreshSelf();
+      });
+      row.append(label, remove);
+      list.append(row);
+    });
+    container.append(list);
+  }
+
+  function finishDrawing(
+    input: AnchorSetupInput,
+    paintPageStatus: (message: string) => void,
+    refreshSelf: () => void,
+  ): void {
+    const draft = drawCorners;
+    if (draft === null) return;
+    const closable = canCloseDrawnPolygon(draft);
+    if (!closable.ok) {
+      paintPageStatus(`Drawing not finished: ${closable.reason}`);
+      return;
+    }
+    const check = validateSafeAreaPolygon(draft);
+    if (!check.ok) {
+      paintPageStatus(`Safe-area drawing refused: ${check.reason} Move or remove a corner, or press Escape to cancel.`);
+      return;
+    }
+    const committed = draft.map((corner) => ({ ...corner }));
+    drawCorners = null;
+    drawScopeKey = null;
+    proposeSafeArea(input, committed);
+    paintPageStatus(
+      `Staged a drawn safe area with ${committed.length} corners (proposal only; the approved product is unchanged).`,
+    );
+    refreshSelf();
+  }
+
+  function insertVertex(
+    input: AnchorSetupInput,
+    edgeIndex: number,
+    mid: AnchorSetupMm,
+    paintPageStatus: (message: string) => void,
+    refreshSelf: () => void,
+  ): void {
+    const base = [...(input.stagedSafeArea ?? input.safeArea)];
+    if (edgeIndex < 0 || edgeIndex >= base.length) return;
+    base.splice(edgeIndex + 1, 0, { ...mid });
+    proposeSafeArea(input, base);
+    paintPageStatus(
+      `Staged an inserted corner on edge ${edgeIndex + 1} at ${displayMm1(mid.x)}, ${displayMm1(mid.y)} mm ` +
+      `(proposal only; product unchanged).`,
+    );
+    refreshSelf();
   }
 
   function moveVertex(

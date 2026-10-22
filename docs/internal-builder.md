@@ -5,39 +5,45 @@ The guided Builder is the single staff entry: run `npm run build`, then open
 staff HTML page is part of the delivery; developer-only inspection pages live
 under `dist/dev/`.
 
-The guided Builder creates new drafts from bundled prepared definitions or
-opens an existing local validated `.logo-project`. It uses the existing domain, customer editor,
+The guided Builder starts empty and opens an existing local validated
+`.logo-project`. It uses the existing domain, customer editor,
 return-import and operation-document contracts. No Odoo connection, upload or
 schema finalization is involved. The Builder never sends files anywhere:
 operators download files and attach them to their normal handoff manually.
+There is no demo content, example catalogue or pre-selected item anywhere in
+the station or its generated packages; tests use explicit synthetic fixture
+imports (see `e2e/visual-product-setup.spec.ts`).
 
 ## Start and issue
 
 Run `npm run build`, then open `dist/station/Logo Station.html` directly with the
-network disabled. For a synthetic demonstration, choose **Create a project**; no project file
-is required. To exercise Open, choose `dist/dev/trusted-issued.logo-project`. All fixtures and calibrations
+network disabled. **Create a project** starts a genuinely empty draft: no
+products, no logos, no example content — nothing is pre-selected, so nothing
+synthetic can leak into a real job. To exercise Open with synthetic data, open
+an explicit fixture package (tests build one from `examples/products/` plus the
+`syn-mark` logos) or choose `dist/dev/trusted-issued.logo-project`. All fixtures and calibrations
 used in tests are synthetic; optional raster reference photos and artwork
 thumbnails are visual aids only.
 
 The header offers two modes: **Prepare a project** and **Review a return**.
 Preparation starts on **Start**, a guided sequence of one task at a time:
 
-1. **Start.** Two paths with no technical file input required: the primary
-   **Create a project** button starts a genuinely new draft from the bundled
-   example catalogue, and the secondary **Open an existing project**
-   disclosure (collapsed by default) loads a project file supplied for the job.
-   Creating never uploads or opens an old customer job: it clears customer
-   name, job reference, prepared-by, instructions, placements,
-   confirmation/review histories and baseline references, then assembles a
-   fresh revision-1 draft with a new local project ID from prepared product
-   definitions. A failed create or open leaves the current project and outputs
-   unchanged with an actionable error; a successful start moves on to Choose
-   items. A new-source action stays easy to find. Keyboard works throughout.
-2. **Choose items.** Products, their options and logos are checked by default
-   with plain readable names; the created draft shows **Example products —
-   not for production.** next to the list. Product and nested option toggles
-   keep the original selection semantics; multiple logos and zero logos are
-   supported. **Add a customer logo** imports a new PNG/JPEG/WebP image from
+1. **Start.** Two paths: the primary **Create a project** button starts a
+   genuinely new EMPTY draft (no products, no example content), and the
+   secondary **Open an existing project** disclosure loads a project file
+   supplied for the job. Creating never uploads or opens an old customer job:
+   it clears customer name, job reference, prepared-by, instructions,
+   placements, confirmation/review histories and baseline references, then
+   starts an empty revision-1 draft with a new local project ID and no
+   products at all. A failed create or open leaves the current project and
+   outputs unchanged with an actionable error; a successful start moves on to
+   Choose items. A new-source action stays easy to find. Keyboard works
+   throughout.
+2. **Choose items.** Nothing is pre-selected: the operator adds a real product
+   first (**Add product from staged files** — one 3D model, one flat image, or
+   assigned side-view images), then ticks only what the customer needs.
+   Product and nested option toggles keep the original selection semantics;
+   multiple logos and zero logos are supported. **Add a customer logo** imports a new PNG/JPEG/WebP image from
    this device through the real file chooser (2 MB pre-read bound, header +
    native decode validated); nothing is uploaded. The import keeps exact
    original bytes with a collision-safe ID, a readable name, `original` role
@@ -48,6 +54,30 @@ Preparation starts on **Start**, a guided sequence of one task at a time:
    for the actual selection, and invalid selections (for example no products)
    are reported here. Continue moves to Customer details without needing job
    identity yet. Back and step tabs never change selections or outputs.
+
+   **Set up product (the visual workspace).** The main prepare path works
+   directly on the product photo on a white stage: view tabs for the actual
+   sides only (Front/Back/Left/Right), two tools — **Safe area** (draw a fresh
+   polygon by clicks, drag/insert/remove corners, keyboard throughout) and
+   **Anchor** (click to place named anchors, drag/rename/delete) — then ONE
+   **Save product setup** that atomically persists the region safe area plus
+   the scope's anchors (or neither) through a repackage-and-reparse commit.
+   All geometry stays in region-frame millimetres; photo pixels are display
+   only. A newly added product has no measurements: its views honestly report
+   **no scale mapping**, and **Set up scale** opens the guided first-measured-
+   region panel — click the 4 corners of a known rectangle, enter its real
+   width AND height in millimetres, declare the orientation, and the panel
+   solves the affine photo mapping through the existing solver (collinear or
+   badly fitting corners are refused with actionable messages; one length
+   alone is refused, never inferred from pixels). The created calibration,
+   region (safe area defaults to the measured rectangle) and provisional
+   mapping are committed atomically; the variant is linked automatically.
+   Regions are shared geometry: editing one updates every linked option
+   (stated up front and in the save confirmation), while anchors stay
+   per-option. Model-only products show the actual 3D model on a white stage
+   (orbit only, never a calibrated surface) with a route to add a side photo
+   for measured authoring. Raw mapping rows, prepared-JSON import and master
+   save live under the single **Advanced product setup** disclosure.
 3. **Customer details.** Only Customer name, Job reference and Prepared by are
    visible. The unique issue project ID is generated automatically as a fresh
    local ID: it never reuses the source ID, stays stable across step and mode
@@ -68,14 +98,14 @@ Preparation starts on **Start**, a guided sequence of one task at a time:
    invalidates the generated outputs consistently; switching tabs or modes
    alone does not.
 
-The bundled creation catalogue embeds explicit prepared definitions only —
-currently the three example products in `examples/products/` plus the two SVG
-marks in `examples/logos/` (byte-identical to those files, `synthetic=true`
-on the issued draft) — built by the shared `scripts/station-assembly.mjs` module into
-`<script id="__logoBuilderCatalogue">`. It never ships an old customer job,
-history, instructions or confirmation, and no production catalogue is
-claimed. Add-logo artwork ships as referenced `original` bytes within the
-same project-package limits as any other asset.
+The station embeds NO example catalogue: the release build carries zero
+example products, marks or demo UI (pinned by
+`tests-ts/distribution-station.test.ts`). Tests that need example content
+build an explicit synthetic fixture package from the same prepared
+definitions (`examples/products/` plus the `syn-mark` logos) and open it
+through the real source chooser — never preloaded, never demoed. Add-logo
+artwork ships as referenced `original` bytes within the same project-package
+limits as any other asset.
 
 The issue starts at revision 1 with the issued project ID. Source
 confirmation, internal review and their histories are cleared; original source

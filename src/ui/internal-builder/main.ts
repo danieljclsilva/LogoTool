@@ -4,7 +4,7 @@ import {
   parsePresentationManifest,
   selectPresentationPackageAssets,
 } from '../customer-editor/presentation-assets.js';
-import { selectPresentationViews } from '../customer-editor/presentation-assets.js';
+import { selectPresentationModel, selectPresentationViews } from '../customer-editor/presentation-assets.js';
 import {
   PHOTO_MAPPINGS_PATH,
   parsePhotoMappings,
@@ -72,8 +72,18 @@ import type {
   MeasurementConvention,
   OperationDraft,
 } from '../../core/operation-measurements/index.js';
-import { createAnchorSetup } from './anchor-setup.js';
-import type { AnchorSetupHandle, AnchorSetupInput } from './anchor-setup.js';
+import { createAnchorSetup, validateSafeAreaPolygon } from './anchor-setup.js';
+import type { AnchorSetupHandle, AnchorSetupInput, AnchorSetupMm } from './anchor-setup.js';
+import { createProductSetupView, validateAnchors } from './product-setup-view.js';
+import type {
+  ProductSetupCallbacks,
+  ProductSetupPhotoView,
+  ProductSetupScope,
+  ProductSetupSide,
+  ProductSetupWorkspaceInput,
+} from './product-setup-view.js';
+import { createGuidedScale, guidedCorrespondences } from './guided-scale.js';
+import type { GuidedScaleCommit, GuidedScaleRequest } from './guided-scale.js';
 import type {
   OperationSheetAssetLookup,
   SheetOverlayArtwork,
@@ -165,9 +175,7 @@ const sourceChoose = hook<HTMLButtonElement>('source-choose');
 const sourceDrop = hook<HTMLElement>('source-drop');
 const sourceStatus = hook<HTMLElement>('source-status');
 const startCreate = hook<HTMLButtonElement>('start-create');
-const demoCreate = hook<HTMLButtonElement>('demo-create');
 const createStatus = hook<HTMLElement>('create-status');
-const catalogueNote = hook<HTMLElement>('catalogue-note');
 const logoAdd = hook<HTMLButtonElement>('logo-add');
 const logoFile = hook<HTMLInputElement>('logo-file');
 const logoStatus = hook<HTMLElement>('logo-status');
@@ -301,18 +309,18 @@ const draftSave = hook<HTMLButtonElement>('draft-save');
 const draftOpenButton = hook<HTMLButtonElement>('draft-open-button');
 const draftFile = hook<HTMLInputElement>('draft-file');
 const draftStatus = hook<HTMLElement>('draft-status');
-/* Prepare-context product setup (Choose items disclosure). Declared here so
+/* Visual product workspace mount (Choose items primary block). Declared here so
  * updateControls() — which runs during initial step paint — sees them. */
-const prepSetupProduct = hook<HTMLSelectElement>('prep-setup-product');
-const prepSetupVariant = hook<HTMLSelectElement>('prep-setup-variant');
-const prepSetupRegion = hook<HTMLSelectElement>('prep-setup-region');
-const prepSetupSide = hook<HTMLSelectElement>('prep-setup-side');
-const prepSetupPhoto = hook<HTMLSelectElement>('prep-setup-photo');
-const prepSetupMappingNote = hook<HTMLElement>('prep-setup-mapping-note');
-const prepSetupStatus = hook<HTMLElement>('prep-setup-status');
-const prepSetupBox = hook<HTMLElement>('prep-setup');
-const prepSetupApply = hook<HTMLButtonElement>('prep-setup-apply');
-const prepSetupApplyStatus = hook<HTMLElement>('prep-setup-apply-status');
+const workspaceProduct = hook<HTMLSelectElement>('workspace-product');
+const workspaceVariant = hook<HTMLSelectElement>('workspace-variant');
+const workspaceStatus = hook<HTMLElement>('workspace-status');
+const workspaceBox = hook<HTMLElement>('product-workspace');
+const guidedScaleBox = hook<HTMLElement>('guided-scale');
+const addProductDisclosure = hook<HTMLDetailsElement>('add-product-disclosure');
+const addProductSummary = hook<HTMLElement>('add-product-summary');
+const productModelBox = hook<HTMLElement>('product-model');
+const productModelStage = hook<HTMLElement>('product-model-stage');
+const productModelStatus = hook<HTMLElement>('product-model-status');
 /** One staff-chosen measurement for a logo (anchor + artwork edge + convention). */
 interface DimensionMeasurement {
   anchorId: string;
@@ -448,7 +456,6 @@ function goBack(): void {
   }
 }
 function renderSelectionSummary(): void {
-  catalogueNote.hidden = !fromCatalogue || source === null;
   selectionSummary.replaceChildren();
   if (source === null) {
     selectionSummary.textContent = 'No project loaded yet.';
@@ -598,7 +605,7 @@ let createGeneration = 0;
 let logoImporting = false;
 let logoGeneration = 0;
 let logoCounter = 0;
-let fromCatalogue = false;
+let sourceSession = 0;
 let baselineBusy = false;
 let loadGeneration = 0;
 let generateGeneration = 0;
@@ -656,7 +663,6 @@ function updateControls(): void {
   sourceChoose.disabled = blocked;
   sourceFile.disabled = blocked;
   startCreate.disabled = blocked;
-  demoCreate.disabled = blocked;
   logoAdd.disabled = blocked || source === null;
   logoFile.disabled = blocked || source === null;
   productAdd.disabled = blocked;
@@ -696,10 +702,7 @@ function updateControls(): void {
   projectIdNew.disabled = blocked;
   for (const input of [customerName, jobRef, issuedBy, projectIdInput, previewOnlyAck, formatSelf, formatHybrid]) input.disabled = blocked;
   const prepOff = prepareBlocked();
-  for (const input of [prepSetupProduct, prepSetupVariant, prepSetupRegion, prepSetupSide, prepSetupPhoto]) input.disabled = prepOff;
-  // Apply is prepare-only: absent from review semantics by being disabled
-  // whenever an issued baseline or customer return is loaded.
-  prepSetupApply.disabled = prepOff || reviewContextActive();
+  for (const input of [workspaceProduct, workspaceVariant]) input.disabled = prepOff || source === null;
   const authoringOff = authoringBlocked();
   for (const input of [sheetConfig, sheetCustomer, sheetReference, sheetArticle, sheetInstructions,
     sheetTechTemperature, sheetTechTime, sheetTechPressure, sheetTechColour, sheetTechThread,
@@ -802,7 +805,8 @@ function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = fa
         const live = source?.project.products.find((entry) => entry.id === product.id);
         for (const variantId of product.variantIds) {
           const variant = live?.variants.find((entry) => entry.id === variantId);
-          const label = variant?.name !== undefined ? variant.name : variantId;
+          const label = variant?.name ?? (product.variantIds.length === 1
+            ? 'Standard option' : `Option ${product.variantIds.indexOf(variantId) + 1}`);
           const variantRow = createCheckRow(variantId, label);
           variantRow.box.setAttribute('data-product', product.id);
           if (kept !== null) variantRow.box.checked = kept.products.includes(`${product.id}\0${variantId}`);
@@ -946,7 +950,7 @@ function refreshPreviewOnlyGate(): void {
   generateStatus.hidden = false;
   generateStatus.textContent =
     `Cannot issue yet: ${names} ${labels.length === 1 ? 'has' : 'have'} no measurements. ` +
-    'Add measurements with “Import a prepared product definition” in Choose items — ' +
+    'Set measurements visually under “Set up product” in Choose items — ' +
     'or tick “Issue preview-only (uncalibrated)” below to send an unmeasured preview.';
 }
 
@@ -1071,7 +1075,7 @@ async function loadSourceFile(file: File): Promise<void> {
     if (generation !== loadGeneration) return;
     assertProjectEditorLimits(parsed.project);
     const summary = summarizeSourceProject(parsed.project);
-    fromCatalogue = false;
+    sourceSession += 1;
     logoImports = [];
     logoStatus.textContent = '';
     pendingPrimaryImage = null;
@@ -1085,10 +1089,11 @@ async function loadSourceFile(file: File): Promise<void> {
     renderSelectionLists(summary);
     stagedPhotoMappings = [];
     resetMappingSessionUI();
-    resetPrepareSetup();
     await loadAnchorsSidecar(parsed.assets, parsed.project);
     if (generation !== loadGeneration) return;
-    refreshPrepareSetupProducts();
+    guidedScale.hide();
+    refreshWorkspace();
+    refreshAddProductDisclosure();
     projectIdSuggestion.textContent = `Source project ID “${summary.projectId}”. Enter a unique ID for this customer issue.`;
     clearGeneratedOutputs();
     previewOnlyAck.checked = false;
@@ -1362,6 +1367,10 @@ function downloadBytes(bytes: Uint8Array, fileName: string, mime: string): void 
 async function downloadMasterFile(): Promise<void> {
   if (source === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
   const snapshot = source;
+  if (snapshot.project.products.length === 0) {
+    masterStatus.textContent = 'Nothing to save yet: add a real product first. Empty drafts carry no package.';
+    return;
+  }
   const stem = snapshot.fileName.replace(/\.(logo-project|zip)$/i, '');
   const stemSafe = safeJobPart(stem);
   const fileName = `${looksLikeUuid(stemSafe) || stemSafe === 'project' ? 'prepared-master' : `${stemSafe}-prepared-master`}.logo-project`;
@@ -1395,7 +1404,7 @@ async function downloadMasterFile(): Promise<void> {
     let sidecarNote = '';
     if (prepareAnchors.length > 0) {
       const digest = await hasher.prepareProject(snapshot.project);
-      additionalAssets.push({ path: OPERATION_ANCHORS_PATH, bytes: buildAnchorsSidecarBytes(snapshot.project, digest) });
+      additionalAssets.push({ path: OPERATION_ANCHORS_PATH, bytes: buildAnchorsSidecarBytes(snapshot.project, digest, prepareAnchors) });
       sidecarNote = ` with ${prepareAnchors.length} prepared anchor(s)`;
     } else if (packagedSidecar !== undefined) {
       additionalAssets.push({ path: packagedSidecar.path, bytes: packagedSidecar.bytes });
@@ -2270,36 +2279,15 @@ function downloadOperatorFile(): void {
   returnStatus.textContent = `Download started: ${fileName}.`;
 }
 
-interface BuilderCatalogue {
-  products: ProjectDocument['products'];
-  logos: ProjectDocument['logos'];
-  assets: { path: string; bytesBase64: string }[];
-}
-function readEmbeddedCatalogue(): BuilderCatalogue {
-  const node = document.querySelector('#__logoBuilderCatalogue');
-  if (node === null) {
-    throw new Error('Example product catalogue is not embedded; rebuild the station before creating a project.');
-  }
-  if (node.tagName !== 'SCRIPT' || node.getAttribute('type') !== 'application/json') {
-    throw new Error('Embedded example catalogue has an unexpected element shape.');
-  }
-  const content = node.textContent ?? '';
-  if (content.length > 8 * 1024 * 1024) throw new Error('Embedded catalogue is too large.');
-  const parsed: unknown = JSON.parse(content);
-  if (typeof parsed !== 'object' || parsed === null) throw new Error('Embedded example catalogue is invalid.');
-  const record = parsed as Record<string, unknown>;
-  if (!Array.isArray(record['products']) || !Array.isArray(record['logos']) || !Array.isArray(record['assets'])) {
-    throw new Error('Embedded example catalogue is missing products, logos or assets.');
-  }
-  return parsed as BuilderCatalogue;
-}
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)!;
-  return bytes;
-}
-async function createFromCatalogue(demo: boolean): Promise<void> {
+/**
+ * Create a clean draft: no products, no logos, no example content. The draft
+ * lives in memory only (no package exists yet — packaging requires at least
+ * one product) until the operator adds a real product or imports one, which
+ * repackages with the real content. Nothing is selected, generation stays
+ * disabled until a real selection exists, and the master download refuses
+ * while there is nothing to save.
+ */
+async function createEmptyProject(): Promise<void> {
   if (loading || generating || creating || baselineBusy || returnBusy) return;
   alertBuilder();
   const generation = ++createGeneration;
@@ -2311,46 +2299,40 @@ async function createFromCatalogue(demo: boolean): Promise<void> {
   generating = false;
   creating = true;
   updateControls();
-  createStatus.textContent = 'Creating a new draft from example products…';
+  createStatus.textContent = 'Creating a new empty draft…';
   try {
-    const catalogue = readEmbeddedCatalogue();
+    const draft: ProjectDocument = {
+      schemaVersion: '0.1.0-provisional',
+      projectId: newLocalId(),
+      revision: 1,
+      products: [],
+      logos: [],
+      configurations: [],
+    };
     if (generation !== createGeneration) return;
-    const draft = createProjectFromDefinitions({ products: catalogue.products, logos: catalogue.logos, projectId: newLocalId(), synthetic: true });
-    if (!draft.ok) {
-      if (generation === createGeneration) {
-        createStatus.textContent = `Could not create a project: ${draft.errors.map((error) => error.message).join('; ')}. Your previous project is still available.`;
-        alertBuilder('The example catalogue could not be used. Your previous project is still available.');
-      }
-      return;
-    }
-    if (generation !== createGeneration) return;
-    assertProjectEditorLimits(draft.project);
-    const catalogueAssets = catalogue.assets.map((asset) => ({ path: asset.path, bytes: base64ToBytes(asset.bytesBase64), kind: 'referenced' as const }));
-    const packageBytes = await createProjectPackage({ project: draft.project, assets: catalogueAssets }, { sha256: hasher.sha256Bytes });
-    const checked = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
-    if (generation !== createGeneration) return;
-    const summary = summarizeSourceProject(checked.project);
+    assertProjectEditorLimits(draft);
+    // No packaging yet: the domain requires at least one product per
+    // package, and the draft deliberately has none. The project, selection
+    // lists and workspace all handle the empty shape; the first Add or
+    // import repackages with real content. Master download refuses while
+    // there is nothing to save (see downloadMasterFile).
+    const summary = summarizeSourceProject(draft);
     logoImports = [];
-    fromCatalogue = true;
+    sourceSession += 1;
     pendingPrimaryImage = null;
     pendingPrimaryModel = null;
     pendingViews = { front: null, back: null, left: null, right: null };
     addedPresentations = [];
     productStatus.textContent = '';
     productName.value = '';
-    source = { fileName: 'example-catalogue', project: checked.project, assets: checked.assets, summary, packageBytes };
+    source = { fileName: 'empty-draft', project: draft, assets: [], summary, packageBytes: new Uint8Array(0) };
     configurationsTouched = false;
     renderSelectionLists(summary);
     stagedPhotoMappings = [];
     resetMappingSessionUI();
-    resetPrepareSetup();
-    refreshPrepareSetupProducts();
-    if (demo) {
-      // Explicit demo opt-in: select everything the synthetic catalogue offers.
-      for (const box of document.querySelectorAll<HTMLInputElement>('.rows input[type="checkbox"]')) {
-        box.checked = true;
-      }
-    }
+    guidedScale.hide();
+    refreshWorkspace();
+    refreshAddProductDisclosure();
     projectIdSuggestion.textContent = 'A fresh project ID was generated for this new draft. Enter a unique ID for this customer issue.';
     clearGeneratedOutputs();
     previewOnlyAck.checked = false;
@@ -2361,16 +2343,14 @@ async function createFromCatalogue(demo: boolean): Promise<void> {
     formatSelf.checked = true; formatHybrid.checked = false;
     projectIdInput.value = newLocalId(); lastAutoProjectId = projectIdInput.value;
     logoStatus.textContent = '';
-    masterStatus.textContent = demo ? 'Synthetic demo data loaded; nothing is uploaded.' : 'Empty draft ready; nothing is selected yet.';
-    createStatus.textContent = demo
-      ? `Loaded synthetic demo data with ${summary.products.length} example products. Example products — not for production.`
-      : `Created a new empty draft with ${summary.products.length} example products, nothing selected. Example products — not for production.`;
+    masterStatus.textContent = 'Empty draft ready. Stage a model, image or side views below, then Add product — nothing is pre-selected, nothing is synthetic.';
+    createStatus.textContent = 'Created a new empty draft with no products. Stage product files below and Add product, or open an existing project file.';
     refreshSelectionValidation();
     showStep('prepare', 'choose');
   } catch (error) {
     if (generation === createGeneration) {
       createStatus.textContent = `Could not create a project: ${error instanceof Error ? error.message : String(error)}. Your previous project is still available.`;
-      alertBuilder('The example catalogue could not be used. Your previous project is still available.');
+      alertBuilder('The empty draft could not be created. Your previous project is still available.');
     }
   } finally {
     if (generation === createGeneration) { creating = false; updateControls(); }
@@ -2578,13 +2558,14 @@ async function addProductFromStaged(): Promise<void> {
     productCounter += 1;
     const fallbackFileName = pendingPrimaryModel?.fileName ?? pendingPrimaryImage?.fileName ?? (stagedSides.length === 1 ? pendingViews[stagedSides[0]!]!.fileName : 'product');
     const candidateId = `provisional-product-${safeProductSegment(wantedName || fallbackFileName)}-${productCounter}-${newLocalId().slice(0, 8)}`;
-    const made = createProvisionalProduct({ id: candidateId, ...(wantedName ? { name: `${wantedName} — provisional uncalibrated` } : {}), kind: 'other' });
+    const made = createProvisionalProduct({ id: candidateId, ...(wantedName ? { name: wantedName } : {}), kind: 'other' });
     if (!made.ok) {
       productStatus.textContent = `Could not add product: ${made.errors.map((error) => error.message).join('; ')}. Previous products are unchanged.`;
       return;
     }
     const productId = made.product.id;
     const variantId = made.product.variants[0]!.id;
+    const mintedProduct: ProjectDocument['products'][number] = JSON.parse(JSON.stringify(made.product)) as ProjectDocument['products'][number];
     const safe = safeProductSegment(productId);
     const stagedModel = pendingPrimaryModel;
     const stagedPrimary = pendingPrimaryImage;
@@ -2593,11 +2574,11 @@ async function addProductFromStaged(): Promise<void> {
     const assets: Array<{ path: string; bytes: Uint8Array }> = [];
     const views: Array<{ view: string; image: string; label?: string }> = [];
     const models: Array<{ model: string; label?: string }> = [];
-    const primaryLabelBase = (wantedName ? `${wantedName} — provisional uncalibrated` : `Provisional uncalibrated product ${productId}`);
+    const primaryLabelBase = wantedName !== '' ? wantedName : `Provisional uncalibrated product ${productId}`;
     if (stagedModel) {
       const modelPath = `presentation/${safe}/model.glb`;
       assets.push({ path: modelPath, bytes: stagedModel.bytes.slice() });
-      models.push({ model: modelPath, label: `${primaryLabelBase} — 3D model (projection views are model projections, not garment unfoldings)` });
+      models.push({ model: modelPath, label: `${primaryLabelBase} — 3D model` });
     }
     for (const side of PRODUCT_VIEW_SIDES) {
       // Each staged image attaches to its assigned side only. A lone
@@ -2608,7 +2589,7 @@ async function addProductFromStaged(): Promise<void> {
       const imagePath = `presentation/${safe}/${side}.${staged.extension}`;
       assets.push({ path: imagePath, bytes: staged.bytes.slice() });
       const typed = productViewLabel[side]!.value.trim();
-      views.push({ view: side, image: imagePath, label: typed !== '' ? typed : `${primaryLabelBase} — ${side} view (flat reference, not calibrated)` });
+      views.push({ view: side, image: imagePath, label: typed !== '' ? typed : `${primaryLabelBase} — ${side} view` });
     }
     views.sort((a, b) => (a.view < b.view ? -1 : a.view > b.view ? 1 : 0));
     if (views.length === 0 && models.length === 0) {
@@ -2656,7 +2637,7 @@ async function addProductFromStaged(): Promise<void> {
     const priorAdditional = snapshot.assets.filter((asset) => asset.kind === 'additional' && asset.path !== PRESENTATION_MANIFEST_PATH);
     const combinedAdditional = [...priorAdditional.map((asset) => ({ path: asset.path, bytes: asset.bytes })), ...assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })), { path: PRESENTATION_MANIFEST_PATH, bytes: manifestBytes }];
     const nextProject: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
-    nextProject.products.push(JSON.parse(JSON.stringify(made.product)) as ProjectDocument['products'][number]);
+    nextProject.products.push(mintedProduct);
     nextProject.configurations.push({ id: `builder-config-${productId}`, productId, variantId, placements: [] });
     assertProjectEditorLimits(nextProject);
     if (generation !== productGeneration) return;
@@ -2685,8 +2666,10 @@ async function addProductFromStaged(): Promise<void> {
     }
     refreshSelectionValidation();
     refreshMappingOptions();
+    refreshWorkspace();
+    refreshAddProductDisclosure();
     if (generation !== productGeneration) return;
-    productStatus.textContent = `Added preview-only product ${made.product.name ?? productId} (${views.length} view${views.length === 1 ? '' : 's'}${models.length ? ', 3D model' : ''}). It carries no measurements and cannot host placements; missing sides are absent, never invented.${historyNote}`;
+    productStatus.textContent = `Added preview-only product ${mintedProduct.name ?? productId} (${views.length} view${views.length === 1 ? '' : 's'}${models.length ? ', 3D model' : ''}). It carries no measurements and cannot host placements; missing sides are absent, never invented.${historyNote}`;
   } catch (error) {
     if (generation === productGeneration) {
       productStatus.textContent = `Could not add product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
@@ -2808,6 +2791,8 @@ async function importPreparedProductFile(file: File): Promise<void> {
     }
     refreshSelectionValidation();
     refreshMappingOptions();
+    refreshWorkspace();
+    refreshAddProductDisclosure();
     if (generation !== productGeneration) return;
     productStatus.textContent = `Imported prepared product with ${newConfigIds.size} zero-placement setup${newConfigIds.size === 1 ? '' : 's'}. Millimetre regions and calibration refs are explicit and provisional, pending review — never production-approved.${evidenceAdditions.length === 0 ? ' No bridge evidence was supplied.' : ' Bridge evidence ships with the package.'}`;
   } catch (error) {
@@ -2833,8 +2818,7 @@ function onProductViewFileChange(side: ProductViewSide): void {
 }
 sourceChoose.addEventListener('click', () => sourceFile.click());
 sourceFile.addEventListener('change', onSourceFileChange);
-startCreate.addEventListener('click', () => void createFromCatalogue(false));
-demoCreate.addEventListener('click', () => void createFromCatalogue(true));
+startCreate.addEventListener('click', () => void createEmptyProject());
 previewOnlyAck.addEventListener('change', () => {
   // Toggling the escape changes what may issue: drop any generated delivery
   // and refresh the gate message before the operator continues.
@@ -2992,7 +2976,6 @@ const mappingSaved = hook<HTMLElement>('mapping-saved');
 
 /** Anchors authored against the source product (prepare context only). */
 let prepareAnchors: AnchorDef[] = [];
-let prepareSetupHandle: AnchorSetupHandle | null = null;
 
 /** Versioned anchors sidecar travelling with the prepared master. */
 const OPERATION_ANCHORS_PATH = 'presentation/operation-anchors.json';
@@ -3038,364 +3021,8 @@ function reviewContextActive(): boolean {
   return generated !== null || loadedBaseline !== null || lastReturn !== null;
 }
 
-function resetPrepareSetup(): void {
-  prepareAnchors = [];
-  if (prepareSetupHandle !== null) {
-    prepareSetupHandle.destroy();
-    prepareSetupHandle = null;
-  }
-  prepSetupProduct.replaceChildren();
-  prepSetupVariant.replaceChildren();
-  prepSetupRegion.replaceChildren();
-  prepSetupSide.replaceChildren();
-  prepSetupPhoto.replaceChildren();
-  prepSetupMappingNote.textContent = '';
-  prepSetupStatus.textContent = '';
-  prepSetupBox.replaceChildren();
-  prepSetupApplyStatus.textContent = '';
-}
-
-function prepareSelectedProduct(): ProjectDocument['products'][number] | null {
-  if (source === null) return null;
-  return source.project.products.find((entry) => entry.id === prepSetupProduct.value) ?? null;
-}
-
-function refreshPrepareSetupProducts(): void {
-  prepSetupProduct.replaceChildren();
-  if (source === null) {
-    prepSetupStatus.textContent = 'Create or open a project first.';
-    return;
-  }
-  for (const product of source.project.products) {
-    const option = document.createElement('option');
-    option.value = product.id;
-    option.textContent = product.name !== undefined ? `${product.name} (${product.id})` : product.id;
-    prepSetupProduct.append(option);
-  }
-  refreshPrepareSetupVariants();
-}
-
-function refreshPrepareSetupVariants(): void {
-  const product = prepareSelectedProduct();
-  const kept = prepSetupVariant.value;
-  prepSetupVariant.replaceChildren();
-  if (product !== null) {
-    for (const variant of product.variants) {
-      const option = document.createElement('option');
-      option.value = variant.id;
-      option.textContent = variant.name !== undefined ? `${variant.name} (${variant.id})` : variant.id;
-      prepSetupVariant.append(option);
-    }
-    if (kept !== '' && product.variants.some((entry) => entry.id === kept)) {
-      prepSetupVariant.value = kept;
-    } else if (product.variants.length > 0) {
-      prepSetupVariant.value = product.variants[0]!.id;
-    }
-  }
-  refreshPrepareSetupRegions();
-}
-
-function refreshPrepareSetupRegions(): void {
-  const product = prepareSelectedProduct();
-  const kept = prepSetupRegion.value;
-  prepSetupRegion.replaceChildren();
-  if (product !== null) {
-    const variant = product.variants.find((entry) => entry.id === prepSetupVariant.value);
-    const allowed = variant !== undefined ? new Set(variant.regionIds) : null;
-    for (const region of product.regions) {
-      if (allowed !== null && !allowed.has(region.id)) continue;
-      const option = document.createElement('option');
-      option.value = region.id;
-      option.textContent = region.name !== undefined ? `${region.name} (${region.id})` : region.id;
-      prepSetupRegion.append(option);
-    }
-    if (kept !== '' && product.regions.some((entry) => entry.id === kept) && (allowed === null || allowed.has(kept))) {
-      prepSetupRegion.value = kept;
-    }
-  }
-  refreshPrepareSetupPhotos();
-}
-
-function refreshPrepareSetupPhotos(): void {
-  prepSetupSide.replaceChildren();
-  prepSetupPhoto.replaceChildren();
-  prepSetupMappingNote.textContent = '';
-  const product = prepareSelectedProduct();
-  if (source === null || product === null) return;
-  const variantId = prepSetupVariant.value;
-  const assets = sessionAssetMap();
-  const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
-  const manifest = parsePresentationManifest(manifestBytes);
-  const selection = selectPresentationViews(manifest, manifestBytes !== undefined, product.id, variantId, (path) => assets.get(path));
-  const bySide = new Map<string, Array<{ imagePath: string; label: string | null }>>();
-  for (const view of selection.views) {
-    if (view.view === null) continue;
-    const list = bySide.get(view.view) ?? [];
-    list.push({ imagePath: view.imagePath, label: view.label });
-    bySide.set(view.view, list);
-  }
-  const keptSide = prepSetupSide.value;
-  for (const side of ['front', 'back', 'left', 'right'] as const) {
-    if (!bySide.has(side)) continue;
-    const option = document.createElement('option');
-    option.value = side;
-    option.textContent = side;
-    prepSetupSide.append(option);
-  }
-  if (keptSide !== '' && bySide.has(keptSide)) prepSetupSide.value = keptSide;
-  refreshPrepareSetupPhotoOptions(bySide);
-  if (selection.warning !== null) prepSetupMappingNote.textContent = selection.warning;
-}
-
-function refreshPrepareSetupPhotoOptions(bySide?: Map<string, Array<{ imagePath: string; label: string | null }>>): void {
-  prepSetupPhoto.replaceChildren();
-  if (bySide === undefined || prepSetupSide.value === '') {
-    if (prepSetupSide.options.length === 0) {
-      prepSetupMappingNote.textContent =
-        'No product photo for this product/option yet — assign a side view image above first. Anchors can still be entered numerically once a photo arrives; nothing is guessed from photo bounds.';
-    }
-    refreshPrepareSetup();
-    return;
-  }
-  const kept = prepSetupPhoto.value;
-  for (const view of bySide.get(prepSetupSide.value) ?? []) {
-    const option = document.createElement('option');
-    option.value = view.imagePath;
-    option.textContent = view.label !== null ? `${view.imagePath} — ${view.label}` : view.imagePath;
-    prepSetupPhoto.append(option);
-  }
-  if (kept !== '' && [...prepSetupPhoto.options].some((entry) => entry.value === kept)) prepSetupPhoto.value = kept;
-  refreshPrepareSetup();
-}
-
-/** Merged mapping entries backing the prepare setup: packaged master file first, staged session entries on top. */
-function prepareMergedMappings(): { version: 1; mappings: PhotoMappingEntry[] } {
-  const packaged = source === null
-    ? null
-    : parsePhotoMappings(source.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
-  return mergeSessionPhotoMappings(packaged, stagedPhotoMappings);
-}
-
-function prepareSetupInput(): AnchorSetupInput | { error: string } {
-  if (source === null) return { error: 'Create or open a project first.' };
-  const product = prepareSelectedProduct();
-  const region = product?.regions.find((entry) => entry.id === prepSetupRegion.value);
-  if (!product || !region) return { error: 'Choose a product and region for the setup.' };
-  const variantId = prepSetupVariant.value;
-  if (variantId === '' || !product.variants.some((entry) => entry.id === variantId)) {
-    return { error: 'Choose a product option (variant) for the setup.' };
-  }
-  const imagePath = prepSetupPhoto.value;
-  if (prepSetupSide.value === '' || imagePath === '') {
-    return { error: 'Choose a photo side for the setup.' };
-  }
-  const assets = sessionAssetMap();
-  const photoBytes = assets.get(imagePath);
-  const header = photoBytes ? readRasterHeader(photoBytes) : null;
-  if (!photoBytes || !header) {
-    return { error: `Photo “${imagePath}” is missing or undecodable; anchors can still be entered numerically, but photo clicks need the mapped photo.` };
-  }
-  const merged = prepareMergedMappings();
-  const entry = merged.mappings.find((candidate) =>
-    candidate.productId === product.id && candidate.regionId === region.id &&
-    candidate.view === prepSetupSide.value && candidate.image === imagePath &&
-    (candidate.variantId ?? variantId) === variantId);
-  if (!entry) {
-    return { error: 'Setup needed: save a photo mapping for this side first (Map artwork photos above). Packaged mappings load automatically; nothing is guessed from photo bounds.' };
-  }
-  if (entry.calibrationId !== region.calibrationRef.calibrationId ||
-    entry.calibrationVersion !== region.calibrationRef.version) {
-    return { error: `Setup refused: the mapping targets calibration “${entry.calibrationId} v${entry.calibrationVersion}” but region “${region.name ?? region.id}” pins “${region.calibrationRef.calibrationId} v${region.calibrationRef.version}”.` };
-  }
-  const key = anchorScopeKey({ productId: product.id, variantId, regionId: region.id });
-  const proposal = safeAreaProposals.get(key);
-  const safeArea = region.safeArea
-    .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
-    .map((point) => ({ x: point[0]!, y: point[1]! }));
-  const packagedCount = (source.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes
-    ? parsePhotoMappings(source.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes)?.mappings.length ?? 0
-    : 0);
-  prepSetupMappingNote.textContent =
-    `Mapping for this photo: ${entry.status}, ${entry.transform ? 'evaluated' : 'missing'} transform` +
-    (packagedCount > 0 ? ` · ${packagedCount} packaged mapping(s) in this source` : ' · no packaged mappings; staged entries apply on top') +
-    (stagedPhotoMappings.length > 0 ? ` · ${stagedPhotoMappings.length} staged` : '') + '.';
-  return {
-    photo: { bytes: photoBytes, widthPx: header.width, heightPx: header.height, label: `${product.name ?? product.id} · ${prepSetupSide.value} · ${imagePath}` },
-    transform: { ...entry.transform },
-    mappingStatus: entry.status,
-    view: entry.view,
-    scope: {
-      productId: product.id,
-      variantId,
-      regionId: region.id,
-      frameId: region.frame.frameId,
-      calibrationId: region.calibrationRef.calibrationId,
-      calibrationVersion: region.calibrationRef.version,
-      regionName: region.name ?? null,
-    },
-    safeArea,
-    anchors: prepareAnchors.filter((anchor) =>
-      anchor.productId === product.id && anchor.variantId === variantId && anchor.regionId === region.id),
-    stagedSafeArea: proposal ? [...proposal.staged] : null,
-  };
-}
-
-function refreshPrepareSetup(): void {
-  prepSetupBox.replaceChildren();
-  if (prepareSetupHandle !== null) {
-    prepareSetupHandle.destroy();
-    prepareSetupHandle = null;
-  }
-  if (source === null) {
-    prepSetupStatus.textContent = 'Create or open a project first.';
-    updateControls();
-    return;
-  }
-  prepareSetupHandle = createAnchorSetup(prepSetupBox, () => prepareSetupInput(), {
-    onAnchorsChange: (next) => {
-      const scope = next[0];
-      const key = scope ? anchorScopeKey(scope) : null;
-      if (key === null) return;
-      prepareAnchors = prepareAnchors.filter((entry) => anchorScopeKey(entry) !== key).concat(next);
-      prepSetupApplyStatus.textContent =
-        `Anchors for this scope: ${next.length}. They travel with “Save prepared master”; safe-area edits below stay proposals until applied.`;
-    },
-    onSafeAreaProposal: (staged, note) => {
-      const key = prepareScopeKeyString();
-      if (key === null) return;
-      if (staged === null || note === null) {
-        safeAreaProposals.delete(key);
-      } else {
-        safeAreaProposals.set(key, { staged, note });
-      }
-      updateControls();
-    },
-    onStatus: (message) => {
-      prepSetupStatus.textContent = message;
-    },
-  });
-  prepareSetupHandle.refresh();
-  updateControls();
-}
-
-function prepareScopeKeyString(): string | null {
-  if (source === null) return null;
-  if (prepSetupProduct.value === '' || prepSetupVariant.value === '' || prepSetupRegion.value === '') return null;
-  return anchorScopeKey({ productId: prepSetupProduct.value, variantId: prepSetupVariant.value, regionId: prepSetupRegion.value });
-}
-
-/**
- * Validated Apply: writes the staged safe-area proposal for the selected
- * prepare scope into the in-memory source product. Failure blocks with the
- * reason shown; success rebuilds the source package (reparse-verified),
- * marks the source dirty (selection validation re-runs), and the existing
- * “Save prepared master” download then carries the updated definition.
- * Never touches an issued baseline or return.
- */
-async function applyPrepareSafeArea(): Promise<void> {
-  if (prepareBlocked()) return;
-  if (reviewContextActive()) {
-    prepSetupApplyStatus.textContent =
-      'Apply is prepare-only: an issued baseline or customer return is loaded, so proposals stay proposals here. Return to Prepare → Choose items on a plain source to apply.';
-    return;
-  }
-  if (source === null) {
-    prepSetupApplyStatus.textContent = 'Create or open a project first.';
-    return;
-  }
-  const snapshot = source;
-  const key = prepareScopeKeyString();
-  if (key === null) {
-    prepSetupApplyStatus.textContent = 'Choose a product, option and region first.';
-    return;
-  }
-  const proposal = safeAreaProposals.get(key);
-  if (!proposal) {
-    prepSetupApplyStatus.textContent = 'No staged safe-area proposal for this scope — drag a corner above first.';
-    return;
-  }
-  const staged = proposal.staged;
-  if (staged.length < 3 || !staged.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) {
-    prepSetupApplyStatus.textContent = 'Apply refused: the staged proposal needs at least 3 finite corners.';
-    return;
-  }
-  let area = 0;
-  for (let i = 0; i < staged.length; i += 1) {
-    const a = staged[i]!;
-    const b = staged[(i + 1) % staged.length]!;
-    area += a.x * b.y - b.x * a.y;
-  }
-  if (Math.abs(area / 2) <= 1e-9) {
-    prepSetupApplyStatus.textContent = 'Apply refused: the staged polygon is degenerate (zero area).';
-    return;
-  }
-  const product = snapshot.project.products.find((entry) => entry.id === prepSetupProduct.value);
-  const region = product?.regions.find((entry) => entry.id === prepSetupRegion.value);
-  if (!product || !region) {
-    prepSetupApplyStatus.textContent = 'Apply refused: the selected product or region is gone — choose it again.';
-    return;
-  }
-  if (prepSetupVariant.value === '' || !product.variants.some((entry) => entry.id === prepSetupVariant.value)) {
-    prepSetupApplyStatus.textContent = 'Apply refused: the selected option (variant) is gone — choose it again.';
-    return;
-  }
-  prepSetupApplyStatus.textContent = 'Applying staged safe area to the source product…';
-  try {
-    const updated: ProjectDocument = {
-      ...snapshot.project,
-      products: snapshot.project.products.map((entry) => (
-        entry.id !== product.id ? entry : {
-          ...entry,
-          regions: entry.regions.map((candidate) => (
-            candidate.id !== region.id ? candidate : {
-              ...candidate,
-              safeArea: staged.map((point) => [point.x, point.y] as [number, number]),
-            }
-          )),
-        }
-      )),
-    };
-    const problems = validateProject(updated);
-    if (!problems.ok) {
-      throw new Error(`project validation: ${problems.errors.map((error) => error.message).join('; ')}`);
-    }
-    assertProjectEditorLimits(updated);
-    const rebuilt = await createProjectPackage(
-      {
-        project: updated,
-        assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map(({ path, bytes }) => ({ path, bytes })),
-        additionalAssets: snapshot.assets.filter((asset) => asset.kind === 'additional').map(({ path, bytes }) => ({ path, bytes })),
-      },
-      { sha256: hasher.sha256Bytes },
-    );
-    const back = await parseProjectPackage(rebuilt, { sha256: hasher.sha256Bytes });
-    assertProjectEditorLimits(back.project);
-    if (canonicalize(back.project) !== canonicalize(updated)) {
-      throw new Error('reparse changed the project');
-    }
-    const summary = summarizeSourceProject(back.project);
-    source = { fileName: snapshot.fileName, project: back.project, assets: back.assets, summary, packageBytes: rebuilt.slice() };
-    safeAreaProposals.delete(key);
-    renderSelectionLists(summary, true);
-    refreshSelectionValidation();
-    refreshPrepareSetupProducts();
-    prepSetupApplyStatus.textContent =
-      `Applied ${staged.length}-corner safe area to region “${region.name ?? region.id}”. The source changed: selection re-validated, previous downloads cleared. “Save prepared master” now carries the updated definition.`;
-  } catch (error) {
-    prepSetupApplyStatus.textContent =
-      `Apply refused: ${error instanceof Error ? error.message : String(error)}. The source product is unchanged.`;
-  } finally {
-    updateControls();
-  }
-}
-
-/**
- * Anchors sidecar for the prepared master: versioned, digest-bound, never
- * browser storage. Saved with the master, refused as stale on open when the
- * master digest moved since the anchors were saved.
- */
-function buildAnchorsSidecarBytes(project: ProjectDocument, digest: string): Uint8Array {
-  const scoped = prepareAnchors.filter((entry) =>
+function buildAnchorsSidecarBytes(project: ProjectDocument, digest: string, anchors: AnchorDef[]): Uint8Array {
+  const scoped = anchors.filter((entry) =>
     project.products.some((product) =>
       product.id === entry.productId &&
       product.variants.some((variant) => variant.id === entry.variantId) &&
@@ -3471,6 +3098,890 @@ function mergeSessionPhotoMappings(
   for (const entry of base?.mappings ?? []) merged.set(mappingKeyOf(entry), entry);
   for (const entry of staged) merged.set(mappingKeyOf(entry), entry);
   return { version: 1, mappings: [...merged.values()] };
+}
+
+/* ---------------- Visual product workspace (main prepare path) ---------------- */
+/* Staff authors safe areas + anchors directly on product photos here (one    */
+/* staff entry, operation-sheet first). Pure region-frame millimetres flow    */
+/* out; photo pixels are display only. Identity: `photoId` = package path +  */
+/* byte length + sync FNV-1a content hash (change detection, never security); */
+/* `sourceRev` = projectId + per-open session counter, bumped ONLY on source  */
+/* open/replace and stable across in-session saves, so saving one view never  */
+/* drops another view's unsaved drafts. New products/photos start unmeasured  */
+/* (honest pending); the guided panel below creates the first measured       */
+/* region through the existing affine solver — never from photo aspect.      */
+/* -------------------------------------------------------------------------- */
+
+/** Sync FNV-1a (32-bit) content hash, hex. Change detection only. */
+function fnv1a32Hex(bytes: Uint8Array): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i += 1) {
+    hash ^= bytes[i]!;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function workspacePhotoId(imagePath: string, bytes: Uint8Array): string {
+  return `${imagePath}#${bytes.length}:${fnv1a32Hex(bytes)}`;
+}
+
+function workspaceSourceRev(): string {
+  if (source === null) return `empty#open-${sourceSession}`;
+  return `${source.project.projectId}#open-${sourceSession}`;
+}
+
+/** Operator's workspace selection (selects only; the view keeps its own tab). */
+let workspaceProductId: string | null = null;
+let workspaceVariantId: string | null = null;
+let workspaceSideHint: ProductSetupSide | null = null;
+
+const WORKSPACE_SIDES: ProductSetupSide[] = ['front', 'back', 'left', 'right'];
+
+function workspaceSideLabel(side: ProductSetupSide): string {
+  return side === 'front' ? 'Front' : side === 'back' ? 'Back' : side === 'left' ? 'Left' : 'Right';
+}
+
+interface WorkspacePhotoRef {
+  side: ProductSetupSide;
+  imagePath: string;
+  bytes: Uint8Array;
+  widthPx: number;
+  heightPx: number;
+}
+
+function workspaceMergedMappings(): { version: 1; mappings: PhotoMappingEntry[] } {
+  if (source === null) return { version: 1, mappings: [] };
+  const assets = sessionAssetMap();
+  return mergeSessionPhotoMappings(parsePhotoMappings(assets.get(PHOTO_MAPPINGS_PATH)), stagedPhotoMappings);
+}
+
+/**
+ * Ranked mapping for one view: exact-variant staged first, then
+ * exact-variant packaged, then product-wide staged, then product-wide
+ * packaged. Deterministic; same-side duplicates from the Advanced editor
+ * resolve to the most specific entry, never a blend.
+ */
+function workspaceMappingFor(
+  productId: string,
+  variantId: string,
+  side: ProductSetupSide,
+  imagePath: string,
+): PhotoMappingEntry | null {
+  const merged = workspaceMergedMappings();
+  const stagedKeys = new Set(stagedPhotoMappings.map((entry) => mappingKeyOf(entry)));
+  const candidates = merged.mappings.filter((entry) =>
+    entry.productId === productId && entry.view === side && entry.image === imagePath &&
+    (entry.variantId === undefined || entry.variantId === variantId));
+  if (candidates.length === 0) return null;
+  const score = (entry: PhotoMappingEntry): number =>
+    (entry.variantId === variantId ? 0 : 2) + (stagedKeys.has(mappingKeyOf(entry)) ? 0 : 1);
+  candidates.sort((a, b) => score(a) - score(b));
+  return candidates[0] ?? null;
+}
+
+/**
+ * Photos available for one product/variant: manifest sided views first;
+ * mapping-declared sides for manifest images second (a v1 single reference
+ * gains a tab once a mapping declares its side explicitly). Missing sides
+ * are absent, never invented; undecodable bytes become error views.
+ */
+function workspacePhotosFor(
+  productId: string,
+  variantId: string,
+): { photos: WorkspacePhotoRef[]; warning: string | null } {
+  const assets = sessionAssetMap();
+  const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
+  const manifest = parsePresentationManifest(manifestBytes);
+  const selection = selectPresentationViews(
+    manifest,
+    manifestBytes !== undefined,
+    productId,
+    variantId,
+    (path) => assets.get(path),
+  );
+  const bySide = new Map<ProductSetupSide, { imagePath: string }>();
+  for (const view of selection.views) {
+    if (view.view === null) continue;
+    if (!bySide.has(view.view)) bySide.set(view.view, { imagePath: view.imagePath });
+  }
+  if (manifest !== null && manifest.version === 1) {
+    for (const single of selection.views) {
+      if (single.view !== null) continue;
+      for (const entry of workspaceMergedMappings().mappings) {
+        if (entry.productId !== productId || entry.image !== single.imagePath) continue;
+        if (entry.variantId !== undefined && entry.variantId !== variantId) continue;
+        if (!bySide.has(entry.view)) bySide.set(entry.view, { imagePath: entry.image });
+      }
+    }
+  }
+  const photos: WorkspacePhotoRef[] = [];
+  for (const side of WORKSPACE_SIDES) {
+    const found = bySide.get(side);
+    if (!found) continue;
+    const bytes = assets.get(found.imagePath);
+    if (!bytes) continue;
+    const header = readRasterHeader(bytes);
+    if (!header) continue;
+    photos.push({ side, imagePath: found.imagePath, bytes, widthPx: header.width, heightPx: header.height });
+  }
+  return { photos, warning: selection.warning };
+}
+
+function workspaceScopeFor(
+  product: ProjectDocument['products'][number],
+  variant: { id: string },
+  region: ProjectDocument['products'][number]['regions'][number],
+  side: ProductSetupSide,
+): ProductSetupScope {
+  // Display-only sharing note: the canonical region name/ids are untouched;
+  // the human label carries the count so stage captions and the save
+  // acknowledgement state it BEFORE any save (not only in the main status,
+  // which the view's onStatus would otherwise overwrite).
+  const linked = product.variants.filter((entry) => entry.regionIds.includes(region.id)).length;
+  const base = region.name ?? null;
+  return {
+    productId: product.id,
+    variantId: variant.id,
+    regionId: region.id,
+    frameId: region.frame.frameId,
+    calibrationId: region.calibrationRef.calibrationId,
+    calibrationVersion: region.calibrationRef.version,
+    regionName: base === null ? null : linked > 1 ? `${base} (shared by ${linked} options)` : base,
+    side,
+  };
+}
+
+/** Empty scope for an unmeasured view: no region is bound to this view yet. */
+function workspaceEmptyScope(productId: string, variantId: string, side: ProductSetupSide): ProductSetupScope {
+  return {
+    productId,
+    variantId,
+    regionId: '',
+    frameId: '',
+    calibrationId: '',
+    calibrationVersion: '',
+    regionName: null,
+    side,
+  };
+}
+
+function workspaceViewFor(
+  product: ProjectDocument['products'][number],
+  variant: { id: string },
+  photo: WorkspacePhotoRef,
+): ProductSetupPhotoView | { error: string } {
+  const scopeProductId = product.id;
+  const scopeVariantId = variant.id;
+  const mapping = workspaceMappingFor(scopeProductId, scopeVariantId, photo.side, photo.imagePath);
+  const photoId = workspacePhotoId(photo.imagePath, photo.bytes);
+  const sourceRev = workspaceSourceRev();
+  const photoInput = {
+    bytes: photo.bytes,
+    widthPx: photo.widthPx,
+    heightPx: photo.heightPx,
+    label: `${product.name ?? product.id} — ${workspaceSideLabel(photo.side)} view`,
+  };
+  if (!mapping) {
+    return {
+      scope: workspaceEmptyScope(scopeProductId, scopeVariantId, photo.side),
+      photoId,
+      sourceRev,
+      photo: photoInput,
+      transform: null,
+      mappingStatus: 'provisional',
+      safeArea: [],
+      anchors: [],
+    };
+  }
+  const region = product.regions.find((entry) => entry.id === mapping.regionId);
+  if (!region) {
+    return { error: `The saved mapping for the ${workspaceSideLabel(photo.side)} view references missing region “${mapping.regionId}”. Re-map this view (Advanced product setup → Map artwork photos).` };
+  }
+  return {
+    scope: workspaceScopeFor(product, variant, region, photo.side),
+    photoId,
+    sourceRev,
+    photo: photoInput,
+    transform: { ...mapping.transform },
+    mappingStatus: mapping.status,
+    safeArea: region.safeArea
+      .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
+      .map((point) => ({ x: point[0]!, y: point[1]! })),
+    anchors: prepareAnchors
+      .filter((anchor) =>
+        anchor.productId === scopeProductId && anchor.variantId === scopeVariantId && anchor.regionId === region.id)
+      .map((anchor) => ({ ...anchor, posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number] })),
+  };
+}
+
+/** Last notice text this module wrote to the workspace status line. The view
+ * reports every action through onStatus; getWorkspaceInput runs on every
+ * render and must never clobber an action acknowledgement — it only
+ * replaces text it wrote itself (context notices), leaving action statuses
+ * intact until the context changes. */
+let lastWorkspaceNotice = '';
+
+function setWorkspaceNotice(message: string): void {
+  workspaceStatus.textContent = message;
+  lastWorkspaceNotice = message;
+}
+
+/**
+ * Shared-region notice BEFORE any save: one region edited here updates every
+ * linked option (anchors stay per-option). Stated up front, not only in the
+ * save confirmation. Empty when no region is shared.
+ */
+function sharedNotice(product: ProjectDocument['products'][number]): string {
+  const shared = product.regions.filter((region) =>
+    product.variants.filter((entry) => entry.regionIds.includes(region.id)).length > 1);
+  if (shared.length === 0) return '';
+  return `Shared area${shared.length === 1 ? '' : 's'}: ${shared.map((region) => `“${region.name ?? region.id}” spans ${product.variants.filter((entry) => entry.regionIds.includes(region.id)).length} options`).join('; ')} — one save updates every linked option; anchors stay per option.`;
+}
+
+function getWorkspaceInput(): ProductSetupWorkspaceInput | { error: string } {
+  if (source === null) {
+    setWorkspaceNotice('Create or open a project first.');
+    return { error: 'Create or open a project first, then add a real product.' };
+  }
+  const products = source.project.products;
+  const product = products.find((entry) => entry.id === workspaceProductId) ?? products[0];
+  if (product === undefined) {
+    const message = 'Add a real product first (Choose items → Add product). The workspace stays empty until then.';
+    setWorkspaceNotice(message);
+    return { error: message };
+  }
+  const variant = product.variants.find((entry) => entry.id === workspaceVariantId) ?? product.variants[0];
+  if (variant === undefined) {
+    const message = 'This product has no options; re-add it from staged files.';
+    setWorkspaceNotice(message);
+    return { error: message };
+  }
+  const { photos, warning } = workspacePhotosFor(product.id, variant.id);
+  if (photos.length === 0) {
+    const message = 'To set measurements and anchors, add a product with a side photo.';
+    setWorkspaceNotice(warning ?? '');
+    return { error: message };
+  }
+  const views: ProductSetupWorkspaceInput['views'] = {};
+  for (const photo of photos) {
+    views[photo.side] = workspaceViewFor(product, variant, photo);
+  }
+  // Context notices replace only text this getter wrote itself (tracked in
+  // lastWorkspaceNotice): view action acknowledgements arriving through
+  // onStatus are never cleared by a render.
+  const notice = warning ?? sharedNotice(product);
+  if (workspaceStatus.textContent === lastWorkspaceNotice) setWorkspaceNotice(notice);
+  if (workspaceSideHint === null) return { views };
+  return { initialSide: workspaceSideHint, views };
+}
+
+/**
+ * Workspace persistence commits run strictly one at a time. The open-session
+ * identity (source object + session counter) is captured at SUBMISSION, so a
+ * save queued before a source replacement is rejected when it reaches the
+ * front — even if the new project reuses product/region/frame ids. Serial
+ * saves within the same open session proceed normally. Non-commit UI (tab
+ * switches, staged mapping edits) never blocks on this queue.
+ */
+let workspaceCommitTail: Promise<void> = Promise.resolve();
+function enqueueWorkspaceCommit<T>(task: () => Promise<T>, staleResult: () => T): Promise<T> {
+  const submittedSource = source;
+  const submittedSession = sourceSession;
+  const fresh = (): boolean => source === submittedSource && sourceSession === submittedSession;
+  const guarded = async (): Promise<T> => (fresh() ? task() : staleResult());
+  const run = workspaceCommitTail.then(guarded, guarded);
+  workspaceCommitTail = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+/**
+ * Atomic workspace save: the region safe area + the scope's anchors persist
+ * together through one repackage-and-reparse commit, or neither does. Only
+ * the commit assigns `source`/`prepareAnchors`; every failure path leaves
+ * the previous session state untouched and reports `{ ok: false }` so the
+ * view keeps the draft dirty and intact.
+ *
+ * Region geometry is genuinely shared: editing a region's safe area updates
+ * every variant linked to that region (the save message names the region and
+ * its variant count). Anchors and mappings stay per-variant.
+ */
+async function saveWorkspaceSetup(
+  scope: ProductSetupScope,
+  result: { safeArea: AnchorSetupMm[]; anchors: import('./product-setup-view.js').ProductSetupResult['anchors'] },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const submittedSource = source;
+  const submittedSession = sourceSession;
+  return enqueueWorkspaceCommit(async () => {
+  if (source !== submittedSource || sourceSession !== submittedSession) {
+    return { ok: false, error: 'The project changed before saving started (new file opened or product added); re-open the view and save again. Nothing was saved.' };
+  }
+  if (source === null) return { ok: false, error: 'No project is open; create or open one first. Nothing was saved.' };
+  const snapshot = source;
+  const stale = (): boolean => source !== snapshot;
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: `${error} Nothing was saved.` });
+  try {
+    const product = snapshot.project.products.find((entry) => entry.id === scope.productId);
+    if (!product) return fail(`Product “${scope.productId}” is no longer in the project.`);
+    const variant = product.variants.find((entry) => entry.id === scope.variantId);
+    if (!variant) return fail(`Option “${scope.variantId}” is no longer in the product.`);
+    const region = product.regions.find((entry) => entry.id === scope.regionId);
+    if (!region) return fail('The measured area for this view no longer exists; measure it again first.');
+    if (region.frame.frameId !== scope.frameId ||
+      region.calibrationRef.calibrationId !== scope.calibrationId ||
+      region.calibrationRef.version !== scope.calibrationVersion) {
+      return fail('The measured area changed (frame or calibration) while editing; refresh and re-author the setup.');
+    }
+    const check = validateSafeAreaPolygon(result.safeArea.map((point) => ({ x: point.x, y: point.y })));
+    if (!check.ok) return fail(`The safe area is invalid — ${check.reason}.`);
+    const anchorProblem = validateAnchors(result.anchors);
+    if (anchorProblem) return fail(`An anchor is invalid — ${anchorProblem}.`);
+    const next: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
+    const nextRegion = next.products
+      .find((entry) => entry.id === scope.productId)?.regions
+      .find((entry) => entry.id === scope.regionId);
+    if (!nextRegion) return fail('The measured area for this view no longer exists; measure it again first.');
+    nextRegion.safeArea = result.safeArea.map((point) => [point.x, point.y] as [number, number]);
+    const liveAnchors = prepareAnchors;
+    const nextAnchors: AnchorDef[] = snapshot.project.products.some((entry) => entry.id === scope.productId)
+      ? liveAnchors
+        .filter((anchor) => !(anchor.productId === scope.productId && anchor.variantId === scope.variantId && anchor.regionId === scope.regionId))
+        .map((anchor) => ({ ...anchor, posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number] }))
+        .concat(result.anchors.map((anchor) => ({
+          ...anchor,
+          productId: scope.productId,
+          variantId: scope.variantId,
+          regionId: scope.regionId,
+          frameId: scope.frameId,
+          calibrationId: scope.calibrationId,
+          calibrationVersion: scope.calibrationVersion,
+          posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
+        })))
+      : [];
+    const validated = validateProject(next);
+    if (!validated || validated.ok !== true) {
+      const problems = validated && Array.isArray(validated.errors)
+        ? validated.errors.slice(0, 3).map((entry) => `${entry.code} at ${entry.path}`).join('; ')
+        : 'the project did not validate';
+      return fail(`The project rejects this setup (${problems}).`);
+    }
+    if (stale()) return fail('The project changed while saving (new file opened or product added); re-open the view and save again.');
+    const digest = await hasher.prepareProject(next);
+    if (stale()) return fail('The project changed while saving (new file opened or product added); re-open the view and save again.');
+    const additionalAssets = [
+      ...snapshot.assets
+        .filter((asset) => asset.kind === 'additional' && asset.path !== OPERATION_ANCHORS_PATH)
+        .map(({ path, bytes }) => ({ path, bytes })),
+      { path: OPERATION_ANCHORS_PATH, bytes: buildAnchorsSidecarBytes(next, digest, nextAnchors) },
+    ];
+    const packageBytes = await createProjectPackage(
+      {
+        project: next,
+        assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map(({ path, bytes }) => ({ path, bytes })),
+        additionalAssets,
+      },
+      { sha256: hasher.sha256Bytes },
+    );
+    if (stale()) return fail('The project changed while saving (new file opened or product added); re-open the view and save again.');
+    const back = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+    assertProjectEditorLimits(back.project);
+    if (canonicalize(back.project) !== canonicalize(next)) {
+      return fail('The reparse changed the project.');
+    }
+    // Compare actual sidecar CONTENT, not just presence: the save always
+    // writes the sidecar, and the reopened master must carry exactly the
+    // saved anchors.
+    const expectedScoped = nextAnchors.filter((anchor) =>
+      next.products.some((entry) =>
+        entry.id === anchor.productId &&
+        entry.variants.some((v) => v.id === anchor.variantId) &&
+        entry.regions.some((r) => r.id === anchor.regionId)));
+    const backSidecar = back.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH);
+    if (backSidecar === undefined) return fail('The reparse lost the anchors sidecar.');
+    let backAnchors: unknown = null;
+    try {
+      backAnchors = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(backSidecar.bytes));
+    } catch {
+      return fail('The reparsed anchors sidecar is not valid JSON.');
+    }
+    const sameAnchors = JSON.stringify((backAnchors as { anchors?: unknown }).anchors) ===
+      JSON.stringify(expectedScoped.map((anchor) => ({ ...anchor })));
+    if (!sameAnchors) return fail('The reparse changed the saved anchors.');
+    if (stale()) return fail('The project changed while saving (new file opened or product added); re-open the view and save again.');
+    prepareAnchors = nextAnchors;
+    source = {
+      fileName: snapshot.fileName,
+      project: back.project,
+      assets: back.assets,
+      summary: summarizeSourceProject(back.project),
+      packageBytes: packageBytes.slice(),
+    };
+    refreshWorkspaceSelectors();
+    workspaceView.refresh();
+    workspaceStatus.textContent =
+      `Saved ${scope.regionName ?? 'measured area'} · ${workspaceSideLabel(scope.side)} ` +
+      `(${result.safeArea.length} safe-area corners, ${result.anchors.length} anchors).`;
+    return { ok: true };
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+  }, () => ({ ok: false, error: 'The project changed before saving started (new file opened or product added); re-open the view and save again. Nothing was saved.' }));
+}
+
+/** Route an unmeasured view to the guided first-measured-region panel. */
+function routeWorkspaceScaleNeeded(scope: ProductSetupScope): void {
+  if (source === null) {
+    workspaceStatus.textContent = 'Create or open a project first.';
+    return;
+  }
+  const product = source.project.products.find((entry) => entry.id === scope.productId);
+  const variant = product?.variants.find((entry) => entry.id === scope.variantId);
+  if (!product || !variant) {
+    workspaceStatus.textContent = 'The product for this view is no longer in the project.';
+    return;
+  }
+  const { photos } = workspacePhotosFor(product.id, variant.id);
+  const photo = photos.find((entry) => entry.side === scope.side);
+  if (!photo) {
+    workspaceStatus.textContent =
+      `The ${workspaceSideLabel(scope.side)} view has no photo: assign a ${scope.side} view image above (Choose items → Add product), then measure it here.`;
+    return;
+  }
+  workspaceSideHint = scope.side;
+  guidedScale.show({
+    scope,
+    photo: {
+      bytes: photo.bytes,
+      widthPx: photo.widthPx,
+      heightPx: photo.heightPx,
+      label: `${product.name ?? product.id} — ${workspaceSideLabel(photo.side)} view`,
+    },
+    imagePath: photo.imagePath,
+  });
+  workspaceStatus.textContent =
+    `The ${workspaceSideLabel(scope.side)} view has no measured area yet. Click its 4 rectangle corners below, enter the real width + height, and create the measured area — no placements until then.`;
+}
+
+const workspaceCallbacks: ProductSetupCallbacks = {
+  onSave: (scope, result) => saveWorkspaceSetup(scope, result),
+  onStatus: (message) => {
+    workspaceStatus.textContent = message;
+  },
+  onScaleNeeded: (scope) => routeWorkspaceScaleNeeded(scope),
+};
+
+const workspaceView = createProductSetupView(workspaceBox, getWorkspaceInput, workspaceCallbacks);
+
+const guidedScale = createGuidedScale(guidedScaleBox, {
+  onCommit: (request, commit) => commitGuidedScale(request, commit),
+  onCancel: () => {
+    guidedScaleBox.hidden = true;
+    workspaceStatus.textContent = 'Measure setup cancelled; the view stays unmeasured.';
+  },
+  onStatus: (message) => {
+    workspaceStatus.textContent = message;
+  },
+});
+
+function refreshWorkspaceSelectors(): void {
+  if (source === null) {
+    workspaceProduct.replaceChildren();
+    workspaceVariant.replaceChildren();
+    workspaceProductId = null;
+    workspaceVariantId = null;
+    return;
+  }
+  const products = source.project.products;
+  const keptProduct = workspaceProductId;
+  workspaceProduct.replaceChildren();
+  for (const product of products) {
+    const option = document.createElement('option');
+    option.value = product.id;
+    option.textContent = product.name ?? product.id;
+    workspaceProduct.append(option);
+  }
+  if (keptProduct !== null && products.some((entry) => entry.id === keptProduct)) {
+    workspaceProduct.value = keptProduct;
+  } else if (products.length > 0) {
+    workspaceProduct.value = products[0]!.id;
+  }
+  workspaceProductId = workspaceProduct.value !== '' ? workspaceProduct.value : null;
+  const product = products.find((entry) => entry.id === workspaceProductId) ?? null;
+  const variants = product?.variants ?? [];
+  const keptVariant = workspaceVariantId;
+  workspaceVariant.replaceChildren();
+  for (const variant of variants) {
+    const option = document.createElement('option');
+    option.value = variant.id;
+    option.textContent = variant.name ?? (variants.length === 1
+      ? 'Standard option' : `Option ${variants.indexOf(variant) + 1}`);
+    workspaceVariant.append(option);
+  }
+  if (keptVariant !== null && variants.some((entry) => entry.id === keptVariant)) {
+    workspaceVariant.value = keptVariant;
+  } else if (variants.length > 0) {
+    workspaceVariant.value = variants[0]!.id;
+  }
+  workspaceVariantId = workspaceVariant.value !== '' ? workspaceVariant.value : null;
+  for (const label of document.querySelectorAll<HTMLElement>('[data-workspace-when]')) {
+    const kind = label.getAttribute('data-workspace-when');
+    label.hidden = kind === 'multi-product' ? products.length <= 1 : variants.length <= 1;
+  }
+}
+
+function refreshWorkspace(): void {
+  refreshWorkspaceSelectors();
+  workspaceView.refresh();
+  void refreshStaffModel();
+}
+
+/**
+ * The add-product form lives in a disclosure: wide open with an inviting
+ * label for the truly empty draft, folded to "Add another product" once
+ * real products exist so the visual workspace owns the first viewport.
+ * Called only on source replacement (never on plain refreshes), so an
+ * operator's manual open/close is never snapped shut under them.
+ */
+function refreshAddProductDisclosure(): void {
+  const count = source?.project.products.length ?? 0;
+  if (count === 0) {
+    addProductDisclosure.open = true;
+    addProductSummary.textContent = 'Add a product';
+  } else {
+    addProductDisclosure.open = false;
+    addProductSummary.textContent = 'Add another product';
+  }
+}
+
+/* ---------------- Staff 3D reference (white stage, orbit only) ---------------- */
+/* Model-only uploads cannot host millimetre authoring (no evaluated photo   */
+/* mapping), but the operator still sees the ACTUAL model on a white stage   */
+/* with a concise route to add a side photo — never a bare no-photo error,   */
+/* never a fake mesh projection. The photo workspace owns measured work; the */
+/* model pane shows only when it has no usable photos.                       */
+
+let staffModelViewer: { dispose(): void } | null = null;
+let staffModelKey: string | null = null;
+let staffModelGeneration = 0;
+
+function disposeStaffModel(): void {
+  if (staffModelViewer !== null) {
+    try {
+      staffModelViewer.dispose();
+    } catch {
+      /* best-effort GL teardown */
+    }
+    staffModelViewer = null;
+  }
+  staffModelKey = null;
+}
+
+async function refreshStaffModel(): Promise<void> {
+  const generation = ++staffModelGeneration;
+  const isCurrent = (): boolean => generation === staffModelGeneration;
+  if (source === null) {
+    disposeStaffModel();
+    productModelBox.hidden = true;
+    return;
+  }
+  const products = source.project.products;
+  const product = products.find((entry) => entry.id === workspaceProductId) ?? products[0] ?? null;
+  if (product === null) {
+    disposeStaffModel();
+    productModelBox.hidden = true;
+    return;
+  }
+  const variant = product.variants.find((entry) => entry.id === workspaceVariantId) ?? product.variants[0] ?? null;
+  if (variant === null) {
+    disposeStaffModel();
+    productModelBox.hidden = true;
+    return;
+  }
+  // Photos own the stage when present; the model pane fills the model-only gap.
+  const { photos } = workspacePhotosFor(product.id, variant.id);
+  if (photos.length > 0 || !isCurrent()) {
+    if (photos.length > 0) {
+      disposeStaffModel();
+      productModelBox.hidden = true;
+    }
+    return;
+  }
+  const assets = sessionAssetMap();
+  const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
+  const selection = selectPresentationModel(
+    parsePresentationManifest(manifestBytes),
+    manifestBytes !== undefined,
+    product.id,
+    variant.id,
+    (path) => assets.get(path),
+  );
+  if (selection.modelPath === null) {
+    disposeStaffModel();
+    productModelBox.hidden = true;
+    return;
+  }
+  const bytes = assets.get(selection.modelPath);
+  if (!bytes || bytes.length === 0) {
+    disposeStaffModel();
+    productModelBox.hidden = true;
+    productModelStatus.textContent = '';
+    return;
+  }
+  const key = `${selection.modelPath}#${bytes.length}:${fnv1a32Hex(bytes)}`;
+  if (staffModelViewer !== null && staffModelKey === key) {
+    productModelBox.hidden = false;
+    return;
+  }
+  productModelBox.hidden = false;
+  productModelStatus.textContent = `Showing ${selection.label ?? selection.modelPath} for reference — orbit to inspect.`;
+  try {
+    const module = await import('../../viewer/model-viewer.js');
+    if (!isCurrent() || source === null) return;
+    const live = assets.get(selection.modelPath);
+    if (!live || live.length === 0) {
+      productModelStatus.textContent = 'The 3D model is no longer in the package.';
+      return;
+    }
+    disposeStaffModel();
+    // Fresh canvas per attach: a disposed GL context cannot be re-acquired
+    // on the same element.
+    const fresh = document.createElement('canvas');
+    fresh.setAttribute('aria-label', '3D model reference preview');
+    productModelStage.replaceChildren(fresh);
+    const attached = module.ModelViewer.attach({
+      canvas: fresh,
+      container: productModelStage,
+      background: 0xffffff,
+    });
+    if (attached.viewer === null) {
+      productModelStatus.textContent = `3D preview unavailable: ${attached.status.kind === 'webgl-unavailable' ? attached.status.message : 'no viewer'}. Assign a side view photo above to author measurements.`;
+      return;
+    }
+    staffModelViewer = attached.viewer;
+    staffModelKey = key;
+    const shown = await attached.viewer.showModel(bytes.slice());
+    if (!isCurrent()) return;
+    if (shown.kind !== 'ready' && shown.kind !== 'empty' && shown.kind !== 'loading') {
+      productModelStatus.textContent = `3D preview unavailable (${shown.message}). Assign a side view photo above to author measurements.`;
+    }
+  } catch (error) {
+    if (!isCurrent()) return;
+    disposeStaffModel();
+    productModelStatus.textContent = `3D preview unavailable: ${error instanceof Error ? error.message : String(error)}. Assign a side view photo above to author measurements.`;
+  }
+}
+
+workspaceProduct.addEventListener('change', () => {
+  workspaceProductId = workspaceProduct.value !== '' ? workspaceProduct.value : null;
+  workspaceVariantId = null;
+  workspaceSideHint = null;
+  guidedScale.hide();
+  if (!prepareBlocked()) refreshWorkspace();
+});
+workspaceVariant.addEventListener('change', () => {
+  workspaceVariantId = workspaceVariant.value !== '' ? workspaceVariant.value : null;
+  workspaceSideHint = null;
+  guidedScale.hide();
+  if (!prepareBlocked()) refreshWorkspace();
+});
+
+/** Warn at/above this fit residual; refuse above the hard bound. */
+const GUIDED_RESIDUAL_WARN_MM = 1;
+const GUIDED_RESIDUAL_REFUSE_MM = 5;
+
+/**
+ * Commit a guided first-measured-region panel result: solve the four
+ * UV↔mm correspondences with the existing affine solver, then create the
+ * calibration record + region + provisional mapping in ONE atomic
+ * repackage-and-reparse commit. The rectangle safeArea defaults to the
+ * measured rectangle; the variant is linked; any prior mapping for the
+ * same (product, view, image) is replaced (staged and packaged), never
+ * duplicated. `source`/`stagedPhotoMappings` change only on success.
+ */
+async function commitGuidedScale(
+  request: GuidedScaleRequest,
+  commit: GuidedScaleCommit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const submittedSource = source;
+  const submittedSession = sourceSession;
+  return enqueueWorkspaceCommit(async () => {
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: error });
+  if (source !== submittedSource || sourceSession !== submittedSession) {
+    return fail('The project changed before measuring started (new file opened or product added); measure again.');
+  }
+  try {
+    if (source === null) return fail('No project is open; create or open one first.');
+    const snapshot = source;
+    const stale = (): boolean => source !== snapshot;
+    const product = snapshot.project.products.find((entry) => entry.id === request.scope.productId);
+    if (!product) return fail(`Product “${request.scope.productId}” is no longer in the project.`);
+    const variant = product.variants.find((entry) => entry.id === request.scope.variantId);
+    if (!variant) return fail(`Option “${request.scope.variantId}” is no longer in the product.`);
+    const side = request.scope.side;
+    if (side !== 'front' && side !== 'back' && side !== 'left' && side !== 'right') {
+      return fail(`Unknown view side “${request.scope.side}”.`);
+    }
+    const assets = sessionAssetMap();
+    const photoBytes = assets.get(request.imagePath);
+    if (!photoBytes || photoBytes.length === 0) {
+      return fail(`Photo “${request.imagePath}” is missing from the package; re-add the product photo first.`);
+    }
+    if (!(commit.widthMm > 0) || !Number.isFinite(commit.widthMm) || commit.widthMm > 100000) {
+      return fail('Enter the rectangle width in millimetres (a number above 0, at most 100000).');
+    }
+    if (!(commit.heightMm > 0) || !Number.isFinite(commit.heightMm) || commit.heightMm > 100000) {
+      return fail('Enter the rectangle height in millimetres (a number above 0, at most 100000).');
+    }
+    const built = guidedCorrespondences(commit.cornersUv, commit.widthMm, commit.heightMm, commit.orientation);
+    if (!built.ok) return fail(built.error);
+    const transform = solveAffineFromCorrespondences(built.pairs);
+    if (transform === null) {
+      return fail('The 4 corners do not determine a mapping: use 4 finite, non-collinear corners of a genuine rectangle (a line or repeated point is refused). Re-click the corners in C1→C4 order.');
+    }
+    const det = transform.a * transform.e - transform.b * transform.d;
+    let maxResidualMm = 0;
+    for (const pair of built.pairs) {
+      const du = pair.uv.u - transform.c;
+      const dv = pair.uv.v - transform.f;
+      const xPred = (transform.e * du - transform.b * dv) / det;
+      const yPred = (-transform.d * du + transform.a * dv) / det;
+      const residual = Math.hypot(xPred - pair.mm.xMm, yPred - pair.mm.yMm);
+      if (!Number.isFinite(residual)) return fail('The fit produced a non-finite residual; check the corner positions.');
+      maxResidualMm = Math.max(maxResidualMm, residual);
+    }
+    if (maxResidualMm > GUIDED_RESIDUAL_REFUSE_MM) {
+      return fail(`The corners fit badly (max residual ${maxResidualMm.toFixed(1)} mm over ${GUIDED_RESIDUAL_REFUSE_MM} mm): re-click the 4 corners in C1→C4 order, or the photo has too much perspective for an affine fit.`);
+    }
+    const widthMm = commit.widthMm;
+    const heightMm = commit.heightMm;
+    const next: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
+    const nextProduct = next.products.find((entry) => entry.id === product.id)!;
+    const takenCalibrations = new Set(nextProduct.calibrations.map((entry) => entry.id));
+    let calSeq = nextProduct.calibrations.length + 1;
+    while (takenCalibrations.has(`cal-visual-${calSeq}`)) calSeq += 1;
+    const calibrationId = `cal-visual-${calSeq}`;
+    const takenRegions = new Set(nextProduct.regions.map((entry) => entry.id));
+    let regionSeq = nextProduct.regions.length + 1;
+    while (takenRegions.has(`region-visual-${regionSeq}`)) regionSeq += 1;
+    const regionId = `region-visual-${regionSeq}`;
+    const frameId = `frame-${regionId}`;
+    const orientationWord = commit.orientation === 'photo-up' ? 'photo top = area top' : 'photo top = area bottom (photo upside-down)';
+    nextProduct.calibrations.push({
+      id: calibrationId,
+      version: '1',
+      description: `Visual rectangle ${widthMm}×${heightMm} mm (${orientationWord}); max residual ${maxResidualMm.toFixed(3)} mm`,
+    });
+    nextProduct.regions.push({
+      id: regionId,
+      name: `${workspaceSideLabel(side)} measured area`,
+      frame: {
+        frameId,
+        originDescription: `Lower-left corner of the measured rectangle as seen in the photo (${orientationWord})`,
+        axes: { xPositive: 'right along the measured width', yPositive: 'up along the measured height' },
+      },
+      calibrationRef: { calibrationId, version: '1' },
+      safeArea: [[0, 0], [widthMm, 0], [widthMm, heightMm], [0, heightMm]],
+      allowedMethods: ['embroidery', 'print'],
+    });
+    const nextVariant = nextProduct.variants.find((entry) => entry.id === variant.id)!;
+    if (!nextVariant.regionIds.includes(regionId)) nextVariant.regionIds.push(regionId);
+    const warnNote = maxResidualMm >= GUIDED_RESIDUAL_WARN_MM
+      ? `; residual ${maxResidualMm.toFixed(3)} mm ≥ ${GUIDED_RESIDUAL_WARN_MM} mm — verify on the photo`
+      : '';
+    const entry: PhotoMappingEntry = {
+      productId: product.id,
+      variantId: variant.id,
+      regionId,
+      view: side,
+      image: request.imagePath,
+      transform: { ...transform },
+      calibrationId,
+      calibrationVersion: '1',
+      status: 'provisional',
+      note: `Guided rectangle ${widthMm}×${heightMm} mm, ${commit.orientation}; max residual ${maxResidualMm.toFixed(3)} mm${warnNote}`,
+    };
+    const problems = validatePhotoMapping(entry);
+    if (problems.length > 0) return fail(`The mapping is invalid: ${problems.join('; ')}.`);
+    const validated = validateProject(next);
+    if (!validated || validated.ok !== true) {
+      const detail = validated && Array.isArray(validated.errors)
+        ? validated.errors.slice(0, 3).map((issue) => `${issue.code} at ${issue.path}`).join('; ')
+        : 'the project did not validate';
+      return fail(`The project rejects this measured area (${detail}).`);
+    }
+    // Replacement is scoped to the edited variant ONLY: exact-variant
+    // entries for this (product, view, image) are replaced, product-wide
+    // fallbacks for other variants are preserved. Staged state is rebuilt
+    // from the LIVE array at commit time (last writer wins for the same
+    // key); nothing is assigned before the validated reparse succeeds.
+    const isReplacedMapping = (candidate: PhotoMappingEntry): boolean =>
+      candidate.productId === product.id && candidate.variantId === variant.id &&
+      candidate.view === side && candidate.image === request.imagePath;
+    if (stale()) return fail('The project changed while measuring (new file opened or product added); measure again.');
+    const livePhoto = sessionAssetMap().get(request.imagePath);
+    if (!livePhoto || livePhoto.length === 0) {
+      return fail(`Photo “${request.imagePath}” left the package while measuring; re-add the product photo first.`);
+    }
+    const base = parsePhotoMappings(snapshot.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
+    const baseKept = (base?.mappings ?? []).filter((candidate) => !isReplacedMapping(candidate));
+    const stagedKept = stagedPhotoMappings.filter((candidate) => !isReplacedMapping(candidate));
+    const mergedBytes = serializePhotoMappings(mergeSessionPhotoMappings({ version: 1, mappings: baseKept }, [...stagedKept, entry]));
+    const additionalAssets = [
+      ...snapshot.assets
+        .filter((asset) => asset.kind === 'additional' && asset.path !== PHOTO_MAPPINGS_PATH && asset.path !== OPERATION_ANCHORS_PATH)
+        .map(({ path, bytes }) => ({ path, bytes })),
+      { path: PHOTO_MAPPINGS_PATH, bytes: mergedBytes },
+    ];
+    const packagedSidecar = snapshot.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH && asset.kind === 'additional');
+    if (packagedSidecar !== undefined) {
+      additionalAssets.push({ path: packagedSidecar.path, bytes: packagedSidecar.bytes });
+    }
+    const packageBytes = await createProjectPackage(
+      {
+        project: next,
+        assets: snapshot.assets.filter((asset) => asset.kind !== 'additional').map(({ path, bytes }) => ({ path, bytes })),
+        additionalAssets,
+      },
+      { sha256: hasher.sha256Bytes },
+    );
+    if (stale()) return fail('The project changed while measuring (new file opened or product added); measure again.');
+    const back = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
+    assertProjectEditorLimits(back.project);
+    if (canonicalize(back.project) !== canonicalize(next)) {
+      return fail('The reparse changed the project; the previous project is unchanged.');
+    }
+    // The packaged mapping file must carry the new entry with its exact
+    // transform — compare content, not just presence.
+    const backMappings = parsePhotoMappings(back.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH)?.bytes);
+    const backEntry = backMappings?.mappings.find((candidate) => mappingKeyOf(candidate) === mappingKeyOf(entry));
+    if (!backEntry || JSON.stringify(backEntry.transform) !== JSON.stringify(entry.transform) ||
+      backEntry.regionId !== entry.regionId || backEntry.calibrationId !== entry.calibrationId) {
+      return fail('The reparse lost the new mapping; the previous project is unchanged.');
+    }
+    if (stale()) return fail('The project changed while measuring (new file opened or product added); measure again.');
+    stagedPhotoMappings = [...stagedPhotoMappings.filter((candidate) => !isReplacedMapping(candidate)), entry];
+    source = {
+      fileName: snapshot.fileName,
+      project: back.project,
+      assets: back.assets,
+      summary: summarizeSourceProject(back.project),
+      packageBytes: packageBytes.slice(),
+    };
+    workspaceSideHint = side;
+    guidedScale.hide();
+    refreshWorkspaceSelectors();
+    workspaceView.refresh();
+    refreshMappingOptions();
+    renderSavedMappings();
+    workspaceStatus.textContent =
+      `Measured the ${workspaceSideLabel(side)} view: ${widthMm}×${heightMm} mm ` +
+      `(max residual ${maxResidualMm.toFixed(3)} mm). Draw the safe area and place anchors, then save once.` +
+      (warnNote !== '' ? ' Residual is high — verify the corners on the photo.' : '');
+    return { ok: true };
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+  }, () => ({ ok: false, error: 'The project changed before measuring finished (new file opened or product added); measure again.' }));
 }
 
 function mappingSelectedProduct(): ProjectDocument['products'][number] | null {
@@ -3801,6 +4312,7 @@ function onMappingSave(): void {
   mappingStatusLine.textContent =
     `Saved ${status} mapping for ${fit.productId}${fit.variantId ? `/${fit.variantId}` : ''} · ${fit.regionId} · ${fit.view} · ${fit.image} ` +
     `(${stagedPhotoMappings.length} staged). It ships with the next customer file when you press “Create customer file”.`;
+  refreshWorkspace();
 }
 
 function renderSavedMappings(): void {
@@ -3836,6 +4348,7 @@ function renderSavedMappings(): void {
     remove.addEventListener('click', () => {
       stagedPhotoMappings.splice(index, 1);
       renderSavedMappings();
+      refreshWorkspace();
       mappingStatusLine.textContent = `Removed one staged mapping (${stagedPhotoMappings.length} remain).`;
     });
     row.append(label, remove);
@@ -3870,19 +4383,7 @@ mappingSave.addEventListener('click', onMappingSave);
 for (let i = 0; i < 3; i += 1) addMappingRow();
 renderSavedMappings();
 
-const prepSetupDisclosureBox = hook<HTMLDetailsElement>('prep-setup-disclosure');
-prepSetupDisclosureBox.addEventListener('toggle', () => {
-  if (prepSetupDisclosureBox.open) refreshPrepareSetupProducts();
-});
-prepSetupProduct.addEventListener('change', refreshPrepareSetupVariants);
-prepSetupVariant.addEventListener('change', refreshPrepareSetupRegions);
-prepSetupRegion.addEventListener('change', () => { if (!prepareBlocked()) refreshPrepareSetupPhotos(); });
-prepSetupSide.addEventListener('change', () => {
-  if (prepareBlocked()) return;
-  refreshPrepareSetupPhotos();
-});
-prepSetupPhoto.addEventListener('change', () => { if (!prepareBlocked()) refreshPrepareSetup(); });
-prepSetupApply.addEventListener('click', () => void applyPrepareSafeArea());
+
 /* ------------------------------------------------------------------ */
 /* Operation-sheet authoring (review/prepare flow, check step).        */
 /* Department-authored operational text, logo dimensions, business      */

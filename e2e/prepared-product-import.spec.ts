@@ -111,6 +111,21 @@ async function issueCustomerFile(page: Page, job: string): Promise<{ issuedProje
   return { issuedProjectId };
 }
 
+/** Synthetic 20x10 PNG bytes rendered in the page (exact original bytes). */
+async function syntheticPngBytes(page: Page): Promise<Uint8Array> {
+  const base64 = await page.evaluate((): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 20;
+    canvas.height = 10;
+    const context = canvas.getContext('2d');
+    if (context === null) throw new Error('2d canvas unavailable for synthetic PNG fixture.');
+    context.fillStyle = '#3a6f1d';
+    context.fillRect(0, 0, 20, 10);
+    return canvas.toDataURL('image/png').split(',')[1] ?? '';
+  });
+  return new Uint8Array(Buffer.from(base64, 'base64'));
+}
+
 async function readDownload(page: Page, fileName: string, trigger: () => Promise<void>): Promise<Uint8Array> {
   const downloadPromise = page.waitForEvent('download');
   await trigger();
@@ -250,11 +265,17 @@ test('imports a prepared product and issues it with exact mm geometry and sideca
 async function issuePreparedDelivery(page: Page, job: string): Promise<{
   issuedProjectId: string;
   preparedConfigId: string;
+  uploadedLogoId: string;
   officeCopy: Uint8Array;
   customerHtml: Uint8Array;
 }> {
   await createFromCatalogue(page);
   await importPreparedFixture(page);
+  // The bridge fixture carries no logos: upload a real raster mark, which is
+  // selected automatically; the customer places it below.
+  const png = await syntheticPngBytes(page);
+  await (await shown(page, 'logo-file')).setInputFiles({ name: 'bridge-mark.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+  await expect(await shown(page, 'logo-status')).toContainText('Added bridge-mark.png');
   // Empty start: the imported product arrives unselected; select everything
   // deliberately before issuing.
   await selectAllLists(page);
@@ -265,10 +286,12 @@ async function issuePreparedDelivery(page: Page, job: string): Promise<{
   const officeParsed = await parseProjectPackage(officeCopy, { sha256 });
   const preparedConfig = officeParsed.project.configurations.find((config) => config.productId === 'SYN-BRIDGE-001');
   assert.ok(preparedConfig, 'issued project should configure the imported prepared product');
+  const uploadedLogo = officeParsed.project.logos.find((logo) => logo.name === 'bridge mark');
+  assert.ok(uploadedLogo, 'issued project should carry the uploaded raster logo');
   const customerHtml = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
     shown(page, 'download-package').then((control) => control.click()),
   );
-  return { issuedProjectId, preparedConfigId: preparedConfig.id, officeCopy, customerHtml };
+  return { issuedProjectId, preparedConfigId: preparedConfig.id, uploadedLogoId: uploadedLogo.id, officeCopy, customerHtml };
 }
 
 async function placeConfirmAndSubmit(
@@ -276,13 +299,14 @@ async function placeConfirmAndSubmit(
   htmlPath: string,
   issuedProjectId: string,
   preparedConfigId: string,
+  uploadedLogoId: string,
   outputPath: (name: string) => string,
 ): Promise<Uint8Array> {
   await editor.goto(pathToFileURL(htmlPath).href);
   await expect(editor.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
   await selectCustomerOption(editor, 'configuration', preparedConfigId);
   await selectCustomerOption(editor, 'region', 'SYN-BRIDGE-CHEST');
-  await selectCustomerOption(editor, 'logo', 'SYN-LOGO-A');
+  await selectCustomerOption(editor, 'logo', uploadedLogoId);
   await selectCustomerOption(editor, 'method', 'embroidery');
   await revealCustomerControl(editor, 'x-mm');
   // Unsafe geometry first: centre (15, 15) with a 50x30 footprint overlaps the
@@ -337,12 +361,12 @@ test('customer places in the imported mm region, confirms, saves and reopens', a
   const { context, page, probe } = await openBuilder(browser);
   const directory = await mkdtemp(join(tmpdir(), 'LogoTool prepared bridge roundtrip '));
   try {
-    const { issuedProjectId, preparedConfigId, customerHtml } = await issuePreparedDelivery(page, 'BRIDGE-JOB-2');
+    const { issuedProjectId, preparedConfigId, uploadedLogoId, customerHtml } = await issuePreparedDelivery(page, 'BRIDGE-JOB-2');
     const htmlPath = join(directory, 'OPEN_LOGO_CONFIGURATOR.html');
     await writeFile(htmlPath, customerHtml);
     const editor = await context.newPage();
     attachProbe(editor, probe);
-    const returnBytes = await placeConfirmAndSubmit(editor, htmlPath, issuedProjectId, preparedConfigId, (name) => test.info().outputPath(name));
+    const returnBytes = await placeConfirmAndSubmit(editor, htmlPath, issuedProjectId, preparedConfigId, uploadedLogoId, (name) => test.info().outputPath(name));
     await editor.screenshot({ path: test.info().outputPath('prepared-customer-desktop.png'), fullPage: true });
 
     // Reopen the saved return: confirmation and exact mm review survive.
@@ -366,12 +390,12 @@ test('baseline review of the prepared-product return yields a consistent candida
   const { context, page, probe } = await openBuilder(browser);
   const directory = await mkdtemp(join(tmpdir(), 'LogoTool prepared bridge review '));
   try {
-    const { issuedProjectId, preparedConfigId, officeCopy, customerHtml } = await issuePreparedDelivery(page, 'BRIDGE-JOB-3');
+    const { issuedProjectId, preparedConfigId, uploadedLogoId, officeCopy, customerHtml } = await issuePreparedDelivery(page, 'BRIDGE-JOB-3');
     const htmlPath = join(directory, 'OPEN_LOGO_CONFIGURATOR.html');
     await writeFile(htmlPath, customerHtml);
     const editor = await context.newPage();
     attachProbe(editor, probe);
-    const returnBytes = await placeConfirmAndSubmit(editor, htmlPath, issuedProjectId, preparedConfigId, (name) => test.info().outputPath(name));
+    const returnBytes = await placeConfirmAndSubmit(editor, htmlPath, issuedProjectId, preparedConfigId, uploadedLogoId, (name) => test.info().outputPath(name));
     await editor.close();
 
     // Baseline review in the standalone reviewer: candidate JSON is consistent.

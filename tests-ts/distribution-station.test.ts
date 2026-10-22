@@ -78,11 +78,27 @@ describe("distribution: single-entry station tree", () => {
   it("station entry is a non-trivial self-contained bundle with the embedded customer runtime", async () => {
     const html = await readFile(entryUrl, "utf8");
     assert.ok(html.length > 100_000, `station entry suspiciously small: ${html.length} bytes`);
-    for (const marker of [
-      "__logoCustomerEditorHtml",
-      "__logoBuilderCatalogue",
-    ]) {
-      assert.ok(html.includes(marker), `station entry missing embedded marker: ${marker}`);
+    assert.ok(html.includes("__logoCustomerEditorHtml"), "station entry missing embedded marker: __logoCustomerEditorHtml");
+    // Catalogue-free station: zero catalogue identifier, zero demo UI. The
+    // dead embedded reader was removed with the demo UI it served, so even
+    // a bare identifier occurrence fails the release contract.
+    assert.ok(!html.includes("__logoBuilderCatalogue"), "station entry must not reference the example catalogue");
+    assert.ok(!html.includes("demo-create"), "station entry must not reference demo creation");
+    assert.ok(!html.includes("Try demo data"), "station entry must not offer demo data");
+    // No example asset bytes or ids ride along in the station entry.
+    // Asset URIs as authored in examples/logos/*.logo.json.
+    for (const exampleAssetUri of ["logos/syn-mark-a.svg", "logos/syn-mark-b.svg"]) {
+      assert.ok(!html.includes(exampleAssetUri), `station entry must not embed example asset: ${exampleAssetUri}`);
+    }
+    // Example logo/product ids as authored in examples/.
+    for (const exampleId of ["SYN-LOGO-A", "SYN-LOGO-B", "SYN-TEE-001", "SYN-CAP-001", "SYN-TR-001"]) {
+      assert.ok(!html.includes(exampleId), `station entry must not embed example id: ${exampleId}`);
+    }
+    // No base64 of the example logo artwork either.
+    for (const exampleAsset of ["examples/logos/syn-mark-a.svg", "examples/logos/syn-mark-b.svg"]) {
+      const bytes = await readFile(fileURLToPath(new URL(exampleAsset, repoRoot)));
+      const embedded = Buffer.from(bytes).toString("base64");
+      assert.ok(!html.includes(embedded), `station entry must not embed bytes of ${exampleAsset}`);
     }
     // The standalone reviewer is dev-only (dist/dev/): it must not ride
     // along in the production station entry.
@@ -116,7 +132,9 @@ describe("distribution: single-entry station tree", () => {
       const copiedNames = (await readdir(dest)).sort();
       assert.deepEqual(copiedNames, ["Logo Station.html"]);
       const html = await readFile(join(dest, "Logo Station.html"), "utf8");
-      assert.ok(html.includes("__logoBuilderCatalogue"));
+      assert.ok(html.includes("__logoCustomerEditorHtml"));
+      assert.ok(!html.includes("__logoBuilderCatalogue"));
+      assert.ok(!html.includes("demo-create"));
       const bytes = (await stat(join(dest, "Logo Station.html"))).size;
       assert.ok(bytes > 100_000, `copied station entry suspiciously small: ${bytes} bytes`);
     } finally {
