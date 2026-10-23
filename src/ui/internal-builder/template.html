@@ -174,6 +174,11 @@
     .sheet-logo-unfinished { color: #6d4c00; background: #fff8e1; border: 0.5pt solid #d9a92b; border-radius: 6px; padding: 6px 10px; margin: 8px 0 0; }
     .sheet-customer-notes { border: 1px dashed #9aa8b4; border-radius: 8px; padding: 10px 14px; margin: 12px 0; background: #fafbfc; }
     .sheet-customer-notes p { white-space: pre-wrap; margin: 6px 0; }
+    .product-card { display: flex; gap: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: #fff; }
+    .product-thumb { width: 64px; height: 64px; flex: 0 0 auto; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+    .product-thumb-fallback { width: 64px; height: 64px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; text-align: center; font-size: .75rem; line-height: 1.25; color: #5b6b76; background: #fff; border: 1px dashed var(--line); border-radius: 6px; padding: 4px; }
+    .product-card-body { display: grid; gap: 8px; min-width: 0; align-content: start; }
+    .product-card-variants { display: grid; gap: 4px; }
     .visual-pick { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
     .visual-pick svg[data-visual-pick-diagram] { width: 100%; height: auto; max-height: 320px; background: #fff; border: 1px solid var(--line); border-radius: 6px; cursor: crosshair; touch-action: manipulation; }
     .visual-pick [data-visual-anchor-hit], .visual-pick [data-visual-edge-hit] { cursor: pointer; }
@@ -302,7 +307,7 @@
         <div class="desk">
           <div>
             <h2 class="task-title">Choose what to include</h2>
-            <p class="task-sub">Nothing is selected. Add your real product first, then tick only what the customer needs.</p>
+            <p class="task-sub">Tick only the products and logos the customer needs. Use Open setup to prepare a product.</p>
             <h3 class="group-title">Products</h3>
             <div class="rows" data-builder-hook="product-list"><p class="muted">No project loaded yet.</p></div>
             <h3 class="group-title">Set up product</h3>

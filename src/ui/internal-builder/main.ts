@@ -475,8 +475,9 @@ function renderSelectionSummary(): void {
   }
   const selection = readSelection();
   let optionCount = 0;
-  for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
-    if (box.checked && selection.productIds.includes(box.getAttribute('data-product') ?? '')) optionCount += 1;
+  for (const product of source.project.products) {
+    if (!selection.productIds.includes(product.id)) continue;
+    optionCount += selection.variantIdsByProduct?.[product.id]?.length ?? product.variants.length;
   }
   for (const options of productList.querySelectorAll<HTMLElement>('[data-options-for]')) options.hidden = !selection.productIds.includes(options.getAttribute('data-options-for')!);
   const importedSelected = logoImports.filter((entry) =>
@@ -821,27 +822,90 @@ function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = fa
     empty.textContent = 'No products in source.';
     productList.append(empty);
   } else {
-    for (const product of summary.products) {
-      const { row, box } = createCheckRow(product.id, product.name || product.id);
+    const manifest = parsePresentationManifest(
+      source?.assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH)?.bytes,
+    );
+    const sideOrder = ['front', 'back', 'left', 'right'];
+    const thumbFor = (productId: string): { bytes: Uint8Array; mediaType: string } | null => {
+      if (manifest === null || manifest.version !== 2) return null;
+      const views = manifest.views
+        .filter((entry) => entry.productId === productId)
+        .sort((a, b) => sideOrder.indexOf(a.view) - sideOrder.indexOf(b.view));
+      for (const view of views) {
+        const bytes = source?.assets.find((asset) => asset.path === view.image)?.bytes;
+        if (!bytes || bytes.length === 0) continue;
+        const header = readRasterHeader(bytes);
+        if (header === null) continue;
+        return { bytes, mediaType: header.mediaType };
+      }
+      return null;
+    };
+    const modelOnly = (productId: string): boolean =>
+      manifest !== null && manifest.version === 2 &&
+      (manifest.models ?? []).some((entry) => entry.productId === productId);
+    summary.products.forEach((product, productIndex) => {
+      const live = source?.project.products.find((entry) => entry.id === product.id);
+      // Human title, never a generated ID: the source name when a real
+      // non-blank one was given, otherwise a plain ordinal.
+      const rawName = live?.name?.trim() ?? '';
+      const title = rawName !== '' ? rawName : `Product ${productIndex + 1}`;
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.setAttribute('data-product-card', product.id);
+      const thumb = thumbFor(product.id);
+      const thumbUri = thumb !== null ? visualPickPhotoHref(thumb.bytes, thumb.mediaType) : null;
+      if (thumb !== null && thumbUri !== null) {
+        const image = document.createElement('img');
+        image.className = 'product-thumb';
+        image.alt = `${title} photo`;
+        image.src = thumbUri;
+        card.append(image);
+      } else {
+        const fallback = document.createElement('span');
+        fallback.className = 'product-thumb-fallback';
+        fallback.textContent = modelOnly(product.id) ? '3D model — no photo yet' : 'No photo yet';
+        card.append(fallback);
+      }
+      const body = document.createElement('div');
+      body.className = 'product-card-body';
+      const { row, box } = createCheckRow(product.id, title);
       if (kept !== null) box.checked = kept.products.includes(`\0${product.id}`);
-      productList.append(row);
-      if (product.variantIds.length > 0) {
+      body.append(row);
+      const liveVariants = live?.variants ?? [];
+      if (product.variantIds.length > 1) {
         const variants = document.createElement('div');
-        variants.className = 'variants';
-        variants.setAttribute('data-options-for',product.id);
-        const live = source?.project.products.find((entry) => entry.id === product.id);
+        variants.className = 'product-card-variants';
+        variants.setAttribute('data-options-for', product.id);
         for (const variantId of product.variantIds) {
-          const variant = live?.variants.find((entry) => entry.id === variantId);
-          const label = variant?.name ?? (product.variantIds.length === 1
-            ? 'Standard option' : `Option ${product.variantIds.indexOf(variantId) + 1}`);
+          const variant = liveVariants.find((entry) => entry.id === variantId);
+          const rawVariant = variant?.name?.trim() ?? '';
+          const label = rawVariant !== '' ? rawVariant : `Option ${product.variantIds.indexOf(variantId) + 1}`;
           const variantRow = createCheckRow(variantId, label);
           variantRow.box.setAttribute('data-product', product.id);
           if (kept !== null) variantRow.box.checked = kept.products.includes(`${product.id}\0${variantId}`);
           variants.append(variantRow.row);
         }
-        productList.append(variants);
+        body.append(variants);
+      } else if (product.variantIds.length === 1) {
+        // Single-option products need no second decision: checking the card
+        // includes its only option through the ordinary default contract.
+        const variant = liveVariants.find((entry) => entry.id === product.variantIds[0]);
+        const singleName = variant?.name?.trim() ?? '';
+        const single = document.createElement('p');
+        single.className = 'muted';
+        single.textContent = `Includes ${singleName !== '' ? singleName : 'Standard option'}.`;
+        body.append(single);
       }
-    }
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'btn-secondary';
+      open.textContent = 'Open setup';
+      open.setAttribute('aria-label', `Open setup for ${title}`);
+      open.addEventListener('click', () => openProductWorkspace(product.id));
+      body.append(open);
+      card.append(body);
+      productList.append(card);
+    });
   }
   if (summary.logoIds.length === 0 && logoImports.length === 0) {
     const empty = document.createElement('p');
@@ -4031,6 +4095,23 @@ function refreshWorkspaceSelectors(): void {
     const kind = label.getAttribute('data-workspace-when');
     label.hidden = kind === 'multi-product' ? products.length <= 1 : variants.length <= 1;
   }
+}
+
+/** Open a product's visual setup from its selection card: the include
+ *  checkbox stays independent — this only moves the workspace there. */
+function openProductWorkspace(productId: string): void {
+  if (source === null) return;
+  const product = source.project.products.find((entry) => entry.id === productId);
+  if (!product) return;
+  workspaceProductId = productId;
+  workspaceVariantId = product.variants.some((entry) => entry.id === workspaceVariantId)
+    ? workspaceVariantId
+    : product.variants[0]?.id ?? null;
+  workspaceSideHint = null;
+  guidedScale.hide();
+  if (!prepareBlocked()) refreshWorkspace();
+  workspaceBox.scrollIntoView({ block: 'start' });
+  workspaceProduct.focus();
 }
 
 function refreshWorkspace(): void {

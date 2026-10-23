@@ -358,10 +358,12 @@ test('create starts a truly empty draft with no demo UI', async ({ browser }) =>
     // fixture package through the real source chooser.
     await openSyntheticCatalogue(page);
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
-    for (const productId of EXPECTED_PRODUCTS) {
-      expect((await variantIds(page, productId)).length).toBeGreaterThan(0);
-    }
+    // Multi-option products reveal their option rows; the single-option cap
+    // needs no second decision (its card inclusion covers its only option).
     expect((await variantIds(page, 'SYN-TEE-001')).sort()).toEqual(['SYN-TEE-M', 'SYN-TEE-XL']);
+    expect((await variantIds(page, 'SYN-TR-001')).length).toBeGreaterThan(0);
+    expect(await variantIds(page, 'SYN-CAP-001')).toEqual([]);
+    await expect(page.locator('div[data-product-card="SYN-CAP-001"]')).toContainText('Includes ');
     await expect(await shown(page, 'product-list')).toContainText('Synthetic Tee');
     await expect(await shown(page, 'logo-list')).toContainText('Synthetic Mark B');
     // Select the explicitly imported examples to continue (empty start

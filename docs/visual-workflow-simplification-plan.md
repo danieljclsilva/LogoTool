@@ -293,7 +293,7 @@ or the hard deadline, even when optional backlog remains.
 
 ## Delivery status
 
-- Specification: written; implementation starts with A/B.
+- Overnight checkpoint: A, B, C and E implemented and independently validated; I audited. D, F, G and H remain the next work.
 - A: independently reviewed, validated and pushed as `31d964c`. In-place
   side photos retain original assets/model and invalidate only their own mapping;
   stale customer outputs require regeneration. Root typecheck/unit working tree
@@ -312,5 +312,12 @@ or the hard deadline, even when optional backlog remains.
   on high-resolution photos. Root typecheck/696 unit tests and seven affected
   offline checks each in Chromium/Chrome pass; actual prepared-master geometry
   inspected. Private real-jacket desktop/narrow and front/back draft checks pass.
-- D–H: pending implementation/review (no D–H without root acceptance).
-- I: baseline largely satisfies it; audit pending.
+- E: Independently validated product cards with contained original-photo thumbnails,
+  human fallback names, independent include/Open setup actions and automatic
+  single-option inclusion. Root corrected the option summary to reflect effective
+  selection. Typecheck and 696 unit tests pass; 27 Chromium checks pass. Chrome
+  passed 26 checks, with one browser-closure case passing in isolation; final card
+  checks pass in both browsers. Private real-product desktop/narrow checks pass.
+- I: AUDITED — single primary + HTML default + ZIP under More options
+  already covered by internal-builder.spec; no change.
+- D/F/G/H: untouched, no new tranche without root acceptance.

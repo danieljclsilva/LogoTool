@@ -274,3 +274,11 @@ A safe area shared by several options is labelled beside Save. If another option
 changes the saved area, an unedited area adopts that change while staged anchors
 stay intact. Conflicting area edits block saving; **Reset to saved** reloads the
 saved setup. Drafts are never silently applied to another option.
+
+### Product cards
+
+Tick a product to include it in the customer file. **Open setup** opens its visual
+workspace without changing inclusion. A single-option product includes that option
+automatically; products with several options expose their actual choices. The
+selection summary counts the effective options. Advanced setup subsets remain
+explicit choices. Product thumbnails use the retained original photos on white.
