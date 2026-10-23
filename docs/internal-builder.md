@@ -249,3 +249,16 @@ contracts and direct production PDF generation remain pending. Browser Print /
 Save as PDF is the current document export. Actual Windows Chrome/Edge offline
 `file://` delivery remains untested. See `offline-testing.md` for development
 acceptance evidence.
+
+### Pick production dimensions visually
+
+In Review a return → Check & prepare, use **Pick on diagram** on a logo
+measurement. Click its named anchor and then the logo edge on the product
+photo. Review the proposed distance and Direction, then **Save measurement**.
+Use **Add another** for another distance. Escape or Cancel leaves the row
+unchanged. Advanced retains keyboard-friendly anchor, edge and direction controls.
+
+The picker uses the saved view mapping and original raster artwork. Without a
+valid photo mapping it clearly shows a millimetre region schematic. Picking
+selects existing physical geometry; it does not calibrate a photograph or approve
+production accuracy.

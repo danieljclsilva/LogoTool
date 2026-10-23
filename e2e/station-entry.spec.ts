@@ -34,6 +34,18 @@ function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
 }
 
+/** Manual measurement lists live under Advanced disclosures now (the visual
+ *  picker is the primary path); open them before driving the selects. */
+async function openAdvancedRows(page: Page): Promise<void> {
+  const summaries = page.locator('div[data-measurement-row] > details[data-measurement-advanced] > summary');
+  const count = await summaries.count();
+  for (let i = 0; i < count; i += 1) {
+    const summary = summaries.nth(i);
+    const open = await summary.evaluate((element) => (element.closest('details') as HTMLDetailsElement).open);
+    if (!open) await summary.click();
+  }
+}
+
 /** Explicit synthetic fixture package (no demo UI in the station). */
 async function syntheticCataloguePackage(): Promise<Uint8Array> {
   const { readdir: readDir, readFile: readBytes } = await import('node:fs/promises');
@@ -296,16 +308,19 @@ test('fresh-copied station issues both customer formats offline with no repo dep
     await page.getByLabel(/Name for anchor at/).press('Tab');
     await page.getByLabel('Business code for logo 1').fill('FRESH-CHEST-01');
     await page.getByLabel('Business code for logo 2').fill('FRESH-BACK-01');
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 1 anchor for logo 1').selectOption({ label: 'Anchor 1' });
     await page.getByLabel('Add measurement for logo 1').click();
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 2 anchor for logo 1').selectOption({ label: 'Anchor 1' });
     await page.getByLabel('Measurement 2 edge for logo 1').selectOption('maxY');
-    await page.getByLabel('Measurement 2 convention for logo 1').selectOption('dy');
+    await page.getByLabel('Measurement 2 direction for logo 1').selectOption('dy');
     await page.getByLabel('Measurement 1 anchor for logo 2').selectOption({ label: 'Pocket top' });
     await page.getByLabel('Add measurement for logo 2').click();
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 2 anchor for logo 2').selectOption({ label: 'Pocket top' });
     await page.getByLabel('Measurement 2 edge for logo 2').selectOption('maxY');
-    await page.getByLabel('Measurement 2 convention for logo 2').selectOption('dy');
+    await page.getByLabel('Measurement 2 direction for logo 2').selectOption('dy');
     await (await shown(page, 'preview-document')).click();
     const operation = await shown(page, 'operation-container');
     await expect(operation.locator('.opsheet').first()).toBeVisible();

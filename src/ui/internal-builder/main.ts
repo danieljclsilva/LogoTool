@@ -10,6 +10,7 @@ import {
   parsePhotoMappings,
   serializePhotoMappings,
   solveAffineFromCorrespondences,
+  artworkPhotoMatrix,
   validatePhotoMapping,
 } from '../customer-editor/presentation-photo-mapping.js';
 import type {
@@ -64,7 +65,9 @@ import {
   OPERATION_DRAFT_NUMBER,
   OPERATION_DRAFT_VERSION,
   measurePlacement,
+  rotatedFootprintCorners,
 } from '../../core/operation-measurements/index.js';
+import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import type {
   AnchorDef,
   ArtworkEdge,
@@ -5070,7 +5073,690 @@ function describeLogoMeasurement(
   return { text: `${measured.unfinished[0] ?? 'No measurement — setup needed.'}`, ok: false, primary: null };
 }
 
+/* ---------------- Visual dimension picker (Tranche B) ---------------- */
+/* Pointer-first measurement authoring on a region-frame schematic: the    */
+/* operator clicks a named anchor dot, then a logo edge, confirms the      */
+/* convention explicitly, and commits. Click coordinates only select       */
+/* identities (which anchor, which edge); every value comes from the pure  */
+/* visual-dimension kernel wrapping the exact core edge-to-anchor          */
+/* arithmetic — the same numbers the sheet prints and the operator JSON   */
+/* exports. The manual lists in each row stay as the keyboard fallback    */
+/* under Advanced. A partial pick lives in the panel DOM only and is    */
+/* never written into authoring state, drafts, or exports before Commit.   */
+
+const VISUAL_PICK_ANCHOR_SNAP_MM = 6;
+const VISUAL_PICK_EDGE_SNAP_MM = 10;
+const VISUAL_PICK_SVG_NS = 'http://www.w3.org/2000/svg';
+const visualPickTeardowns = new Set<() => void>();
+
+function visualPickSvgPoint(svg: SVGSVGElement, event: MouseEvent): { x: number; y: number } | null {
+  // Raw viewBox coordinates (letterbox-corrected); the surface maps them to
+  // millimetres, so this stays exact at any rendered size.
+  const rect = svg.getBoundingClientRect();
+  const box = svg.viewBox.baseVal;
+  if (!(rect.width > 0) || !(rect.height > 0) || !(box.width > 0) || !(box.height > 0)) return null;
+  const scale = Math.min(rect.width / box.width, rect.height / box.height);
+  if (!(scale > 0) || !Number.isFinite(scale)) return null;
+  const offX = rect.left + (rect.width - box.width * scale) / 2;
+  const offY = rect.top + (rect.height - box.height * scale) / 2;
+  const x = box.x + (event.clientX - offX) / scale;
+  const y = box.y + (event.clientY - offY) / scale;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+/** Marker sizes in constant rendered CSS pixels: usability must not depend
+ *  on photo resolution or stage size, so viewBox units derive per render. */
+const VISUAL_PICK_CSS = {
+  anchorR: 7,
+  anchorHitR: 12,
+  codeFont: 12,
+  anchorStroke: 1.5,
+  anchorSelectedStroke: 3,
+  sideR: 4,
+  sideHitR: 12,
+  footprintStroke: 2,
+  arrowStroke: 2.5,
+  safeStroke: 1.5,
+} as const;
+
+/** CSS pixels per viewBox unit under meet letterboxing, or null pre-layout. */
+function visualPickCssScale(svg: SVGSVGElement): number | null {
+  const rect = svg.getBoundingClientRect();
+  const box = svg.viewBox.baseVal;
+  if (!(rect.width > 0) || !(rect.height > 0) || !(box.width > 0) || !(box.height > 0)) return null;
+  const scale = Math.min(rect.width / box.width, rect.height / box.height);
+  return scale > 0 && Number.isFinite(scale) ? scale : null;
+}
+
+function visualPickFrame(points: Array<{ x: number; y: number }>): { minX: number; minY: number; w: number; h: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  if (!Number.isFinite(minX)) return null;
+  if (!(maxX > minX) || !(maxY > minY)) {
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    return { minX: cx - 10, minY: cy - 10, w: 20, h: 20 };
+  }
+  const pad = Math.max(5, Math.max(maxX - minX, maxY - minY) * 0.1);
+  return { minX: minX - pad, minY: minY - pad, w: (maxX - minX) + pad * 2, h: (maxY - minY) + pad * 2 };
+}
+
+interface VisualPickPanelContext {
+  candidate: ResultCandidate;
+  configId: string;
+  placement: ExportPlacement;
+  scoped: AnchorDef[];
+  safeArea: Array<readonly [number, number]> | null;
+  regionName: string;
+  measurement: DimensionMeasurement;
+  logoRef: string;
+  logoIndex: number;
+  measureIndex: number;
+  blocked: boolean;
+}
+
+/** Evaluated photo surface for visual picking: the actual product photo with
+ *  the actual artwork composite, both positioned by the exact evaluated
+ *  mapping math. Null when no evaluated mapping (with bytes) binds the
+ *  placement's region — the caller then falls back to the labelled mm
+ *  schematic and never fabricates a photo scale. */
+interface VisualPickPhoto {
+  sideLabel: string;
+  /** Product photo as a data URI for the schematic image element. */
+  photoHref: string;
+  artHref: string | null;
+  artMatrix: { a: number; b: number; c: number; d: number; e: number; f: number };
+  photoW: number;
+  photoH: number;
+  toPx: (xMm: number, yMm: number) => { x: number; y: number };
+  toMm: (px: number, py: number) => { xMm: number; yMm: number } | null;
+  artCornersPx: Array<{ x: number; y: number }>;
+}
+
+/** Raster bytes to a data URI (session-local schematic use only). */
+function visualPickPhotoHref(bytes: Uint8Array, mediaType: string): string | null {
+  if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) return null;
+  const step = 8192;
+  let binary = '';
+  for (let at = 0; at < bytes.length; at += step) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + step));
+  }
+  try {
+    return `data:${mediaType};base64,${btoa(binary)}`;
+  } catch {
+    return null;
+  }
+}
+
+function resolveVisualPickPhoto(
+  candidate: ResultCandidate,
+  configId: string,
+  placement: ExportPlacement,
+): VisualPickPhoto | null {
+  if (lastReturnAssets === null) return null;
+  const states = evaluateOperationPhotoStates(candidate, lastReturnAssets)[configId] ?? [];
+  const options = states
+    .filter((entry) => entry.regionId === placement.regionId && entry.transform !== undefined && entry.imagePath !== undefined)
+    .sort((a, b) => (a.view ?? '') < (b.view ?? '') ? -1 : (a.view ?? '') > (b.view ?? '') ? 1 : 0);
+  const picked = options[0];
+  const transform = picked?.transform;
+  const imagePath = picked?.imagePath;
+  if (!transform || !imagePath) return null;
+  const bytes = lastReturnAssets.get(imagePath);
+  if (!bytes) return null;
+  const header = readRasterHeader(bytes);
+  if (!header) return null;
+  const matrix = artworkPhotoMatrix(transform, header.width, header.height, {
+    xMm: placement.pos.xMm,
+    yMm: placement.pos.yMm,
+    widthMm: placement.widthMm,
+    heightMm: placement.heightMm,
+    rotationDeg: placement.rotationDeg,
+  });
+  if (!matrix) return null;
+  const photoHref = visualPickPhotoHref(bytes, header.mediaType);
+  if (photoHref === null) return null;
+  const artworkPath = sheetArtworkUri(placement.artwork.assets);
+  const artworkBytes = artworkPath ? lastReturnAssets.get(artworkPath) : undefined;
+  const artworkHeader = artworkBytes ? readRasterHeader(artworkBytes) : null;
+  const artHref = artworkBytes && artworkHeader
+    ? visualPickPhotoHref(artworkBytes, artworkHeader.mediaType)
+    : null;
+  const det = transform.a * transform.e - transform.b * transform.d;
+  if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) return null;
+  const view = picked.view ?? '';
+  const sideLabel = view === 'front' || view === 'back' || view === 'left' || view === 'right'
+    ? workspaceSideLabel(view)
+    : 'Mapped';
+  return {
+    sideLabel,
+    photoHref,
+    artHref,
+    artMatrix: { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e, f: matrix.f },
+    photoW: header.width,
+    photoH: header.height,
+    toPx: (xMm, yMm) => ({
+      x: (transform.a * xMm + transform.b * yMm + transform.c) * header.width,
+      y: (transform.d * xMm + transform.e * yMm + transform.f) * header.height,
+    }),
+    toMm: (px, py) => {
+      const du = px / header.width - transform.c;
+      const dv = py / header.height - transform.f;
+      const xMm = (transform.e * du - transform.b * dv) / det;
+      const yMm = (-transform.d * du + transform.a * dv) / det;
+      if (!Number.isFinite(xMm) || !Number.isFinite(yMm)) return null;
+      return { xMm, yMm };
+    },
+    artCornersPx: ( [[0, 0], [1, 0], [1, 1], [0, 1]] as Array<[number, number]>).map(([s, t]) => ({
+      x: matrix.a * s + matrix.c * t + matrix.e,
+      y: matrix.b * s + matrix.d * t + matrix.f,
+    })),
+  };
+}
+
+function openVisualPickPanel(rowBox: HTMLElement, pickButton: HTMLButtonElement, context: VisualPickPanelContext): void {
+  const { candidate, configId, placement, scoped, safeArea, regionName, measurement, logoRef, logoIndex, measureIndex, blocked } = context;
+  const panel = document.createElement('div');
+  panel.className = 'visual-pick';
+  panel.setAttribute('data-visual-pick', '');
+  panel.setAttribute('data-logo-ref', logoRef);
+  panel.setAttribute('data-measure-index', String(measureIndex));
+  const intro = document.createElement('p');
+  intro.className = 'muted';
+  panel.append(intro);
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.setAttribute('data-visual-pick-status', '');
+  interface SurfacePoint { x: number; y: number }
+  // Drawing surface: the evaluated product photo with the real artwork
+  // overlay when mapped, else an explicitly labelled mm schematic. Clicks
+  // always resolve back to region millimetres before the kernel sees them.
+  const photo = resolveVisualPickPhoto(candidate, configId, placement);
+  let viewBox: string;
+  let schematic: boolean;
+  let anchorXY: (anchor: AnchorDef) => SurfacePoint;
+  let footprintXY: SurfacePoint[];
+  let mmXY: (xMm: number, yMm: number) => SurfacePoint;
+  let xyToMm: (x: number, y: number) => { xMm: number; yMm: number } | null;
+  let unit: number;
+  if (photo !== null) {
+    schematic = false;
+    viewBox = `0 0 ${photo.photoW} ${photo.photoH}`;
+    anchorXY = (anchor) => photo.toPx(anchor.posMm[0], anchor.posMm[1]);
+    footprintXY = photo.artCornersPx;
+    mmXY = (xMm, yMm) => photo.toPx(xMm, yMm);
+    xyToMm = (x, y) => photo.toMm(x, y);
+    unit = Math.max(photo.photoW, photo.photoH) / 250;
+    intro.textContent =
+      `Pick on the ${photo.sideLabel} photo: click a named anchor, then a logo edge, choose Direction, then Save measurement. ` +
+      'Keyboard: use Advanced in this row. Escape cancels without changing the row.';
+  } else {
+    schematic = true;
+    const corners = rotatedFootprintCorners(
+      placement.pos.xMm, placement.pos.yMm, placement.widthMm, placement.heightMm, placement.rotationDeg,
+    );
+    const framePoints: Array<{ x: number; y: number }> = [];
+    for (const point of safeArea ?? []) framePoints.push({ x: point[0], y: point[1] });
+    for (const corner of corners) framePoints.push({ x: corner.x, y: corner.y });
+    for (const anchor of scoped) framePoints.push({ x: anchor.posMm[0], y: anchor.posMm[1] });
+    const frame = visualPickFrame(framePoints);
+    if (frame === null || corners.length < 3) {
+      status.textContent = 'The visual pick cannot be drawn: the region or logo geometry is missing or non-finite. Use Advanced in this row instead.';
+      panel.append(status);
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'btn-secondary';
+      close.textContent = 'Close';
+      close.addEventListener('click', () => { panel.remove(); pickButton.disabled = false; pickButton.focus(); });
+      panel.append(close);
+      rowBox.append(panel);
+      return;
+    }
+    viewBox = `${frame.minX} ${-frame.minY - frame.h} ${frame.w} ${frame.h}`;
+    anchorXY = (anchor) => ({ x: anchor.posMm[0], y: -anchor.posMm[1] });
+    footprintXY = corners.map((corner) => ({ x: corner.x, y: -corner.y }));
+    mmXY = (xMm, yMm) => ({ x: xMm, y: -yMm });
+    xyToMm = (x, y) => ({ xMm: x, yMm: -y });
+    unit = Math.max(frame.w, frame.h) / 80;
+    intro.textContent =
+      `No mapped photo for ${regionName} — region schematic (millimetre positions, not a photograph): ` +
+      'click a named anchor dot, then a logo edge, choose Direction, then Save measurement. ' +
+      'Keyboard: use Advanced in this row. Escape cancels without changing the row.';
+  }
+  const svg = document.createElementNS(VISUAL_PICK_SVG_NS, 'svg') as SVGSVGElement;
+  svg.setAttribute('viewBox', viewBox);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('tabindex', '0');
+  svg.setAttribute('data-visual-pick-diagram', '');
+  svg.setAttribute('aria-label', schematic
+    ? `Region schematic, no photo mapped, for logo ${logoIndex + 1}: click an anchor dot, then a logo edge.`
+    : `Mapped product photo for logo ${logoIndex + 1}: click an anchor, then a logo edge.`);
+  if (photo !== null) {
+    const image = document.createElementNS(VISUAL_PICK_SVG_NS, 'image');
+    image.setAttribute('x', '0');
+    image.setAttribute('y', '0');
+    image.setAttribute('width', String(photo.photoW));
+    image.setAttribute('height', String(photo.photoH));
+    image.setAttribute('href', photo.photoHref);
+    image.setAttribute('data-visual-photo', '');
+    svg.append(image);
+    if (photo.artHref !== null) {
+      const art = document.createElementNS(VISUAL_PICK_SVG_NS, 'image');
+      art.setAttribute('x', '0');
+      art.setAttribute('y', '0');
+      art.setAttribute('width', '1');
+      art.setAttribute('height', '1');
+      art.setAttribute('href', photo.artHref);
+      art.setAttribute('transform', `matrix(${photo.artMatrix.a} ${photo.artMatrix.b} ${photo.artMatrix.c} ${photo.artMatrix.d} ${photo.artMatrix.e} ${photo.artMatrix.f})`);
+      art.setAttribute('data-visual-artwork', '');
+      svg.append(art);
+    }
+  } else if (safeArea !== null && safeArea.length >= 3) {
+    const polygon = document.createElementNS(VISUAL_PICK_SVG_NS, 'polygon');
+    polygon.setAttribute('points', safeArea.map((point) => `${point[0]},${-point[1]}`).join(' '));
+    polygon.setAttribute('fill', '#f2f5f7');
+    polygon.setAttribute('stroke', '#607080');
+    polygon.setAttribute('stroke-width', String(unit));
+    svg.append(polygon);
+  }
+  const footprint = document.createElementNS(VISUAL_PICK_SVG_NS, 'polygon');
+  footprint.setAttribute('points', footprintXY.map((point) => `${point.x},${point.y}`).join(' '));
+  footprint.setAttribute('fill', photo !== null ? 'none' : '#fdecec');
+  footprint.setAttribute('stroke', '#c0392b');
+  footprint.setAttribute('stroke-width', '2');
+  footprint.setAttribute('data-visual-footprint', '');
+  footprint.setAttribute('pointer-events', 'none');
+  svg.append(footprint);
+  // Comfortable edge targets with exact physical identity: each side-midpoint
+  // hit circle feeds its own position to the same probe, so the kernel (not
+  // the pixels) still resolves which named edge a click selected.
+  interface SideMark { hit: SVGElement; dot: SVGElement; mx: number; my: number }
+  const sideMarks: SideMark[] = [];
+  for (let side = 0; side < footprintXY.length; side += 1) {
+    const start = footprintXY[side]!;
+    const end = footprintXY[(side + 1) % footprintXY.length]!;
+    const mx = (start.x + end.x) / 2;
+    const my = (start.y + end.y) / 2;
+    const hit = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
+    hit.setAttribute('cx', String(mx));
+    hit.setAttribute('cy', String(my));
+    hit.setAttribute('fill', '#000');
+    hit.setAttribute('fill-opacity', '0');
+    hit.setAttribute('pointer-events', 'all');
+    hit.setAttribute('data-visual-edge-hit', String(side));
+    const dot = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
+    dot.setAttribute('cx', String(mx));
+    dot.setAttribute('cy', String(my));
+    dot.setAttribute('fill', '#c0392b');
+    dot.setAttribute('pointer-events', 'none');
+    svg.append(hit, dot);
+    sideMarks.push({ hit, dot, mx, my });
+  }
+  const anchorCode = (index: number): string =>
+    String.fromCharCode(65 + (index % 26)) + (index >= 26 ? String(Math.floor(index / 26) + 1) : '');
+  interface AnchorMark { id: string; hit: SVGElement; dot: SVGElement }
+  const anchorMarks: AnchorMark[] = [];
+  const anchorById = new Map<string, AnchorDef>();
+  // A marker click selects its validated anchor ID directly: the visible
+  // target never fails the millimetre snap gate. Blank-surface clicks below
+  // stay strictly gated.
+  const selectAnchor = (id: string): void => {
+    const picked = anchorById.get(id);
+    if (!picked) return;
+    anchorId = id;
+    layoutPickMarkers();
+    status.textContent = `Anchor “${picked.name}” selected — now click near a logo edge (within ${VISUAL_PICK_EDGE_SNAP_MM} mm).`;
+    svg.focus();
+  };
+  scoped.forEach((anchor, index) => {
+    anchorById.set(anchor.id, anchor);
+    const at = anchorXY(anchor);
+    const hit = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
+    hit.setAttribute('cx', String(at.x));
+    hit.setAttribute('cy', String(at.y));
+    hit.setAttribute('fill', '#000');
+    hit.setAttribute('fill-opacity', '0');
+    hit.setAttribute('pointer-events', 'all');
+    hit.setAttribute('data-visual-anchor-hit', anchor.id);
+    hit.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (blocked) return;
+      selectAnchor(anchor.id);
+    });
+    const dot = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
+    dot.setAttribute('cx', String(at.x));
+    dot.setAttribute('cy', String(at.y));
+    dot.setAttribute('fill', '#fff');
+    dot.setAttribute('stroke', '#111');
+    dot.setAttribute('data-visual-anchor', anchor.id);
+    dot.setAttribute('pointer-events', 'none');
+    const code = document.createElementNS(VISUAL_PICK_SVG_NS, 'text');
+    code.setAttribute('x', String(at.x));
+    code.setAttribute('y', String(at.y));
+    code.setAttribute('text-anchor', 'middle');
+    code.setAttribute('dominant-baseline', 'central');
+    code.setAttribute('font-weight', '700');
+    code.setAttribute('fill', '#111');
+    code.setAttribute('pointer-events', 'none');
+    code.setAttribute('data-visual-anchor-code', anchor.id);
+    code.textContent = anchorCode(index);
+    const tip = document.createElementNS(VISUAL_PICK_SVG_NS, 'title');
+    tip.textContent = anchor.name;
+    dot.append(tip);
+    svg.append(hit, dot, code);
+    anchorMarks.push({ id: anchor.id, hit, dot });
+  });
+  for (const mark of sideMarks) {
+    mark.hit.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (blocked) return;
+      edgeClickAt(mark.mx, mark.my);
+    });
+  }
+  let arrowEl: SVGElement | null = null;
+  /** Constant-CSS-pixel marker sizing; re-runs on every resize. */
+  function layoutPickMarkers(): void {
+    const scale = visualPickCssScale(svg);
+    if (scale === null) return;
+    const units = (cssPx: number): number => cssPx / scale;
+    footprint.setAttribute('stroke-width', String(units(VISUAL_PICK_CSS.footprintStroke)));
+    for (const mark of sideMarks) {
+      mark.hit.setAttribute('r', String(units(VISUAL_PICK_CSS.sideHitR)));
+      mark.dot.setAttribute('r', String(units(VISUAL_PICK_CSS.sideR)));
+    }
+    for (const mark of anchorMarks) {
+      const selected = mark.id === anchorId;
+      mark.hit.setAttribute('r', String(units(VISUAL_PICK_CSS.anchorHitR)));
+      mark.dot.setAttribute('r', String(units(VISUAL_PICK_CSS.anchorR)));
+      mark.dot.setAttribute('stroke', selected ? '#c0392b' : '#111');
+      mark.dot.setAttribute('stroke-width', String(units(selected ? VISUAL_PICK_CSS.anchorSelectedStroke : VISUAL_PICK_CSS.anchorStroke)));
+    }
+    for (const code of svg.querySelectorAll('[data-visual-anchor-code]')) {
+      code.setAttribute('font-size', String(units(VISUAL_PICK_CSS.codeFont)));
+    }
+    if (arrowEl !== null) arrowEl.setAttribute('stroke-width', String(units(VISUAL_PICK_CSS.arrowStroke)));
+  }
+  const pickResize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutPickMarkers()) : null;
+  pickResize?.observe(svg);
+  function disconnectPickResize(): void {
+    visualPickTeardowns.delete(disconnectPickResize);
+    try {
+      pickResize?.disconnect();
+    } catch {
+      /* best-effort teardown */
+    }
+  }
+  visualPickTeardowns.add(disconnectPickResize);
+  panel.append(svg);
+  const key = document.createElement('p');
+  key.className = 'muted';
+  key.setAttribute('data-visual-pick-legend', '');
+  key.textContent = scoped.map((anchor, index) => `${anchorCode(index)} · ${anchor.name}`).join('      ');
+  panel.append(key);
+  panel.append(status);
+  const conventionField = document.createElement('fieldset');
+  const legend = document.createElement('legend');
+  legend.textContent = 'Direction';
+  conventionField.append(legend);
+  const radioName = `visual-pick-convention-${logoRef}-${measureIndex}`;
+  const radios = new Map<MeasurementConvention, HTMLInputElement>();
+  for (const [value, label] of [['dx', 'Horizontal'], ['dy', 'Vertical'], ['shortest-to-edge', 'Shortest']] as const) {
+    const wrap = document.createElement('label');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = radioName;
+    radio.disabled = blocked;
+    radio.setAttribute('data-visual-pick-convention', value);
+    const text = document.createElement('span');
+    text.textContent = label;
+    wrap.append(radio, text);
+    conventionField.append(wrap);
+    radios.set(value, radio);
+    radio.addEventListener('change', () => resolve());
+  }
+  panel.append(conventionField);
+  const tech = document.createElement('details');
+  tech.className = 'disclosure';
+  const techTitle = document.createElement('summary');
+  techTitle.textContent = 'Details';
+  const techBody = document.createElement('p');
+  techBody.className = 'muted';
+  techBody.textContent = 'No proposal yet.';
+  tech.append(techTitle, techBody);
+  panel.append(tech);
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const commit = document.createElement('button');
+  commit.type = 'button';
+  commit.className = 'btn-primary';
+  commit.textContent = 'Save measurement';
+  commit.setAttribute('aria-label', `Save diagram measurement for logo ${logoIndex + 1}`);
+  commit.setAttribute('data-visual-pick-commit', '');
+  commit.disabled = true;
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'btn-secondary';
+  cancel.textContent = 'Cancel';
+  cancel.setAttribute('data-visual-pick-cancel', '');
+  actions.append(commit, cancel);
+  panel.append(actions);
+
+  let anchorId: string | null = null;
+  let edgeClickMm: { xMm: number; yMm: number } | null = null;
+  let lastOk: { anchorId: string; edge: ArtworkEdge; convention: MeasurementConvention; valueMm: number; edgeDistanceMm: number } | null = null;
+
+  function checkedConvention(): MeasurementConvention | null {
+    for (const [value, radio] of radios) {
+      if (radio.checked) return value;
+    }
+    return null;
+  }
+
+  function clearArrow(): void {
+    svg.querySelector('[data-visual-pick-arrow]')?.remove();
+    arrowEl = null;
+  }
+
+  function resolve(): void {
+    clearArrow();
+    lastOk = null;
+    commit.disabled = true;
+    const convention = checkedConvention();
+    if (anchorId === null || edgeClickMm === null || convention === null) return;
+    const anchor = anchorById.get(anchorId);
+    if (!anchor) {
+      status.textContent = 'The chosen anchor is gone — click another anchor marker.';
+      return;
+    }
+    const result = resolveVisualDimension({
+      anchors: scoped.map((entry) => ({ id: entry.id, posMm: [entry.posMm[0], entry.posMm[1]] as [number, number] })),
+      footprint: {
+        centerMm: [placement.pos.xMm, placement.pos.yMm],
+        widthMm: placement.widthMm,
+        heightMm: placement.heightMm,
+        rotationDeg: placement.rotationDeg,
+      },
+      anchorClickMm: [anchor.posMm[0], anchor.posMm[1]],
+      edgeClickMm: [edgeClickMm.xMm, edgeClickMm.yMm],
+      convention,
+      snapTolMm: VISUAL_PICK_ANCHOR_SNAP_MM,
+      maxEdgeDistMm: VISUAL_PICK_EDGE_SNAP_MM,
+    });
+    if (!result.ok) {
+      if (result.code === 'edge-too-far') {
+        status.textContent = `${result.message} Click closer to a logo edge — a click on the blank garment never binds a far edge.`;
+      } else if (result.code === 'incompatible-edge-or-convention') {
+        status.textContent = `${result.message} Switch Direction above.`;
+      } else {
+        status.textContent = result.message;
+      }
+      return;
+    }
+    lastOk = {
+      anchorId: result.binding.anchorId,
+      edge: result.binding.edge,
+      convention: result.binding.convention,
+      valueMm: result.valueMm,
+      edgeDistanceMm: result.edgeDistanceMm,
+    };
+    const from = mmXY(result.endpoints[0].x, result.endpoints[0].y);
+    const to = mmXY(result.endpoints[1].x, result.endpoints[1].y);
+    const line = document.createElementNS(VISUAL_PICK_SVG_NS, 'line');
+    line.setAttribute('x1', String(from.x));
+    line.setAttribute('y1', String(from.y));
+    line.setAttribute('x2', String(to.x));
+    line.setAttribute('y2', String(to.y));
+    line.setAttribute('stroke', '#111');
+    line.setAttribute('data-visual-pick-arrow', '');
+    svg.append(line);
+    arrowEl = line;
+    layoutPickMarkers();
+    const value = `${(Math.round(result.valueMm * 10) / 10).toFixed(1)}`;
+    let note =
+      `Proposed: ${value} mm · ${anchor.name} → ${edgeWord(result.binding.edge)} edge · ${conventionWord(convention)}. ` +
+      'Review and Save measurement to write this row.';
+    if (placement.rotationDeg !== 0 && convention !== 'shortest-to-edge') {
+      note += ' Rotated artwork: measured as horizontal/vertical extent (supporting line), not along the rotated edge.';
+    }
+    status.textContent = note;
+    techBody.textContent =
+      `Clicked ${result.edgeDistanceMm.toFixed(1)} mm from the edge (gate ${VISUAL_PICK_EDGE_SNAP_MM} mm, ` +
+      `anchor snap ${VISUAL_PICK_ANCHOR_SNAP_MM} mm); exact kernel value ${result.valueMm} mm.`;
+    commit.disabled = blocked;
+  }
+
+  svg.addEventListener('click', (event) => {
+    if (blocked) return;
+    const raw = visualPickSvgPoint(svg, event);
+    if (!raw) return;
+    if (anchorId === null) {
+      const point = xyToMm(raw.x, raw.y);
+      if (!point) return;
+      let best: AnchorDef | null = null;
+      let bestDist = Infinity;
+      for (const anchor of scoped) {
+        const dist = Math.hypot(anchor.posMm[0] - point.xMm, anchor.posMm[1] - point.yMm);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = anchor;
+        }
+      }
+      if (best === null || !(bestDist <= VISUAL_PICK_ANCHOR_SNAP_MM)) {
+        status.textContent =
+          `No named anchor within ${VISUAL_PICK_ANCHOR_SNAP_MM} mm of that click — click an anchor marker. ` +
+          'Advanced in this row stays available for keyboard entry.';
+        return;
+      }
+      selectAnchor(best.id);
+      return;
+    }
+    edgeClickAt(raw.x, raw.y);
+  });
+
+  /** Edge click at viewBox coordinates (side targets and blank surface
+   *  share this path, so the probe gates both identically). */
+  function edgeClickAt(vx: number, vy: number): void {
+    if (anchorId === null) return;
+    const point = xyToMm(vx, vy);
+    if (!point) return;
+    // Every new edge click retires the previous proposal FIRST: a refused
+    // click must never leave a stale arrow and an enabled action behind.
+    clearArrow();
+    lastOk = null;
+    commit.disabled = true;
+    edgeClickMm = point;
+    // Identify the clicked edge with the convention-neutral probe first, so
+    // the preselected convention follows the actual edge instead of assuming
+    // an axis. The operator still confirms or changes it before Commit.
+    const pickedAnchor = anchorById.get(anchorId);
+    if (!pickedAnchor) {
+      status.textContent = 'The chosen anchor is gone — click another anchor marker.';
+      anchorId = null;
+      layoutPickMarkers();
+      return;
+    }
+    const probe = resolveVisualDimension({
+      anchors: scoped.map((entry) => ({ id: entry.id, posMm: [entry.posMm[0], entry.posMm[1]] as [number, number] })),
+      footprint: {
+        centerMm: [placement.pos.xMm, placement.pos.yMm],
+        widthMm: placement.widthMm,
+        heightMm: placement.heightMm,
+        rotationDeg: placement.rotationDeg,
+      },
+      anchorClickMm: [pickedAnchor.posMm[0], pickedAnchor.posMm[1]],
+      edgeClickMm: [point.xMm, point.yMm],
+      convention: 'shortest-to-edge',
+      snapTolMm: VISUAL_PICK_ANCHOR_SNAP_MM,
+      maxEdgeDistMm: VISUAL_PICK_EDGE_SNAP_MM,
+    });
+    if (!probe.ok) {
+      if (probe.code === 'edge-too-far') {
+        status.textContent = `${probe.message} Click closer to a logo edge — a click on the blank garment never binds a far edge.`;
+      } else {
+        status.textContent = probe.message;
+      }
+      return;
+    }
+    if (checkedConvention() === null) {
+      const auto = probe.binding.edge === 'minX' || probe.binding.edge === 'maxX' ? 'dx' : 'dy';
+      radios.get(auto)!.checked = true;
+    }
+    resolve();
+  }
+
+  commit.addEventListener('click', () => {
+    const convention = checkedConvention();
+    if (blocked || anchorId === null || lastOk === null || convention === null || lastOk.convention !== convention) return;
+    measurement.anchorId = lastOk.anchorId;
+    measurement.edge = lastOk.edge;
+    measurement.convention = lastOk.convention;
+    disconnectPickResize();
+    renderLogoRows();
+    renderSheetPreview();
+  });
+
+  function close(): void {
+    disconnectPickResize();
+    panel.remove();
+    pickButton.disabled = false;
+    pickButton.focus();
+  }
+  cancel.addEventListener('click', close);
+  panel.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      close();
+    }
+  });
+
+  status.textContent = `Click an anchor marker (${scoped.length} named anchor${scoped.length === 1 ? '' : 's'} on ${regionName}).`;
+  rowBox.append(panel);
+  layoutPickMarkers();
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      if (svg.isConnected) layoutPickMarkers();
+    });
+  }
+  svg.focus();
+  svg.scrollIntoView({ block: 'nearest' });
+}
+
 function renderLogoRows(): void {
+  // Any rebuild discards open visual-pick panels with it: a partial pick is
+  // DOM-local only and never reaches authoring state, so config changes,
+  // return reloads, draft opens, anchor edits and add/remove all cancel an
+  // uncommitted pick instead of rebinding it elsewhere.
+  for (const teardown of visualPickTeardowns) teardown();
   sheetLogos.replaceChildren();
   const current = activeReturn();
   const config = activeCandidateConfig();
@@ -5188,10 +5874,10 @@ function renderLogoRows(): void {
       });
       edgeLabel.append(edgeSelect);
       const conventionLabel = document.createElement('label');
-      conventionLabel.textContent = 'Convention';
+      conventionLabel.textContent = 'Direction';
       const conventionSelect = document.createElement('select');
       conventionSelect.disabled = blocked;
-      conventionSelect.setAttribute('aria-label', `Measurement ${measureIndex + 1} convention for logo ${index + 1}`);
+      conventionSelect.setAttribute('aria-label', `Measurement ${measureIndex + 1} direction for logo ${index + 1}`);
       for (const [value, label] of CONVENTION_OPTIONS) {
         const option = document.createElement('option');
         option.value = value;
@@ -5206,7 +5892,15 @@ function renderLogoRows(): void {
       });
       conventionLabel.append(conventionSelect);
       grid.append(anchorLabel, edgeLabel, conventionLabel);
-      rowBox.append(grid);
+      // Manual lists stay as the keyboard fallback, one disclosure behind
+      // the visual flow instead of three prominent dropdowns beside it.
+      const advanced = document.createElement('details');
+      advanced.className = 'disclosure';
+      advanced.setAttribute('data-measurement-advanced', '');
+      const advancedTitle = document.createElement('summary');
+      advancedTitle.textContent = 'Advanced';
+      advanced.append(advancedTitle, grid);
+      rowBox.append(advanced);
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'btn-secondary';
@@ -5220,6 +5914,42 @@ function renderLogoRows(): void {
         renderSheetPreview();
       });
       rowBox.append(remove);
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'btn-secondary';
+      pick.textContent = 'Pick on diagram';
+      pick.setAttribute('aria-label', `Pick on diagram for measurement ${measureIndex + 1} for logo ${index + 1}`);
+      const pickRegion = current.candidate.products
+        .find((entry) => entry.id === placement.productId)?.regions
+        .find((entry) => entry.id === placement.regionId);
+      if (blocked || scoped.length === 0 || !pickRegion) {
+        pick.disabled = true;
+        pick.title = scoped.length === 0
+          ? 'No anchors on this area yet — set one up first'
+          : 'Unavailable while authoring is locked or the area is missing';
+      }
+      pick.addEventListener('click', () => {
+        if (pick.disabled) return;
+        const liveRegion = current.candidate.products
+          .find((entry) => entry.id === placement.productId)?.regions
+          .find((entry) => entry.id === placement.regionId);
+        if (!liveRegion) return;
+        pick.disabled = true;
+        openVisualPickPanel(rowBox, pick, {
+          candidate: current.candidate,
+          configId: config.id,
+          placement,
+          scoped: anchorsForPlacement(placement),
+          safeArea: liveRegion.safeArea.map((point) => [point[0], point[1]] as const),
+          regionName: liveRegion.name ?? placement.regionId,
+          measurement,
+          logoRef,
+          logoIndex: index,
+          measureIndex,
+          blocked,
+        });
+      });
+      rowBox.append(pick);
       const result = document.createElement('p');
       result.setAttribute('role', 'status');
       result.setAttribute('aria-label', `Measurement ${measureIndex + 1} result for logo ${index + 1}`);
@@ -5252,7 +5982,7 @@ function renderLogoRows(): void {
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'btn-secondary';
-    add.textContent = 'Add measurement';
+    add.textContent = 'Add another';
     add.setAttribute('aria-label', `Add measurement for logo ${index + 1}`);
     add.disabled = blocked;
     add.addEventListener('click', () => {

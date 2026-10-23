@@ -300,7 +300,10 @@ or the hard deadline, even when optional backlog remains.
   671 tests (657 baseline+A plus 14 parked B unit tests), six affected offline
   browser checks each on Chromium and Chrome pass. Thumbnail/batch assignment
   remains in D; this checkpoint uses explicit side/scope controls.
-- B: pure resolver `src/core/visual-dimension/` + 14 unit tests delivered,
-  green, NOT yet integrated into the station UI (deferred to next tranche).
+- B: Complete and independently validated: photo-based anchor/edge picks, keyboard/manual fallback, scoped cancellation, draft roundtrip and unchanged printed/exported millimetres.
+  Constant-CSS-px markers (screen-CTM + ResizeObserver, bbox minimums
+  asserted at desktop/narrow/native-2000px), direct marker selection with
+  strict blank-surface gating, Save measurement vs Add another labels.
+  Same green matrix; evidence refreshed.
 - C–H: pending implementation/review.
 - I: baseline largely satisfies it; audit pending.

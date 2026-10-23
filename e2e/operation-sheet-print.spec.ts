@@ -18,6 +18,18 @@ function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
 }
 
+/** Manual measurement lists live under Advanced disclosures now (the visual
+ *  picker is the primary path); open them before driving the selects. */
+async function openAdvancedRows(page: Page): Promise<void> {
+  const summaries = page.locator('div[data-measurement-row] > details[data-measurement-advanced] > summary');
+  const count = await summaries.count();
+  for (let i = 0; i < count; i += 1) {
+    const summary = summaries.nth(i);
+    const open = await summary.evaluate((element) => (element.closest('details') as HTMLDetailsElement).open);
+    if (!open) await summary.click();
+  }
+}
+
 async function shown(page: Page, name: string) {
   await revealBuilderControl(page, name);
   return builder(page, name);
@@ -202,6 +214,7 @@ test('two dimensions on the same logo print, measure and export together', async
     await expect(row1Anchor).toContainText('Anchor', { timeout: 15000 });
 
     // Row 1: horizontal distance to the left edge.
+    await openAdvancedRows(page);
     await row1Anchor.selectOption({ label: 'Anchor 1' });
     const row1Result = page.getByLabel('Measurement 1 result for logo 1');
     await expect(row1Result).toContainText('mm');
@@ -209,10 +222,11 @@ test('two dimensions on the same logo print, measure and export together', async
 
     // Row 2: vertical distance to the top edge on the SAME logo.
     await page.getByLabel('Add measurement for logo 1').click();
+    await openAdvancedRows(page);
     const row2Anchor = page.getByLabel('Measurement 2 anchor for logo 1');
     await row2Anchor.selectOption({ label: 'Anchor 1' });
     await page.getByLabel('Measurement 2 edge for logo 1').selectOption('maxY');
-    await page.getByLabel('Measurement 2 convention for logo 1').selectOption('dy');
+    await page.getByLabel('Measurement 2 direction for logo 1').selectOption('dy');
     const row2Result = page.getByLabel('Measurement 2 result for logo 1');
     await expect(row2Result).toContainText('mm');
     await expect(row2Result).not.toContainText('setup needed');
@@ -336,19 +350,23 @@ test('fully configured two-view sheet prints complete with no unfinished items',
     await page.getByLabel('Business code for logo 2').fill('LOGO-SYN-BACK-EMB-AK-01');
 
     // Two measurements on the chest logo (dx + dy).
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 1 anchor for logo 1').selectOption({ label: 'Anchor 1' });
     await page.getByLabel('Add measurement for logo 1').click();
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 2 anchor for logo 1').selectOption({ label: 'Anchor 1' });
     await page.getByLabel('Measurement 2 edge for logo 1').selectOption('maxY');
-    await page.getByLabel('Measurement 2 convention for logo 1').selectOption('dy');
+    await page.getByLabel('Measurement 2 direction for logo 1').selectOption('dy');
     await expect(page.getByLabel('Measurement 2 result for logo 1')).toContainText('mm');
 
     // Two measurements on the back logo (dx + dy).
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 1 anchor for logo 2').selectOption({ label: 'Pocket top' });
     await page.getByLabel('Add measurement for logo 2').click();
+    await openAdvancedRows(page);
     await page.getByLabel('Measurement 2 anchor for logo 2').selectOption({ label: 'Pocket top' });
     await page.getByLabel('Measurement 2 edge for logo 2').selectOption('maxY');
-    await page.getByLabel('Measurement 2 convention for logo 2').selectOption('dy');
+    await page.getByLabel('Measurement 2 direction for logo 2').selectOption('dy');
     await expect(page.getByLabel('Measurement 2 result for logo 2')).toContainText('mm');
 
     // Fully configured: two mapped composites, four arrows, no unfinished.
