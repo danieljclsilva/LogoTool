@@ -122,10 +122,11 @@
     .product-setup-overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
     .product-setup-overlay[data-tool="safe-area"] { cursor: crosshair; }
     .product-setup-overlay[data-tool="anchor"] { cursor: copy; }
-    .product-setup-safe { fill: rgba(11, 108, 171, 0.08); stroke: #0b6cab; stroke-width: 2; }
+    .product-setup-safe { fill: rgba(11, 108, 171, 0.08); stroke: #0b6cab; stroke-width: 2; pointer-events: none; }
     .product-setup-draft { fill: none; stroke: #0b6cab; stroke-width: 2; stroke-dasharray: 8 5; }
     .product-setup-vertices .product-setup-vertex, .product-setup-midpoint { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: move; }
     .product-setup-vertex:focus, .product-setup-midpoint:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+    [data-fkey^="psv-vertex-"]:focus, [data-fkey^="psv-insert-"]:focus, [data-fkey^="psv-draw-"]:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
     .product-setup-vertex.is-selected { stroke: var(--red); }
     .product-setup-anchors .product-setup-anchor { cursor: move; }
     .product-setup-anchor:focus { outline: none; }
@@ -133,7 +134,7 @@
     .product-setup-anchor.is-selected .product-setup-dot { stroke: var(--red); }
     .product-setup-dot { fill: #d20a2e; stroke: #fff; stroke-width: 2.5; }
     .product-setup-dot.is-reference { fill: #8a97a3; }
-    .product-setup-tag { fill: #192d3d; font-size: 13px; font-weight: 650; paint-order: stroke; stroke: #fff; stroke-width: 4px; pointer-events: none; }
+    .product-setup-tag { fill: #192d3d; font-weight: 650; paint-order: stroke; stroke: #fff; pointer-events: none; }
     .product-setup-drawing .product-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
     .product-setup-draw-first { r: 11; }
     .product-setup-panel { display: grid; gap: 8px; margin-top: 10px; }

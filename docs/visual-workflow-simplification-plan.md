@@ -294,16 +294,23 @@ or the hard deadline, even when optional backlog remains.
 ## Delivery status
 
 - Specification: written; implementation starts with A/B.
-- A: independently reviewed and validated; ready for checkpoint commit. In-place
+- A: independently reviewed, validated and pushed as `31d964c`. In-place
   side photos retain original assets/model and invalidate only their own mapping;
   stale customer outputs require regeneration. Root typecheck/unit working tree
   671 tests (657 baseline+A plus 14 parked B unit tests), six affected offline
   browser checks each on Chromium and Chrome pass. Thumbnail/batch assignment
   remains in D; this checkpoint uses explicit side/scope controls.
-- B: Complete and independently validated: photo-based anchor/edge picks, keyboard/manual fallback, scoped cancellation, draft roundtrip and unchanged printed/exported millimetres.
+- B: Independently validated and pushed as `12f8445`: photo-based anchor/edge picks, keyboard/manual fallback, scoped cancellation, draft roundtrip and unchanged printed/exported millimetres.
   Constant-CSS-px markers (screen-CTM + ResizeObserver, bbox minimums
   asserted at desktop/narrow/native-2000px), direct marker selection with
   strict blank-surface gating, Save measurement vs Add another labels.
   Same green matrix; evidence refreshed.
-- C–H: pending implementation/review.
+- C: Complete and independently validated after the shared-area overwrite review
+  correction: scoped drafts survive switches; unedited geometry adopts live saved
+  changes; conflicting geometry blocks save without discarding edits. Selected
+  controls, optional precision and constant rendered marker sizes remain usable
+  on high-resolution photos. Root typecheck/696 unit tests and seven affected
+  offline checks each in Chromium/Chrome pass; actual prepared-master geometry
+  inspected. Private real-jacket desktop/narrow and front/back draft checks pass.
+- D–H: pending implementation/review (no D–H without root acceptance).
 - I: baseline largely satisfies it; audit pending.

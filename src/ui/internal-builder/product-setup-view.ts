@@ -54,6 +54,11 @@ import type {
   AnchorSetupPhoto,
 } from './anchor-setup.js';
 import type { AnchorDef } from '../../core/operation-measurements/types.js';
+import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
+import { applyRetirementEvents, parseDraftIdentityKey } from '../../core/workspace-drafts/index.js';
+
+// (No logo selection in this view: logos live in Choose/Check per-logo cards,
+// so only anchors and safe-area corners get selection controls here.)
 
 /** Product views, in tab order. Tabs render only for views present in input. */
 export type ProductSetupSide = PhotoMappingView;
@@ -122,6 +127,17 @@ export interface ProductSetupWorkspaceInput {
   initialSide?: ProductSetupSide;
   /** Actual views present, keyed by side. Absent sides render no tab. */
   views: { [K in ProductSetupSide]?: ProductSetupViewState };
+  /**
+   * Scoped-draft retirement events for this refresh (filled by the caller;
+   * e.g. photo replacement or binding invalidation). Applied to staged
+   * buckets, drawing drafts and redraw markers; unparseable keys never match.
+   */
+  retirements?: readonly DraftRetirementEvent[];
+  /**
+   * Shared-region notice (e.g. an edit reaching other options), rendered as
+   * an explicit warning line in the save bar when present.
+   */
+  sharedNotice?: string;
 }
 
 /**
@@ -182,6 +198,25 @@ export interface StoredEdits {
   safeArea: AnchorSetupMm[];
   anchors: AnchorDef[];
   dirty: boolean;
+  /**
+   * Live saved safe area this bucket was last reconciled with (deep copy).
+   * Baseline-aware shared geometry: when another scope saves the shared
+   * region, an UNEDITED bucket (safeArea deep-equals base) adopts live while
+   * keeping staged per-scope anchors; an EDITED bucket whose live moved is
+   * a conflict — saving is blocked until Reset, never silently overwritten.
+   * Updated on init, live-adopt, and successful save of this bucket.
+   */
+  baseSafeArea: AnchorSetupMm[];
+  /** True while the bucket is edited AND live moved underneath (see above). */
+  conflicted: boolean;
+}
+
+function cloneSafeArea(area: ReadonlyArray<AnchorSetupMm>): AnchorSetupMm[] {
+  return area.map((point) => ({ ...point }));
+}
+
+function sameSafeArea(a: ReadonlyArray<AnchorSetupMm>, b: ReadonlyArray<AnchorSetupMm>): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** Session edit store keyed by {@link viewIdentityKey}. Pure; no DOM. */
@@ -234,6 +269,12 @@ export function createWorkspaceEditStore(): WorkspaceEditStore {
 export interface ProductSetupResult {
   safeArea: AnchorSetupMm[];
   anchors: AnchorDef[];
+  /**
+   * Saved safe area the staged edits started from (deep copy). The caller
+   * refuses the commit when live moved underneath — the async shared-region
+   * guard against silent overwrites.
+   */
+  baseSafeArea: AnchorSetupMm[];
 }
 
 /** Explicit save acknowledgement the view awaits (sync or async). */
@@ -268,11 +309,13 @@ type ProductSetupTool = 'safe-area' | 'anchor';
 export function validateSaveRequest(
   safeArea: ReadonlyArray<AnchorSetupMm>,
   anchors: readonly AnchorDef[],
+  baseSafeArea?: ReadonlyArray<AnchorSetupMm>,
 ): { ok: true; result: ProductSetupResult } | { ok: false; error: string } {
   const check = validateSafeAreaPolygon([...safeArea]);
   if (!check.ok) return { ok: false, error: `the safe area is invalid — ${check.reason}` };
   const problem = validateAnchors(anchors);
   if (problem) return { ok: false, error: problem };
+  const base = baseSafeArea ?? safeArea;
   return {
     ok: true,
     result: {
@@ -281,6 +324,7 @@ export function validateSaveRequest(
         ...anchor,
         posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
       })),
+      baseSafeArea: base.map((corner) => ({ ...corner })),
     },
   };
 }
@@ -349,7 +393,12 @@ export function applySaveOutcome(
 ): string {
   if (outcome.ok) {
     const liveJson = JSON.stringify({ safeArea: bucket.safeArea, anchors: bucket.anchors });
-    if (liveJson === JSON.stringify(snapshot)) {
+    const snapshotJson = JSON.stringify({ safeArea: snapshot.safeArea, anchors: snapshot.anchors });
+    // The commit wrote exactly the snapshot: re-baseline shared geometry so
+    // later cross-scope saves adopt cleanly instead of conflicting.
+    bucket.baseSafeArea = snapshot.safeArea.map((corner) => ({ ...corner }));
+    bucket.conflicted = false;
+    if (liveJson === snapshotJson) {
       bucket.dirty = false;
       return `Saved ${scopeLabel} (${snapshot.safeArea.length} safe-area corners, ${snapshot.anchors.length} anchors).`;
     }
@@ -365,6 +414,35 @@ export function applySaveOutcome(
 function displayMm1(value: number): string {
   if (!Number.isFinite(value)) return '—';
   return `${(Math.round(value * 10) / 10).toFixed(1)}`;
+}
+
+/**
+ * Format a millimetre value for a precision number input. Finite values use
+ * their shortest round-trip form so committing without edits is lossless;
+ * non-finite values yield `''` (never committed). Pure; unit-tested.
+ */
+export function formatPrecisionMm(value: number): string {
+  if (!Number.isFinite(value)) return '';
+  return String(value);
+}
+
+/**
+ * Parse a precision number-input string. Leading/trailing whitespace is
+ * ignored; empty, non-numeric or non-finite input yields `null` so the caller
+ * can refuse with the existing validator wording and keep the old value.
+ * Pure; unit-tested.
+ */
+export function parsePrecisionMm(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** The stored sourceRev for one identity key, or `null` when unparseable
+ *  (unparseable keys are kept, never silently discarded). Pure. */
+function sourceRevOfIdentityKey(key: string): string | null {
+  return parseDraftIdentityKey(key)?.sourceRev ?? null;
 }
 
 /** Coordinate-table rows for the Advanced disclosure (never the normal panel). Pure. */
@@ -489,6 +567,14 @@ export function createProductSetupView(
    * edit store on every refresh.
    */
   const redrawKeys = new Set<string>();
+  /**
+   * Every identity key ever staged in this session. Pruned ONLY on real
+   * source-session replacement (sourceRev mismatch) or explicit caller
+   * retirement events — never for merely being absent while the operator
+   * views another product/variant/side, so switching back restores the
+   * correct scoped draft via the existing bucketFor identity.
+   */
+  const knownKeys = new Set<string>();
   let selectedAnchorId: string | null = null;
   let selectedCorner: number | null = null;
   /** Active tab's edit-bucket key, for container-level drawing cancellation. */
@@ -507,6 +593,81 @@ export function createProductSetupView(
   let pendingAnchorMm: AnchorSetupMm | null = null;
   let pendingVertexBase: AnchorSetupMm[] | null = null;
   let pendingVertexHandle: SVGCircleElement | null = null;
+  /**
+   * Resize observer for constant-CSS-pixel stage markers (Tranche C scale
+   * fix, same strategy as the operation pick markers): dots, hit targets
+   * and focus rings keep rendered sizes on high-res photos and narrow
+   * stages. Re-attached to each render's overlay; torn down on refresh and
+   * destroy so no observer outlives its SVG. Positions are never touched —
+   * geometry stays canonical.
+   */
+  let stageResize: ResizeObserver | null = null;
+
+  function disconnectStageResize(): void {
+    try {
+      stageResize?.disconnect();
+    } catch {
+      /* best-effort teardown */
+    }
+    stageResize = null;
+  }
+
+  /** CSS pixels per overlay viewBox unit (meet letterboxing), or null. */
+  function stageCssScale(svg: SVGSVGElement): number | null {
+    const rect = svg.getBoundingClientRect();
+    const box = svg.viewBox.baseVal;
+    if (!(rect.width > 0) || !(rect.height > 0) || !(box.width > 0) || !(box.height > 0)) return null;
+    const scale = Math.min(rect.width / box.width, rect.height / box.height);
+    return scale > 0 && Number.isFinite(scale) ? scale : null;
+  }
+
+  /** Apply constant rendered sizes to marked stage targets. */
+  function layoutStageMarkers(svg: SVGSVGElement): void {
+    const scale = stageCssScale(svg);
+    if (scale === null) return;
+    const units = (cssPx: number): string => String(cssPx / scale);
+    svg.querySelectorAll('[data-markr]').forEach((node) => {
+      const want = Number((node as Element).getAttribute('data-markr'));
+      if (Number.isFinite(want)) node.setAttribute('r', units(want));
+    });
+    svg.querySelectorAll('[data-markhit]').forEach((node) => {
+      const want = Number((node as Element).getAttribute('data-markhit'));
+      if (Number.isFinite(want)) node.setAttribute('r', units(want));
+    });
+    svg.querySelectorAll('[data-markfont]').forEach((node) => {
+      const el = node as Element;
+      const want = Number(el.getAttribute('data-markfont'));
+      if (Number.isFinite(want)) node.setAttribute('font-size', String(want / scale));
+      // Label offsets stay a constant rendered distance from the marker so
+      // text never slides under its dot on small-scale renders.
+      const cx = Number(el.getAttribute('data-markcx'));
+      const cy = Number(el.getAttribute('data-markcy'));
+      if (Number.isFinite(cx) && Number.isFinite(cy)) {
+        node.setAttribute('x', String(cx + 12 / scale));
+        node.setAttribute('y', String(cy + 4 / scale));
+      }
+    });
+    svg.querySelectorAll('[data-markstroke]').forEach((node) => {
+      const want = Number((node as Element).getAttribute('data-markstroke'));
+      if (Number.isFinite(want)) node.setAttribute('stroke-width', String(want / scale));
+    });
+  }
+
+  function observeStageMarkers(svg: SVGSVGElement): void {
+    layoutStageMarkers(svg);
+    if (typeof ResizeObserver === 'function') {
+      stageResize = new ResizeObserver(() => {
+        if (svg.isConnected) layoutStageMarkers(svg);
+        else disconnectStageResize();
+      });
+      stageResize.observe(svg);
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        if (!destroyed && svg.isConnected) layoutStageMarkers(svg);
+      });
+    }
+  }
 
   const cancelOnEscape = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || destroyed) return;
@@ -557,6 +718,7 @@ export function createProductSetupView(
 
   function refresh(): void {
     if (destroyed) return;
+    disconnectStageResize();
     const active = document.activeElement;
     const focusKey = active instanceof Element ? active.getAttribute('data-fkey') : null;
     dragAnchor = null;
@@ -597,8 +759,11 @@ export function createProductSetupView(
       root.append(note, statusBox);
       return;
     }
-    // Identity set for every present view: retains staged edits per view,
-    // drops anything whose asset/scope/mapping/source changed or vanished.
+    // Identity set for every present view: seeds the session-known staged
+    // edits below. Same-sourceRev keys are NEVER pruned for merely being
+    // absent from the current input — switching product/variant/side
+    // restores via the existing bucketFor identity. Only real
+    // source-session replacement and explicit retirement events drop work.
     const identityBySide = new Map<ProductSetupSide, string>();
     const errorMarks: string[] = [];
     for (const side of presentSides) {
@@ -610,10 +775,36 @@ export function createProductSetupView(
       }
     }
     const identityKeys = new Set(identityBySide.values());
-    store.retainBuckets(identityKeys);
-    store.retainDrafts(identityKeys);
-    for (const redrawKey of [...redrawKeys]) {
-      if (!identityKeys.has(redrawKey)) redrawKeys.delete(redrawKey);
+    for (const known of identityKeys) knownKeys.add(known);
+    // First present view's sourceRev (skipped when no usable view is present).
+    let currentRev: string | null = null;
+    for (const side of presentSides) {
+      const candidate = selectWorkspaceView(input, side);
+      if (isProductSetupPhotoView(candidate)) {
+        currentRev = candidate.sourceRev;
+        break;
+      }
+    }
+    if (currentRev !== null) {
+      for (const known of [...knownKeys]) {
+        const rev = sourceRevOfIdentityKey(known);
+        if (rev !== null && rev !== currentRev) {
+          knownKeys.delete(known);
+          store.dropBucket(known);
+          store.dropDraft(known);
+          redrawKeys.delete(known);
+        }
+      }
+    }
+    const retirements = input.retirements ?? [];
+    if (retirements.length > 0) {
+      const { retired } = applyRetirementEvents([...knownKeys], retirements);
+      for (const key of retired) {
+        knownKeys.delete(key);
+        store.dropBucket(key);
+        store.dropDraft(key);
+        redrawKeys.delete(key);
+      }
     }
     const projectKey = JSON.stringify([...identityKeys].sort().concat(errorMarks.sort()));
     if (tabProjectKey !== projectKey) {
@@ -646,7 +837,6 @@ export function createProductSetupView(
     const tabScope = view.scope;
     const key = viewIdentityKey(view);
     activeKey = key;
-    identityKeys.add(key);
     const bucket = store.bucketFor(key, () => ({
       safeArea: view.safeArea.map((point) => ({ ...point })),
       anchors: view.anchors.map((anchor) => ({
@@ -654,7 +844,29 @@ export function createProductSetupView(
         posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
       })),
       dirty: false,
+      baseSafeArea: view.safeArea.map((point) => ({ ...point })),
+      conflicted: false,
     }));
+    // Baseline-aware shared geometry (Tranche C data-loss guard): the saved
+    // region may have moved under another scope since this bucket staged.
+    // Unedited buckets adopt live (keeping staged per-scope anchors);
+    // edited buckets with moved live are a conflict, surfaced at the save
+    // bar and enforced at commit — never silently overwritten or discarded.
+    if (!sameSafeArea(bucket.safeArea, bucket.baseSafeArea)) {
+      bucket.conflicted = !sameSafeArea(view.safeArea, bucket.baseSafeArea);
+    } else if (!sameSafeArea(view.safeArea, bucket.baseSafeArea)) {
+      bucket.safeArea = cloneSafeArea(view.safeArea);
+      bucket.baseSafeArea = cloneSafeArea(view.safeArea);
+      bucket.conflicted = false;
+      if (bucket.anchors.length > 0 || bucket.dirty) {
+        paintStatus(
+          `Shared area updated from “${view.scope.regionName ?? view.scope.regionId}” — staged anchors kept. ` +
+          'Review before saving.',
+        );
+      }
+    } else {
+      bucket.conflicted = false;
+    }
     const activeTool: ProductSetupTool = tool ??
       (bucket.safeArea.length === 0 ? 'safe-area' : 'anchor');
     tool = activeTool;
@@ -709,8 +921,10 @@ export function createProductSetupView(
     } else {
       renderAnchorPanel(root, view, key, bucket, paintStatus);
     }
-    renderSaveBar(root, tabScope, key, bucket, paintStatus);
+    renderSaveBar(root, tabScope, key, bucket, paintStatus, input.sharedNotice);
     root.append(statusBox);
+    const stageSvg = root.querySelector<SVGSVGElement>('svg.product-setup-overlay');
+    if (stageSvg) observeStageMarkers(stageSvg);
     restoreFocus(focusKey);
   }
 
@@ -931,13 +1145,30 @@ export function createProductSetupView(
         dot.setAttribute('cx', String(px.x));
         dot.setAttribute('cy', String(px.y));
         dot.setAttribute('r', '9');
+        dot.setAttribute('data-markr', '7');
         dot.setAttribute('class', 'product-setup-dot');
+        // Comfortable hit target: transparent, constant-CSS-px hit area that
+        // bubbles to the marker handlers (no handler changes needed).
+        const hit = document.createElementNS(svgNS, 'circle');
+        hit.setAttribute('cx', String(px.x));
+        hit.setAttribute('cy', String(px.y));
+        hit.setAttribute('r', '9');
+        hit.setAttribute('data-markhit', '12');
+        hit.setAttribute('fill', '#000');
+        hit.setAttribute('fill-opacity', '0');
+        hit.setAttribute('pointer-events', 'all');
         const tag = document.createElementNS(svgNS, 'text');
         tag.setAttribute('x', String(px.x + 12));
         tag.setAttribute('y', String(px.y + 4));
         tag.setAttribute('class', 'product-setup-tag');
+        // Label sizes are viewBox-relative in this renderer (like geometry),
+        // so the layout pass counter-scales them to constant rendered px.
+        tag.setAttribute('data-markfont', '12');
+        tag.setAttribute('data-markstroke', '4');
+        tag.setAttribute('data-markcx', String(px.x));
+        tag.setAttribute('data-markcy', String(px.y));
         tag.textContent = anchor.name;
-        marker.append(dot, tag);
+        marker.append(hit, dot, tag);
         markerById.set(anchor.id, { dot: dot as SVGCircleElement, tag: tag as SVGTextElement, marker: marker as SVGGElement });
         marker.addEventListener('pointerdown', (event) => {
           event.preventDefault();
@@ -945,6 +1176,11 @@ export function createProductSetupView(
           selectedAnchorId = anchor.id;
           dragAnchor = anchor.id;
           (marker as SVGGElement).setPointerCapture?.(event.pointerId);
+          // preventDefault above suppresses native focus-on-press (and the
+          // compatibility click), so focus explicitly: later refreshes
+          // restore it via data-fkey, keeping arrow-key nudges available
+          // right after a pointer selection.
+          (marker as unknown as HTMLElement).focus?.();
         });
         marker.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -971,6 +1207,7 @@ export function createProductSetupView(
         dot.setAttribute('cx', String(px.x));
         dot.setAttribute('cy', String(px.y));
         dot.setAttribute('r', '6');
+        dot.setAttribute('data-markr', '6');
         dot.setAttribute('class', 'product-setup-dot is-reference');
         anchorsLayer.append(dot);
       }
@@ -998,8 +1235,9 @@ export function createProductSetupView(
         if (live && px) {
           live.dot.setAttribute('cx', String(px.x));
           live.dot.setAttribute('cy', String(px.y));
-          live.tag.setAttribute('x', String(px.x + 12));
-          live.tag.setAttribute('y', String(px.y + 4));
+          live.tag.setAttribute('data-markcx', String(px.x));
+          live.tag.setAttribute('data-markcy', String(px.y));
+          layoutStageMarkers(svg);
         }
         pendingAnchorMm = mm;
       } else if (dragVertex !== null) {
@@ -1150,6 +1388,14 @@ export function createProductSetupView(
     bucket.safeArea.forEach((point, index) => {
       const px = workspaceMmToPhoto(view, side, point);
       if (!px) return;
+      const group = document.createElementNS(svgNS, 'g') as SVGGElement;
+      group.setAttribute('tabindex', '0');
+      group.setAttribute('role', 'button');
+      group.setAttribute('data-fkey', `psv-vertex-${key}-${index}`);
+      group.setAttribute(
+        'aria-label',
+        `Safe-area corner ${index + 1}. Arrow keys move, Delete removes.`,
+      );
       const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
       handle.setAttribute('class', selectedCorner === index
         ? 'product-setup-vertex is-selected'
@@ -1157,14 +1403,17 @@ export function createProductSetupView(
       handle.setAttribute('cx', String(px.x));
       handle.setAttribute('cy', String(px.y));
       handle.setAttribute('r', '7');
-      handle.setAttribute('tabindex', '0');
-      handle.setAttribute('role', 'button');
-      handle.setAttribute('data-fkey', `psv-vertex-${key}-${index}`);
-      handle.setAttribute(
-        'aria-label',
-        `Safe-area corner ${index + 1}. Arrow keys move, Delete removes.`,
-      );
-      handle.addEventListener('pointerdown', (event) => {
+      handle.setAttribute('data-markr', '7');
+      const vhit = document.createElementNS(svgNS, 'circle');
+      vhit.setAttribute('cx', String(px.x));
+      vhit.setAttribute('cy', String(px.y));
+      vhit.setAttribute('r', '7');
+      vhit.setAttribute('data-markhit', '12');
+      vhit.setAttribute('fill', '#000');
+      vhit.setAttribute('fill-opacity', '0');
+      vhit.setAttribute('pointer-events', 'all');
+      group.append(vhit, handle);
+      group.addEventListener('pointerdown', (event) => {
         event.preventDefault();
         event.stopPropagation();
         selectedCorner = index;
@@ -1172,14 +1421,17 @@ export function createProductSetupView(
         pendingVertexBase = null;
         pendingVertexHandle = handle as SVGCircleElement;
         (handle as SVGCircleElement).setPointerCapture?.(event.pointerId);
+        // preventDefault above suppresses native focus-on-press: focus
+        // explicitly so arrow keys keep working after a pointer selection.
+        (group as unknown as HTMLElement).focus?.();
       });
-      handle.addEventListener('click', (event) => {
+      group.addEventListener('click', (event) => {
         event.stopPropagation();
         selectedCorner = index;
         paintStatus(`Selected safe-area corner ${index + 1}.`);
         refresh();
       });
-      handle.addEventListener('keydown', (event) => {
+      group.addEventListener('keydown', (event) => {
         const step = event.shiftKey ? 10 : 1;
         let dx = 0;
         let dy = 0;
@@ -1197,7 +1449,7 @@ export function createProductSetupView(
         event.stopPropagation();
         moveCornerKey(bucket, index, dx, dy, paintStatus);
       });
-      vertexLayer.append(handle);
+      vertexLayer.append(group);
     });
 
     if (bucket.safeArea.length >= 3) {
@@ -1209,15 +1461,26 @@ export function createProductSetupView(
         const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
         const px = workspaceMmToPhoto(view, side, mid);
         if (!px) return;
+        const insertGroup = document.createElementNS(svgNS, 'g') as SVGGElement;
+        insertGroup.setAttribute('tabindex', '0');
+        insertGroup.setAttribute('role', 'button');
+        insertGroup.setAttribute('data-fkey', `psv-insert-${key}-${index}`);
+        insertGroup.setAttribute('aria-label', `Insert a safe-area corner on edge ${index + 1}.`);
         const plus = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
         plus.setAttribute('class', 'product-setup-midpoint');
         plus.setAttribute('cx', String(px.x));
         plus.setAttribute('cy', String(px.y));
         plus.setAttribute('r', '5');
-        plus.setAttribute('tabindex', '0');
-        plus.setAttribute('role', 'button');
-        plus.setAttribute('data-fkey', `psv-insert-${key}-${index}`);
-        plus.setAttribute('aria-label', `Insert a safe-area corner on edge ${index + 1}.`);
+        plus.setAttribute('data-markr', '6');
+        const plusHit = document.createElementNS(svgNS, 'circle');
+        plusHit.setAttribute('cx', String(px.x));
+        plusHit.setAttribute('cy', String(px.y));
+        plusHit.setAttribute('r', '5');
+        plusHit.setAttribute('data-markhit', '12');
+        plusHit.setAttribute('fill', '#000');
+        plusHit.setAttribute('fill-opacity', '0');
+        plusHit.setAttribute('pointer-events', 'all');
+        insertGroup.append(plusHit, plus);
         const insert = (): void => {
           const base = bucket.safeArea.map((corner) => ({ ...corner }));
           base.splice(index + 1, 0, { ...mid });
@@ -1232,18 +1495,18 @@ export function createProductSetupView(
           paintStatus(`Inserted a corner on edge ${index + 1}.`);
           refresh();
         };
-        plus.addEventListener('click', (event) => {
+        insertGroup.addEventListener('click', (event) => {
           event.stopPropagation();
           insert();
         });
-        plus.addEventListener('keydown', (event) => {
+        insertGroup.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             event.stopPropagation();
             insert();
           }
         });
-        midLayer.append(plus);
+        midLayer.append(insertGroup);
       });
     }
   }
@@ -1276,28 +1539,39 @@ export function createProductSetupView(
     draft.forEach((corner, index) => {
       const px = workspaceMmToPhoto(view, side, corner);
       if (!px) return;
-      const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
-      handle.setAttribute('class', index === 0 ? 'product-setup-draw product-setup-draw-first' : 'product-setup-draw');
-      handle.setAttribute('cx', String(px.x));
-      handle.setAttribute('cy', String(px.y));
-      handle.setAttribute('r', index === 0 ? '10' : '7');
-      handle.setAttribute('tabindex', '0');
-      handle.setAttribute('role', 'button');
-      handle.setAttribute('data-fkey', `psv-draw-${key}-${index}`);
-      handle.setAttribute(
+      const drawGroup = document.createElementNS(svgNS, 'g') as SVGGElement;
+      drawGroup.setAttribute('tabindex', '0');
+      drawGroup.setAttribute('role', 'button');
+      drawGroup.setAttribute('data-fkey', `psv-draw-${key}-${index}`);
+      drawGroup.setAttribute(
         'aria-label',
         index === 0
           ? 'First draft corner. Activate to finish the safe area.'
           : `Draft corner ${index + 1}.`,
       );
-      handle.addEventListener('click', (event) => {
+      const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
+      handle.setAttribute('class', index === 0 ? 'product-setup-draw product-setup-draw-first' : 'product-setup-draw');
+      handle.setAttribute('cx', String(px.x));
+      handle.setAttribute('cy', String(px.y));
+      handle.setAttribute('r', index === 0 ? '10' : '7');
+      handle.setAttribute('data-markr', index === 0 ? '8' : '7');
+      const drawHit = document.createElementNS(svgNS, 'circle');
+      drawHit.setAttribute('cx', String(px.x));
+      drawHit.setAttribute('cy', String(px.y));
+      drawHit.setAttribute('r', '7');
+      drawHit.setAttribute('data-markhit', '12');
+      drawHit.setAttribute('fill', '#000');
+      drawHit.setAttribute('fill-opacity', '0');
+      drawHit.setAttribute('pointer-events', 'all');
+      drawGroup.append(drawHit, handle);
+      drawGroup.addEventListener('click', (event) => {
         event.stopPropagation();
         if (index === 0) {
           const live = store.bucketFor(key, () => emptyBucket(view));
           finishDraft(key, live, store.draftFor(key) ?? draft, paintStatus);
         }
       });
-      handle.addEventListener('keydown', (event) => {
+      drawGroup.addEventListener('keydown', (event) => {
         if ((event.key === 'Enter' || event.key === ' ') && index === 0) {
           event.preventDefault();
           event.stopPropagation();
@@ -1305,7 +1579,7 @@ export function createProductSetupView(
           finishDraft(key, live, store.draftFor(key) ?? draft, paintStatus);
         }
       });
-      draftLayer.append(handle);
+      draftLayer.append(drawGroup);
     });
   }
 
@@ -1317,6 +1591,8 @@ export function createProductSetupView(
         posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
       })),
       dirty: false,
+      baseSafeArea: view.safeArea.map((point) => ({ ...point })),
+      conflicted: false,
     };
   }
 
@@ -1460,6 +1736,36 @@ export function createProductSetupView(
     panel.append(details);
   }
 
+  /**
+   * Native millimetre precision field (keyboard accessible): commits on
+   * change; the commit callback parses with {@link parsePrecisionMm} and
+   * refuses with the existing validator wording, keeping the old value.
+   * Uses only the DOM APIs this file already uses.
+   */
+  function mmField(
+    host: HTMLElement,
+    caption: string,
+    fkey: string,
+    ariaLabel: string,
+    value: number,
+    commit: (parsed: number | null) => void,
+  ): void {
+    const wrap = document.createElement('label');
+    wrap.className = 'product-setup-field';
+    const text = document.createElement('span');
+    text.textContent = caption;
+    const field = document.createElement('input');
+    field.type = 'number';
+    field.value = formatPrecisionMm(value);
+    field.setAttribute('data-fkey', fkey);
+    field.setAttribute('aria-label', ariaLabel);
+    field.addEventListener('change', () => {
+      commit(parsePrecisionMm(field.value));
+    });
+    wrap.append(text, field);
+    host.append(wrap);
+  }
+
   function renderSafePanel(
     root: HTMLElement,
     view: ProductSetupPhotoView,
@@ -1477,10 +1783,6 @@ export function createProductSetupView(
     if (draft !== undefined) {
       heading.textContent = `Drawing safe area (${draft.length} corner${draft.length === 1 ? '' : 's'} — nothing committed)`;
       panel.append(heading);
-      const hint = document.createElement('p');
-      hint.className = 'muted';
-      hint.textContent = 'Click the photo to add corners. Finish with Enter, the first (larger) corner, or a double-click; Escape cancels with no commit.';
-      panel.append(hint);
       const actions = document.createElement('div');
       actions.className = 'product-setup-actions actions';
       const finish = document.createElement('button');
@@ -1520,12 +1822,6 @@ export function createProductSetupView(
       root.append(panel);
       return;
     }
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = redrawKeys.has(key)
-      ? 'Drawing a replacement: click the photo to add corners. The current polygon stays staged until the new drawing finishes — Escape cancels and keeps it.'
-      : 'Drag corners on the photo, or pick one below to remove it.';
-    panel.append(hint);
     if (!redrawKeys.has(key)) {
       const redrawActions = document.createElement('div');
       redrawActions.className = 'product-setup-actions actions';
@@ -1548,6 +1844,75 @@ export function createProductSetupView(
     }
     const list = document.createElement('div');
     list.className = 'product-setup-list';
+    const hasSelection = selectedCorner !== null &&
+      selectedCorner >= 0 &&
+      selectedCorner < bucket.safeArea.length;
+    if (hasSelection) {
+      // Selected-corner precision controls stay visible above the collapsed
+      // pick list; every hook below keeps its existing data-fkey.
+      const current = document.createElement('div');
+      current.className = 'product-setup-current';
+      const index = selectedCorner as number;
+      const point = bucket.safeArea[index]!;
+      const commitAxis = (axis: 'x' | 'y'): ((parsed: number | null) => void) => (parsed) => {
+        const base = bucket.safeArea.map((corner) => ({ ...corner }));
+        base[index] = {
+          x: axis === 'x' ? (parsed ?? Number.NaN) : point.x,
+          y: axis === 'y' ? (parsed ?? Number.NaN) : point.y,
+        };
+        const check = validateSafeAreaPolygon(base);
+        if (!check.ok) {
+          paintStatus(`Corner not moved: ${check.reason}`);
+          refresh();
+          return;
+        }
+        bucket.safeArea = base;
+        bucket.dirty = true;
+        paintStatus(`Moved corner ${index + 1}.`);
+        refresh();
+      };
+      // Exact values stay exact, but the numeric fields live under an
+      // opt-in disclosure so the normal row stays quiet.
+      const precision = document.createElement('details');
+      precision.className = 'product-setup-precision';
+      const precisionTitle = document.createElement('summary');
+      precisionTitle.textContent = 'Precision';
+      precision.append(precisionTitle);
+      mmField(
+        precision,
+        'X (mm)',
+        `psv-corner-x-${key}-${index}`,
+        `X millimetres for safe-area corner ${index + 1}`,
+        point.x,
+        commitAxis('x'),
+      );
+      mmField(
+        precision,
+        'Y (mm)',
+        `psv-corner-y-${key}-${index}`,
+        `Y millimetres for safe-area corner ${index + 1}`,
+        point.y,
+        commitAxis('y'),
+      );
+      current.append(precision);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn-secondary product-setup-remove';
+      remove.textContent = 'Remove corner';
+      remove.setAttribute('aria-label', `Remove safe-area corner ${index + 1}`);
+      remove.setAttribute('data-fkey', `psv-corner-remove-${key}-${index}`);
+      remove.addEventListener('click', () => {
+        removeCorner(bucket, index, paintStatus);
+      });
+      current.append(remove);
+      panel.append(current);
+      const details = document.createElement('details');
+      details.className = 'product-setup-all';
+      const summary = document.createElement('summary');
+      summary.textContent = `All corners (${bucket.safeArea.length})`;
+      details.append(summary, list);
+      panel.append(details);
+    }
     bucket.safeArea.forEach((_point, index) => {
       const row = document.createElement('div');
       row.className = index === selectedCorner ? 'product-setup-row is-selected' : 'product-setup-row';
@@ -1563,21 +1928,11 @@ export function createProductSetupView(
         refresh();
       });
       row.append(pick);
-      if (index === selectedCorner) {
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn-secondary product-setup-remove';
-        remove.textContent = 'Remove corner';
-        remove.setAttribute('aria-label', `Remove safe-area corner ${index + 1}`);
-        remove.setAttribute('data-fkey', `psv-corner-remove-${key}-${index}`);
-        remove.addEventListener('click', () => {
-          removeCorner(bucket, index, paintStatus);
-        });
-        row.append(remove);
-      }
       list.append(row);
     });
-    panel.append(list);
+    if (!hasSelection) {
+      panel.append(list);
+    }
     renderAdvanced(panel, view, safeAreaCoordinateRows(bucket.safeArea));
     root.append(panel);
   }
@@ -1603,10 +1958,102 @@ export function createProductSetupView(
       root.append(panel);
       return;
     }
-    const hint = document.createElement('p');
-    hint.className = 'muted';
-    hint.textContent = 'Pick an anchor to rename or remove it, or drag it on the photo.';
-    panel.append(hint);
+    const selected = selectedAnchorId !== null
+      ? bucket.anchors.find((entry) => entry.id === selectedAnchorId) ?? null
+      : null;
+    if (selected !== null) {
+      // No logo selection in this view (logos live in Choose/Check per-logo
+      // cards): the selected anchor's name/remove/precision controls stay
+      // visible above while its pick list renders collapsed. Every hook below
+      // keeps its existing data-fkey, so at most one of each exists.
+      const current = document.createElement('div');
+      current.className = 'product-setup-current';
+      const nameLabel = document.createElement('label');
+      nameLabel.className = 'product-setup-field';
+      const nameCaption = document.createElement('span');
+      nameCaption.textContent = 'Name';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = selected.name;
+      nameInput.maxLength = 80;
+      nameInput.setAttribute('data-fkey', `psv-anchor-name-${selected.id}`);
+      nameInput.setAttribute('aria-label', `Name for anchor “${selected.name}”`);
+      nameInput.addEventListener('change', () => {
+        const next = bucket.anchors.map((entry) => (
+          entry.id === selected.id ? { ...entry, name: nameInput.value.trim() } : entry
+        ));
+        const problem = validateAnchors(next);
+        if (problem) {
+          paintStatus(`Anchor not renamed: ${problem}`);
+          nameInput.value = selected.name;
+          return;
+        }
+        bucket.anchors = next;
+        bucket.dirty = true;
+        paintStatus(`Renamed anchor to “${nameInput.value.trim()}”.`);
+        refresh();
+      });
+      nameLabel.append(nameCaption, nameInput);
+      current.append(nameLabel);
+      const commitAxis = (axis: 0 | 1): ((parsed: number | null) => void) => (parsed) => {
+        const next = bucket.anchors.map((entry) => (
+          entry.id === selected.id
+            ? {
+              ...entry,
+              posMm: [
+                axis === 0 ? (parsed ?? Number.NaN) : entry.posMm[0]!,
+                axis === 1 ? (parsed ?? Number.NaN) : entry.posMm[1]!,
+              ] as [number, number],
+            }
+            : entry
+        ));
+        const problem = validateAnchors(next);
+        if (problem) {
+          paintStatus(`Anchor not moved: ${problem}`);
+          refresh();
+          return;
+        }
+        bucket.anchors = next;
+        bucket.dirty = true;
+        paintStatus(`Moved anchor “${selected.name}”.`);
+        refresh();
+      };
+      // Exact values stay exact, but the numeric fields live under an
+      // opt-in disclosure so the normal row stays quiet.
+      const precision = document.createElement('details');
+      precision.className = 'product-setup-precision';
+      const precisionTitle = document.createElement('summary');
+      precisionTitle.textContent = 'Precision';
+      precision.append(precisionTitle);
+      mmField(
+        precision,
+        'X (mm)',
+        `psv-anchor-x-${selected.id}`,
+        `X millimetres for anchor “${selected.name}”`,
+        selected.posMm[0]!,
+        commitAxis(0),
+      );
+      mmField(
+        precision,
+        'Y (mm)',
+        `psv-anchor-y-${selected.id}`,
+        `Y millimetres for anchor “${selected.name}”`,
+        selected.posMm[1]!,
+        commitAxis(1),
+      );
+      current.append(precision);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn-secondary product-setup-remove';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', `Remove anchor “${selected.name}”`);
+      remove.setAttribute('data-fkey', `psv-anchor-remove-${selected.id}`);
+      remove.addEventListener('click', () => {
+        removeAnchor(bucket, selected.id, paintStatus);
+      });
+      current.append(remove);
+      panel.append(current);
+    }
     const list = document.createElement('div');
     list.className = 'product-setup-list';
     bucket.anchors.forEach((anchor) => {
@@ -1624,47 +2071,18 @@ export function createProductSetupView(
         refresh();
       });
       row.append(pick);
-      if (anchor.id === selectedAnchorId) {
-        const nameLabel = document.createElement('label');
-        nameLabel.className = 'product-setup-field';
-        const nameCaption = document.createElement('span');
-        nameCaption.textContent = 'Name';
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.value = anchor.name;
-        nameInput.maxLength = 80;
-        nameInput.setAttribute('data-fkey', `psv-anchor-name-${anchor.id}`);
-        nameInput.setAttribute('aria-label', `Name for anchor “${anchor.name}”`);
-        nameInput.addEventListener('change', () => {
-          const next = bucket.anchors.map((entry) => (
-            entry.id === anchor.id ? { ...entry, name: nameInput.value.trim() } : entry
-          ));
-          const problem = validateAnchors(next);
-          if (problem) {
-            paintStatus(`Anchor not renamed: ${problem}`);
-            nameInput.value = anchor.name;
-            return;
-          }
-          bucket.anchors = next;
-          bucket.dirty = true;
-          paintStatus(`Renamed anchor to “${nameInput.value.trim()}”.`);
-          refresh();
-        });
-        nameLabel.append(nameCaption, nameInput);
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn-secondary product-setup-remove';
-        remove.textContent = 'Remove';
-        remove.setAttribute('aria-label', `Remove anchor “${anchor.name}”`);
-        remove.setAttribute('data-fkey', `psv-anchor-remove-${anchor.id}`);
-        remove.addEventListener('click', () => {
-          removeAnchor(bucket, anchor.id, paintStatus);
-        });
-        row.append(nameLabel, remove);
-      }
       list.append(row);
     });
-    panel.append(list);
+    if (selected !== null) {
+      const details = document.createElement('details');
+      details.className = 'product-setup-all';
+      const summary = document.createElement('summary');
+      summary.textContent = `All anchors (${bucket.anchors.length})`;
+      details.append(summary, list);
+      panel.append(details);
+    } else {
+      panel.append(list);
+    }
     renderAdvanced(panel, view, anchorCoordinateRows(bucket.anchors));
     root.append(panel);
   }
@@ -1675,6 +2093,7 @@ export function createProductSetupView(
     key: string,
     bucket: StoredEdits,
     paintStatus: (message: string) => void,
+    sharedNotice: string | undefined,
   ): void {
     const bar = document.createElement('div');
     bar.className = 'product-setup-savebar';
@@ -1683,15 +2102,32 @@ export function createProductSetupView(
     state.textContent = saver.isPending
       ? 'Saving… edits stay live.'
       : bucket.dirty ? 'Staged edits — not saved yet.' : 'Matches the saved setup.';
+    bar.append(state);
+    if (sharedNotice !== undefined && sharedNotice.trim().length > 0) {
+      const notice = document.createElement('p');
+      notice.className = 'product-setup-shared-notice';
+      notice.textContent = sharedNotice;
+      bar.append(notice);
+    }
+    if (bucket.conflicted) {
+      const conflict = document.createElement('p');
+      conflict.className = 'product-setup-conflict';
+      conflict.setAttribute('role', 'alert');
+      conflict.textContent =
+        'The saved area changed on another option since these edits started — ' +
+        'saving now would silently overwrite it, so Save stays off. ' +
+        'Reset to saved reloads the saved area (discards staged edits), or re-apply the edit on the new area.';
+      bar.append(conflict);
+    }
     const save = document.createElement('button');
     save.type = 'button';
     save.className = 'btn-primary';
     save.textContent = saver.isPending ? 'Saving…' : 'Save product setup';
-    save.disabled = saver.isPending;
+    save.disabled = saver.isPending || bucket.conflicted;
     save.setAttribute('data-fkey', `psv-save-${key}`);
     save.addEventListener('click', () => {
-      if (saver.isPending) return;
-      const validated = validateSaveRequest(bucket.safeArea, bucket.anchors);
+      if (saver.isPending || bucket.conflicted) return;
+      const validated = validateSaveRequest(bucket.safeArea, bucket.anchors, bucket.baseSafeArea);
       if (!validated.ok) {
         paintStatus(`Product setup not saved: ${validated.error}`);
         return;
@@ -1727,12 +2163,13 @@ export function createProductSetupView(
       paintStatus('Staged edits discarded; showing the saved setup.');
       refresh();
     });
-    bar.append(state, save, reset);
+    bar.append(save, reset);
     root.append(bar);
   }
 
   function destroy(): void {
     destroyed = true;
+    disconnectStageResize();
     document.removeEventListener('keydown', cancelOnEscape);
     container.removeEventListener('keydown', cancelDrawingOnEscape);
     container.replaceChildren();

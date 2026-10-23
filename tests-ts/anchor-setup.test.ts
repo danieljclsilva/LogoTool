@@ -11,13 +11,16 @@ import {
   anchorCoordinateRows,
   applySaveOutcome,
   createWorkspaceEditStore,
+  formatPrecisionMm,
   isProductSetupPhotoView,
+  parsePrecisionMm,
   ProductSetupSaver,
   resolveInitialSide,
   safeAreaCoordinateRows,
   selectWorkspaceView,
   shortScopeLabel,
   transformKeyOf,
+  validateAnchors,
   validateSaveRequest,
   viewIdentityKey,
   workspaceMmToPhoto,
@@ -264,6 +267,8 @@ test('B: the store retains edits across tab switches and drops stale identities'
     safeArea: [],
     anchors: [anchorFixture('A1', 1, 2, 'region-front')],
     dirty: true,
+    baseSafeArea: [],
+    conflicted: false,
   }));
   store.setDraft(backKey, [mm(0, 0), mm(1, 1)]);
   // "Switch away and back": both keys retained, objects identical, edits intact.
@@ -282,7 +287,7 @@ test('B: the store retains edits across tab switches and drops stale identities'
   store.retainBuckets(new Set([bumpedKey, backKey]));
   store.retainDrafts(new Set([bumpedKey, backKey]));
   assert.equal(store.draftFor(frontKey), undefined);
-  const fresh = store.bucketFor(frontKey, () => ({ safeArea: [], anchors: [], dirty: false }));
+  const fresh = store.bucketFor(frontKey, () => ({ safeArea: [], anchors: [], dirty: false, baseSafeArea: [], conflicted: false }));
   assert.equal(fresh.dirty, false);
   assert.equal(fresh.anchors.length, 0);
 });
@@ -393,11 +398,15 @@ test('identity key includes the tab side: same-everything-except-side never shar
     safeArea: [],
     anchors: [anchorFixture('Front-only', 1, 2, 'region-front')],
     dirty: true,
+    baseSafeArea: [],
+    conflicted: false,
   }));
   const backBucket = store.bucketFor(viewIdentityKey(twin), () => ({
     safeArea: [],
     anchors: [],
     dirty: false,
+    baseSafeArea: [],
+    conflicted: false,
   }));
   assert.notEqual(backBucket, frontBucket);
   assert.equal(backBucket.anchors.length, 0);
@@ -430,6 +439,8 @@ test('a deferred async failure keeps the draft dirty with the exact status text'
     safeArea: SQUARE.map((corner) => ({ ...corner })),
     anchors: [anchorFixture('A1', 1, 2, 'region-front')],
     dirty: true,
+    baseSafeArea: SQUARE.map((corner) => ({ ...corner })),
+    conflicted: false,
   };
   const validated = validateSaveRequest(bucket.safeArea, bucket.anchors);
   assert.equal(validated.ok, true);
@@ -452,6 +463,8 @@ test('applySaveOutcome clears dirty only for an unchanged bucket', () => {
     safeArea: SQUARE.map((corner) => ({ ...corner })),
     anchors: [anchorFixture('A1', 1, 2, 'region-front')],
     dirty: true,
+    baseSafeArea: SQUARE.map((corner) => ({ ...corner })),
+    conflicted: false,
   };
   const validated = validateSaveRequest(bucket.safeArea, bucket.anchors);
   assert.equal(validated.ok, true);
@@ -464,6 +477,8 @@ test('applySaveOutcome clears dirty only for an unchanged bucket', () => {
     safeArea: SQUARE.map((corner) => ({ ...corner })),
     anchors: [anchorFixture('A1', 1, 2, 'region-front')],
     dirty: true,
+    baseSafeArea: SQUARE.map((corner) => ({ ...corner })),
+    conflicted: false,
   };
   const racingValidated = validateSaveRequest(racing.safeArea, racing.anchors);
   assert.equal(racingValidated.ok, true);
@@ -472,4 +487,50 @@ test('applySaveOutcome clears dirty only for an unchanged bucket', () => {
   const diverged = applySaveOutcome(racing, racingValidated.result, 'Chest · Front', { ok: true });
   assert.match(diverged, /save again/);
   assert.equal(racing.dirty, true);
+});
+
+// ---- Tranche C: precision parse/format helpers (pure, no DOM) ----
+
+test('C2: formatPrecisionMm round-trips finite values, blanks non-finite ones', () => {
+  for (const value of [0, 1.5, -2.25, 100.125, -0.5]) {
+    const text = formatPrecisionMm(value);
+    assert.ok(text.length > 0, `finite ${value} must format to a committable string`);
+    assert.equal(Number(text), value, `formatted "${text}" must parse back to ${value}`);
+  }
+  assert.equal(formatPrecisionMm(Number.NaN), '');
+  assert.equal(formatPrecisionMm(Number.POSITIVE_INFINITY), '');
+  assert.equal(formatPrecisionMm(Number.NEGATIVE_INFINITY), '');
+});
+
+test('C2: parsePrecisionMm accepts padded decimals, rejects empty/garbage/non-finite', () => {
+  assert.equal(parsePrecisionMm('12.5'), 12.5);
+  assert.equal(parsePrecisionMm('  -3  '), -3);
+  assert.equal(parsePrecisionMm('0'), 0);
+  assert.equal(parsePrecisionMm(''), null);
+  assert.equal(parsePrecisionMm('   '), null);
+  assert.equal(parsePrecisionMm('abc'), null);
+  assert.equal(parsePrecisionMm('12mm'), null);
+  assert.equal(parsePrecisionMm('NaN'), null);
+  assert.equal(parsePrecisionMm('Infinity'), null);
+  assert.equal(parsePrecisionMm('-Infinity'), null);
+});
+
+test('C2: a rejected precision value reuses the anchor validator wording', () => {
+  const anchor = anchorFixture('A1', 1, 2, 'region-front');
+  const parsed = parsePrecisionMm('oops');
+  assert.equal(parsed, null);
+  const next = [{
+    ...anchor,
+    posMm: [parsed ?? Number.NaN, anchor.posMm[1]] as [number, number],
+  }];
+  assert.match(validateAnchors(next)!, /non-finite/);
+});
+
+test('C2: a rejected precision value reuses the safe-area validator wording', () => {
+  const parsed = parsePrecisionMm('');
+  assert.equal(parsed, null);
+  const base = SQUARE.map((corner) => ({ ...corner }));
+  base[0] = { x: parsed ?? Number.NaN, y: base[0]!.y };
+  assert.equal(validateSafeAreaPolygon(base).ok, false);
+  assert.match(validateSafeAreaPolygon(base).reason!, /finite/);
 });

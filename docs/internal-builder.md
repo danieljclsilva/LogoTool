@@ -262,3 +262,15 @@ The picker uses the saved view mapping and original raster artwork. Without a
 valid photo mapping it clearly shows a millimetre region schematic. Picking
 selects existing physical geometry; it does not calibrate a photograph or approve
 production accuracy.
+
+### Scoped setup drafts
+
+Switching product, option or side keeps that view's staged setup for the current
+open project. Select an anchor or safe-area corner on the photo to reveal its
+controls; **Precision** holds optional millimetre fields. Opening another project
+starts a new session. Save a prepared master to keep completed setup on disk.
+
+A safe area shared by several options is labelled beside Save. If another option
+changes the saved area, an unedited area adopts that change while staged anchors
+stay intact. Conflicting area edits block saving; **Reset to saved** reloads the
+saved setup. Drafts are never silently applied to another option.

@@ -84,6 +84,7 @@ import type {
   ProductSetupScope,
   ProductSetupSide,
   ProductSetupWorkspaceInput,
+  ProductSetupResult,
 } from './product-setup-view.js';
 import { createGuidedScale, guidedCorrespondences } from './guided-scale.js';
 import type { GuidedScaleCommit, GuidedScaleRequest } from './guided-scale.js';
@@ -110,6 +111,7 @@ import { isPreviewOnlyProduct } from '../../core/project-builder/provisional-pro
 import { appendPreparedProduct, preparedEvidencePaths, selectPreparedSidecarAssets, PREPARED_IMPORT_LIMITS } from '../../core/project-builder/prepared-import.js';
 import { createProvisionalProduct } from '../../core/project-builder/provisional-product.js';
 import { planPhotoIntake } from '../../core/photo-intake/index.js';
+import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
 import { zipSync } from 'fflate';
 
@@ -616,6 +618,14 @@ let logoImporting = false;
 let logoGeneration = 0;
 let logoCounter = 0;
 let sourceSession = 0;
+/**
+ * Scoped-draft retirement log for the workspace view (Tranche C). Events
+ * accumulate within one source session and reset on source replacement;
+ * the view applies them idempotently on every refresh, so switching
+ * product/variant/side never drops same-session drafts while replaced
+ * photos and invalidated bindings retire precisely.
+ */
+let draftRetirements: DraftRetirementEvent[] = [];
 let baselineBusy = false;
 let loadGeneration = 0;
 let generateGeneration = 0;
@@ -1093,6 +1103,7 @@ async function loadSourceFile(file: File): Promise<void> {
     assertProjectEditorLimits(parsed.project);
     const summary = summarizeSourceProject(parsed.project);
     sourceSession += 1;
+    draftRetirements = [];
     logoImports = [];
     logoStatus.textContent = '';
     pendingPrimaryImage = null;
@@ -2342,6 +2353,7 @@ async function createEmptyProject(): Promise<void> {
     const summary = summarizeSourceProject(draft);
     logoImports = [];
     sourceSession += 1;
+    draftRetirements = [];
     pendingPrimaryImage = null;
     pendingPrimaryModel = null;
     pendingViews = { front: null, back: null, left: null, right: null };
@@ -3136,6 +3148,24 @@ async function attachProductPhotoFile(file: File): Promise<void> {
         summary: summarizeSourceProject(reparsed.project),
         packageBytes: packageBytes.slice(),
       };
+      if (plan.replacedAssetPath !== undefined) {
+        // Retire staged drafts bound to the superseded photo/scope — but
+        // only when no other manifest entry still references that path:
+        // a shared photo keeps its bytes (Tranche A evidence rule), so
+        // sibling scopes staged on it stay valid and restorable.
+        const shared = parsed.version === 2 && [...parsed.views, ...(parsed.references ?? [])].some(
+          (entry) => entry.image === plan.replacedAssetPath &&
+            !(entry.productId === product.id && (entry.variantId ?? undefined) === scopeVariantId),
+        );
+        if (!shared) {
+          draftRetirements.push({
+            kind: 'photo-replaced',
+            productId: product.id,
+            ...(scopeVariantId !== undefined ? { variantId: scopeVariantId } : {}),
+            imagePath: plan.replacedAssetPath,
+          });
+        }
+      }
       refreshMappingOptions();
       refreshWorkspace();
       // The package changed under any generated delivery: mark outputs stale
@@ -3728,8 +3758,13 @@ function getWorkspaceInput(): ProductSetupWorkspaceInput | { error: string } {
   // onStatus are never cleared by a render.
   const notice = warning ?? sharedNotice(product);
   if (workspaceStatus.textContent === lastWorkspaceNotice) setWorkspaceNotice(notice);
-  if (workspaceSideHint === null) return { views };
-  return { initialSide: workspaceSideHint, views };
+  const shared = sharedNotice(product);
+  const inputExtras = {
+    retirements: draftRetirements,
+    ...(shared !== '' ? { sharedNotice: shared } : {}),
+  };
+  if (workspaceSideHint === null) return { views, ...inputExtras };
+  return { initialSide: workspaceSideHint, views, ...inputExtras };
 }
 
 /**
@@ -3764,7 +3799,7 @@ function enqueueWorkspaceCommit<T>(task: () => Promise<T>, staleResult: () => T)
  */
 async function saveWorkspaceSetup(
   scope: ProductSetupScope,
-  result: { safeArea: AnchorSetupMm[]; anchors: import('./product-setup-view.js').ProductSetupResult['anchors'] },
+  result: ProductSetupResult,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const submittedSource = source;
   const submittedSession = sourceSession;
@@ -3792,6 +3827,19 @@ async function saveWorkspaceSetup(
     if (!check.ok) return fail(`The safe area is invalid — ${check.reason}.`);
     const anchorProblem = validateAnchors(result.anchors);
     if (anchorProblem) return fail(`An anchor is invalid — ${anchorProblem}.`);
+    // Baseline guard against shared-region stale overwrites (Tranche C):
+    // the staged edits started from result.baseSafeArea. If live moved
+    // underneath — another scope saved first, including an async save that
+    // landed after this one was clicked — refuse instead of silently
+    // reverting the other scope's geometry. The caller keeps its edits.
+    const liveArea = region.safeArea.map(([x, y]) => ({ x, y }));
+    if (JSON.stringify(liveArea) !== JSON.stringify(result.baseSafeArea)) {
+      const linked = product.variants.filter((entry) => entry.regionIds.includes(region.id)).length;
+      const name = region.name ?? region.id;
+      return fail(linked > 1
+        ? `Shared area “${name}” changed on another option since this edit started — review the saved area (Reset to saved reloads it) before saving.`
+        : `The saved area changed since this edit started — Reset to saved reloads it before saving.`);
+    }
     const next: ProjectDocument = JSON.parse(JSON.stringify(snapshot.project)) as ProjectDocument;
     const nextRegion = next.products
       .find((entry) => entry.id === scope.productId)?.regions
@@ -4324,6 +4372,18 @@ async function commitGuidedScale(
       summary: summarizeSourceProject(back.project),
       packageBytes: packageBytes.slice(),
     };
+    // The replaced photo/scope binding is re-evaluated: retire staged drafts
+    // bound to the PRE-COMMIT scope (old region, possibly unmeasured), so the
+    // new photo starts fresh. regionId is the pre-commit one on purpose: the
+    // fresh key carries the new region and must survive this event.
+    draftRetirements.push({
+      kind: 'binding-invalidated',
+      productId: product.id,
+      variantId: variant.id,
+      regionId: request.scope.regionId,
+      view: side,
+      imagePath: request.imagePath,
+    });
     workspaceSideHint = side;
     guidedScale.hide();
     refreshWorkspaceSelectors();

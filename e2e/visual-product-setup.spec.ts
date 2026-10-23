@@ -161,6 +161,14 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
       const live = (await stage.boundingBox())!;
       await stage.click({ position: { x: Math.round(live.width * fx), y: Math.round(live.height * fy) } });
     };
+    // Pick lists collapse behind "All …" disclosures while an item is
+    // selected (Tranche C contextual controls); expand before choosing.
+    const openPickList = async (prefix: 'All anchors' | 'All corners'): Promise<void> => {
+      const summary = workspace.locator('summary', { hasText: prefix });
+      if ((await summary.count()) === 0) return;
+      const open = await summary.first().evaluate((element) => (element.closest('details') as HTMLDetailsElement).open);
+      if (!open) await summary.first().click();
+    };
 
     // Safe-area tool: corner removal is validated (needs at least 3), then
     // Reset to saved restores the guided rectangle.
@@ -182,6 +190,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
     await workspace.getByRole('button', { name: 'Anchor', exact: true }).click();
     await tap(0.5, 0.5);
     await expect(workspace.getByText('Created “Anchor 1”')).toBeVisible();
+    await openPickList('All anchors');
     await workspace.getByRole('button', { name: 'Anchor 1', exact: true }).click();
     await workspace.locator('[data-fkey^="psv-anchor-name-"]').fill('Chest center');
     await workspace.locator('[data-fkey^="psv-anchor-name-"]').press('Tab');
@@ -190,6 +199,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
     // taken, the spare is 'Anchor 2'.
     await tap(0.6, 0.6);
     await expect(workspace.getByText('Created “Anchor 2”')).toBeVisible();
+    await openPickList('All anchors');
     await workspace.getByRole('button', { name: 'Anchor 2', exact: true }).click();
     await workspace.locator('[data-fkey^="psv-anchor-name-"]').fill('Chest center');
     await workspace.locator('[data-fkey^="psv-anchor-name-"]').press('Tab');
