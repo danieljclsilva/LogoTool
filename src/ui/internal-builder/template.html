@@ -127,12 +127,33 @@
     .product-setup-tool { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
     .product-setup-tool.is-active { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); font-weight: 700; }
     .product-setup-figure { margin: 12px 0; }
-    .product-setup-stage { position: relative; max-width: 720px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    /* Product setup stage: full available shell width (no 720px cap, no
+       desk column); toolbar above, forms below. Height is content-driven so
+       the whole product shows at Fit; zoomed stages scroll internally via
+       the view's inline zoombox sizing. */
+    .product-setup-stage { position: relative; width: 100%; max-width: none; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .product-setup-zoombox { position: relative; width: 100%; }
+    /* Stage view toolbar (Images + 3D): tools and view controls adjacent to
+       the preview, never beneath long forms. Wraps at narrow widths. */
+    .product-setup-viewbar, [data-model-setup-hook="viewbar"] { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+    .product-setup-viewbar:empty, [data-model-setup-hook="viewbar"]:empty { display: none; }
+    .product-setup-viewbtn, [data-model-setup-hook="viewbar"] button {
+      border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 14px;
+      cursor: pointer; font: inherit; min-height: 44px;
+    }
+    .product-setup-viewbtn:hover:not(:disabled), [data-model-setup-hook="viewbar"] button:hover:not(:disabled) { background: #f4f6f8; }
+    .product-setup-viewbtn:disabled, [data-model-setup-hook="viewbar"] button:disabled { opacity: .48; cursor: default; }
+    .product-setup-viewbtn.is-active, [data-model-setup-hook="viewbar"] button.is-active,
+    [data-model-setup-hook="viewbar"] button[aria-pressed="true"] { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); font-weight: 700; }
+    .product-setup-viewzoom, [data-model-setup-hook="viewbar"] select {
+      border: 1px solid #c6ced6; border-radius: 8px; padding: 8px 10px; background: #fff; font: inherit; min-height: 44px;
+    }
     .product-setup-photo { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
     .product-setup-overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
     .product-setup-overlay[data-tool="safe-area"] { cursor: crosshair; }
     .product-setup-overlay[data-tool="anchor"] { cursor: copy; }
-    .product-setup-safe { fill: rgba(11, 108, 171, 0.08); stroke: #0b6cab; stroke-width: 2; pointer-events: none; }
+    .product-setup-safe { fill: rgba(11, 108, 171, 0.18); stroke: #0b6cab; stroke-width: 2; pointer-events: none; }
+    .product-setup-safe.is-selected { fill: rgba(11, 108, 171, 0.25); }
     .product-setup-draft { fill: none; stroke: #0b6cab; stroke-width: 2; stroke-dasharray: 8 5; }
     .product-setup-vertices .product-setup-vertex, .product-setup-midpoint { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: move; }
     .product-setup-vertex:focus, .product-setup-midpoint:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -158,10 +179,9 @@
     .product-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .product-setup-savebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--line); }
     .product-setup-status { min-height: 1.5em; }
+    .product-setup-row.is-selected { background: #f4f8fc; }
     .product-setup-heading { margin: 1.2em 0 .2em; font-size: 1.05rem; }
     .product-setup-pick.is-selected { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
-    .product-setup-advanced { margin-top: 10px; }
-    .product-setup-advanced-list { display: grid; gap: 4px; font-size: .9rem; }
     .product-setup-chooser { display: flex; flex-wrap: wrap; gap: 10px; }
     .product-setup-chooser[data-count="1"] { display: none; }
     /* 3D model setup (lead-owned mount for model-setup-view.ts). */
@@ -174,15 +194,16 @@
     .model-setup-banner { border-left: 3px solid var(--focus); padding-left: 10px; }
     [data-builder-hook="model-setup"].hide-products [data-model-setup-hook="product-row"],
     [data-builder-hook="model-setup"].hide-products [data-model-setup-hook="product-hint"] { display: none !important; }
-    /* Guided measured-area setup: photo + click overlay + compact form. */
-    .guided-scale-stage { position: relative; max-width: 640px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    /* Guided measured-area setup: full available width; photo + click overlay + compact form. */
+    .guided-scale-stage { position: relative; width: 100%; max-width: none; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
     .guided-scale-photo { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
     .guided-scale-overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
     .guided-scale-corner { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; }
     .guided-scale-corner.is-first { fill: #0b6cab; }
     .guided-scale-label { fill: #192d3d; font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
-    /* Staff 3D reference: actual model on white, orbit plus surface setup. */
-    .product-model-stage { position: relative; max-width: 720px; height: 360px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+    /* Staff 3D reference: actual model on white, orbit plus surface setup.
+       Full available width; bounded height (55–65vh desktop, sensible min). */
+    .product-model-stage { position: relative; width: 100%; max-width: none; height: clamp(320px, 55vh, 560px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
     .product-model-stage canvas { display: block; width: 100%; height: 100%; }
     .anchor-setup-drawing .anchor-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
     /* First-corner distinction is fill-only (see product-setup note above). */
@@ -254,7 +275,8 @@
     .job-persistence { max-width: 1424px; margin: 8px auto 0; padding: 0 28px; color: var(--muted); font-size: .85rem; min-height: 1.5em; }
     .job-steps { list-style: none; }
     [data-job-landing] .actions { max-width: 34rem; }
-    [data-job-step="prepare"] { display: grid; gap: 4px; }
+    [data-job-step="prepare"] { display: grid; gap: 4px; grid-template-columns: minmax(0, 1fr); }
+    [data-job-step="prepare"] > * { min-width: 0; }
     .job-identity { display: grid; gap: 10px; max-width: 34rem; }
     [data-job-step="prepare"] .actions { max-width: 34rem; }
     [data-job-step="prepare"] .btn-primary, [data-job-step="prepare"] .btn-secondary,
@@ -312,7 +334,8 @@
     }
     @media print {
     }
-    @media (min-width:821px) { [data-builder-step="choose"] .desk-rail { position:sticky; top:24px; align-self:start; height:min(620px,calc(100vh - 48px)); } }
+    /* Setup chooser rows live full-width (no desk rail in this step). */
+    .choose-selection { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 12px; }
     @media (max-width: 820px) {
       .desk { grid-template-columns: 1fr; min-height:0; }
       .desk-rail { min-height:0; border-left: 0; border-top: 1px solid var(--line); padding: 20px 0 0; margin-top: 24px; }
@@ -405,9 +428,7 @@
             <p class="muted">Adds a PNG, JPEG or WebP image from this device. Nothing is uploaded. It is selected automatically; the customer places it later.</p>
             <p class="muted" data-builder-hook="logo-status" role="status" aria-live="polite"></p>
       <section data-builder-step="choose" aria-label="Choose items" hidden>
-        <div class="desk">
-          <div>
-            <h2 class="task-title">Choose what to include</h2>
+        <h2 class="task-title">Choose what to include</h2>
             <p class="task-sub">Tick only the products and logos the customer needs. Use Open setup to prepare a product.</p>
 
             <h3 class="group-title">Set up product</h3>
@@ -421,6 +442,7 @@
             <div data-builder-hook="guided-scale" hidden></div>
             <div data-builder-hook="product-model" hidden>
               <p class="muted">Drag to rotate the model. Two-click reference setup happens on the 3D surface below — no photos needed, and photos cannot be attached to a 3D-model product.</p>
+              <div data-model-setup-hook="viewbar" role="toolbar" aria-label="3D preview view controls"></div>
               <div class="product-model-stage" data-builder-hook="product-model-stage"><canvas data-builder-hook="product-model-canvas"></canvas></div>
               <p class="muted" data-builder-hook="product-model-status" role="status"></p>
               <div data-builder-hook="model-setup"></div>
@@ -442,30 +464,6 @@
               </div>
             </details>
 
-              <div class="body">
-            <details class="disclosure" data-builder-hook="mapping-disclosure">
-              <summary>Map artwork photos (optional visual trial)</summary>
-              <div class="body">
-                <p class="muted">Provisional visual-trial mapping only: it aligns a view image with a measured region so the customer preview can show the artwork on the photo. It is never production geometry or calibration — the measured placement diagram stays authoritative. Photos without a saved mapping stay reference-only. Millimetre values are typed in by hand against the region frame shown below; nothing is measured from pixels.</p>
-                <label class="field">Product<select data-builder-hook="mapping-product" aria-label="Mapping product"></select></label>
-                <label class="field">Option (variant)<select data-builder-hook="mapping-variant" aria-label="Mapping variant"></select></label>
-                <label class="field">Region<select data-builder-hook="mapping-region" aria-label="Mapping region"></select></label>
-                <p class="muted" data-builder-hook="mapping-frame" role="status"></p>
-                <label class="field">Side<select data-builder-hook="mapping-side" aria-label="Mapping side"><option value="front">Front</option><option value="back">Back</option><option value="left">Left</option><option value="right">Right</option></select></label>
-                <label class="field">Photo<select data-builder-hook="mapping-photo" aria-label="Mapping photo"></select></label>
-                <p class="muted" data-builder-hook="mapping-photo-status" role="status"></p>
-                <fieldset>
-                  <legend>Reference points (minimum 3; U/V normalized with V = 0 at top, X/Y in region millimetres)</legend>
-                  <div data-builder-hook="mapping-rows"></div>
-                  <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="mapping-add-row">Add reference point</button></div>
-                </fieldset>
-                <label class="field">Status<select data-builder-hook="mapping-status" aria-label="Mapping status"><option value="provisional">provisional</option><option value="review">review</option></select></label>
-                <label class="field">Note (optional)<input data-builder-hook="mapping-note" type="text" autocomplete="off" placeholder="e.g. trial fit from studio photo"></label>
-                <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="mapping-check">Check fit</button><button type="button" class="btn-secondary" data-builder-hook="mapping-save">Save mapping</button></div>
-                <p class="muted" data-builder-hook="mapping-status-line" role="status" aria-live="polite"></p>
-                <div data-builder-hook="mapping-saved"></div>
-              </div>
-            </details>
             <details class="disclosure">
               <summary>Save a prepared master (advanced reuse)</summary>
               <div class="body">
@@ -476,19 +474,11 @@
             </div>
               </div>
             </details>
-              </div>
-            </details>
-            <details class="disclosure">
-              <summary>Advanced product setup</summary>
-
-
-          </div>
-          <aside class="desk-rail" aria-label="Your selection">
+        <section class="choose-selection" aria-label="Your selection">
             <h3 class="rail-title">Your selection</h3>
             <div data-builder-hook="selection-summary" class="muted"></div>
             <p class="muted">The customer can adjust logo placement later.</p>
-          </aside>
-        </div>
+        </section>
       </section>
         <div class="actions"><button type="button" class="btn-primary" data-builder-hook="job-to-placements">Set logo placements</button></div>
         <p class="muted" data-builder-hook="job-prepare-gate" role="status" aria-live="polite"></p>

@@ -171,6 +171,54 @@ export function planeFromPolygon(points: readonly SetupVec3[]): SetupRegionPlane
 }
 
 /**
+ * Region plane from one verified surface pick plus its real mesh face
+ * normal (native units): the normal comes from the raycast triangle, never
+ * from fitted sample geometry, so a straight drag chord on a flat model
+ * yields a valid plane instead of a collinear rejection. The in-plane frame
+ * is deterministic from the normal alone (least-aligned world axis), never
+ * from the drag direction — the drag only supplies the box diagonal, so a
+ * drag-aligned frame (which would collapse every box) is never built. When
+ * the normal is degenerate, returns null. Pure.
+ */
+export function planeFromPointNormal(
+  origin: SetupVec3,
+  normal: SetupVec3,
+): SetupRegionPlane | null {
+  if (!isVec3(origin) || !isVec3(normal)) return null;
+  const normalLength = norm3(normal);
+  if (!Number.isFinite(normalLength) || !(normalLength > 1e-12)) return null;
+  const unit: SetupVec3 = {
+    x: normal.x / normalLength,
+    y: normal.y / normalLength,
+    z: normal.z / normalLength,
+  };
+  // Deterministic in-plane xDir: perpendicular to the normal via the
+  // least-aligned world axis. Fixed for a given face, independent of any
+  // drag, so the diagonal box below spans area for every non-axis-aligned
+  // drag (axis-aligned drags are refused with a re-drag message).
+  const ax = Math.abs(unit.x);
+  const ay = Math.abs(unit.y);
+  const az = Math.abs(unit.z);
+  const fallback =
+    ax <= ay && ax <= az
+      ? { x: 1, y: 0, z: 0 }
+      : ay <= az
+        ? { x: 0, y: 1, z: 0 }
+        : { x: 0, y: 0, z: 1 };
+  const inPlane = cross3(unit, fallback);
+  const inPlaneLength = norm3(inPlane);
+  if (!Number.isFinite(inPlaneLength) || !(inPlaneLength > 1e-12)) return null;
+  const xDir: SetupVec3 = {
+    x: inPlane.x / inPlaneLength,
+    y: inPlane.y / inPlaneLength,
+    z: inPlane.z / inPlaneLength,
+  };
+  const yDir = cross3(unit, xDir);
+  if (!isVec3(yDir) || !(norm3(yDir) > 1e-12)) return null;
+  return { origin: { ...origin }, normal: unit, xDir, yDir };
+}
+
+/**
  * Project one 3D safe-area polygon onto its region plane and scale to mm
  * under the fitted scale (native units while `mmPerUnit` is null). Returns
  * the plane plus the 2D ring, or null when degenerate. Pure; shared by the
@@ -242,21 +290,267 @@ function chordNative(a: SetupVec3, b: SetupVec3): number {
   return Number.isFinite(d) ? d : 0;
 }
 
+function dot3(a: SetupVec3, b: SetupVec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+/* ------------------------------------------------------------------ */
+/* View-local gesture/shape math (bounded, planar, no invented points). */
+/* ------------------------------------------------------------------ */
+
+/** Discrete display-zoom steps (% of the fitted product view). */
+const VIEW_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300, 400] as const;
+
+/** Click-vs-drag gate in CSS px (mirrors the viewer's surface-click rule). */
+const CLICK_TRAVEL_PX = 6;
+
+/** Polygon-point bound shared with the kernel ring check. */
+const TRACE_POINT_LIMIT = 512;
+
+/**
+ * Reference label text: `Enter distance` until a positive finite length is
+ * entered, else e.g. `1,300 mm`. Grouping is manual (deterministic across
+ * environments); the viewer renders the string verbatim and never invents it.
+ */
+export function formatReferenceLengthMm(lengthMm: number): string | null {
+  if (typeof lengthMm !== 'number' || !Number.isFinite(lengthMm) || !(lengthMm > 0)) return null;
+  const rounded = Math.round(lengthMm * 10) / 10;
+  const parts = String(rounded).split('.');
+  const int = (parts[0] ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.length > 1 ? `${int}.${parts[1]} mm` : `${int} mm`;
+}
+
+function referenceOverlayLabel(distanceMmRaw: string): string {
+  return formatReferenceLengthMm(Number(distanceMmRaw)) ?? 'Enter distance';
+}
+
+/** Stride-decimate a sampled trace to the polygon-point bound. Pure. */
+function decimateTrace(points: readonly SetupVec3[], limit: number = TRACE_POINT_LIMIT): SetupVec3[] {
+  if (points.length <= limit) return [...points];
+  const stride = Math.ceil(points.length / limit);
+  const out: SetupVec3[] = [];
+  for (let index = 0; index < points.length; index += stride) {
+    const point = points[index];
+    if (point !== undefined) out.push({ ...point });
+  }
+  const last = points[points.length - 1];
+  const prev = out[out.length - 1];
+  if (last !== undefined && (prev === undefined || chordNative(prev, last) > 0)) out.push({ ...last });
+  return out.slice(0, limit);
+}
+
+interface PlaneBox2D {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+function toPlane2D(point: SetupVec3, plane: SetupRegionPlane): { x: number; y: number } {
+  const dx = point.x - plane.origin.x;
+  const dy = point.y - plane.origin.y;
+  const dz = point.z - plane.origin.z;
+  return {
+    x: dx * plane.xDir.x + dy * plane.xDir.y + dz * plane.xDir.z,
+    y: dx * plane.yDir.x + dy * plane.yDir.y + dz * plane.yDir.z,
+  };
+}
+
+function fromPlane2D(plane: SetupRegionPlane, x: number, y: number): SetupVec3 {
+  return {
+    x: plane.origin.x + plane.xDir.x * x + plane.yDir.x * y,
+    y: plane.origin.y + plane.xDir.y * x + plane.yDir.y * y,
+    z: plane.origin.z + plane.xDir.z * x + plane.yDir.z * y,
+  };
+}
+
+function boxOfRing(points: readonly SetupVec3[], plane: SetupRegionPlane): PlaneBox2D | null {
+  if (points.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    const projected = toPlane2D(point, plane);
+    if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
+    if (projected.x < minX) minX = projected.x;
+    if (projected.y < minY) minY = projected.y;
+    if (projected.x > maxX) maxX = projected.x;
+    if (projected.y > maxY) maxY = projected.y;
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function cornersFromBox(plane: SetupRegionPlane, box: PlaneBox2D): SetupVec3[] {
+  return [
+    fromPlane2D(plane, box.minX, box.minY),
+    fromPlane2D(plane, box.maxX, box.minY),
+    fromPlane2D(plane, box.maxX, box.maxY),
+    fromPlane2D(plane, box.minX, box.maxY),
+  ];
+}
+
+/**
+ * Recognize a stored 4-corner ring as a rectangle: four finite points, right
+ * angles and opposite sides within numeric roundoff ONLY (constructed
+ * rectangles share exact values; hand picks never qualify, so corner edits
+ * on general polygons never silently snap other vertices). Documented
+ * tolerance for reopened rectangular geometry regaining side handles.
+ */
+export function isRectangleRing(points: readonly SetupVec3[]): boolean {
+  if (!Array.isArray(points) || points.length !== 4) return false;
+  for (const point of points) {
+    if (!isVec3(point)) return false;
+  }
+  const corners = [points[0], points[1], points[2], points[3]];
+  if (corners.some((corner) => corner === undefined)) return false;
+  const [c0, c1, c2, c3] = corners as [SetupVec3, SetupVec3, SetupVec3, SetupVec3];
+  const edges = [sub3(c1, c0), sub3(c2, c1), sub3(c3, c2), sub3(c0, c3)];
+  const lengths = edges.map(norm3);
+  if (lengths.some((length) => !Number.isFinite(length) || !(length > 1e-9))) return false;
+  for (let index = 0; index < 4; index += 1) {
+    const current = edges[index]!;
+    const next = edges[(index + 1) % 4]!;
+    const cosine = dot3(current, next) / (lengths[index]! * lengths[(index + 1) % 4]!);
+    if (!Number.isFinite(cosine) || Math.abs(cosine) > 1e-9) return false;
+  }
+  const [a, b, c, d] = lengths as [number, number, number, number];
+  if (Math.abs(a - c) / Math.max(a, c) > 1e-9) return false;
+  if (Math.abs(b - d) / Math.max(b, d) > 1e-9) return false;
+  return true;
+}
+
+/** Max absolute deviation of samples from a plane (native units). */
+function maxPlaneDeviation(points: readonly SetupVec3[], plane: SetupRegionPlane): number {
+  let worst = 0;
+  for (const point of points) {
+    const deviation = Math.abs(
+      (point.x - plane.origin.x) * plane.normal.x +
+        (point.y - plane.origin.y) * plane.normal.y +
+        (point.z - plane.origin.z) * plane.normal.z,
+    );
+    if (!Number.isFinite(deviation)) return Infinity;
+    if (deviation > worst) worst = deviation;
+  }
+  return worst;
+}
+
+type RectHandleRef = { areaId: string; kind: 'corner' | 'side'; index: number };
+
+/**
+ * Rectangle-preserving box edit for one handle move. Corners drag with the
+ * opposite corner fixed; sides drag with the opposite side fixed. Returns
+ * null when the move would collapse or invert the rectangle.
+ */
+function applyHandleToBox(
+  box: PlaneBox2D,
+  corners2D: Array<{ x: number; y: number }>,
+  handle: RectHandleRef,
+  pick: { x: number; y: number },
+): PlaneBox2D | null {
+  const scale = Math.max(box.maxX - box.minX, box.maxY - box.minY, 1e-9);
+  const eps = Math.max(1e-9, scale * 0.005);
+  if (handle.kind === 'corner') {
+    const fixed = corners2D[(handle.index + 2) % 4];
+    if (fixed === undefined) return null;
+    const minX = Math.min(fixed.x, pick.x);
+    const maxX = Math.max(fixed.x, pick.x);
+    const minY = Math.min(fixed.y, pick.y);
+    const maxY = Math.max(fixed.y, pick.y);
+    if (maxX - minX < eps || maxY - minY < eps) return null;
+    return { minX, minY, maxX, maxY };
+  }
+  const a = corners2D[handle.index % 4];
+  const b = corners2D[(handle.index + 1) % 4];
+  if (a === undefined || b === undefined) return null;
+  const edgeTol = Math.max(1e-9, scale * 0.01);
+  const horizontal = Math.abs(a.y - b.y) <= edgeTol;
+  const vertical = Math.abs(a.x - b.x) <= edgeTol;
+  if (horizontal === vertical) return null;
+  if (horizontal) {
+    const fixedY = Math.abs(a.y - box.minY) < Math.abs(a.y - box.maxY) ? box.maxY : box.minY;
+    const minY = Math.min(fixedY, pick.y);
+    const maxY = Math.max(fixedY, pick.y);
+    if (maxY - minY < eps) return null;
+    return { ...box, minY, maxY };
+  }
+  const fixedX = Math.abs(a.x - box.minX) < Math.abs(a.x - box.maxX) ? box.maxX : box.minX;
+  const minX = Math.min(fixedX, pick.x);
+  const maxX = Math.max(fixedX, pick.x);
+  if (maxX - minX < eps) return null;
+  return { ...box, minX, maxX };
+}
+
+/**
+ * Rebuild a rectangle's corners after one handle moves to a surface point.
+ * The move resolves inside the area's own established plane (consistent
+ * planar surface); view changes never alter stored polygons because only an
+ * explicit surface pick rebuilds them. Returns null on collapse/inversion.
+ */
+function geometryForHandleMove(
+  areaPoints: readonly SetupVec3[],
+  handle: RectHandleRef,
+  point: SetupVec3,
+): SetupVec3[] | null {
+  if (areaPoints.length !== 4 || !isVec3(point)) return null;
+  const plane = planeFromPolygon(areaPoints);
+  if (plane === null) return null;
+  const box = boxOfRing(areaPoints, plane);
+  if (box === null) return null;
+  const corners2D = areaPoints.map((corner) => toPlane2D(corner, plane));
+  const moved = applyHandleToBox(box, corners2D, handle, toPlane2D(point, plane));
+  if (moved === null) return null;
+  return cornersFromBox(plane, moved);
+}
+
 /* ------------------------------------------------------------------ */
 /* View                                                               */
 /* ------------------------------------------------------------------ */
 
 /** Structural viewer surface this view needs (satisfied by ModelViewer). */
 export interface ModelSetupViewerLike {
+  pickSurface?(clientX: number, clientY: number): { modelPosition: SetupVec3 } | null;
   pickSurfaceFromEvent(event: { clientX: number; clientY: number }): { modelPosition: SetupVec3 } | null;
   setAnchorMarkers(anchors: Array<{ id: string; model: SetupVec3 }>): void;
-  setSafeAreaOverlays(items: Array<{ id: string; pointsModel: SetupVec3[] }>): void;
+  setSafeAreaOverlays(items: Array<{ id: string; pointsModel: SetupVec3[]; selected?: boolean }>): void;
+  /**
+   * Detailed pick with the real mesh face normal (wrapper-local). Optional
+   * so older satisfies still compile; the view falls back to position-only
+   * picks with an explicit surface-uncertainty message where normals are
+   * required.
+   */
+  pickSurfaceDetailed?(clientX: number, clientY: number): { modelPosition: SetupVec3; normal: SetupVec3 } | null;
+  /**
+   * Project a wrapper-local model point to canvas client coords (CSS px).
+   * Optional; the view falls back to an explicit unverifiable message where
+   * surface verification is required.
+   */
+  projectToClient?(model: SetupVec3): { x: number; y: number } | null;
   setAnchorsVisible(visible: boolean): void;
   getAnchorsVisible(): boolean;
   setSafeAreasVisible(visible: boolean): void;
   getSafeAreasVisible(): boolean;
   setProductVisible(visible: boolean): void;
   getProductVisible(): boolean;
+  /**
+   * Additive viewer controls (optional so older satisfies still compile).
+   * Reference overlay renders the supplied label verbatim; zoom is
+   * display/camera only; orbit suspends only around draw/edit gestures.
+   */
+  setReferenceOverlay?(ref: { a: SetupVec3; b: SetupVec3; label: string } | null): void;
+  setZoomPercent?(pct: number): void;
+  getZoomPercent?(): number;
+  resetZoom?(): void;
+  setOrbitEnabled?(enabled: boolean): void;
+  /**
+   * Optional per-frame hook for projected HTML overlays (overlay-only).
+   * The view sets/clears it as the live viewer attaches; the viewer never
+   * depends on it.
+   */
+  onFrame?: (() => void) | null;
 }
 
 /**
@@ -330,6 +624,9 @@ export interface ModelSetupViewHandle {
 
 type ArmTarget = 'refA' | 'refB' | 'areaPoint' | null;
 
+/** Safe-area authoring tool: freehand trace/corners or drag-a-rectangle. */
+type AreaTool = 'freehand' | 'rectangle';
+
 interface DraftArea {
   id: string;
   name: string;
@@ -347,6 +644,9 @@ interface ProductDraft {
   selectedAreaId: string | null;
   drawing: SetupVec3[] | null;
   drawingName: string;
+  areaTool: AreaTool;
+  /** Armed rectangle handle awaiting a canvas drag/click (UI-only, never saved). */
+  handleArm: RectHandleRef | null;
   anchorsVisible: boolean;
   safeAreasVisible: boolean;
   productVisible: boolean;
@@ -363,6 +663,8 @@ function newDraft(): ProductDraft {
     selectedAreaId: null,
     drawing: null,
     drawingName: '',
+    areaTool: 'freehand',
+    handleArm: null,
     anchorsVisible: true,
     safeAreasVisible: true,
     productVisible: true,
@@ -449,6 +751,53 @@ export function createModelSetupView(
   let lastStatus = '';
   const drafts = new Map<string, ProductDraft>();
   let downAt: { x: number; y: number; button: number } | null = null;
+  /**
+   * Live drag/edit preview in native coords (render-only): folded into the
+   * safe-area overlays by paintViewer, discarded on release/cancel. Stored
+   * polygons are only ever replaced by one explicit release commit.
+   */
+  let livePreview: SetupVec3[] | null = null;
+  /** Active canvas gesture (trace / rectangle drag / handle drag). */
+  let gesture:
+    | { kind: 'trace'; entry: ModelSetupProduct; draft: ProductDraft; points: SetupVec3[]; misses: number }
+    | { kind: 'rect'; entry: ModelSetupProduct; draft: ProductDraft; corner0: SetupVec3; normal0: SetupVec3 | null; misses: number; downX: number; downY: number }
+    | { kind: 'handle'; entry: ModelSetupProduct; draft: ProductDraft; handle: RectHandleRef }
+    | null = null;
+  /**
+   * Pressed (not yet dragged) direct canvas handle: a press on a visible
+   * projected handle suspends orbit at once; crossing CLICK_TRAVEL_PX turns
+   * it into a `handle` gesture, release without travel arms it for
+   * click-to-move. Escape/pointercancel roll it back with no commit.
+   */
+  let pendingHandle: { ref: RectHandleRef; x: number; y: number } | null = null;
+  /** Projected HTML handle overlay (corners + side midpoints), cached nodes. */
+  let handleLayer: HTMLDivElement | null = null;
+  let handleDots: HTMLDivElement[] = [];
+  /** Live viewer currently carrying this view's frame hook (if any). */
+  let framedViewer: ModelSetupViewerLike | null = null;
+  /** True while orbit is suspended for a draw/edit gesture (restored after). */
+  let orbitSuspended = false;
+  /** Lead-provided viewbar mount fallback created inside the stage. */
+  let ownedViewbar: HTMLElement | null = null;
+
+  const suspendOrbit = (): void => {
+    try {
+      viewerOf()?.setOrbitEnabled?.(false);
+      orbitSuspended = true;
+    } catch {
+      return;
+    }
+  };
+
+  const restoreOrbit = (): void => {
+    if (!orbitSuspended) return;
+    orbitSuspended = false;
+    try {
+      viewerOf()?.setOrbitEnabled?.(true);
+    } catch {
+      return;
+    }
+  };
 
   /** Draft identity: product + exact model scope (never shared across variants). */
   const draftKeyFor = (productId: string, variantId: string | null | undefined): string =>
@@ -476,9 +825,35 @@ export function createModelSetupView(
         });
       }
       viewer.setAnchorMarkers(markers);
-      viewer.setSafeAreaOverlays(
-        draft.areas.map((area) => ({ id: area.id, pointsModel: area.points.map((p) => ({ ...p })) })),
-      );
+      // Reference connecting measurement: dashed A/B chord plus a midpoint
+      // label. Missing endpoints clear it (stays incomplete); the label reads
+      // `Enter distance` until a positive finite length is entered. Riding
+      // the wrapper group, it follows camera/wrapper transforms.
+      try {
+        viewer.setReferenceOverlay?.(
+          draft.refA !== null && draft.refB !== null
+            ? {
+                a: { ...draft.refA },
+                b: { ...draft.refB },
+                label: referenceOverlayLabel(draft.distanceMmRaw),
+              }
+            : null,
+        );
+      } catch {
+        return;
+      }
+      const overlays = draft.areas.map((area) => ({
+        id: area.id,
+        selected: area.id === draft.selectedAreaId,
+        pointsModel: area.points.map((p) => ({ ...p })),
+      }));
+      // Draft/preview polygons connect while drawing and fill from 3 points;
+      // the product stays visible through the translucent fill.
+      const staged = livePreview ?? draft.drawing;
+      if (staged !== null && staged.length >= 3) {
+        overlays.push({ id: 'model-area-draft', selected: false, pointsModel: staged.map((p) => ({ ...p })) });
+      }
+      viewer.setSafeAreaOverlays(overlays);
       viewer.setAnchorsVisible(draft.anchorsVisible);
       viewer.setSafeAreasVisible(draft.safeAreasVisible);
       viewer.setProductVisible(draft.productVisible);
@@ -486,6 +861,234 @@ export function createModelSetupView(
       return;
     }
   };
+
+  /** Refresh the reference label without rebuilding the form (keeps focus). */
+  const syncReferenceOverlay = (draft: ProductDraft): void => {
+    try {
+      viewerOf()?.setReferenceOverlay?.(
+        draft.refA !== null && draft.refB !== null
+          ? {
+              a: { ...draft.refA },
+              b: { ...draft.refB },
+              label: referenceOverlayLabel(draft.distanceMmRaw),
+            }
+          : null,
+      );
+    } catch {
+      return;
+    }
+  };
+
+  /** Client-space press tolerance (CSS px) for direct canvas handles. */
+  const CANVAS_HANDLE_HIT_PX = 11;
+
+  /** Last laid-out handle models (null = hidden that pass); press-checked. */
+  let handleModelsCache: Array<SetupVec3 | null> = [];
+
+  /**
+   * Model points for the eight direct handles of a rectangular ring: four
+   * corners, then four side midpoints (side i spans corner i to i+1).
+   */
+  function rectHandleModels(points: readonly SetupVec3[]): SetupVec3[] {
+    const models: SetupVec3[] = points.map((point) => ({ ...point }));
+    for (let index = 0; index < 4; index += 1) {
+      const a = points[index]!;
+      const b = points[(index + 1) % 4]!;
+      models.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
+    }
+    return models;
+  }
+
+  function rectHandleRefFor(index: number, areaId: string): RectHandleRef {
+    return index < 4
+      ? { areaId, kind: 'corner', index }
+      : { areaId, kind: 'side', index: index - 4 };
+  }
+
+  /** Press on a visible projected handle: press-direct, never via buttons. */
+  function onHandleDown(event: PointerEvent, index: number): void {
+    if (destroyed || event.button !== 0) return;
+    // Armed reference/trace modes own every press: visible handles are
+    // already hidden then, and a stray press never hijacks them.
+    if (armed !== null || gesture !== null || pendingHandle !== null) return;
+    const resolved = currentDraft();
+    if ('error' in resolved) return;
+    const { draft } = resolved;
+    const viewer = viewerOf();
+    if (!viewer) return;
+    const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId);
+    if (!area || !isRectangleRing(area.points)) return;
+    if (!draft.safeAreasVisible || !draft.productVisible) return;
+    const model = handleModelsCache[index] ?? null;
+    if (!model) return;
+    // Live surface check: the press must resolve to this handle's own
+    // surface point — never a backface, an occluder or a miss.
+    const hit = safePick(viewer, event.clientX, event.clientY);
+    if (!hit) return;
+    const tol = Math.max(1e-9, longestChord(area.points) * 0.01);
+    if (chordNative(hit, model) > tol) return;
+    pendingHandle = { ref: rectHandleRefFor(index, area.id), x: event.clientX, y: event.clientY };
+    suspendOrbit();
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      (event.currentTarget as Element | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* capture is best-effort; document gating still ends the press */
+    }
+  }
+
+  /** Create (once) and attach the projected handle overlay to the stage. */
+  function ensureHandleLayer(stage: HTMLElement): HTMLDivElement {
+    if (
+      handleLayer !== null &&
+      handleLayer.parentElement === stage &&
+      handleDots.length === 8
+    ) {
+      if (handleLayer.nextSibling !== null) stage.append(handleLayer);
+      return handleLayer;
+    }
+    try {
+      handleLayer?.remove();
+    } catch {
+      /* best-effort teardown */
+    }
+    handleLayer = null;
+    handleDots = [];
+    handleModelsCache = [];
+    const layer = document.createElement('div');
+    layer.setAttribute(HOOK, 'canvas-handles');
+    layer.style.position = 'absolute';
+    layer.style.inset = '0';
+    layer.style.pointerEvents = 'none';
+    layer.style.display = 'none';
+    for (let index = 0; index < 8; index += 1) {
+      const corner = index < 4;
+      const dot = document.createElement('div');
+      dot.setAttribute(HOOK, corner ? `canvas-handle-corner-${index}` : `canvas-handle-side-${index - 4}`);
+      dot.setAttribute('role', 'button');
+      dot.tabIndex = -1;
+      dot.style.position = 'absolute';
+      dot.style.pointerEvents = 'auto';
+      dot.style.touchAction = 'none';
+      dot.style.cursor = 'grab';
+      // Corners render above sides so a close press resolves to the corner
+      // deterministically.
+      dot.style.zIndex = corner ? '3' : '2';
+      const hit = corner ? CANVAS_HANDLE_HIT_PX * 2 + 2 : CANVAS_HANDLE_HIT_PX * 2;
+      dot.style.width = `${hit}px`;
+      dot.style.height = `${hit}px`;
+      dot.style.transform = 'translate(-50%, -50%)';
+      dot.style.borderRadius = '50%';
+      dot.style.background = corner ? '#0b6cab' : '#ffffff';
+      dot.style.border = corner ? '2px solid #ffffff' : '2px solid #0b6cab';
+      dot.style.boxShadow = '0 0 0 1px rgba(0,0,0,.35)';
+      dot.style.display = 'none';
+      dot.addEventListener('pointerdown', (event) => onHandleDown(event, index));
+      layer.append(dot);
+      handleDots.push(dot);
+    }
+    stage.append(layer);
+    handleLayer = layer;
+    return layer;
+  }
+
+  /**
+   * Position the direct rectangle handles over the live canvas: four corners
+   * plus four side midpoints of the SELECTED valid rectangular area,
+   * adjacent to its actual polygon at a constant CSS hit size. Runs on every
+   * refresh and on every viewer frame (orbit/zoom/resize/orbit-damping all
+   * reposition by the next frame). A handle shows only while its own surface
+   * point both projects and re-picks within tolerance — occluded, backface
+   * or missed handles hide instead of guessing. Display-only; stored
+   * polygons change only through the existing handle-gesture commit.
+   */
+  function syncHandleLayer(): void {
+    if (destroyed) {
+      return;
+    }
+    const viewer = viewerOf();
+    const canvas = canvasOf();
+    const stage = canvas?.parentElement ?? null;
+    if (!viewer || !canvas || !stage) {
+      if (handleLayer !== null) handleLayer.style.display = 'none';
+      return;
+    }
+    const layer = ensureHandleLayer(stage);
+    const resolved = currentDraft();
+    const draft = 'error' in resolved ? null : resolved.draft;
+    const area = draft?.areas.find((candidate) => candidate.id === draft.selectedAreaId) ?? null;
+    const rect = area !== null && area !== undefined && isRectangleRing(area.points) ? area : null;
+    const shown =
+      rect !== null &&
+      draft !== null &&
+      draft.safeAreasVisible &&
+      draft.productVisible &&
+      armed === null &&
+      gesture === null &&
+      pendingHandle === null &&
+      typeof viewer.projectToClient === 'function';
+    layer.style.display = shown ? '' : 'none';
+    if (!shown || rect === null || draft === null) {
+      return;
+    }
+    const models = rectHandleModels(rect.points);
+    const tol = Math.max(1e-9, longestChord(rect.points) * 0.01);
+    const layerRect = layer.getBoundingClientRect();
+    handleModelsCache = models.map((model) => ({ ...model }));
+    models.forEach((model, index) => {
+      const dot = handleDots[index];
+      if (!dot) return;
+      let client: { x: number; y: number } | null = null;
+      try {
+        client = viewer.projectToClient!(model);
+      } catch {
+        client = null;
+      }
+      let visible = client !== null;
+      if (visible && client !== null) {
+        const hit = safePick(viewer, client.x, client.y);
+        visible = hit !== null && chordNative(hit, model) <= tol;
+      }
+      if (!visible || client === null) {
+        dot.style.display = 'none';
+        handleModelsCache[index] = null;
+        return;
+      }
+      dot.style.display = '';
+      dot.style.left = `${client.x - layerRect.left}px`;
+      dot.style.top = `${client.y - layerRect.top}px`;
+      const ref = rectHandleRefFor(index, rect.id);
+      dot.setAttribute(
+        'aria-label',
+        ref.kind === 'corner'
+          ? `Drag rectangle corner ${ref.index + 1} of “${rect.name}” on the model`
+          : `Drag rectangle side ${ref.index + 1} of “${rect.name}” on the model`,
+      );
+    });
+  }
+
+  /** Keep the frame hook on the live viewer (viewer swaps are lead-owned). */
+  function wireHandleFrame(): void {
+    const live = viewerOf();
+    if (live !== framedViewer) {
+      try {
+        if (framedViewer) framedViewer.onFrame = null;
+      } catch {
+        /* best-effort teardown */
+      }
+      framedViewer = live;
+      if (live) {
+        try {
+          live.onFrame = () => {
+            if (!destroyed) syncHandleLayer();
+          };
+        } catch {
+          framedViewer = null;
+        }
+      }
+    }
+  }
 
   const currentDraft = (): { entry: ModelSetupProduct; draft: ProductDraft } | { error: string } => {
     const input = getInput();
@@ -506,6 +1109,207 @@ export function createModelSetupView(
     } catch {
       return;
     }
+  };
+
+  /** Roll back any active canvas gesture without touching staged data. */
+  const cancelGestureSilent = (): void => {
+    gesture = null;
+    pendingHandle = null;
+    livePreview = null;
+    restoreOrbit();
+  };
+
+  const commitHandlePoint = (
+    draft: ProductDraft,
+    handle: RectHandleRef,
+    point: SetupVec3,
+  ): { ok: boolean; message: string } => {
+    const area = draft.areas.find((candidate) => candidate.id === handle.areaId);
+    if (area === undefined) return { ok: false, message: 'That area is no longer staged — nothing changed.' };
+    const next = geometryForHandleMove(area.points, handle, point);
+    if (next === null) {
+      return { ok: false, message: `That move would collapse or invert “${area.name}” — kept unchanged.` };
+    }
+    const others = draft.areas.filter((candidate) => candidate.id !== area.id).map((candidate) => candidate.id);
+    const reason = checkModelSafeArea(
+      area.id,
+      area.name,
+      next,
+      others,
+      draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null,
+    );
+    if (reason !== null) return { ok: false, message: `${reason} “${area.name}” kept unchanged.` };
+    area.points = next;
+    return {
+      ok: true,
+      message: `${handle.kind === 'corner' ? 'Corner' : 'Side'} moved — “${area.name}” stays a 4-corner rectangle. Staged; station Save persists.`,
+    };
+  };
+
+  /**
+   * Resolve a rectangle drag to four surface-verified corners. The region
+   * plane comes from the press point plus its REAL mesh face normal (never
+   * from fitted sample geometry, so a straight diagonal drag on a flat
+   * model works instead of dying on collinearity). Support is then proven,
+   * not inferred: both endpoint normals must agree, independent off-chord
+   * surface samples must lie on the plane, and every candidate corner and
+   * edge midpoint is re-projected to the screen and re-picked — any miss or
+   * deviation rejects the drag with a surface-specific explanation while the
+   * previous draft is preserved. Never invents surface points.
+   */
+  const resolveDragRectangle = (
+    viewer: ModelSetupViewerLike,
+    press: { point: SetupVec3; normal: SetupVec3 | null },
+    release: { point: SetupVec3; normal: SetupVec3 | null },
+    downClient: { x: number; y: number },
+    upClient: { x: number; y: number },
+  ): { corners: SetupVec3[] } | { error: string } => {
+    const corner0 = press.point;
+    const releasePoint = release.point;
+    const diag = chordNative(corner0, releasePoint);
+    if (!(diag > 1e-9)) {
+      return { error: 'That drag has zero size — press at one corner and drag to the opposite corner. Previous draft kept.' };
+    }
+    if (press.normal === null || release.normal === null) {
+      return { error: 'The surface orientation under this drag is unavailable — start and end the drag on the model face. Previous draft kept.' };
+    }
+    const agreement =
+      dot3(press.normal, release.normal) / (norm3(press.normal) * norm3(release.normal));
+    if (!Number.isFinite(agreement) || agreement < 0.9986) {
+      return { error: 'The surface curves under this drag (start/end face normals diverge) — a flat rectangle cannot sit here. Previous draft kept.' };
+    }
+    const plane = planeFromPointNormal(corner0, press.normal);
+    if (plane === null) {
+      return { error: 'The press point and normal cannot span a plane — start the drag on the model face. Previous draft kept.' };
+    }
+    // Independent support samples: raycast positions offset PERPENDICULAR to
+    // the drag chord (never on it), so coplanar-but-off-chord surface is
+    // proven rather than assumed. Any miss or off-plane sample rejects.
+    const dragLenPx = Math.hypot(upClient.x - downClient.x, upClient.y - downClient.y);
+    if (!(dragLenPx > 4)) {
+      return { error: 'That drag is too short on screen — press at one corner and drag to the opposite corner. Previous draft kept.' };
+    }
+    if (viewer.pickSurface === undefined) {
+      return { error: 'The preview cannot sample the surface here — end the drag on the model face. Previous draft kept.' };
+    }
+    const pickAt = (clientX: number, clientY: number): SetupVec3 | null => {
+      try {
+        const hit = viewer.pickSurface?.(clientX, clientY) ?? null;
+        return hit !== null && isVec3(hit.modelPosition) ? { ...hit.modelPosition } : null;
+      } catch {
+        return null;
+      }
+    };
+    const offPx = Math.min(64, Math.max(8, dragLenPx * 0.15));
+    const perpX = -(upClient.y - downClient.y) / dragLenPx;
+    const perpY = (upClient.x - downClient.x) / dragLenPx;
+    const support: SetupVec3[] = [];
+    for (const fraction of [0.25, 0.5, 0.75]) {
+      for (const side of [1, -1]) {
+        const clientX = downClient.x + (upClient.x - downClient.x) * fraction + perpX * offPx * side;
+        const clientY = downClient.y + (upClient.y - downClient.y) * fraction + perpY * offPx * side;
+        const hit = pickAt(clientX, clientY);
+        if (hit === null) {
+          return { error: 'The surface beside this drag is missing or holed — a flat rectangle cannot span it. Previous draft kept.' };
+        }
+        support.push(hit);
+      }
+    }
+    const supportDeviation = maxPlaneDeviation(support, plane);
+    const supportTol = diag * 0.002;
+    if (!Number.isFinite(supportDeviation) || supportDeviation > supportTol) {
+      return { error: `The surface beside this drag leaves the press plane (off by up to ${formatNative(supportDeviation)} units) — a flat rectangle cannot sit here. Previous draft kept.` };
+    }
+    const c0 = toPlane2D(corner0, plane);
+    const c1 = toPlane2D(releasePoint, plane);
+    const minSize = Math.max(1e-9, diag * 0.005);
+    if (Math.abs(c1.x - c0.x) < minSize || Math.abs(c1.y - c0.y) < minSize) {
+      return { error: 'That drag runs parallel to the surface frame — press at one corner and drag diagonally to the opposite corner. Previous draft kept.' };
+    }
+    const corners = cornersFromBox(plane, {
+      minX: Math.min(c0.x, c1.x),
+      minY: Math.min(c0.y, c1.y),
+      maxX: Math.max(c0.x, c1.x),
+      maxY: Math.max(c0.y, c1.y),
+    });
+    // Verify every candidate corner and edge midpoint against the ACTUAL
+    // surface: project back to the screen and re-pick. A hole, curve or face
+    // edge under any of the eight points rejects the drag — computed corners
+    // are never trusted without a surface hit.
+    if (viewer.projectToClient === undefined) {
+      return { error: 'The preview cannot verify this rectangle against the surface — end the drag on the model face. Previous draft kept.' };
+    }
+    const verifyTol = Math.max(1e-9, diag * 0.005);
+    const verifyPoints: Array<{ point: SetupVec3; label: string }> = corners.map((corner, index) => ({
+      point: corner,
+      label: `corner ${index + 1}`,
+    }));
+    for (let index = 0; index < 4; index += 1) {
+      const a = corners[index]!;
+      const b = corners[(index + 1) % 4]!;
+      verifyPoints.push({
+        point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 },
+        label: `edge ${index + 1}-${((index + 1) % 4) + 1} midpoint`,
+      });
+    }
+    for (const candidate of verifyPoints) {
+      let client: { x: number; y: number } | null = null;
+      try {
+        client = viewer.projectToClient(candidate.point);
+      } catch {
+        client = null;
+      }
+      const hit = client === null ? null : pickAt(client.x, client.y);
+      if (hit === null || chordNative(hit, candidate.point) > verifyTol) {
+        return { error: `The rectangle ${candidate.label} leaves the model surface here (hole, curve or face edge) — a flat rectangle cannot sit here. Previous draft kept.` };
+      }
+    }
+    return { corners };
+  };
+
+  /**
+   * Stage one released drag/handle result as a single edit: create the area
+   * when it is a valid named ring, else stash the corners as an open drawing
+   * (or keep the prior drawing) — never replacing the last valid area.
+   */
+  const stageReleasedCorners = (
+    entry: ModelSetupProduct,
+    draft: ProductDraft,
+    corners: SetupVec3[],
+    source: 'rectangle drag' | 'trace',
+  ): string => {
+    const name = draft.drawingName.trim();
+    if (name !== '' && !draft.areas.some((area) => area.name.toLowerCase() === name.toLowerCase())) {
+      const savedId = newAreaId();
+      const reason = checkModelSafeArea(
+        savedId,
+        name,
+        corners.map((point) => ({ ...point })),
+        draft.areas.map((area) => area.id),
+        draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null,
+      );
+      if (reason === null) {
+        draft.areas.push({ id: savedId, name, points: corners.map((point) => ({ ...point })), status: draft.fitted && !draft.fitStale ? 'current' : 'stale' });
+        draft.selectedAreaId = savedId;
+        draft.handleArm = null;
+        emit(entry, draft);
+        return draft.fitted && !draft.fitStale
+          ? `Safe area “${name}” saved from the ${source} (4 corners, planar patch verified). Pending review.`
+          : `Safe area “${name}” saved from the ${source} but the reference is uncalibrated — fit the scale, then recompute.`;
+      }
+      if (draft.drawing === null || draft.drawing.length === 0) draft.drawing = corners.map((point) => ({ ...point }));
+      return `${reason} Previous valid areas kept; the ${source} corners are staged as an open drawing for inspection.`;
+    }
+    if (draft.drawing === null || draft.drawing.length === 0) {
+      draft.drawing = corners.map((point) => ({ ...point }));
+      draft.handleArm = null;
+      const why =
+        name === ''
+          ? 'Name it above, then Finish area.'
+          : `Another area is already called “${name}” — rename, then Finish area.`;
+      return `${source === 'rectangle drag' ? 'Rectangle' : 'Trace'} staged (${corners.length} surface points). ${why}`;
+    }
+    return `Kept the ${draft.drawing.length} staged drawing point(s) — the ${source} was set aside to protect them. Finish or Cancel the drawing first.`;
   };
 
   function refresh(): void {
@@ -538,6 +1342,8 @@ export function createModelSetupView(
       const note = el('p', 'empty', 'muted');
       note.textContent = 'Add a real 3D product first — nothing is pre-selected.';
       root.append(note, statusBox);
+      wireHandleFrame();
+      syncHandleLayer();
       return;
     }
 
@@ -547,15 +1353,19 @@ export function createModelSetupView(
       const note = el('p', 'no-product', 'muted');
       note.textContent = resolved.error;
       root.append(note, statusBox);
+      wireHandleFrame();
+      syncHandleLayer();
       return;
     }
     const { entry, draft } = resolved;
+    renderViewbar({ entry, draft }, paintStatus);
     renderReference(root, entry, draft, paintStatus);
     renderAreas(root, entry, draft, paintStatus);
-    renderToggles(root, entry, draft, paintStatus);
     renderAdvanced(root, entry, draft, paintStatus);
     root.append(statusBox);
     paintViewer(draft);
+    wireHandleFrame();
+    syncHandleLayer();
   }
 
   function renderProductRow(
@@ -581,6 +1391,7 @@ export function createModelSetupView(
       if (isActiveEntry(product)) button.classList.add('is-selected');
       button.addEventListener('click', () => {
         armed = null;
+        cancelGestureSilent();
         if (!isActiveEntry(product)) {
           try {
             callbacks.onSelectProduct?.(product.productId, product.variantId);
@@ -668,6 +1479,9 @@ export function createModelSetupView(
         draft.fitStale = true;
         for (const area of draft.areas) area.status = 'stale';
       }
+      // The overlay label updates while typing (no blur, no re-render, so
+      // the field keeps focus).
+      syncReferenceOverlay(draft);
     });
     mmInput.addEventListener('change', () => {
       // Blur/change fires synchronously inside a trusted click's
@@ -784,6 +1598,43 @@ export function createModelSetupView(
       'Each area is a polygon of surface picks; its polygon establishes the region plane. No default polygon is invented. Editing or recalibrating the reference marks areas stale — recompute them explicitly.';
     section.append(intro);
 
+    // Authoring tool (freehand trace/corners, or press-drag rectangle). The
+    // switch lives here with the area actions; the viewbar above the preview
+    // carries only zoom and visibility.
+    const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
+    toolRow.setAttribute('role', 'group');
+    toolRow.setAttribute('aria-label', 'Safe-area authoring tool');
+    for (const tool of ['freehand', 'rectangle'] as const) {
+      const button = el('button', `tool-${tool}`, 'btn-secondary');
+      button.type = 'button';
+      button.textContent = tool === 'freehand' ? 'Freehand' : 'Rectangle';
+      button.setAttribute('data-ps-tool', tool);
+      button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
+      if (draft.areaTool === tool) button.classList.add('is-selected');
+      button.addEventListener('click', () => {
+        if (draft.areaTool !== tool) {
+          draft.areaTool = tool;
+          draft.handleArm = null;
+          armed = null;
+          cancelGestureSilent();
+          paintStatus(
+            tool === 'freehand'
+              ? 'Freehand tool: press and drag on the surface to trace (release closes the trace), or click corners then Finish area.'
+              : 'Rectangle tool: name the area, then press at one corner on the surface and drag to the opposite corner. Release creates one four-corner area.',
+          );
+        }
+        refresh();
+      });
+      toolRow.append(button);
+    }
+    section.append(toolRow);
+    if (draft.areaTool === 'rectangle') {
+      const rectHint = el('p', 'areas-rect-hint', 'model-setup-hint muted');
+      rectHint.textContent =
+        'Rectangle corners resolve on a consistent planar model surface patch (verified from actual surface samples). If the surface cannot support a flat rectangle, the previous draft is kept with an explanation.';
+      section.append(rectHint);
+    }
+
     const form = el('div', 'areas-form', 'model-setup-row');
     const nameLabel = document.createElement('label');
     nameLabel.className = 'model-setup-field';
@@ -805,13 +1656,20 @@ export function createModelSetupView(
     const actions = el('div', 'areas-actions', 'model-setup-actions');
     const start = el('button', 'area-start', 'btn-secondary');
     start.type = 'button';
-    start.textContent = draft.drawing ? `Adding points… (${draft.drawing.length} picked, Esc cancels)` : 'Start area (click surface points)';
-    start.disabled = draft.drawing !== null;
+    if (draft.areaTool === 'rectangle') {
+      start.textContent = 'Rectangle: drag on the model (name it first)';
+      start.disabled = true;
+      start.title = 'Press at one corner on the model surface, drag to the opposite corner, release.';
+    } else {
+      start.textContent = draft.drawing ? `Adding points… (${draft.drawing.length} picked, Esc cancels)` : 'Start area (click surface points)';
+      start.disabled = draft.drawing !== null;
+    }
     start.addEventListener('click', () => {
+      if (draft.areaTool !== 'freehand') return;
       draft.drawing = [];
       draft.drawingName = nameInput.value;
       armed = 'areaPoint';
-      paintStatus('Drawing: click at least 3 surface points on the model, then Finish area.');
+      paintStatus('Drawing: click at least 3 surface points on the model, or press-drag to trace, then Finish area.');
       refresh();
     });
     const finish = el('button', 'area-finish', 'btn-primary');
@@ -917,6 +1775,67 @@ export function createModelSetupView(
     }
     section.append(list);
 
+    // Rectangle handles for the selected area: corners plus side midpoints.
+    // A handle arms a canvas drag (or a click-to-move pick); release commits
+    // exactly one rectangle-preserving edit. View changes never alter the
+    // stored polygon. General polygons keep their vertices (no handles).
+    const selected = draft.areas.find((area) => area.id === draft.selectedAreaId);
+    if (selected !== undefined && isRectangleRing(selected.points)) {
+      const handles = el('div', 'area-handles', 'model-setup-row');
+      handles.setAttribute('role', 'group');
+      handles.setAttribute('aria-label', `Rectangle handles for “${selected.name}”`);
+      const hint = el('span', 'area-handles-hint', 'muted');
+      hint.textContent = `“${selected.name}” is rectangular — drag a handle on the model (Esc cancels):`;
+      handles.append(hint);
+      for (let index = 0; index < 4; index += 1) {
+        const corner = el('button', `handle-corner-${index}`, 'btn-secondary');
+        corner.type = 'button';
+        corner.textContent = `Corner ${index + 1}`;
+        const isArmed =
+          draft.handleArm !== null &&
+          draft.handleArm.areaId === selected.id &&
+          draft.handleArm.kind === 'corner' &&
+          draft.handleArm.index === index;
+        corner.setAttribute('aria-pressed', isArmed ? 'true' : 'false');
+        if (isArmed) corner.classList.add('is-selected');
+        corner.addEventListener('click', () => {
+          armed = null;
+          draft.handleArm =
+            isArmed ? null : { areaId: selected.id, kind: 'corner' as const, index };
+          cancelGestureSilent();
+          lastStatus = isArmed
+            ? 'Handle disarmed — staged data unchanged.'
+            : `Corner ${index + 1} armed: drag it on the model surface (orbit is suspended while dragging), or click its new position. Esc cancels.`;
+          refresh();
+        });
+        handles.append(corner);
+      }
+      for (let index = 0; index < 4; index += 1) {
+        const side = el('button', `handle-side-${index}`, 'btn-secondary');
+        side.type = 'button';
+        side.textContent = `Side ${index + 1}–${((index + 1) % 4) + 1}`;
+        const isArmed =
+          draft.handleArm !== null &&
+          draft.handleArm.areaId === selected.id &&
+          draft.handleArm.kind === 'side' &&
+          draft.handleArm.index === index;
+        side.setAttribute('aria-pressed', isArmed ? 'true' : 'false');
+        if (isArmed) side.classList.add('is-selected');
+        side.addEventListener('click', () => {
+          armed = null;
+          draft.handleArm =
+            isArmed ? null : { areaId: selected.id, kind: 'side' as const, index };
+          cancelGestureSilent();
+          lastStatus = isArmed
+            ? 'Handle disarmed — staged data unchanged.'
+            : `Side armed: drag it on the model surface (the opposite side stays fixed), or click its new position. Esc cancels.`;
+          refresh();
+        });
+        handles.append(side);
+      }
+      section.append(handles);
+    }
+
     const recompute = el('button', 'areas-recompute', 'btn-secondary');
     recompute.type = 'button';
     const staleCount = draft.areas.filter((a) => a.status === 'stale').length;
@@ -951,50 +1870,217 @@ export function createModelSetupView(
     root.append(section);
   }
 
-  function renderToggles(
-    root: HTMLElement,
-    entry: ModelSetupProduct,
-    draft: ProductDraft,
+  /**
+   * View controls adjacent to the preview (zoom + visibility), rendered into
+   * the lead-provided mount `[data-model-setup-hook="viewbar"]` directly
+   * above the canvas. Fallback: when the lead mount is absent, create the
+   * same hooked node as the canvas's previous sibling so controls still sit
+   * adjacent to the preview, never beneath the reference/area forms. The
+   * visibility controls below were removed to avoid duplication: hiding a
+   * layer is display-only and never discards staged data.
+   */
+  function renderViewbar(
+    scope: { entry: ModelSetupProduct; draft: ProductDraft } | null,
     paintStatus: (message: string) => void,
   ): void {
-    const section = el('section', 'toggles-section', '');
-    const title = document.createElement('h4');
-    title.textContent = 'Visibility (display only — staged data is always kept)';
-    section.append(title);
-    const row = el('div', 'toggles-row', 'model-setup-row');
-    const anchors = el('button', 'toggle-anchors', 'btn-secondary');
-    anchors.type = 'button';
-    anchors.textContent = draft.anchorsVisible ? 'Hide anchors' : 'Show anchors';
-    anchors.setAttribute('aria-pressed', draft.anchorsVisible ? 'true' : 'false');
-    anchors.addEventListener('click', () => {
-      draft.anchorsVisible = !draft.anchorsVisible;
-      paintStatus(draft.anchorsVisible ? 'Anchors shown. Staged picks are unchanged.' : 'Anchors hidden. Staged picks are kept.');
-      emit(entry, draft);
-      refresh();
+    let mount = document.querySelector('[data-model-setup-hook="viewbar"]');
+    if (mount === null) {
+      const canvas = canvasOf();
+      const stage = canvas !== null && canvas.parentElement !== null ? canvas.parentElement : null;
+      if (stage === null) return;
+      const bar = document.createElement('div');
+      bar.setAttribute(HOOK, 'viewbar');
+      bar.setAttribute('role', 'toolbar');
+      bar.setAttribute('aria-label', '3D preview view controls');
+      stage.insertBefore(bar, canvas);
+      ownedViewbar = bar;
+      mount = bar;
+    } else if (ownedViewbar !== null && mount !== ownedViewbar) {
+      // The lead mount arrived after the fallback: retire the fallback so
+      // controls are never duplicated.
+      ownedViewbar.remove();
+      ownedViewbar = null;
+    }
+    mount.replaceChildren();
+    const viewer = viewerOf();
+    const zoomOf = (): number => {
+      try {
+        return viewer?.getZoomPercent?.() ?? 100;
+      } catch {
+        return 100;
+      }
+    };
+    const zoomOut = document.createElement('button');
+    zoomOut.type = 'button';
+    zoomOut.textContent = '−';
+    zoomOut.setAttribute('data-ps-view', 'zoom-out');
+    zoomOut.setAttribute('aria-label', 'Zoom out');
+    zoomOut.addEventListener('click', () => {
+      stepZoom(-1);
+      syncViewbar(scope);
     });
-    const safe = el('button', 'toggle-safe', 'btn-secondary');
-    safe.type = 'button';
-    safe.textContent = draft.safeAreasVisible ? 'Hide safe areas' : 'Show safe areas';
-    safe.setAttribute('aria-pressed', draft.safeAreasVisible ? 'true' : 'false');
-    safe.addEventListener('click', () => {
-      draft.safeAreasVisible = !draft.safeAreasVisible;
-      paintStatus(draft.safeAreasVisible ? 'Safe areas shown. Staged polygons are unchanged.' : 'Safe areas hidden. Staged polygons are kept.');
-      emit(entry, draft);
-      refresh();
+    const zoomSelect = document.createElement('select');
+    zoomSelect.setAttribute('data-ps-view', 'zoom');
+    zoomSelect.setAttribute('aria-label', 'Zoom percentage (camera readout)');
+    for (const step of VIEW_ZOOM_STEPS) {
+      const option = document.createElement('option');
+      option.value = String(step);
+      option.textContent = `${step}%`;
+      zoomSelect.append(option);
+    }
+    zoomSelect.value = String(zoomOf());
+    zoomSelect.addEventListener('change', () => {
+      try {
+        viewer?.setZoomPercent?.(Number(zoomSelect.value));
+      } catch {
+        return;
+      }
+      syncViewbar(scope);
     });
-    const product = el('button', 'toggle-product', 'btn-secondary');
-    product.type = 'button';
-    product.textContent = draft.productVisible ? 'Hide product' : 'Show product';
-    product.setAttribute('aria-pressed', draft.productVisible ? 'true' : 'false');
-    product.addEventListener('click', () => {
-      draft.productVisible = !draft.productVisible;
-      paintStatus(draft.productVisible ? 'Product shown. Staged reference and areas are unchanged.' : 'Product hidden (geometry only — overlays, camera and staged data are kept). Surface picking is blocked until shown again.');
-      emit(entry, draft);
-      refresh();
+    const zoomIn = document.createElement('button');
+    zoomIn.type = 'button';
+    zoomIn.textContent = '+';
+    zoomIn.setAttribute('data-ps-view', 'zoom-in');
+    zoomIn.setAttribute('aria-label', 'Zoom in');
+    zoomIn.addEventListener('click', () => {
+      stepZoom(1);
+      syncViewbar(scope);
     });
-    row.append(anchors, safe, product);
-    section.append(row);
-    root.append(section);
+    const fit = document.createElement('button');
+    fit.type = 'button';
+    fit.textContent = 'Fit';
+    fit.setAttribute('data-ps-view', 'fit');
+    fit.setAttribute('aria-label', 'Fit product view (100%)');
+    fit.addEventListener('click', () => {
+      try {
+        viewer?.resetZoom?.();
+      } catch {
+        return;
+      }
+      syncViewbar(scope);
+    });
+    mount.append(zoomOut, zoomSelect, zoomIn, fit);
+    const toggles: Array<{ view: string; hook: string; label: string; pressed: boolean }> = [
+      {
+        view: 'vis-anchors',
+        hook: 'toggle-anchors',
+        label: 'Anchors',
+        pressed: scope?.draft.anchorsVisible ?? true,
+      },
+      {
+        view: 'vis-areas',
+        hook: 'toggle-safe',
+        label: 'Safe areas',
+        pressed: scope?.draft.safeAreasVisible ?? true,
+      },
+      {
+        view: 'vis-product',
+        hook: 'toggle-product',
+        label: 'Product',
+        pressed: scope?.draft.productVisible ?? true,
+      },
+    ];
+    for (const toggle of toggles) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = toggle.label;
+      button.setAttribute('data-ps-view', toggle.view);
+      button.setAttribute(HOOK, toggle.hook);
+      button.setAttribute('aria-pressed', toggle.pressed ? 'true' : 'false');
+      button.disabled = scope === null;
+      button.addEventListener('click', () => {
+        if (scope === null) return;
+        const { entry, draft } = scope;
+        if (toggle.view === 'vis-anchors') draft.anchorsVisible = !draft.anchorsVisible;
+        else if (toggle.view === 'vis-areas') draft.safeAreasVisible = !draft.safeAreasVisible;
+        else draft.productVisible = !draft.productVisible;
+        button.setAttribute(
+          'aria-pressed',
+          (toggle.view === 'vis-anchors'
+            ? draft.anchorsVisible
+            : toggle.view === 'vis-areas'
+              ? draft.safeAreasVisible
+              : draft.productVisible
+          ).toString(),
+        );
+        paintStatus(
+          toggle.view === 'vis-anchors'
+            ? draft.anchorsVisible
+              ? 'Anchors shown (reference endpoints plus the connecting measurement). Staged picks are unchanged.'
+              : 'Anchors hidden (reference endpoints plus the connecting measurement). Staged picks are kept.'
+            : toggle.view === 'vis-areas'
+              ? draft.safeAreasVisible
+                ? 'Safe areas shown (fills, outlines and handles). Staged polygons are unchanged.'
+                : 'Safe areas hidden (fills, outlines and handles). Staged polygons are kept.'
+              : draft.productVisible
+                ? 'Product shown. Staged reference and areas are unchanged.'
+                : 'Product hidden (geometry only — overlays, camera and staged data are kept). Surface picking is blocked until shown again.',
+        );
+        emit(entry, draft);
+        paintViewer(draft);
+      });
+      mount.append(button);
+    }
+    syncViewbar(scope);
+  }
+
+  /** Step the display zoom through the supported values (camera only). */
+  function stepZoom(direction: -1 | 1): void {
+    try {
+      const viewer = viewerOf();
+      if (!viewer?.setZoomPercent) return;
+      let current = 100;
+      try {
+        current = viewer.getZoomPercent?.() ?? 100;
+      } catch {
+        current = 100;
+      }
+      let index = (VIEW_ZOOM_STEPS as readonly number[]).indexOf(current);
+      if (index < 0) {
+        let best = 0;
+        let bestErr = Infinity;
+        VIEW_ZOOM_STEPS.forEach((step, stepIndex) => {
+          const err = Math.abs(step - current);
+          if (err < bestErr) {
+            bestErr = err;
+            best = stepIndex;
+          }
+        });
+        index = best;
+      }
+      const next = VIEW_ZOOM_STEPS[Math.min(VIEW_ZOOM_STEPS.length - 1, Math.max(0, index + direction))];
+      if (next !== undefined) viewer.setZoomPercent(next);
+    } catch {
+      return;
+    }
+  }
+
+  /** Patch zoom readout/disabled state in place (no rebuild, keeps focus). */
+  function syncViewbar(scope: { entry: ModelSetupProduct; draft: ProductDraft } | null): void {
+    try {
+      const mount = document.querySelector('[data-model-setup-hook="viewbar"]');
+      if (mount === null) return;
+      let zoom = 100;
+      try {
+        zoom = viewerOf()?.getZoomPercent?.() ?? 100;
+      } catch {
+        zoom = 100;
+      }
+      const select = mount.querySelector<HTMLSelectElement>('[data-ps-view="zoom"]');
+      if (select !== null) {
+        if (!Array.from(select.options).some((option) => option.value === String(zoom))) {
+          zoom = 100;
+        }
+        select.value = String(zoom);
+      }
+      const out = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-out"]');
+      if (out !== null) out.disabled = zoom <= VIEW_ZOOM_STEPS[0]!;
+      const into = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-in"]');
+      if (into !== null) into.disabled = zoom >= VIEW_ZOOM_STEPS[VIEW_ZOOM_STEPS.length - 1]!;
+      void scope;
+    } catch {
+      return;
+    }
   }
 
   /**
@@ -1307,6 +2393,252 @@ export function createModelSetupView(
     return best;
   }
 
+  /** Raycast one surface pick; null on any miss or bad input. Never throws. */
+  function safePick(
+    viewer: ModelSetupViewerLike,
+    clientX: number,
+    clientY: number,
+  ): SetupVec3 | null {
+    try {
+      const hit =
+        viewer.pickSurface?.(clientX, clientY) ??
+        viewer.pickSurfaceFromEvent({ clientX, clientY });
+      if (hit === null || typeof hit !== 'object') return null;
+      if (!isVec3(hit.modelPosition)) return null;
+      return { x: hit.modelPosition.x, y: hit.modelPosition.y, z: hit.modelPosition.z };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Detailed surface pick (position + real mesh face normal), or null when
+   * the viewer has no detailed API or the pick misses/is degenerate.
+   * Never throws; never invents points or normals.
+   */
+  function safePickDetailed(
+    viewer: ModelSetupViewerLike,
+    clientX: number,
+    clientY: number,
+  ): { point: SetupVec3; normal: SetupVec3 } | null {
+    try {
+      const detailed = viewer.pickSurfaceDetailed?.(clientX, clientY) ?? null;
+      if (detailed === null || typeof detailed !== 'object') return null;
+      if (!isVec3(detailed.modelPosition) || !isVec3(detailed.normal)) return null;
+      if (!(norm3(detailed.normal) > 1e-12)) return null;
+      return {
+        point: { x: detailed.modelPosition.x, y: detailed.modelPosition.y, z: detailed.modelPosition.z },
+        normal: { x: detailed.normal.x, y: detailed.normal.y, z: detailed.normal.z },
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function maybeStartGesture(event: PointerEvent): void {
+    if (gesture !== null || downAt === null) return;
+    if (armed !== null && !(armed === 'areaPoint')) return;
+    const resolved = currentDraft();
+    if ('error' in resolved) return;
+    const { entry, draft } = resolved;
+    if (draft.productVisible !== true) {
+      lastStatus = 'Product hidden — show the product to pick surface points. Staged reference and areas are unchanged.';
+      refresh();
+      return;
+    }
+    const viewer = viewerOf();
+    if (!viewer) return;
+    const start = safePick(viewer, downAt.x, downAt.y);
+    if (start === null) return; // press missed: orbit continues, release reports it.
+    if (draft.handleArm !== null && armed === null) {
+      gesture = { kind: 'handle', entry, draft, handle: { ...draft.handleArm } };
+    } else if (draft.areaTool === 'rectangle' && armed === null) {
+      const detailed = safePickDetailed(viewer, downAt.x, downAt.y);
+      gesture = {
+        kind: 'rect',
+        entry,
+        draft,
+        corner0: start,
+        normal0: detailed?.normal ?? null,
+        misses: 0,
+        downX: downAt.x,
+        downY: downAt.y,
+      };
+    } else if (armed === 'areaPoint' && draft.areaTool === 'freehand') {
+      if (draft.drawing === null) draft.drawing = [];
+      gesture = { kind: 'trace', entry, draft, points: [], misses: 0 };
+    } else {
+      return;
+    }
+    suspendOrbit();
+    try {
+      canvasOf()?.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+  }
+
+  function updateGesture(event: PointerEvent): void {
+    if (gesture === null) return;
+    const viewer = viewerOf();
+    if (!viewer) return;
+    const hit = safePick(viewer, event.clientX, event.clientY);
+    if (gesture.kind === 'trace') {
+      if (hit === null) {
+        gesture.misses += 1;
+        return; // missed picks add no points; ANY miss rejects the whole stroke on release (never bridged).
+      }
+      const last = gesture.points[gesture.points.length - 1] ?? null;
+      if (last !== null && !(chordNative(last, hit) > 1e-9)) return;
+      gesture.points.push(hit);
+      if (gesture.points.length > 2048) {
+        gesture.points = gesture.points.filter((_, index) => index % 2 === 0);
+      }
+      const combined = [...(gesture.draft.drawing ?? []), ...gesture.points];
+      livePreview = combined.length >= 3 ? combined : null;
+      paintViewer(gesture.draft);
+      return;
+    }
+    if (gesture.kind === 'rect') {
+      if (hit === null) {
+        gesture.misses += 1;
+        return;
+      }
+      const detailed = safePickDetailed(viewer, event.clientX, event.clientY);
+      const resolved = resolveDragRectangle(
+        viewer,
+        { point: gesture.corner0, normal: gesture.normal0 },
+        { point: hit, normal: detailed?.normal ?? null },
+        { x: gesture.downX, y: gesture.downY },
+        { x: event.clientX, y: event.clientY },
+      );
+      livePreview = 'corners' in resolved ? resolved.corners : null;
+      paintViewer(gesture.draft);
+      return;
+    }
+    const active = gesture;
+    if (active.kind !== 'handle') return;
+    const area = active.draft.areas.find((candidate) => candidate.id === active.handle.areaId);
+    if (area === undefined || hit === null) {
+      if (hit === null) livePreview = null;
+      paintViewer(active.draft);
+      return;
+    }
+    const next = geometryForHandleMove(area.points, active.handle, hit);
+    livePreview = next !== null && next.length >= 3 ? next : null;
+    paintViewer(active.draft);
+  }
+
+  function finishGesture(event: PointerEvent): void {
+    const active = gesture;
+    gesture = null;
+    restoreOrbit();
+    livePreview = null;
+    try {
+      canvasOf()?.releasePointerCapture(event.pointerId);
+    } catch {
+      // Capture already released (or never acquired): the release commit
+      // below must still run exactly once.
+    }
+    if (active === null) return;
+    const viewer = viewerOf();
+    if (active.kind === 'trace') {
+      const base = active.draft.drawing ?? [];
+      // An interrupted stroke (ANY missed surface pick mid-trace) is rejected
+      // wholesale: concatenating across the gap would bridge unpicked surface
+      // and invent geometry. The previous draft is preserved untouched; a
+      // fresh (empty) drawing is cleared so the next trace starts clean.
+      if (active.misses > 0) {
+        if (base.length === 0) active.draft.drawing = null;
+        lastStatus =
+          base.length === 0
+            ? `That trace left the model surface (${active.misses} missed pick${active.misses === 1 ? '' : 's'}) — ` +
+              'the interrupted stroke was discarded, not bridged; nothing was stashed. ' +
+              'Trace again in one motion staying on the surface.'
+            : `That trace left the model surface (${active.misses} missed pick${active.misses === 1 ? '' : 's'}) — ` +
+              `the interrupted stroke was discarded, not bridged. Kept the previous ${base.length} staged point(s). ` +
+              'Trace in one motion staying on the surface.';
+        refresh();
+        return;
+      }
+      const kept: SetupVec3[] = [];
+      for (const point of active.points) {
+        const last = kept[kept.length - 1] ?? null;
+        if (last === null || chordNative(last, point) > 1e-9) kept.push(point);
+      }
+      const traced = decimateTrace(kept);
+      if (traced.length === 0) {
+        const staged = base.length;
+        lastStatus =
+          staged > 0
+            ? `That trace added no new surface points — kept the ${staged} staged point(s).`
+            : 'That trace missed the model surface — nothing was recorded. Press directly on the surface and drag.';
+        refresh();
+        return;
+      }
+      if (base.length === 0 && traced.length >= 3) {
+        // A pure drag trace closes one ring on release (single staged edit).
+        lastStatus = stageReleasedCorners(active.entry, active.draft, traced, 'trace');
+        refresh();
+        return;
+      }
+      if (base.length + traced.length > TRACE_POINT_LIMIT) {
+        lastStatus = `That trace would exceed ${TRACE_POINT_LIMIT} polygon points — kept the previous ${base.length} staged point(s). Finish or Cancel the drawing first.`;
+        refresh();
+        return;
+      }
+      active.draft.drawing = [...base, ...traced];
+      lastStatus = `Traced ${traced.length} surface point(s) — ${active.draft.drawing.length} staged. Review, then Finish area.`;
+      emit(active.entry, active.draft);
+      refresh();
+      return;
+    }
+    if (viewer === null) {
+      lastStatus = 'The preview is unavailable — staged data unchanged.';
+      refresh();
+      return;
+    }
+    const release = safePick(viewer, event.clientX, event.clientY);
+    if (active.kind === 'rect') {
+      if (release === null) {
+        lastStatus = 'Release missed the model surface — end the drag on the model. Previous draft kept.';
+        refresh();
+        return;
+      }
+      const releaseDetailed = safePickDetailed(viewer, event.clientX, event.clientY);
+      const resolved = resolveDragRectangle(
+        viewer,
+        { point: active.corner0, normal: active.normal0 },
+        { point: release, normal: releaseDetailed?.normal ?? null },
+        { x: active.downX, y: active.downY },
+        { x: event.clientX, y: event.clientY },
+      );
+      // One staged edit per release; failures preserve the last valid draft.
+      lastStatus =
+        'corners' in resolved
+          ? stageReleasedCorners(active.entry, active.draft, resolved.corners, 'rectangle drag')
+          : resolved.error;
+      refresh();
+      return;
+    }
+    const area = active.draft.areas.find((candidate) => candidate.id === active.handle.areaId);
+    if (area === undefined) {
+      lastStatus = 'That area is no longer staged — nothing changed.';
+      refresh();
+      return;
+    }
+    if (release === null) {
+      lastStatus = `Release missed the model surface — “${area.name}” kept unchanged.`;
+      refresh();
+      return;
+    }
+    const outcome = commitHandlePoint(active.draft, active.handle, release);
+    active.draft.handleArm = null;
+    lastStatus = outcome.message;
+    if (outcome.ok) emit(active.entry, active.draft);
+    refresh();
+  }
+
   function onCanvasDown(event: PointerEvent): void {
     if (destroyed || event.button !== 0) return;
     // Gate on the LIVE canvas (the lead replaces the canvas per viewer
@@ -1315,19 +2647,121 @@ export function createModelSetupView(
     downAt = { x: event.clientX, y: event.clientY, button: event.button };
   }
 
+  function onCanvasMove(event: PointerEvent): void {
+    if (destroyed) return;
+    // A pressed direct handle turns into a handle gesture past the travel
+    // threshold; orbit was already suspended at press, so the camera cannot
+    // rotate under the drag.
+    if (pendingHandle !== null) {
+      const travel = Math.hypot(event.clientX - pendingHandle.x, event.clientY - pendingHandle.y);
+      if (!Number.isFinite(travel) || !(travel > CLICK_TRAVEL_PX)) return;
+      const resolved = currentDraft();
+      if ('error' in resolved) {
+        pendingHandle = null;
+        restoreOrbit();
+        return;
+      }
+      const { entry, draft } = resolved;
+      gesture = { kind: 'handle', entry, draft, handle: { ...pendingHandle.ref } };
+      pendingHandle = null;
+      updateGesture(event);
+      return;
+    }
+    if (gesture !== null) {
+      updateGesture(event);
+      return;
+    }
+    if (downAt === null || (event.buttons & 1) !== 1) return;
+    if (event.target !== canvasOf()) return;
+    const travel = Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y);
+    if (!Number.isFinite(travel) || !(travel > CLICK_TRAVEL_PX)) return;
+    maybeStartGesture(event);
+  }
+
+  function onPointerCancel(event: PointerEvent): void {
+    if (destroyed || (gesture === null && pendingHandle === null)) return;
+    void event;
+    gesture = null;
+    pendingHandle = null;
+    livePreview = null;
+    restoreOrbit();
+    lastStatus = 'Edit cancelled (pointer interrupted) — staged data unchanged.';
+    refresh();
+  }
+
   function onCanvasUp(event: PointerEvent): void {
     if (destroyed) return;
-    if (event.target !== canvasOf()) return;
+    // A pressed direct handle released without a drag arms it for
+    // click-to-move (the existing button-fallback path takes it over).
+    if (pendingHandle !== null) {
+      const pending = pendingHandle;
+      pendingHandle = null;
+      restoreOrbit();
+      const resolved = currentDraft();
+      if (!('error' in resolved)) {
+        resolved.draft.handleArm = { ...pending.ref };
+        armed = null;
+        lastStatus = pending.ref.kind === 'corner'
+          ? `Corner ${pending.ref.index + 1} armed: drag it on the model surface, or click its new position. Esc cancels.`
+          : `Side ${pending.ref.index + 1} armed: drag it on the model surface (the opposite side stays fixed), or click its new position. Esc cancels.`;
+      }
+      refresh();
+      return;
+    }
+    // A captured gesture drag keeps the canvas as target; plain clicks must
+    // land on the live canvas.
+    if (gesture === null && event.target !== canvasOf()) return;
     const down = downAt;
     downAt = null;
-    if (armed === null || down === null || event.button !== 0) return;
+    if (gesture !== null) {
+      finishGesture(event);
+      return;
+    }
+    if (down === null || event.button !== 0) return;
     const travel = Math.hypot(event.clientX - down.x, event.clientY - down.y);
-    if (!(travel <= 6) || !Number.isFinite(travel)) return;
+    if (!Number.isFinite(travel)) return;
     const resolved = currentDraft();
     if ('error' in resolved) return;
     const { entry, draft } = resolved;
     const viewer = viewerOf();
     if (!viewer) return;
+    if (armed === null) {
+      // Unarmed taps: handle click-to-move, rectangle tap hint, else orbit.
+      if (!(travel <= CLICK_TRAVEL_PX)) return;
+      // Hidden product blocks surface picking clearly: the raycast target is
+      // invisible, so any hit would be a guess — refuse with a route instead.
+      // Reference, areas, fit and overlays are untouched; showing the product
+      // resumes picking exactly where it left off.
+      if (!draft.productVisible) {
+        lastStatus = 'Product hidden — show the product to pick surface points. Staged reference and areas are unchanged.';
+        refresh();
+        return;
+      }
+      const hit = safePick(viewer, event.clientX, event.clientY);
+      if (hit === null) {
+        // Taps off the surface are orbit intent — stay silent unless a handle
+        // or rectangle tap expected a pick.
+        if (draft.handleArm !== null || draft.areaTool === 'rectangle') {
+          lastStatus = 'That click missed the model surface — nothing was recorded. Orbit and click the surface itself.';
+          refresh();
+        }
+        return;
+      }
+      if (draft.handleArm !== null) {
+        const outcome = commitHandlePoint(draft, draft.handleArm, hit);
+        draft.handleArm = null;
+        lastStatus = outcome.message;
+        if (outcome.ok) emit(entry, draft);
+        refresh();
+        return;
+      }
+      if (draft.areaTool === 'rectangle') {
+        lastStatus = 'Taps do not create rectangles — press at one corner, drag to the opposite corner, release.';
+        refresh();
+      }
+      return;
+    }
+    if (!(travel <= CLICK_TRAVEL_PX)) return;
     // Hidden product blocks surface picking clearly: the raycast target is
     // invisible, so any hit would be a guess — refuse with a route instead.
     // Reference, areas, fit and overlays are untouched; showing the product
@@ -1337,13 +2771,13 @@ export function createModelSetupView(
       refresh();
       return;
     }
-    const hit = viewer.pickSurfaceFromEvent(event);
+    const hit = safePick(viewer, event.clientX, event.clientY);
     if (!hit) {
       lastStatus = 'That click missed the model surface — nothing was recorded. Orbit and click the surface itself.';
       refresh();
       return;
     }
-    const point: SetupVec3 = { x: hit.modelPosition.x, y: hit.modelPosition.y, z: hit.modelPosition.z };
+    const point: SetupVec3 = { x: hit.x, y: hit.y, z: hit.z };
     if (!isVec3(point)) {
       lastStatus = 'That pick produced no usable surface position — try again.';
       refresh();
@@ -1385,9 +2819,28 @@ export function createModelSetupView(
     ) {
       return;
     }
+    // Escape/pointercancel rolls back any draw/edit gesture: staged data is
+    // untouched because commits happen only on release.
+    if (gesture !== null || pendingHandle !== null) {
+      gesture = null;
+      pendingHandle = null;
+      livePreview = null;
+      armed = null;
+      restoreOrbit();
+      lastStatus = 'Edit cancelled — staged data unchanged.';
+      refresh();
+      return;
+    }
     if (armed !== null) {
       armed = null;
       lastStatus = 'Pick cancelled — staged data unchanged.';
+      refresh();
+      return;
+    }
+    const resolved = currentDraft();
+    if (!('error' in resolved) && resolved.draft.handleArm !== null) {
+      resolved.draft.handleArm = null;
+      lastStatus = 'Handle disarmed — staged data unchanged.';
       refresh();
     }
   }
@@ -1395,7 +2848,9 @@ export function createModelSetupView(
   // Document-level pointer gating (see onCanvasDown): survives the lead's
   // per-attach canvas replacement, unlike element-bound listeners.
   document.addEventListener('pointerdown', onCanvasDown);
+  document.addEventListener('pointermove', onCanvasMove);
   document.addEventListener('pointerup', onCanvasUp);
+  document.addEventListener('pointercancel', onPointerCancel);
   document.addEventListener('keydown', onKeyDown);
 
   return {
@@ -1413,9 +2868,31 @@ export function createModelSetupView(
     destroy(): void {
       destroyed = true;
       armed = null;
+      pendingHandle = null;
+      cancelGestureSilent();
+      try {
+        if (framedViewer) framedViewer.onFrame = null;
+      } catch {
+        /* best-effort teardown */
+      }
+      framedViewer = null;
+      try {
+        handleLayer?.remove();
+      } catch {
+        /* best-effort teardown */
+      }
+      handleLayer = null;
+      handleDots = [];
+      handleModelsCache = [];
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onCanvasDown);
+      document.removeEventListener('pointermove', onCanvasMove);
       document.removeEventListener('pointerup', onCanvasUp);
+      document.removeEventListener('pointercancel', onPointerCancel);
+      if (ownedViewbar !== null) {
+        ownedViewbar.remove();
+        ownedViewbar = null;
+      }
       container.replaceChildren();
     },
   };

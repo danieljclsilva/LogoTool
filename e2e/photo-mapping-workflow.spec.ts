@@ -163,37 +163,54 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     await selectAllLists(page);
     await expect(await shown(page, 'selection-summary')).toContainText('2 products');
 
-    // ---- Operator mapping setup through visible controls. ----
-    await (await shown(page, 'mapping-product')).selectOption('SYN-TEE-001');
-    await (await shown(page, 'mapping-variant')).selectOption('SYN-TEE-M');
-    await (await shown(page, 'mapping-region')).selectOption('SYN-TEE-CHEST');
-    await expect(await shown(page, 'mapping-frame')).toContainText('CAL-SYN-001');
-    await (await shown(page, 'mapping-side')).selectOption('front');
-    await (await shown(page, 'mapping-photo')).selectOption('presentation/front.png');
-    // CHEST safe area x in [-100,100], y in [-80,80]: u=(x+100)/200, v=(80-y)/160.
-    const corners = [
-      { u: '0', v: '1', x: '-100', y: '-80' },
-      { u: '1', v: '1', x: '100', y: '-80' },
-      { u: '1', v: '0', x: '100', y: '80' },
-    ];
-    for (let index = 0; index < corners.length; index += 1) {
-      const corner = corners[index]!;
-      await page.locator(`[aria-label="Reference point ${index + 1} U (0..1)"]`).fill(corner.u);
-      await page.locator(`[aria-label="Reference point ${index + 1} V (0..1)"]`).fill(corner.v);
-      await page.locator(`[aria-label="Reference point ${index + 1} X millimetres"]`).fill(corner.x);
-      await page.locator(`[aria-label="Reference point ${index + 1} Y millimetres"]`).fill(corner.y);
-    }
-    await (await shown(page, 'mapping-check')).click();
-    await expect(await shown(page, 'mapping-status-line')).toContainText('Fit OK over 3 points');
-    await (await shown(page, 'mapping-save')).click();
-    await expect(await shown(page, 'mapping-status-line')).toContainText('Saved provisional mapping');
-    await expect(await shown(page, 'mapping-saved')).toContainText('SYN-TEE-CHEST');
-    // A degenerate fit is refused and preserves the staged mapping.
-    await page.locator('[aria-label="Reference point 3 X millimetres"]').fill('-100');
-    await page.locator('[aria-label="Reference point 3 Y millimetres"]').fill('-80');
-    await (await shown(page, 'mapping-check')).click();
-    await expect(await shown(page, 'mapping-status-line')).toContainText('Check failed');
-    await expect(await shown(page, 'mapping-saved')).toContainText('SYN-TEE-CHEST');
+    // ---- Operator measurement through the primary span calibration flow.
+    // (The manual reference-pair form is retired; automatic span-derived
+    // mappings are the only mapping path.)
+    await (await shown(page, 'workspace-product')).selectOption('SYN-TEE-001');
+    await (await shown(page, 'workspace-variant')).selectOption('SYN-TEE-M');
+    const workspace = builder(page, 'product-workspace');
+    await workspace.getByRole('button', { name: 'Set up scale' }).click();
+    const guided = builder(page, 'guided-scale');
+    await expect(guided).toBeVisible();
+    const spanOverlay = guided.locator('[data-guided="span-overlay"]');
+    await expect(spanOverlay).toBeVisible();
+    const spanBox = (await spanOverlay.boundingBox())!;
+    const spanClick = async (fx: number, fy: number) => {
+      await spanOverlay.click({ position: { x: Math.round(spanBox.width * fx), y: Math.round(spanBox.height * fy) } });
+    };
+    await spanClick(0.3, 0.5);
+    await spanClick(0.7, 0.5);
+    // A degenerate span is refused and stages nothing.
+    await guided.locator('[data-guided="span-mm"]').fill('0');
+    await guided.locator('[data-guided="span-create"]').click();
+    await expect(await shown(page, 'workspace-status')).toContainText('Enter the real length');
+    await guided.locator('[data-guided="span-mm"]').fill('1300');
+    await guided.locator('[data-guided="span-create"]').click();
+    await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
+
+    // The calibrated stage shows the dotted A/B line + the entered length.
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
+
+    // Draw the safe area with the Rectangle tool: one drag commits one area.
+    await workspace.getByRole('button', { name: 'Safe area', exact: true }).click();
+    await workspace.getByRole('button', { name: 'Rectangle' }).click();
+    const stage = workspace.locator('.product-setup-overlay').first();
+    await stage.scrollIntoViewIfNeeded();
+    const stageBox = (await stage.boundingBox())!;
+    const toStage = (fx: number, fy: number) => ({
+      x: stageBox.x + stageBox.width * fx,
+      y: stageBox.y + stageBox.height * fy,
+    });
+    const start = toStage(0.4, 0.4);
+    const end = toStage(0.6, 0.6);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 5 });
+    await page.mouse.up();
+    await expect(workspace.getByRole('button', { name: /Safe area \(4\)/ })).toBeVisible();
+    await workspace.getByRole('button', { name: 'Save product setup' }).click();
+    await expect(workspace.getByText(/Saved .* \(4 safe-area corners, 0 anchors\)/)).toBeVisible();
 
     // ---- The branch issues saved source assets only: staged-but-unsaved
     // photo mappings ship only after Save master + reopen. Persist the
@@ -211,6 +228,12 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     }).toContain('Loaded mapping-master.logo-project');
     await page.locator('[data-builder-hook="job-step-1"]').click();
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    // The saved span evidence returns with its scope: dotted A/B + length.
+    await (await shown(page, 'workspace-product')).selectOption('SYN-TEE-001');
+    await (await shown(page, 'workspace-variant')).selectOption('SYN-TEE-M');
+    const reopenedWorkspace = builder(page, 'product-workspace');
+    await expect(reopenedWorkspace.locator('.product-setup-refline')).toBeVisible();
+    await expect(reopenedWorkspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
     // Reopening resets logo imports and selection: re-upload the raster
     // artwork and select everything deliberately again.
     await (await shown(page, 'logo-file')).setInputFiles({ name: 'overlay.png', mimeType: 'image/png', buffer: Buffer.from(png) });
@@ -230,10 +253,21 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     const mappings = JSON.parse(new TextDecoder().decode(mappingBytes));
     assert.equal(mappings.version, 1);
     assert.equal(mappings.mappings.length, 1);
-    assert.deepEqual(
-      { productId: mappings.mappings[0].productId, regionId: mappings.mappings[0].regionId, view: mappings.mappings[0].view, image: mappings.mappings[0].image, calibrationId: mappings.mappings[0].calibrationId, calibrationVersion: mappings.mappings[0].calibrationVersion, status: mappings.mappings[0].status },
-      { productId: 'SYN-TEE-001', regionId: 'SYN-TEE-CHEST', view: 'front', image: 'presentation/front.png', calibrationId: 'CAL-SYN-001', calibrationVersion: 'v1', status: 'provisional' },
-    );
+    // The span flow owns the mapping: region + calibration are the span
+    // scope's own (never the fixture's CHEST ids), bound to this photo.
+    const entry = mappings.mappings[0];
+    assert.equal(entry.productId, 'SYN-TEE-001');
+    assert.equal(entry.view, 'front');
+    assert.equal(entry.image, 'presentation/front.png');
+    assert.equal(entry.status, 'provisional');
+    assert.ok(/^cal-span-/.test(entry.calibrationId), `span calibration id, saw ${entry.calibrationId}`);
+    assert.equal(entry.calibrationVersion, '1');
+    const issuedProduct = issued.project.products.find((item) => item.id === 'SYN-TEE-001')!;
+    const spanRegion = issuedProduct.regions.find((item) => item.id === entry.regionId)!;
+    assert.ok(spanRegion, 'span region travels with the issue');
+    assert.equal(spanRegion.safeArea.length, 4);
+    assert.equal(spanRegion.calibrationRef.calibrationId, entry.calibrationId);
+    const spanRegionId = entry.regionId as string;
 
     // ---- Customer: mapped photo proof with real PNG artwork. ----
     const htmlPath = join(directory, 'OPEN.html');
@@ -244,19 +278,19 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     await customer.goto(pathToFileURL(htmlPath).href);
     const hook = (name: string) => customer.locator(`[data-customer-hook="${name}"]`);
     await expect(hook('project-id')).not.toHaveText('Not loaded');
-    // Place the raster logo on the mapped chest area.
+    // Place the raster logo on the mapped span area. Begin the pending new
+    // placement BEFORE touching region/logo: region changes live-auto-apply
+    // to the selected existing placement and would retarget it.
     await selectCustomerOption(customer, 'configuration', 'SYN-CFG-TEE-M');
-    await selectCustomerOption(customer, 'region', 'SYN-TEE-CHEST');
+    await revealCustomerControl(customer, 'add-another');
+    await hook('add-another').click();
+    await selectCustomerOption(customer, 'region', spanRegionId);
     const logoValues = await hook('logo').evaluate((select) => Array.from((select as HTMLSelectElement).options).map((option) => option.value));
     const rasterId = logoValues.find((value) => !value.startsWith('SYN-LOGO'));
     assert.ok(rasterId, `expected an imported raster logo, saw: ${logoValues.join(',')}`);
     await selectCustomerOption(customer, 'logo', rasterId);
-    // Start a genuinely new placement so the width edit below does not apply
-    // onto the selected existing placement (live auto-apply would retarget it).
-    await revealCustomerControl(customer, 'add-another');
-    await hook('add-another').click();
     await revealCustomerControl(customer, 'width-mm');
-    await hook('width-mm').fill('60');
+    await hook('width-mm').fill('150');
     await hook('width-mm').press('Tab');
     const placementsBefore = await hook('placement').locator('option').count();
     await revealCustomerControl(customer, 'add');
@@ -273,13 +307,43 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     await expect(hook('photo-overlay').locator('image')).toHaveCount(1);
     await expect(hook('mapping-status')).toContainText('visual trial, not production approval');
     // Drag on the mapped photo moves the placement through the inverse mapping.
+    // The imported raster starts at frame 0,0 (span point A, outside the new
+    // safe area), so first centre it in the actual safe polygon (centroid of
+    // the issued span region) through the existing numeric UI, then prove a
+    // small interior drag.
+    const issuedRegion = issued.project.products
+      .flatMap((item) => item.regions)
+      .find((item) => item.id === entry.regionId)!;
+    assert.ok(issuedRegion, 'span region travels with the issue');
+    const regionPts = issuedRegion.safeArea as Array<[number, number]>;
+    const centroid: [number, number] = [
+      regionPts.reduce((sum, point) => sum + point[0]!, 0) / regionPts.length,
+      regionPts.reduce((sum, point) => sum + point[1]!, 0) / regionPts.length,
+    ];
+    await revealCustomerControl(customer, 'x-mm');
+    await hook('x-mm').fill(String(Math.round(centroid[0] * 10) / 10));
+    await hook('x-mm').press('Tab');
+    await revealCustomerControl(customer, 'y-mm');
+    await hook('y-mm').fill(String(Math.round(centroid[1] * 10) / 10));
+    await hook('y-mm').press('Tab');
+    // Press on the new placement's footprint itself (the drag starts on the
+    // footprint polygon, now centred in the safe area).
     const overlay = hook('photo-overlay');
-    const box = (await overlay.boundingBox())!;
+    await expect(overlay.locator('.footprint.selected')).toBeVisible();
+    // In-page rect: Playwright's boundingBox returns null for these SVG
+    // polygons even while visible; getBoundingClientRect is viewport-relative.
+    const artBox = await customer.evaluate((): { x: number; y: number; width: number; height: number } => {
+      const node = document.querySelector('[data-customer-hook="photo-overlay"] .footprint.selected');
+      if (!node) throw new Error('no selected placement footprint');
+      const b = (node as SVGGraphicsElement).getBoundingClientRect();
+      return { x: b.x, y: b.y, width: b.width, height: b.height };
+    });
     const revisionBefore = Number(await hook('revision').textContent());
     const xBefore = Number(await hook('x-mm').inputValue());
-    await customer.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    // Small interior drag: the placement stays well inside the safe area.
+    await customer.mouse.move(artBox.x + artBox.width / 2, artBox.y + artBox.height / 2);
     await customer.mouse.down();
-    await customer.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 12, { steps: 3 });
+    await customer.mouse.move(artBox.x + artBox.width / 2 + 5, artBox.y + artBox.height / 2 + 3, { steps: 3 });
     await customer.mouse.up();
     await expect(hook('revision')).toHaveText(String(revisionBefore + 1));
     expect(Number(await hook('x-mm').inputValue())).not.toBe(xBefore);
@@ -337,6 +401,14 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     const returned = await parseProjectPackage(savedReturn, { sha256 });
     assert.equal(candidate.revision, returned.project.revision);
     assert.equal(candidate.digest, buildCandidateExport(returned.project, sha256Text).digest);
+    // Ordering guard: pre-existing issued placements survive byte-for-byte;
+    // only the one new raster placement is appended.
+    const issuedCfg = issued.project.configurations.find((item) => item.id === 'SYN-CFG-TEE-M')!;
+    const returnedCfg = returned.project.configurations.find((item) => item.id === 'SYN-CFG-TEE-M')!;
+    assert.deepEqual(
+      returnedCfg.placements.slice(0, issuedCfg.placements.length),
+      issuedCfg.placements,
+    );
     // The one-sheet preview composites the actual mapped PNG artwork (photo
     // + real artwork through the evaluated mapping), never just binding
     // metadata; SVG originals stay unrendered. Captions are side-only with
@@ -513,35 +585,44 @@ test('staged mappings survive Save master, reopen, issue and the mapped photo pr
       const plainMaster = await readDownload(page, 'plain-master.logo-project', () =>
         shown(page, 'save-master').then((control) => control.click()));
       expect(Buffer.from(plainMaster)).toEqual(Buffer.from(sourceBytes));
-      // Stage one mapping through the visible setup, then save the master:
-      // the mappings file is added while original binaries stay verbatim.
-      await (await shown(page, 'mapping-product')).selectOption('SYN-TEE-001');
-      await (await shown(page, 'mapping-variant')).selectOption('SYN-TEE-M');
-      await (await shown(page, 'mapping-region')).selectOption('SYN-TEE-CHEST');
-      await (await shown(page, 'mapping-side')).selectOption('front');
-      await (await shown(page, 'mapping-photo')).selectOption('presentation/front.png');
-      const corners = [
-        { u: '0', v: '1', x: '-100', y: '-80' },
-        { u: '1', v: '1', x: '100', y: '-80' },
-        { u: '1', v: '0', x: '100', y: '80' },
-      ];
-      for (let index = 0; index < corners.length; index += 1) {
-        const corner = corners[index]!;
-        await page.locator(`[aria-label="Reference point ${index + 1} U (0..1)"]`).fill(corner.u);
-        await page.locator(`[aria-label="Reference point ${index + 1} V (0..1)"]`).fill(corner.v);
-        await page.locator(`[aria-label="Reference point ${index + 1} X millimetres"]`).fill(corner.x);
-        await page.locator(`[aria-label="Reference point ${index + 1} Y millimetres"]`).fill(corner.y);
-      }
-      await (await shown(page, 'mapping-save')).click();
-      await expect(await shown(page, 'mapping-status-line')).toContainText('Saved provisional mapping');
+      // Stage one mapping through the primary span calibration flow, then
+      // save the master: the mappings file is added while original binaries
+      // stay verbatim.
+      const cfgProductId = base.project.configurations[0]!.productId;
+      const cfgVariantId = base.project.configurations[0]!.variantId;
+      await (await shown(page, 'workspace-product')).selectOption(cfgProductId);
+      await (await shown(page, 'workspace-variant')).selectOption(cfgVariantId);
+      const reuseWorkspace = builder(page, 'product-workspace');
+      await reuseWorkspace.getByRole('button', { name: 'Set up scale' }).click();
+      const reuseGuided = builder(page, 'guided-scale');
+      const reuseSpan = reuseGuided.locator('[data-guided="span-overlay"]');
+      await expect(reuseSpan).toBeVisible();
+      const reuseBox = (await reuseSpan.boundingBox())!;
+      await reuseSpan.click({ position: { x: Math.round(reuseBox.width * 0.3), y: Math.round(reuseBox.height * 0.5) } });
+      await reuseSpan.click({ position: { x: Math.round(reuseBox.width * 0.7), y: Math.round(reuseBox.height * 0.5) } });
+      await reuseGuided.locator('[data-guided="span-mm"]').fill('1300');
+      await reuseGuided.locator('[data-guided="span-create"]').click();
+      await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
       const master = await readDownload(page, 'master.logo-project', () =>
         shown(page, 'save-master').then((control) => control.click()));
       const reparsed = await parseProjectPackage(master, { sha256 });
       const original = await parseProjectPackage(sourceBytes, { sha256 });
-      assert.equal(JSON.stringify(reparsed.project), JSON.stringify(original.project));
+      // The span calibration adds exactly one calibration + region for the
+      // measured view; everything else stays identical.
+      const origProduct = original.project.products.find((item) => item.id === cfgProductId)!;
+      const newProduct = reparsed.project.products.find((item) => item.id === cfgProductId)!;
+      assert.equal(newProduct.calibrations.length, origProduct.calibrations.length + 1);
+      assert.equal(newProduct.regions.length, origProduct.regions.length + 1);
+      const addedRegion = newProduct.regions.find((item) => !origProduct.regions.some((old) => old.id === item.id))!;
+      assert.ok(addedRegion.id.startsWith('region-span-'), `span region, saw ${addedRegion.id}`);
+      const addedCalibration = newProduct.calibrations.find((item) => !origProduct.calibrations.some((old) => old.id === item.id))!;
+      assert.ok(addedCalibration.id.startsWith('cal-span-'), `span calibration, saw ${addedCalibration.id}`);
       const masterMappings = reparsed.assets.find((asset) => asset.path === 'presentation/photo-mappings.json');
       assert.ok(masterMappings, 'master carries the staged mapping file');
-      assert.equal(JSON.parse(new TextDecoder().decode(masterMappings.bytes)).mappings.length, 1);
+      const stagedEntries = JSON.parse(new TextDecoder().decode(masterMappings.bytes)).mappings;
+      assert.equal(stagedEntries.length, 1);
+      assert.equal(stagedEntries[0].regionId, addedRegion.id);
+      assert.equal(stagedEntries[0].calibrationId, addedCalibration.id);
       for (const asset of original.assets) {
         if (asset.path === 'presentation/photo-mappings.json') continue;
         const roundTripped = reparsed.assets.find((entry) => entry.path === asset.path);

@@ -822,37 +822,9 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
-    // Reviewed photo mapping for the front view only (exact scope: product,
-    // region, variant, view, image, calibration). Trial-only provisional
-    // mappings never reach the placement stage.
-    await (await shown(page, 'mapping-product')).selectOption({ index: 0 });
-    const variantSelect = await shown(page, 'mapping-variant');
-    const variantCount = await variantSelect.locator('option').count();
-    // Index 0 is "(product-wide)": prefer the concrete variant when present.
-    await variantSelect.selectOption({ index: variantCount > 1 ? 1 : 0 });
-    await (await shown(page, 'mapping-region')).selectOption({ index: 0 });
-    await (await shown(page, 'mapping-side')).selectOption('front');
-    const photoSelect = await shown(page, 'mapping-photo');
-    const photoOptions = await photoSelect.locator('option').allInnerTexts();
-    const frontIndex = Math.max(0, photoOptions.findIndex((text) => /front/i.test(text)));
-    await photoSelect.selectOption({ index: frontIndex });
-    const corners = [
-      { u: '0', v: '1', x: '0', y: '0' },
-      { u: '1', v: '1', x: '280', y: '0' },
-      { u: '0', v: '0', x: '0', y: '200' },
-    ];
-    for (let index = 0; index < corners.length; index += 1) {
-      const corner = corners[index]!;
-      await page.locator(`[aria-label="Reference point ${index + 1} U (0..1)"]`).fill(corner.u);
-      await page.locator(`[aria-label="Reference point ${index + 1} V (0..1)"]`).fill(corner.v);
-      await page.locator(`[aria-label="Reference point ${index + 1} X millimetres"]`).fill(corner.x);
-      await page.locator(`[aria-label="Reference point ${index + 1} Y millimetres"]`).fill(corner.y);
-    }
-    await (await shown(page, 'mapping-status')).selectOption('review');
-    await (await shown(page, 'mapping-check')).click();
-    await expect(await shown(page, 'mapping-status-line')).toContainText('Fit OK over 3 points');
-    await (await shown(page, 'mapping-save')).click();
-    await expect(await shown(page, 'mapping-status-line')).toContainText('Saved review mapping');
+    // The rectangle calibration above staged the front-view photo mapping
+    // automatically (span/rectangle flows stage it; no manual form exists).
+    // Only the calibrated front tab carries the overlay below.
     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);
     await (await shown(page, 'logo-file')).setInputFiles({ name: 'crest.png', mimeType: 'image/png', buffer: Buffer.from(crestPng) });
     await expect(await shown(page, 'logo-status')).toContainText('Added crest.png');
@@ -873,7 +845,7 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     await expect(overlay).toBeVisible();
     expect(await overlay.getAttribute('width')).toBe('400');
     expect(await overlay.getAttribute('height')).toBe('300');
-    await expect(overlay).toHaveAttribute('aria-label', /photo overlay/);
+    await expect(overlay).toHaveAttribute('aria-label', /Provisional calibrated preview/);
     // A 90 mm placement on the 280 mm region renders at the canonical ratio
     // through the overlay mapping — millimetres through the region frame,
     // never from pixels.

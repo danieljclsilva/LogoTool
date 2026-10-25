@@ -247,6 +247,10 @@ test('visual setup: upload → guided measure → draw + anchors → save → jo
     expect(stagedAfter).toHaveLength(4);
     expect(stagedAfter[0]![0] - stagedBefore[0]![0]).toBeGreaterThan(1.5);
     expect(stagedAfter[0]![0] - stagedBefore[0]![0]).toBeLessThan(2.5);
+    // Pointer drag moves staged corner 0 by +2mm in x with y bit-identical
+    // (same pointer row through the inverse mapping); untouched corners do
+    // not move. This hand-tapped ring is a general polygon (not an exact
+    // rectangle), so the free-corner path applies: exact canonical movement.
     expect(Math.abs(stagedAfter[0]![1] - stagedBefore[0]![1])).toBeLessThan(0.05);
     for (const index of [1, 2, 3]) {
       expect(Math.abs(stagedAfter[index]![0] - stagedBefore[index]![0])).toBeLessThan(0.05);

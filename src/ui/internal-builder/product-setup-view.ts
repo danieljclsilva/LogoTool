@@ -69,6 +69,7 @@ import type {
 import { bytesToDataUrl } from '../shared/operation-document/index.js';
 import {
   canCloseDrawnPolygon,
+  polygonSignedAreaMm,
   validateSafeAreaPolygon,
 } from './anchor-setup.js';
 import type {
@@ -78,6 +79,7 @@ import type {
 import type { AnchorDef } from '../../core/operation-measurements/types.js';
 import type { ProjectDocument } from '../../core/types.js';
 import {
+  SETUP_LIMITS,
   validateNamedSafeArea,
 } from '../../core/setup-calibration/index.js';
 import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
@@ -190,6 +192,16 @@ export interface ProductSetupPhotoView {
   savedAreas?: ReadonlyArray<{ id: string; name: string; points: ReadonlyArray<AnchorSetupMm> }>;
   /** Id of the active entry within `savedAreas`; null/undefined selects by rule. */
   savedActiveAreaId?: string | null;
+  /**
+   * Saved two-click reference span evidence for this exact calibrated view
+   * (native photo UV endpoints + declared millimetre length + calibration
+   * binding). Additive and optional: the lead wires it from the span sidecar
+   * bound to this exact asset/view/calibration at integration. Absent (or
+   * stale) means no reference overlay is drawn — this view never fabricates
+   * A/B endpoints from measurement anchors or safe-area bboxes. Never part
+   * of the staged identity key: photoId + calibration already bind it.
+   */
+  referenceSpan?: ProductSetupReferenceSpan | null;
 }
 
 export type ProductSetupViewState = ProductSetupPhotoView | { error: string };
@@ -462,6 +474,11 @@ export interface StoredEdits {
    */
   showAnchors?: boolean;
   showAreas?: boolean;
+  /**
+   * Product-photo visibility (render-only; hiding the photo keeps every
+   * overlay, staged polygon, anchor and draft intact). Absent means visible.
+   */
+  showProduct?: boolean;
 }
 
 /**
@@ -1005,6 +1022,282 @@ export function parsePrecisionMm(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+// ---- Images reference overlay, zoom and safe-area drawing tools ----
+// Additive Worker A helpers for the Images photo path. Each stays small and
+// local to this view (mirroring guided-scale.ts where ultrapure overlap
+// exists); the lead extracts ONE shared helper at integration only if real
+// duplication appears. All pure; no DOM.
+
+/** Zoom steps for the photo stage (percent; 100% = fitted product view). */
+export const PRODUCT_SETUP_ZOOM_STEPS: readonly number[] = [50, 75, 100, 125, 150, 200, 300, 400];
+
+/** Nearest zoom step for any input (NaN snaps to 100 = Fit). Pure. */
+export function clampZoomPercentage(pct: number): number {
+  if (!Number.isFinite(pct)) return 100;
+  let best = PRODUCT_SETUP_ZOOM_STEPS[0]!;
+  for (const step of PRODUCT_SETUP_ZOOM_STEPS) {
+    if (Math.abs(step - pct) < Math.abs(best - pct)) best = step;
+  }
+  return best;
+}
+
+/** Step the zoom from `current` in `direction`, clamped at the bounds. Pure. */
+export function stepZoomPercentage(current: number, direction: 1 | -1): number {
+  const steps = PRODUCT_SETUP_ZOOM_STEPS;
+  const clamped = clampZoomPercentage(current);
+  const index = steps.indexOf(clamped);
+  const next = index + direction;
+  if (next < 0) return steps[0]!;
+  if (next >= steps.length) return steps[steps.length - 1]!;
+  return steps[next]!;
+}
+
+/**
+ * Fraction of the viewport height bounding the fitted photo stage (~60vh:
+ * 55–65vh on desktop, clamped to a sensible 320px minimum on short/narrow
+ * viewports). Shared by the calibrated stage and the guided-scale panel.
+ */
+export const PRODUCT_SETUP_FIT_VH = 0.6;
+/** Minimum fitted-stage height in CSS px (narrow/short viewports). */
+export const PRODUCT_SETUP_FIT_MIN_PX = 320;
+
+/** Contain-fit photo box in CSS px (aspect preserved, never cropped). Pure. */
+export interface ProductSetupFitBox {
+  width: number;
+  height: number;
+}
+
+/**
+ * Contain-fit `photoW × photoH` into `availW × availH` (both CSS px).
+ * The photo and its SVG overlay share this ONE measured box — white side
+ * space is fine — so event coordinates keep mapping to the actual rendered
+ * photo (never an overlay stretched across letterboxes). Null unless every
+ * input is finite and positive. Pure; no DOM.
+ */
+export function fitPhotoBox(
+  photoW: number,
+  photoH: number,
+  availW: number,
+  availH: number,
+): ProductSetupFitBox | null {
+  for (const value of [photoW, photoH, availW, availH]) {
+    if (!Number.isFinite(value) || !(value > 0)) return null;
+  }
+  const scale = Math.min(availW / photoW, availH / photoH);
+  if (!Number.isFinite(scale) || !(scale > 0)) return null;
+  return { width: photoW * scale, height: photoH * scale };
+}
+
+/** Safe-area drawing mode inside the Safe area tool. */
+export type ProductSetupSafeDrawMode = 'freehand' | 'rectangle';
+
+/**
+ * Grouped millimetre label for a reference length (`1,300 mm`; decimals
+ * keep their fraction). Null unless the length is a positive finite number —
+ * callers show `Enter distance` instead. Pure; no DOM.
+ */
+export function formatReferenceLengthMm(lengthMm: number): string | null {
+  if (!Number.isFinite(lengthMm) || !(lengthMm > 0)) return null;
+  const rounded = Math.round(lengthMm * 100) / 100;
+  const [int, frac] = String(rounded).split('.');
+  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${grouped}${frac !== undefined ? `.${frac}` : ''} mm`;
+}
+
+/**
+ * Midpoint label for a reference span: the grouped length once a positive
+ * finite length is known, else `Enter distance` — never an invented length.
+ * Pure; no DOM.
+ */
+export function referenceSpanLabel(lengthMm: number): string {
+  return formatReferenceLengthMm(lengthMm) ?? 'Enter distance';
+}
+
+/**
+ * Saved two-click reference span evidence for ONE calibrated Images view:
+ * native photo UV endpoints A/B (zoom/viewport invariant, never CSS pixels)
+ * plus the declared real length in millimetres, bound to the exact
+ * calibration that derived the view's mapping. The lead fills this from the
+ * span sidecar (`presentation/setup-calibration/*` native pixel endpoints ÷
+ * photo size = UV, plus lengthMm + calibrationId/version) at integration.
+ */
+export interface ProductSetupReferenceSpan {
+  aUv: { u: number; v: number };
+  bUv: { u: number; v: number };
+  lengthMm: number;
+  calibrationId: string;
+  calibrationVersion: string;
+}
+
+/** Usable saved-span overlay in photo pixels (native UV × photo size). */
+export interface ProductSetupReferenceOverlay {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  lengthMm: number;
+}
+
+/**
+ * Usable saved-span overlay for one calibrated view, or null when missing
+ * or stale (calibration mismatch, out-of-photo UV, coincident endpoints).
+ * The view never fabricates A/B from measurement anchors or safe-area
+ * bboxes: null draws nothing. Pure; no DOM.
+ */
+export function usableReferenceSpan(view: ProductSetupPhotoView): ProductSetupReferenceOverlay | null {
+  const span = view.referenceSpan;
+  if (span === undefined || span === null) return null;
+  if (span.calibrationId !== view.scope.calibrationId ||
+    span.calibrationVersion !== view.scope.calibrationVersion) return null;
+  for (const end of [span.aUv, span.bUv]) {
+    if (!end || !Number.isFinite(end.u) || !Number.isFinite(end.v)) return null;
+    if (end.u < 0 || end.u > 1 || end.v < 0 || end.v > 1) return null;
+  }
+  const ax = span.aUv.u * view.photo.widthPx;
+  const ay = span.aUv.v * view.photo.heightPx;
+  const bx = span.bUv.u * view.photo.widthPx;
+  const by = span.bUv.v * view.photo.heightPx;
+  if (Math.hypot(bx - ax, by - ay) <= 1e-9) return null;
+  return { ax, ay, bx, by, lengthMm: span.lengthMm };
+}
+
+function rdpKeep(
+  points: ReadonlyArray<AnchorSetupMm>,
+  first: number,
+  last: number,
+  eps: number,
+  keep: boolean[],
+): void {
+  let maxDist = 0;
+  let split = -1;
+  const ax = points[first]!.x;
+  const ay = points[first]!.y;
+  const bx = points[last]!.x;
+  const by = points[last]!.y;
+  const base = Math.hypot(bx - ax, by - ay);
+  for (let i = first + 1; i < last; i += 1) {
+    const px = points[i]!.x;
+    const py = points[i]!.y;
+    const dist = base <= 1e-12
+      ? Math.hypot(px - ax, py - ay)
+      : Math.abs((by - ay) * px - (bx - ax) * py + bx * ay - by * ax) / base;
+    if (dist > maxDist) {
+      maxDist = dist;
+      split = i;
+    }
+  }
+  if (split !== -1 && maxDist > eps) {
+    keep[split] = true;
+    rdpKeep(points, first, split, eps, keep);
+    rdpKeep(points, split, last, eps, keep);
+  }
+}
+
+/**
+ * Simplify a sampled freehand trace (Ramer–Douglas–Peucker) within the
+ * existing polygon-point bound (`SETUP_LIMITS.maxVerticesPerArea`, 512):
+ * drops non-finite and consecutive-coincident samples, then tightens the
+ * tolerance until the ring fits the bound. The result still needs
+ * {@link validateSafeAreaPolygon} — simplification never invents validity.
+ * Pure; no DOM.
+ */
+export function simplifyFreehandTrace(
+  points: ReadonlyArray<AnchorSetupMm>,
+  maxPoints: number = SETUP_LIMITS.maxVerticesPerArea,
+): AnchorSetupMm[] {
+  const cleaned: AnchorSetupMm[] = [];
+  for (const point of points) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+    const prev = cleaned[cleaned.length - 1];
+    if (prev && Math.hypot(point.x - prev.x, point.y - prev.y) <= 1e-9) continue;
+    cleaned.push({ x: point.x, y: point.y });
+  }
+  if (cleaned.length > 2) {
+    const first = cleaned[0]!;
+    const last = cleaned[cleaned.length - 1]!;
+    if (Math.hypot(last.x - first.x, last.y - first.y) <= 1e-9) cleaned.pop();
+  }
+  if (cleaned.length <= 2 || cleaned.length <= maxPoints) return cleaned;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of cleaned) {
+    if (point.x < minX) minX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y > maxY) maxY = point.y;
+  }
+  const diagonal = Math.hypot(maxX - minX, maxY - minY);
+  let eps = Math.max(diagonal * 0.0025, 1e-9);
+  for (let guard = 0; guard < 32; guard += 1) {
+    const keep = cleaned.map(() => false);
+    keep[0] = true;
+    keep[keep.length - 1] = true;
+    rdpKeep(cleaned, 0, cleaned.length - 1, eps, keep);
+    const simplified = cleaned.filter((_, index) => keep[index]);
+    if (simplified.length <= maxPoints) return simplified;
+    eps *= 2;
+  }
+  return [cleaned[0]!, cleaned[cleaned.length - 1]!];
+}
+
+/**
+ * True when four finite cyclic millimetre points form a rectangle within the
+ * documented tolerance: non-zero area, every interior angle within
+ * `angleToleranceDeg` (default 0.5°) of 90°, and opposite sides matching
+ * within `sideToleranceRatio` (default 0.5%, floor 1e-6 mm). Either winding
+ * is accepted; general quadrilaterals fail. Reopened rectangular geometry
+ * passing this check regains side handles; anything else keeps the general
+ * vertex/insert handles. Pure; no DOM.
+ */
+/**
+ * Recognize a stored 4-corner ring as a rectangle for side-handle editing.
+ * Tolerance is numeric roundoff ONLY (genuinely constructed rectangles share
+ * exact coordinate values, so angles are exactly 90° and opposite sides
+ * exactly equal up to float error): hand-tapped or traced quads — however
+ * close — are general polygons and keep vertex handles, so corner edits
+ * never silently snap their other vertices. Callers may pass wider
+ * tolerances explicitly for display/classification purposes, but side-handle
+ * recognition must stay at roundoff.
+ */
+export function isRectanglePoints(
+  points: ReadonlyArray<AnchorSetupMm>,
+  angleToleranceDeg = 1e-6,
+  sideToleranceRatio = 1e-9,
+): boolean {
+  if (points.length !== 4) return false;
+  for (const point of points) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+  }
+  if (Math.abs(polygonSignedAreaMm(points)) <= 1e-9) return false;
+  const angleTol = (angleToleranceDeg * Math.PI) / 180;
+  const edges: number[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const current = points[i]!;
+    const next = points[(i + 1) % 4]!;
+    const len = Math.hypot(next.x - current.x, next.y - current.y);
+    if (!(len > 1e-9)) return false;
+    edges.push(len);
+  }
+  for (let i = 0; i < 4; i += 1) {
+    const prev = points[(i + 3) % 4]!;
+    const current = points[i]!;
+    const next = points[(i + 1) % 4]!;
+    const v1x = prev.x - current.x;
+    const v1y = prev.y - current.y;
+    const v2x = next.x - current.x;
+    const v2y = next.y - current.y;
+    const cross = v1x * v2y - v1y * v2x;
+    const dot = v1x * v2x + v1y * v2y;
+    const angle = Math.atan2(Math.abs(cross), dot);
+    if (Math.abs(angle - Math.PI / 2) > angleTol + 1e-12) return false;
+  }
+  const sideOk = (a: number, b: number): boolean =>
+    Math.abs(a - b) <= Math.max(sideToleranceRatio * Math.max(a, b), 1e-6);
+  return sideOk(edges[0]!, edges[2]!) && sideOk(edges[1]!, edges[3]!);
+}
+
 /** The stored sourceRev for one identity key, or `null` when unparseable
  *  (unparseable keys are kept, never silently discarded). Pure. */
 function sourceRevOfIdentityKey(key: string): string | null {
@@ -1154,6 +1447,18 @@ export function createProductSetupView(
   /** Latest render's status painter (container Escape has no render closure). */
   let paintRef: ((message: string) => void) | null = null;
   /**
+   * Zoom percentage per staged view key (100 = fitted product view).
+   * Display-only: never applied to mm, geometry or saved areas. Pruned with
+   * the edit store on source replacement/retirement.
+   */
+  const zoomByKey = new Map<string, number>();
+  /**
+   * Safe-area drawing mode per staged view key. Freehand keeps
+   * press-drag-trace plus click-corners and Finish; rectangle is
+   * press-drag-release only. Pruned with the edit store.
+   */
+  const safeModeByKey = new Map<string, ProductSetupSafeDrawMode>();
+  /**
    * Last status message, owned OUTSIDE refresh(). Every render rebuilds the
    * status node, so actions must paint-then-refresh without losing the
    * acknowledgement: each new statusBox initialises from lastStatus,
@@ -1174,6 +1479,13 @@ export function createProductSetupView(
    * geometry stays canonical.
    */
   let stageResize: ResizeObserver | null = null;
+  /**
+   * Fit observer + window-resize listener for the bounded contain-fit stage
+   * (recomputes the shared photo/overlay box on viewport/container change).
+   * Torn down with the marker observer on every refresh and on destroy.
+   */
+  let fitResize: ResizeObserver | null = null;
+  let fitWindowCleanup: (() => void) | null = null;
 
   function disconnectStageResize(): void {
     try {
@@ -1182,6 +1494,18 @@ export function createProductSetupView(
       /* best-effort teardown */
     }
     stageResize = null;
+    try {
+      fitResize?.disconnect();
+    } catch {
+      /* best-effort teardown */
+    }
+    fitResize = null;
+    try {
+      fitWindowCleanup?.();
+    } catch {
+      /* best-effort teardown */
+    }
+    fitWindowCleanup = null;
   }
 
   /** CSS pixels per overlay viewBox unit (meet letterboxing), or null. */
@@ -1211,17 +1535,28 @@ export function createProductSetupView(
       const want = Number(el.getAttribute('data-markfont'));
       if (Number.isFinite(want)) node.setAttribute('font-size', String(want / scale));
       // Label offsets stay a constant rendered distance from the marker so
-      // text never slides under its dot on small-scale renders.
+      // text never slides under its dot on small-scale renders. The midpoint
+      // reference label floats above its line via data-markdy.
       const cx = Number(el.getAttribute('data-markcx'));
       const cy = Number(el.getAttribute('data-markcy'));
       if (Number.isFinite(cx) && Number.isFinite(cy)) {
+        const dyRaw = Number(el.getAttribute('data-markdy'));
+        const dy = Number.isFinite(dyRaw) ? dyRaw : 4;
         node.setAttribute('x', String(cx + 12 / scale));
-        node.setAttribute('y', String(cy + 4 / scale));
+        node.setAttribute('y', String(cy + dy / scale));
       }
     });
     svg.querySelectorAll('[data-markstroke]').forEach((node) => {
       const want = Number((node as Element).getAttribute('data-markstroke'));
       if (Number.isFinite(want)) node.setAttribute('stroke-width', String(want / scale));
+    });
+    // Dotted reference spans keep a constant CSS-pixel dash pattern under
+    // zoom/resize: each dash component counter-scales like stroke widths.
+    svg.querySelectorAll('[data-markdash]').forEach((node) => {
+      const raw = (node as Element).getAttribute('data-markdash') ?? '';
+      const parts = raw.trim().split(/[\s,]+/).map(Number)
+        .filter((n) => Number.isFinite(n) && n >= 0);
+      if (parts.length > 0) node.setAttribute('stroke-dasharray', parts.map((n) => String(n / scale)).join(' '));
     });
   }
 
@@ -1237,6 +1572,36 @@ export function createProductSetupView(
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(() => {
         if (!destroyed && svg.isConnected) layoutStageMarkers(svg);
+      });
+    }
+  }
+
+  /**
+   * Observe the stage for fit recomputation (container/viewport change):
+   * applies once now, on stage resize, on window resize and on the next
+   * frame (first layout). Display-only; picking inverts the actual view
+   * transform and mm never scale. Disposed via disconnectStageResize.
+   */
+  function observeStageFit(stage: HTMLElement, apply: () => void): void {
+    apply();
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const onResize = (): void => {
+        apply();
+      };
+      window.addEventListener('resize', onResize);
+      fitWindowCleanup = (): void => {
+        window.removeEventListener('resize', onResize);
+      };
+    }
+    if (typeof ResizeObserver === 'function') {
+      fitResize = new ResizeObserver(() => {
+        apply();
+      });
+      fitResize.observe(stage);
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        if (!destroyed) apply();
       });
     }
   }
@@ -1292,6 +1657,12 @@ export function createProductSetupView(
   function refresh(): void {
     if (destroyed) return;
     disconnectStageResize();
+    // Preserve the magnified stage's scroll position across re-renders so
+    // zoom + pan survive selections and commits.
+    const prevStage = container.querySelector('.product-setup-stage');
+    const prevScroll = prevStage !== null
+      ? { left: prevStage.scrollLeft, top: prevStage.scrollTop }
+      : null;
     const active = document.activeElement;
     const focusKey = active instanceof Element ? active.getAttribute('data-fkey') : null;
     dragAnchor = null;
@@ -1371,6 +1742,8 @@ export function createProductSetupView(
           store.dropDraft(known);
           redrawKeys.delete(known);
           drawModes.delete(known);
+          zoomByKey.delete(known);
+          safeModeByKey.delete(known);
         }
       }
     }
@@ -1383,6 +1756,8 @@ export function createProductSetupView(
         store.dropDraft(key);
         redrawKeys.delete(key);
         drawModes.delete(key);
+        zoomByKey.delete(key);
+        safeModeByKey.delete(key);
       }
     }
     const projectKey = JSON.stringify([...identityKeys].sort().concat(errorMarks.sort()));
@@ -1444,6 +1819,7 @@ export function createProductSetupView(
         })),
         showAnchors: true,
         showAreas: true,
+        showProduct: true,
       };
     });
     // Baseline-aware shared geometry (Tranche C data-loss guard): the saved
@@ -1488,11 +1864,23 @@ export function createProductSetupView(
         : upcoming.error);
       refresh();
     });
-    renderToolbar(root, activeTool, bucket, paintStatus, (next) => {
+    renderToolbar(root, key, activeTool, safeModeByKey.get(key) ?? 'freehand', zoomByKey.get(key) ?? 100, bucket, paintStatus, (next) => {
       tool = next;
       paintStatus(next === 'safe-area'
         ? 'Safe-area tool: click the photo to draw, drag corners to edit. Anchor clicks do nothing here.'
         : 'Anchor tool: click the photo to place a named anchor. Safe-area clicks do nothing here.');
+      refresh();
+    }, (mode) => {
+      safeModeByKey.set(key, mode);
+      if (tool !== 'safe-area') tool = 'safe-area';
+      paintStatus(mode === 'freehand'
+        ? 'Freehand: press, drag to trace and release to close one area — or click corners and Finish. A tap is not a stroke.'
+        : 'Rectangle: press at one corner, drag to the opposite corner, release to commit one four-corner area.');
+      refresh();
+    }, (pct) => {
+      // Purely display: no status churn, no mm impact; the readout is the
+      // select value itself, so it stays consistent by construction.
+      zoomByKey.set(key, clampZoomPercentage(pct));
       refresh();
     });
 
@@ -1518,7 +1906,7 @@ export function createProductSetupView(
       return;
     }
 
-    renderStage(root, view, side, key, bucket, activeTool, paintStatus);
+    renderStage(root, view, side, key, bucket, activeTool, safeModeByKey.get(key) ?? 'freehand', zoomByKey.get(key) ?? 100, paintStatus);
     if (activeTool === 'safe-area') {
       renderSafePanel(root, view, side, key, bucket, paintStatus);
     } else {
@@ -1528,6 +1916,13 @@ export function createProductSetupView(
     root.append(statusBox);
     const stageSvg = root.querySelector<SVGSVGElement>('svg.product-setup-overlay');
     if (stageSvg) observeStageMarkers(stageSvg);
+    if (prevScroll !== null) {
+      const nextStage = root.querySelector('.product-setup-stage');
+      if (nextStage !== null) {
+        nextStage.scrollLeft = prevScroll.left;
+        nextStage.scrollTop = prevScroll.top;
+      }
+    }
     restoreFocus(focusKey);
   }
 
@@ -1567,10 +1962,15 @@ export function createProductSetupView(
 
   function renderToolbar(
     root: HTMLElement,
+    key: string,
     activeTool: ProductSetupTool,
+    safeMode: ProductSetupSafeDrawMode,
+    zoomPct: number,
     bucket: StoredEdits,
     paintStatus: (message: string) => void,
     onSelect: (next: ProductSetupTool) => void,
+    onMode: (mode: ProductSetupSafeDrawMode) => void,
+    onZoom: (pct: number) => void,
   ): void {
     const bar = document.createElement('div');
     bar.className = 'product-setup-toolbar';
@@ -1595,52 +1995,121 @@ export function createProductSetupView(
       if (activeTool !== 'anchor') onSelect('anchor');
     });
     bar.append(safeButton, anchorButton);
+    if (activeTool === 'safe-area') {
+      const modes: Array<{ mode: ProductSetupSafeDrawMode; label: string; hint: string }> = [
+        { mode: 'freehand', label: 'Freehand', hint: 'Freehand: press, drag to trace and release to close one area — or click corners and Finish. A tap is not a stroke.' },
+        { mode: 'rectangle', label: 'Rectangle', hint: 'Rectangle: press at one corner, drag to the opposite corner, release to commit one four-corner area.' },
+      ];
+      for (const entry of modes) {
+        const modeButton = document.createElement('button');
+        modeButton.type = 'button';
+        modeButton.className = safeMode === entry.mode ? 'product-setup-tool is-active' : 'product-setup-tool';
+        modeButton.setAttribute('aria-pressed', safeMode === entry.mode ? 'true' : 'false');
+        modeButton.setAttribute('data-ps-tool', entry.mode);
+        modeButton.setAttribute('data-fkey', `psv-tool-${entry.mode}`);
+        modeButton.textContent = entry.label;
+        modeButton.addEventListener('click', () => {
+          if (safeModeByKey.get(key) !== entry.mode) onMode(entry.mode);
+        });
+        bar.append(modeButton);
+      }
+    }
     root.append(bar);
     const hint = document.createElement('p');
     hint.className = 'muted';
     hint.textContent = activeTool === 'safe-area'
-      ? 'Safe-area tool: draw a fresh polygon or drag corners. Photo clicks never place anchors here; Enter finishes a drawing, Escape cancels.'
+      ? (safeMode === 'freehand'
+        ? 'Safe-area tool · Freehand: drag to trace a closed area, or click corners and Finish; a tap is not a stroke. Photo clicks never place anchors here; Enter finishes a drawing, Escape cancels.'
+        : 'Safe-area tool · Rectangle: press at one corner and drag to the opposite corner; release commits one area. Photo clicks never place anchors here; Escape cancels a drag.')
       : 'Anchor tool: click the product to place a named anchor; drag, rename or delete it. Photo clicks never touch the safe area here.';
     root.append(hint);
-    // Data-preserving layer toggles: hiding a layer only skips its stage
-    // rendering — staged geometry is never deleted by a toggle.
-    const layers = document.createElement('div');
-    layers.className = 'product-setup-layers';
-    const layerToggle = (
+    // View controls: zoom steps plus display-only visibility toggles. The
+    // lead mounts this bar directly above the stage; the exact
+    // `data-ps-view` / `data-ps-tool` selectors above are the contract.
+    // Hiding a layer only skips its stage rendering — staged geometry,
+    // endpoints, names and dirty drafts are never deleted by a toggle.
+    const viewbar = document.createElement('div');
+    viewbar.className = 'product-setup-viewbar';
+    viewbar.setAttribute('data-ps-viewbar', '');
+    viewbar.setAttribute('role', 'toolbar');
+    viewbar.setAttribute('aria-label', 'Stage view controls');
+    const zoomOut = document.createElement('button');
+    zoomOut.type = 'button';
+    zoomOut.className = 'product-setup-viewbtn';
+    zoomOut.textContent = '−';
+    zoomOut.setAttribute('aria-label', 'Zoom out');
+    zoomOut.setAttribute('data-ps-view', 'zoom-out');
+    zoomOut.disabled = zoomPct <= PRODUCT_SETUP_ZOOM_STEPS[0]!;
+    zoomOut.addEventListener('click', () => onZoom(stepZoomPercentage(zoomPct, -1)));
+    const zoomSelect = document.createElement('select');
+    zoomSelect.className = 'product-setup-viewzoom';
+    zoomSelect.setAttribute('aria-label', 'Zoom percentage (100% is the fitted product view)');
+    zoomSelect.setAttribute('data-ps-view', 'zoom');
+    zoomSelect.setAttribute('data-fkey', `psv-zoom-${key}`);
+    for (const step of PRODUCT_SETUP_ZOOM_STEPS) {
+      const option = document.createElement('option');
+      option.value = String(step);
+      option.textContent = `${step}%`;
+      zoomSelect.append(option);
+    }
+    zoomSelect.value = String(clampZoomPercentage(zoomPct));
+    zoomSelect.addEventListener('change', () => {
+      onZoom(Number(zoomSelect.value));
+    });
+    const zoomIn = document.createElement('button');
+    zoomIn.type = 'button';
+    zoomIn.className = 'product-setup-viewbtn';
+    zoomIn.textContent = '+';
+    zoomIn.setAttribute('aria-label', 'Zoom in');
+    zoomIn.setAttribute('data-ps-view', 'zoom-in');
+    zoomIn.disabled = zoomPct >= PRODUCT_SETUP_ZOOM_STEPS[PRODUCT_SETUP_ZOOM_STEPS.length - 1]!;
+    zoomIn.addEventListener('click', () => onZoom(stepZoomPercentage(zoomPct, 1)));
+    const zoomFit = document.createElement('button');
+    zoomFit.type = 'button';
+    zoomFit.className = 'product-setup-viewbtn';
+    zoomFit.textContent = 'Fit';
+    zoomFit.setAttribute('aria-label', 'Fit the product view (100%)');
+    zoomFit.setAttribute('data-ps-view', 'fit');
+    zoomFit.addEventListener('click', () => onZoom(100));
+    viewbar.append(zoomOut, zoomSelect, zoomIn, zoomFit);
+    const visToggle = (
       label: string,
-      fkey: string,
-      checked: boolean,
+      view: 'vis-anchors' | 'vis-areas' | 'vis-product',
+      pressed: boolean,
       onFlip: () => void,
     ): void => {
-      const wrap = document.createElement('label');
-      wrap.className = 'product-setup-layer';
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.checked = checked;
-      box.setAttribute('data-fkey', fkey);
-      box.setAttribute('aria-label', label);
-      box.addEventListener('change', () => {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = pressed ? 'product-setup-viewbtn is-active' : 'product-setup-viewbtn';
+      toggle.textContent = label;
+      toggle.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      toggle.setAttribute('data-ps-view', view);
+      toggle.setAttribute('data-fkey', `psv-vis-${view}-${key}`);
+      toggle.addEventListener('click', () => {
         onFlip();
         refresh();
       });
-      const text = document.createElement('span');
-      text.textContent = label;
-      wrap.append(box, text);
-      layers.append(wrap);
+      viewbar.append(toggle);
     };
-    layerToggle('Show anchors', 'psv-toggle-anchors', layerVisible(bucket, 'showAnchors'), () => {
+    visToggle('Anchors', 'vis-anchors', layerVisible(bucket, 'showAnchors'), () => {
       bucket.showAnchors = !bucket.showAnchors;
       paintStatus(bucket.showAnchors
         ? 'Anchors layer shown; nothing was changed.'
-        : 'Anchors layer hidden; staged anchors are kept, only the display changed.');
+        : 'Anchors layer hidden; staged anchors and the reference line are kept, only the display changed.');
     });
-    layerToggle('Show safe areas', 'psv-toggle-areas', layerVisible(bucket, 'showAreas'), () => {
+    visToggle('Safe areas', 'vis-areas', layerVisible(bucket, 'showAreas'), () => {
       bucket.showAreas = !bucket.showAreas;
       paintStatus(bucket.showAreas
         ? 'Safe-areas layer shown; nothing was changed.'
         : 'Safe-areas layer hidden; staged areas are kept, only the display changed.');
     });
-    root.append(layers);
+    visToggle('Product', 'vis-product', bucket.showProduct ?? true, () => {
+      bucket.showProduct = !(bucket.showProduct ?? true);
+      paintStatus(bucket.showProduct
+        ? 'Product photo shown; nothing was changed.'
+        : 'Product photo hidden; overlays and staged geometry are kept, only the display changed.');
+    });
+    root.append(viewbar);
   }
 
   function eventPhotoPoint(svg: SVGSVGElement, event: PointerEvent | MouseEvent): { x: number; y: number } {
@@ -1661,6 +2130,8 @@ export function createProductSetupView(
     key: string,
     bucket: StoredEdits,
     activeTool: ProductSetupTool,
+    drawMode: ProductSetupSafeDrawMode,
+    zoomPct: number,
     paintStatus: (message: string) => void,
   ): void {
     const scope = view.scope;
@@ -1673,6 +2144,54 @@ export function createProductSetupView(
 
     const stage = document.createElement('div');
     stage.className = 'product-setup-stage';
+    // Bounded contain-fit stage: the photo and its SVG overlay share ONE
+    // measured fitted box (available stage width AND ~60vh, so a portrait
+    // photo never pushes the preview past the viewport), scaled by the zoom
+    // percentage with internal stage scrolling when magnified. Display-only:
+    // picking uses the inverse of the actual view transform and mm never
+    // scales with zoom. No object-fit letterboxing inside the box itself, so
+    // event coordinates keep mapping to the actual rendered photo.
+    const zoombox = document.createElement('div');
+    zoombox.className = 'product-setup-zoombox';
+    zoombox.style.position = 'relative';
+    stage.style.overflow = 'auto';
+    stage.style.maxHeight = '60vh';
+    // Fill the fitted box from live stage/viewport sizes (px-exact). The
+    // signature guard keeps the stage ResizeObserver from looping: an
+    // unchanged box writes no styles, so no further resize fires.
+    let lastFit = '';
+    const layoutFit = (): void => {
+      if (destroyed || !zoombox.isConnected) return;
+      const availW = stage.clientWidth;
+      const viewportH = typeof window === 'undefined' ? 0 : window.innerHeight;
+      const availH = Math.max(
+        viewportH > 0 ? viewportH * PRODUCT_SETUP_FIT_VH : PRODUCT_SETUP_FIT_MIN_PX,
+        PRODUCT_SETUP_FIT_MIN_PX,
+      );
+      const fitted = availW > 0
+        ? fitPhotoBox(view.photo.widthPx, view.photo.heightPx, availW, availH)
+        : null;
+      const scale = clampZoomPercentage(zoomPct) / 100;
+      if (fitted !== null) {
+        const width = fitted.width * scale;
+        const height = fitted.height * scale;
+        const signature = `${width.toFixed(2)}x${height.toFixed(2)}@${availW}`;
+        if (signature === lastFit) return;
+        lastFit = signature;
+        zoombox.style.width = `${width}px`;
+        zoombox.style.height = `${height}px`;
+        // White side space at Fit is fine: centre a narrower box in the
+        // full-width stage instead of stretching the overlay.
+        zoombox.style.margin = width < availW - 0.5 ? '0 auto' : '';
+      } else if (lastFit !== 'fluid') {
+        // Unmeasurable stage (detached/zero-size): fluid photo width so the
+        // content still paints; the next resize pass refits it.
+        lastFit = 'fluid';
+        zoombox.style.width = zoomPct !== 100 ? `${clampZoomPercentage(zoomPct)}%` : '';
+        zoombox.style.height = '';
+        zoombox.style.margin = '';
+      }
+    };
     const image = document.createElement('img');
     image.className = 'product-setup-photo';
     const headerUrl = bytesToDataUrl(view.photo.bytes, guessMediaType(view.photo.bytes));
@@ -1680,12 +2199,16 @@ export function createProductSetupView(
       image.src = headerUrl;
       image.alt = `${view.photo.label} (${shortScopeLabel(scope)} setup reference)`;
       image.draggable = false;
-      stage.append(image);
+      // Product visibility is display-only: overlays stay painted and staged
+      // geometry is untouched.
+      if (!(bucket.showProduct ?? true)) image.style.display = 'none';
+      zoombox.append(image);
     } else {
       const missing = document.createElement('p');
       missing.className = 'muted';
       missing.textContent = 'View-image bytes are missing or undecodable; setup needs a readable view image.';
-      stage.append(missing);
+      zoombox.append(missing);
+      stage.append(zoombox);
       figure.append(stage);
       root.append(figure);
       return;
@@ -1698,10 +2221,30 @@ export function createProductSetupView(
     svg.setAttribute('role', 'group');
     svg.setAttribute('tabindex', '0');
     svg.setAttribute('data-fkey', `psv-stage-${key}`);
+    svg.setAttribute('data-tool', activeTool);
     svg.setAttribute(
       'aria-label',
       `${shortScopeLabel(scope)} overlay (${activeTool === 'safe-area' ? 'safe-area' : 'anchor'} tool active)`,
     );
+    // In-progress freehand-trace / rectangle gestures (one per render; a
+    // refresh rebuilds the svg, so no gesture survives re-render). Previews
+    // paint directly with no commit; pointerup commits ONE staged area,
+    // pointercancel/Escape roll back with no commit.
+    let trace: {
+      startX: number; startY: number; points: AnchorSetupMm[];
+      outOfScope: boolean; tracing: boolean; preview: SVGPolygonElement | null;
+    } | null = null;
+    let rectDrag: {
+      start: AnchorSetupMm; startX: number; startY: number;
+      lastX: number; lastY: number; end: AnchorSetupMm | null;
+      preview: SVGPolygonElement | null;
+    } | null = null;
+    const discardGesture = (message: string): void => {
+      trace = null;
+      rectDrag = null;
+      paintStatus(message);
+      refresh();
+    };
     svg.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && activeTool === 'safe-area') {
         const draft = store.draftFor(key);
@@ -1713,6 +2256,10 @@ export function createProductSetupView(
       }
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (trace !== null || rectDrag !== null) {
+          discardGesture('Drawing cancelled; nothing was committed.');
+          return;
+        }
         if (dragAnchor !== null || dragVertex !== null) return;
         if (store.draftFor(key) !== undefined) {
           store.dropDraft(key);
@@ -1747,12 +2294,16 @@ export function createProductSetupView(
         moveCornerKey(bucket, selectedCorner, dx, dy, paintStatus);
       }
     });
-    stage.append(svg);
+    zoombox.append(svg);
+    stage.append(zoombox);
     figure.append(stage);
     root.append(figure);
+    observeStageFit(stage, layoutFit);
 
     const safePolygon = document.createElementNS(svgNS, 'polygon');
-    safePolygon.setAttribute('class', 'product-setup-safe');
+    // The staged polygon is the selected named area; lead CSS keeps the
+    // translucent fill distinct from inactive areas via `is-selected`.
+    safePolygon.setAttribute('class', 'product-setup-safe is-selected');
     // Layer visibility is render-only: a hidden layer stays staged, and its
     // detached nodes are simply not painted (drag math below still works).
     if (layerVisible(bucket, 'showAreas')) svg.append(safePolygon);
@@ -1861,8 +2412,111 @@ export function createProductSetupView(
       }
     });
 
+    // Saved reference-span evidence (lead-wired from the span sidecar bound
+    // to this exact asset/view/calibration): dotted A/B line + readable
+    // midpoint label with white backing as soon as both endpoints exist.
+    // Missing or stale evidence draws nothing — never a fabricated line.
+    // Lives on the anchors layer, so `vis-anchors` hides it without data loss.
+    const savedSpan = usableReferenceSpan(view);
+    if (savedSpan !== null) {
+      const refGroup = document.createElementNS(svgNS, 'g');
+      refGroup.setAttribute('class', 'product-setup-reference');
+      const refLine = document.createElementNS(svgNS, 'line');
+      refLine.setAttribute('x1', String(savedSpan.ax));
+      refLine.setAttribute('y1', String(savedSpan.ay));
+      refLine.setAttribute('x2', String(savedSpan.bx));
+      refLine.setAttribute('y2', String(savedSpan.by));
+      refLine.setAttribute('class', 'product-setup-refline');
+      refLine.setAttribute('stroke', '#0b6cab');
+      refLine.setAttribute('fill', 'none');
+      refLine.setAttribute('stroke-width', '2');
+      refLine.setAttribute('stroke-dasharray', '7 5');
+      refLine.setAttribute('data-markstroke', '2');
+      refLine.setAttribute('data-markdash', '7 5');
+      refGroup.append(refLine);
+      const midX = (savedSpan.ax + savedSpan.bx) / 2;
+      const midY = (savedSpan.ay + savedSpan.by) / 2;
+      const refLabel = document.createElementNS(svgNS, 'text');
+      refLabel.setAttribute('x', String(midX + 12));
+      refLabel.setAttribute('y', String(midY - 8));
+      // Anchor-tag styling carries the white backing; the contract class
+      // lets lead CSS target the measurement label.
+      refLabel.setAttribute('class', 'product-setup-tag product-setup-reflabel');
+      refLabel.setAttribute('data-markfont', '12');
+      refLabel.setAttribute('data-markstroke', '4');
+      refLabel.setAttribute('data-markcx', String(midX));
+      refLabel.setAttribute('data-markcy', String(midY));
+      refLabel.setAttribute('data-markdy', '-8');
+      refLabel.textContent = referenceSpanLabel(savedSpan.lengthMm);
+      refGroup.append(refLabel);
+      const ends: Array<{ x: number; y: number; tag: string }> = [
+        { x: savedSpan.ax, y: savedSpan.ay, tag: 'A' },
+        { x: savedSpan.bx, y: savedSpan.by, tag: 'B' },
+      ];
+      for (const end of ends) {
+        const dot = document.createElementNS(svgNS, 'circle');
+        dot.setAttribute('cx', String(end.x));
+        dot.setAttribute('cy', String(end.y));
+        dot.setAttribute('r', '7');
+        dot.setAttribute('data-markr', '7');
+        dot.setAttribute('class', 'product-setup-dot is-reference');
+        refGroup.append(dot);
+        const tag = document.createElementNS(svgNS, 'text');
+        tag.setAttribute('x', String(end.x + 12));
+        tag.setAttribute('y', String(end.y + 4));
+        tag.setAttribute('class', 'product-setup-tag');
+        tag.setAttribute('data-markfont', '12');
+        tag.setAttribute('data-markcx', String(end.x));
+        tag.setAttribute('data-markcy', String(end.y));
+        tag.textContent = end.tag;
+        refGroup.append(tag);
+      }
+      anchorsLayer.append(refGroup);
+    }
+
     if (activeTool === 'safe-area' && layerVisible(bucket, 'showAreas')) {
-      renderSafeHandles(svgNS, svg, view, side, key, bucket, paintStatus);
+      renderSafeHandles(svgNS, svg, view, side, key, bucket, paintStatus, (points) => {
+        const mapped: string[] = [];
+        for (const point of points) {
+          const px = workspaceMmToPhoto(view, side, point);
+          if (!px) return;
+          mapped.push(`${px.x},${px.y}`);
+        }
+        safePolygon.setAttribute('points', mapped.join(' '));
+      });
+      // Non-selected staged areas render as translucent outlines with
+      // readable names; selection stays independent of the fills (clicks pass
+      // through: pointer-events are none via the safe-area styling).
+      for (const area of namedAreasOf(bucket)) {
+        if (area.id === (bucket.activeAreaId ?? null)) continue;
+        const mapped: string[] = [];
+        let outside = false;
+        for (const point of area.points) {
+          const px = workspaceMmToPhoto(view, side, point);
+          if (!px) {
+            outside = true;
+            break;
+          }
+          mapped.push(`${px.x},${px.y}`);
+        }
+        if (outside || mapped.length === 0) continue;
+        const other = document.createElementNS(svgNS, 'polygon');
+        other.setAttribute('class', 'product-setup-safe is-inactive');
+        other.setAttribute('points', mapped.join(' '));
+        svg.append(other);
+        const first = workspaceMmToPhoto(view, side, area.points[0]!);
+        if (first) {
+          const name = document.createElementNS(svgNS, 'text');
+          name.setAttribute('x', String(first.x + 12));
+          name.setAttribute('y', String(first.y + 4));
+          name.setAttribute('class', 'product-setup-tag');
+          name.setAttribute('data-markfont', '12');
+          name.setAttribute('data-markcx', String(first.x));
+          name.setAttribute('data-markcy', String(first.y));
+          name.textContent = area.name;
+          svg.append(name);
+        }
+      }
       const draft = store.draftFor(key);
       if (draft !== undefined) {
         renderDraft(svgNS, svg, view, side, key, draft, paintStatus);
@@ -2004,8 +2658,14 @@ export function createProductSetupView(
       // Safe-area tool: an existing polygon is edited via its handles, so a
       // bare photo click only ever extends a fresh drawing — either when no
       // polygon is staged yet, or while an explicit redraw is in progress.
+      // Rectangle mode never invents click corners: taps only restate the
+      // drag hint (press at one corner, drag to the opposite corner).
       if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
-        paintStatus('Safe-area tool: drag a corner, use a “+” handle, or pick a corner below. Photo clicks never alter the polygon here.');
+        paintStatus('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo clicks never alter the polygon here.');
+        return;
+      }
+      if (activeTool === 'safe-area' && drawMode === 'rectangle') {
+        paintStatus('Rectangle tool: press at one corner and drag to the opposite corner; release commits one area. Taps never alter the polygon here.');
         return;
       }
       const draft = store.draftFor(key) ?? [];
@@ -2025,6 +2685,191 @@ export function createProductSetupView(
       const trimmed = draft.length >= 4 ? draft.slice(0, -1) : draft.slice();
       finishDraft(key, bucket, trimmed, paintStatus);
     });
+
+    // Freehand trace + rectangle drag gestures (safe-area tool only). Taps
+    // (at most 6 CSS px) fall through to the click handler above — a tap is
+    // never a stroke, and rectangle mode never invents click corners. Longer
+    // presses paint a live closed filled preview and commit ONE staged area
+    // on release; Escape/pointercancel roll back with no commit.
+    if (activeTool === 'safe-area' && layerVisible(bucket, 'showAreas')) {
+      const drawable = bucket.safeArea.length === 0 || redrawKeys.has(key);
+      const paintPreview = (
+        preview: SVGPolygonElement | null,
+        corners: ReadonlyArray<AnchorSetupMm>,
+      ): SVGPolygonElement | null => {
+        if (corners.length === 0) return preview;
+        let node = preview;
+        if (!node || !node.isConnected) {
+          node = document.createElementNS(svgNS, 'polygon') as SVGPolygonElement;
+          node.setAttribute('class', 'product-setup-safe product-setup-gesture');
+          svg.append(node);
+        }
+        const mapped: string[] = [];
+        for (const corner of corners) {
+          const px = workspaceMmToPhoto(view, side, corner);
+          if (!px) return node;
+          mapped.push(`${px.x},${px.y}`);
+        }
+        node.setAttribute('points', mapped.join(' '));
+        return node;
+      };
+      svg.addEventListener('pointerdown', (event) => {
+        if (!drawable || trace !== null || rectDrag !== null) return;
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        const target = event.target as Element;
+        // Handles own their drags; gestures start on the bare photo only.
+        if (target.closest?.('.product-setup-anchor, .product-setup-vertex, .product-setup-midpoint, .product-setup-draw')) return;
+        const photo = eventPhotoPoint(svg, event);
+        const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
+        if (!mm) {
+          paintStatus(drawMode === 'rectangle'
+            ? 'Rectangle not started: the press falls outside the evaluated mapping.'
+            : 'Trace not started: the press falls outside the evaluated mapping.');
+          return;
+        }
+        try {
+          svg.setPointerCapture(event.pointerId);
+        } catch {
+          /* capture is best-effort; the gesture still ends on pointerup */
+        }
+        if (drawMode === 'rectangle') {
+          rectDrag = { start: mm, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, end: null, preview: null };
+        } else {
+          trace = {
+            startX: event.clientX, startY: event.clientY,
+            points: [{ ...mm }], outOfScope: false, tracing: false, preview: null,
+          };
+        }
+      });
+      svg.addEventListener('pointermove', (event) => {
+        if (!svg.isConnected) return;
+        if (rectDrag !== null) {
+          if (Math.hypot(event.clientX - rectDrag.startX, event.clientY - rectDrag.startY) <= 6) return;
+          const photo = eventPhotoPoint(svg, event);
+          const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
+          if (!mm) return;
+          const start = rectDrag.start;
+          // Live closed filled preview: press corner to opposite corner.
+          rectDrag.preview = paintPreview(rectDrag.preview, [
+            { x: Math.min(start.x, mm.x), y: Math.min(start.y, mm.y) },
+            { x: Math.max(start.x, mm.x), y: Math.min(start.y, mm.y) },
+            { x: Math.max(start.x, mm.x), y: Math.max(start.y, mm.y) },
+            { x: Math.min(start.x, mm.x), y: Math.max(start.y, mm.y) },
+          ]);
+          return;
+        }
+        if (trace !== null) {
+          if (Math.hypot(event.clientX - trace.startX, event.clientY - trace.startY) <= 6) return;
+          trace.tracing = true;
+          const photo = eventPhotoPoint(svg, event);
+          const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
+          if (!mm) {
+            trace.outOfScope = true;
+            return;
+          }
+          const last = trace.points[trace.points.length - 1];
+          if (!last || Math.hypot(mm.x - last.x, mm.y - last.y) > 1e-9) {
+            trace.points.push({ ...mm });
+            trace.preview = paintPreview(trace.preview, trace.points);
+          }
+        }
+      });
+      const commitGesture = (): void => {
+        if (!svg.isConnected) {
+          trace = null;
+          rectDrag = null;
+          return;
+        }
+        if (rectDrag !== null) {
+          const gesture = rectDrag;
+          rectDrag = null;
+          gesture.preview?.remove();
+          // A tap falls through to the click handler's rectangle hint; only
+          // a real drag commits.
+          if (Math.hypot(gesture.lastX - gesture.startX, gesture.lastY - gesture.startY) <= 6) return;
+          const end = gesture.end;
+          if (!end) {
+            paintStatus('Rectangle not committed: the release falls outside the evaluated mapping. The last valid area is kept.');
+            return;
+          }
+          const x0 = Math.min(gesture.start.x, end.x);
+          const x1 = Math.max(gesture.start.x, end.x);
+          const y0 = Math.min(gesture.start.y, end.y);
+          const y1 = Math.max(gesture.start.y, end.y);
+          if (!(x1 - x0 > 1e-9) || !(y1 - y0 > 1e-9)) {
+            paintStatus('Rectangle rejected: zero-size — press at one corner and drag to the opposite corner. The last valid area is kept.');
+            return;
+          }
+          const corners = [
+            { x: x0, y: y0 },
+            { x: x1, y: y0 },
+            { x: x1, y: y1 },
+            { x: x0, y: y1 },
+          ];
+          const check = validateSafeAreaPolygon(corners);
+          if (!check.ok) {
+            paintStatus(`Rectangle rejected: ${check.reason} The last valid area is kept.`);
+            return;
+          }
+          if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
+            paintStatus('Safe-area tool: drag a corner or side handle, use Redraw selected, or pick a corner below. Photo drags never alter the polygon here.');
+            return;
+          }
+          finishDraft(key, bucket, corners, paintStatus);
+          return;
+        }
+        if (trace !== null) {
+          const gesture = trace;
+          trace = null;
+          gesture.preview?.remove();
+          // A tap falls through to the click handler (freehand corners); only
+          // a real stroke commits.
+          if (!gesture.tracing) return;
+          if (gesture.outOfScope) {
+            paintStatus('Freehand trace left the mapped photo area, so nothing was committed. The previous draft is intact.');
+            return;
+          }
+          if (gesture.points.length < 3) {
+            paintStatus('Freehand trace is too short to close an area — tap to add a corner, or drag a longer trace. The previous draft is intact.');
+            return;
+          }
+          const ring = simplifyFreehandTrace(gesture.points);
+          if (ring.length < 3) {
+            paintStatus('Freehand trace is degenerate (no usable area), so nothing was committed. The previous draft is intact.');
+            return;
+          }
+          const check = validateSafeAreaPolygon(ring);
+          if (!check.ok) {
+            const kind = /cross/.test(check.reason) ? 'self-crossing' : 'degenerate';
+            paintStatus(`Freehand trace ${kind} — not committed: ${check.reason} The previous draft is intact.`);
+            return;
+          }
+          if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
+            paintStatus('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo drags never alter the polygon here.');
+            return;
+          }
+          finishDraft(key, bucket, ring, paintStatus);
+        }
+      };
+      svg.addEventListener('pointerup', (event) => {
+        if (rectDrag !== null) {
+          rectDrag.lastX = event.clientX;
+          rectDrag.lastY = event.clientY;
+          const photo = eventPhotoPoint(svg, event);
+          rectDrag.end = workspacePhotoToMm(view, side, photo.x, photo.y);
+        }
+        if (trace === null && rectDrag === null) return;
+        commitGesture();
+      });
+      svg.addEventListener('pointercancel', () => {
+        if (trace === null && rectDrag === null) return;
+        trace = null;
+        rectDrag = null;
+        // The shared pointercancel listener below refreshes (dropping the
+        // preview); only the status is set here so it lands on the new box.
+        paintStatus('Drawing cancelled; nothing was committed.');
+      });
+    }
   }
 
   function renderSafeHandles(
@@ -2035,7 +2880,59 @@ export function createProductSetupView(
     key: string,
     bucket: StoredEdits,
     paintStatus: (message: string) => void,
+    repaintSafe: (points: ReadonlyArray<AnchorSetupMm>) => void,
   ): void {
+    // Rectangular staged geometry (including reopened saved rectangles that
+    // pass the documented tolerance check) gets corner + side-midpoint
+    // handles that preserve the rectangle while dragging; general polygons
+    // keep the vertex + insert handles. Saved rectangles stay ordinary
+    // polygons — no parallel schema.
+    const rectangular = bucket.safeArea.length === 4 && isRectanglePoints(bucket.safeArea);
+    const cornerDots: Array<{ dot: SVGCircleElement; hit: SVGCircleElement }> = [];
+    const sideDots: Array<{ dot: SVGCircleElement; hit: SVGCircleElement }> = [];
+    /**
+     * Live repaint during rectangle-corner/side drags (no re-render):
+     * polygon plus every handle follows the working ring. Commit happens
+     * once on pointerup; cancel/Escape refresh back to the staged polygon.
+     */
+    const repaintHandles = (working: ReadonlyArray<AnchorSetupMm>): void => {
+      repaintSafe(working);
+      working.forEach((point, index) => {
+        const px = workspaceMmToPhoto(view, side, point);
+        const dot = cornerDots[index];
+        if (!px || !dot) return;
+        dot.dot.setAttribute('cx', String(px.x));
+        dot.dot.setAttribute('cy', String(px.y));
+        dot.hit.setAttribute('cx', String(px.x));
+        dot.hit.setAttribute('cy', String(px.y));
+      });
+      if (rectangular) {
+        working.forEach((point, index) => {
+          const next = working[(index + 1) % working.length]!;
+          const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
+          const px = workspaceMmToPhoto(view, side, mid);
+          const dot = sideDots[index];
+          if (!px || !dot) return;
+          dot.dot.setAttribute('cx', String(px.x));
+          dot.dot.setAttribute('cy', String(px.y));
+          dot.hit.setAttribute('cx', String(px.x));
+          dot.hit.setAttribute('cy', String(px.y));
+        });
+      }
+      layoutStageMarkers(svg);
+    };
+    // Project p onto the line through `from` in direction `from`→`dir`.
+    // Used by rectangle-preserving drags (opposite side/corner fixed).
+    const projectOnto = (from: AnchorSetupMm, dir: AnchorSetupMm, p: AnchorSetupMm): AnchorSetupMm => {
+      const vx = dir.x - from.x;
+      const vy = dir.y - from.y;
+      const len2 = vx * vx + vy * vy;
+      if (!(len2 > 1e-18)) return { ...dir };
+      const t = ((p.x - from.x) * vx + (p.y - from.y) * vy) / len2;
+      return { x: from.x + vx * t, y: from.y + vy * t };
+    };
+    let rectCorner: { index: number; base: AnchorSetupMm[]; working: AnchorSetupMm[] } | null = null;
+    let rectSide: { index: number; working: AnchorSetupMm[] } | null = null;
     const vertexLayer = document.createElementNS(svgNS, 'g');
     vertexLayer.setAttribute('class', 'product-setup-vertices');
     svg.append(vertexLayer);
@@ -2048,8 +2945,11 @@ export function createProductSetupView(
       group.setAttribute('data-fkey', `psv-vertex-${key}-${index}`);
       group.setAttribute(
         'aria-label',
-        `Safe-area corner ${index + 1}. Arrow keys move, Delete removes.`,
+        rectangular
+          ? `Rectangle corner ${index + 1}. Dragging keeps the rectangle; arrow keys move precisely, Delete removes.`
+          : `Safe-area corner ${index + 1}. Arrow keys move, Delete removes.`,
       );
+      if (rectangular) group.setAttribute('data-ps-handle', `corner-${index + 1}`);
       const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
       handle.setAttribute('class', selectedCorner === index
         ? 'product-setup-vertex is-selected'
@@ -2067,10 +2967,23 @@ export function createProductSetupView(
       vhit.setAttribute('fill-opacity', '0');
       vhit.setAttribute('pointer-events', 'all');
       group.append(vhit, handle);
+      if (rectangular) cornerDots.push({ dot: handle, hit: vhit as SVGCircleElement });
       group.addEventListener('pointerdown', (event) => {
         event.preventDefault();
         event.stopPropagation();
         selectedCorner = index;
+        if (rectangular) {
+          // Corner drag preserves the rectangle: the opposite corner stays
+          // fixed while the adjacent corners project onto their edges.
+          rectCorner = {
+            index,
+            base: bucket.safeArea.map((corner) => ({ ...corner })),
+            working: bucket.safeArea.map((corner) => ({ ...corner })),
+          };
+          (group as SVGGElement).setPointerCapture?.(event.pointerId);
+          (group as unknown as HTMLElement).focus?.();
+          return;
+        }
         dragVertex = index;
         pendingVertexBase = null;
         pendingVertexHandle = handle as SVGCircleElement;
@@ -2079,6 +2992,46 @@ export function createProductSetupView(
         // explicitly so arrow keys keep working after a pointer selection.
         (group as unknown as HTMLElement).focus?.();
       });
+      group.addEventListener('pointermove', (event) => {
+        if (rectCorner === null || rectCorner.index !== index || !rectangular) return;
+        const photo = eventPhotoPoint(svg, event);
+        const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
+        if (!mm || !svg.isConnected) return;
+        // Opposite corner fixed; adjacent corners project so every angle
+        // stays 90° for any rectangle orientation.
+        const base = rectCorner.base;
+        const o = base[(index + 2) % 4]!;
+        const a = projectOnto(o, base[(index + 1) % 4]!, mm);
+        const b = projectOnto(o, base[(index + 3) % 4]!, mm);
+        const working = rectCorner.working;
+        working[(index + 1) % 4] = a;
+        working[(index + 3) % 4] = b;
+        working[index] = { x: a.x + b.x - o.x, y: a.y + b.y - o.y };
+        repaintHandles(working);
+      });
+      const endRectCorner = (commit: boolean): void => {
+        if (rectCorner === null || rectCorner.index !== index) return;
+        const working = rectCorner.working;
+        rectCorner = null;
+        if (!commit || !svg.isConnected) {
+          refresh();
+          return;
+        }
+        const check = validateSafeAreaPolygon(working);
+        if (!check.ok) {
+          paintStatus(`Corner not moved: ${check.reason}`);
+          refresh();
+          return;
+        }
+        bucket.safeArea = working.map((corner) => ({ ...corner }));
+        syncActiveArea(bucket);
+        bucket.dirty = true;
+        selectedCorner = index;
+        paintStatus(`Moved corner ${index + 1} (rectangle kept).`);
+        refresh();
+      };
+      group.addEventListener('pointerup', () => endRectCorner(true));
+      group.addEventListener('pointercancel', () => endRectCorner(false));
       group.addEventListener('click', (event) => {
         event.stopPropagation();
         selectedCorner = index;
@@ -2086,6 +3039,14 @@ export function createProductSetupView(
         refresh();
       });
       group.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          // Cancel an in-progress rectangle-corner drag, restoring the
+          // previous draft (pointer capture keeps focus on this handle).
+          event.preventDefault();
+          event.stopPropagation();
+          endRectCorner(false);
+          return;
+        }
         const step = event.shiftKey ? 10 : 1;
         let dx = 0;
         let dy = 0;
@@ -2106,7 +3067,123 @@ export function createProductSetupView(
       vertexLayer.append(group);
     });
 
-    if (bucket.safeArea.length >= 3) {
+    if (bucket.safeArea.length === 4 && rectangular) {
+      // Side-midpoint handles: dragging a side moves that side's two corners
+      // along the side normal (opposite side fixed), preserving the
+      // rectangle. Keyboard adjustments stay on the existing corner point
+      // controls; Enter here selects the side's first corner instead.
+      const sideLayer = document.createElementNS(svgNS, 'g');
+      sideLayer.setAttribute('class', 'product-setup-midpoints');
+      svg.append(sideLayer);
+      bucket.safeArea.forEach((point, index) => {
+        const next = bucket.safeArea[(index + 1) % 4]!;
+        const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
+        const px = workspaceMmToPhoto(view, side, mid);
+        if (!px) return;
+        const sideGroup = document.createElementNS(svgNS, 'g') as SVGGElement;
+        sideGroup.setAttribute('tabindex', '0');
+        sideGroup.setAttribute('role', 'button');
+        sideGroup.setAttribute('data-fkey', `psv-side-${key}-${index}`);
+        sideGroup.setAttribute('data-ps-handle', `side-${index + 1}`);
+        sideGroup.setAttribute('aria-label', `Move side ${index + 1} (keeps the rectangle).`);
+        const sideDot = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
+        sideDot.setAttribute('class', 'product-setup-midpoint product-setup-sidehandle');
+        sideDot.setAttribute('cx', String(px.x));
+        sideDot.setAttribute('cy', String(px.y));
+        sideDot.setAttribute('r', '5');
+        sideDot.setAttribute('data-markr', '6');
+        const sideHit = document.createElementNS(svgNS, 'circle');
+        sideHit.setAttribute('cx', String(px.x));
+        sideHit.setAttribute('cy', String(px.y));
+        sideHit.setAttribute('r', '5');
+        sideHit.setAttribute('data-markhit', '12');
+        sideHit.setAttribute('fill', '#000');
+        sideHit.setAttribute('fill-opacity', '0');
+        sideHit.setAttribute('pointer-events', 'all');
+        sideGroup.append(sideHit, sideDot);
+        sideDots.push({ dot: sideDot, hit: sideHit as SVGCircleElement });
+        sideGroup.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          selectedCorner = index;
+          rectSide = {
+            index,
+            working: bucket.safeArea.map((corner) => ({ ...corner })),
+          };
+          (sideGroup as SVGGElement).setPointerCapture?.(event.pointerId);
+          (sideGroup as unknown as HTMLElement).focus?.();
+        });
+        sideGroup.addEventListener('pointermove', (event) => {
+          if (rectSide === null || rectSide.index !== index) return;
+          const photo = eventPhotoPoint(svg, event);
+          const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
+          if (!mm || !svg.isConnected) return;
+          const working = rectSide.working;
+          const edge = working[index]!;
+          const after = working[(index + 1) % 4]!;
+          const dx = after.x - edge.x;
+          const dy = after.y - edge.y;
+          const len = Math.hypot(dx, dy);
+          if (!(len > 1e-9)) return;
+          // Move both side corners along the edge normal; the opposite side
+          // stays fixed so the ring remains a rectangle.
+          const nx = -dy / len;
+          const ny = dx / len;
+          const t = (mm.x - edge.x) * nx + (mm.y - edge.y) * ny;
+          working[index] = { x: edge.x + nx * t, y: edge.y + ny * t };
+          working[(index + 1) % 4] = { x: after.x + nx * t, y: after.y + ny * t };
+          repaintHandles(working);
+        });
+        const endRectSide = (commit: boolean): void => {
+          if (rectSide === null || rectSide.index !== index) return;
+          const working = rectSide.working;
+          rectSide = null;
+          if (!commit || !svg.isConnected) {
+            refresh();
+            return;
+          }
+          const check = validateSafeAreaPolygon(working);
+          if (!check.ok) {
+            paintStatus(`Side not moved: ${check.reason}`);
+            refresh();
+            return;
+          }
+          bucket.safeArea = working.map((corner) => ({ ...corner }));
+          syncActiveArea(bucket);
+          bucket.dirty = true;
+          selectedCorner = index;
+          paintStatus(`Moved side ${index + 1} (rectangle kept).`);
+          refresh();
+        };
+        sideGroup.addEventListener('pointerup', () => endRectSide(true));
+        sideGroup.addEventListener('pointercancel', () => endRectSide(false));
+        sideGroup.addEventListener('click', (event) => {
+          event.stopPropagation();
+          selectedCorner = index;
+          paintStatus(`Selected safe-area corner ${index + 1} (first corner of side ${index + 1}). Adjust it in the corner list below.`);
+          refresh();
+        });
+        sideGroup.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            // Cancel an in-progress side drag, restoring the previous draft.
+            event.preventDefault();
+            event.stopPropagation();
+            endRectSide(false);
+            return;
+          }
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            selectedCorner = index;
+            paintStatus(`Selected safe-area corner ${index + 1} (first corner of side ${index + 1}). Adjust it in the corner list below.`);
+            refresh();
+          }
+        });
+        sideLayer.append(sideGroup);
+      });
+    }
+
+    if (bucket.safeArea.length >= 3 && !rectangular) {
       const midLayer = document.createElementNS(svgNS, 'g');
       midLayer.setAttribute('class', 'product-setup-midpoints');
       svg.append(midLayer);
@@ -2178,19 +3255,27 @@ export function createProductSetupView(
     const draftLayer = document.createElementNS(svgNS, 'g');
     draftLayer.setAttribute('class', 'product-setup-drawing');
     svg.append(draftLayer);
-    const line = document.createElementNS(svgNS, 'polyline');
-    line.setAttribute('class', 'product-setup-draft');
     const linePts: string[] = [];
     for (const corner of draft) {
       const px = workspaceMmToPhoto(view, side, corner);
       if (!px) continue;
       linePts.push(`${px.x},${px.y}`);
     }
+    // The draft connects while drawing and fills from 3 points (closed
+    // polygon with a translucent fill; fewer than 3 points stay an open
+    // polyline). The fill is inline so it holds even before lead CSS lands.
     if (draft.length >= 3 && linePts.length === draft.length && linePts[0] !== undefined) {
-      linePts.push(linePts[0]);
+      const closed = document.createElementNS(svgNS, 'polygon') as SVGPolygonElement;
+      closed.setAttribute('class', 'product-setup-draft is-closed');
+      closed.setAttribute('points', [...linePts, linePts[0]].join(' '));
+      closed.style.fill = 'rgba(11, 108, 171, 0.18)';
+      draftLayer.append(closed);
+    } else {
+      const line = document.createElementNS(svgNS, 'polyline');
+      line.setAttribute('class', 'product-setup-draft');
+      line.setAttribute('points', linePts.join(' '));
+      draftLayer.append(line);
     }
-    line.setAttribute('points', linePts.join(' '));
-    draftLayer.append(line);
     draft.forEach((corner, index) => {
       const px = workspaceMmToPhoto(view, side, corner);
       if (!px) return;
@@ -2263,6 +3348,7 @@ export function createProductSetupView(
       })),
       showAnchors: true,
       showAreas: true,
+      showProduct: true,
     };
   }
 
