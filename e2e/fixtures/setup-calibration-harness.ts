@@ -116,6 +116,12 @@ window.__setupHarness = {
   lastSnapshot(): ModelSetupSnapshot | null {
     return lastSnapshot;
   },
+  referenceOverlay(): boolean {
+    return viewer !== null && viewer.hasReferenceOverlay();
+  },
+  safeAreaOverlays(): number {
+    return viewer !== null ? viewer.safeAreaOverlayCount() : -1;
+  },
   canvasBox(): { x: number; y: number; width: number; height: number } | null {
     const rect = canvas.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };

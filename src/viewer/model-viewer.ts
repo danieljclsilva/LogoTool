@@ -50,7 +50,29 @@ export interface RegionAxesFrame {
 export interface SafeAreaOverlayItem {
   id: string;
   pointsModel: Array<{ x: number; y: number; z: number }>;
+  /**
+   * Optional selection flag (additive): a selected area renders with a
+   * distinct outline/fill so it stays distinguishable over the product.
+   * Missing/false keeps the default blue treatment.
+   */
+  selected?: boolean;
 }
+
+/**
+ * Reference measurement overlay: two surface endpoints plus the human label
+ * computed by the embedding view (`Enter distance` until a positive finite
+ * length is entered, else e.g. `1,300 mm`). The viewer never invents the
+ * text — it only renders the supplied string over a white backing.
+ */
+export interface ReferenceOverlay {
+  a: { x: number; y: number; z: number };
+  b: { x: number; y: number; z: number };
+  label: string;
+}
+
+/** Discrete display-zoom steps (% of the fitted product view). */
+export const VIEW_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300, 400] as const;
+export type ViewZoomPercent = (typeof VIEW_ZOOM_STEPS)[number];
 
 /** Pointer-down/up pair for click-vs-drag surface-pick gating. */
 export interface SurfaceClickSample {
@@ -58,6 +80,16 @@ export interface SurfaceClickSample {
   downY: number;
   upX: number;
   upY: number;
+}
+
+/**
+ * Detailed surface pick: wrapper-local hit position plus the wrapper-local
+ * face normal at the hit. Normals come from the actual mesh triangle, never
+ * from fitted geometry. Null-safe; never throws at the call site.
+ */
+export interface SurfacePickDetailed {
+  modelPosition: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };
 }
 
 /**
@@ -119,6 +151,18 @@ export class ModelViewer {
   private readonly axesGroup: THREE.Group;
   private readonly placementGroup: THREE.Group;
   private readonly safeAreaGroup: THREE.Group;
+  private readonly referenceGroup: THREE.Group;
+  /** Midpoint label sprite for the reference overlay (null when cleared). */
+  private referenceLabel: THREE.Sprite | null = null;
+  /**
+   * Fitted camera distance backing the % zoom readout: 100% is the fitted
+   * product view. Zoom only moves the camera — native coords and mm values
+   * are never scaled.
+   */
+  private fitDistance = 0;
+  private zoomPct = 100;
+  /** True while setZoomPercent moves the camera (ignores the echo). */
+  private applyingZoom = false;
   private readonly axesXMaterial: THREE.LineBasicMaterial;
   private readonly axesYMaterial: THREE.LineBasicMaterial;
   private readonly container: HTMLElement;
@@ -156,6 +200,30 @@ export class ModelViewer {
     this.camera.position.set(1.5, 1.2, 1.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    // Keep the % readout consistent when the operator dollies with the
+    // wheel: snap the stored step to the nearest supported value without
+    // moving the camera. Programmatic zoom applies set their own echo guard.
+    this.controls.addEventListener('change', () => {
+      try {
+        if (this.applyingZoom || this.disposed || this.fitDistance <= 0) return;
+        const dist = this.camera.position.distanceTo(this.controls.target);
+        if (!Number.isFinite(dist) || dist <= 0) return;
+        const implied = (this.fitDistance / dist) * 100;
+        if (!Number.isFinite(implied)) return;
+        let best: number = VIEW_ZOOM_STEPS[2] ?? 100;
+        let bestErr = Infinity;
+        for (const step of VIEW_ZOOM_STEPS) {
+          const err = Math.abs(step - implied);
+          if (err < bestErr) {
+            bestErr = err;
+            best = step;
+          }
+        }
+        this.zoomPct = best;
+      } catch {
+        return;
+      }
+    });
     this.wrapper = new THREE.Group();
     this.wrapper.name = 'model-viewer-wrapper';
     this.scene.add(this.wrapper);
@@ -171,6 +239,9 @@ export class ModelViewer {
     this.safeAreaGroup = new THREE.Group();
     this.safeAreaGroup.name = 'safe-area-overlays';
     this.wrapper.add(this.safeAreaGroup);
+    this.referenceGroup = new THREE.Group();
+    this.referenceGroup.name = 'reference-overlay';
+    this.wrapper.add(this.referenceGroup);
     this.axesXMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     this.axesYMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
@@ -197,6 +268,13 @@ export class ModelViewer {
   }
 
   private readonly resizeBound = (): void => this.resize();
+  /**
+   * Optional per-frame hook for projected HTML overlays (e.g. draggable
+   * rectangle handles). Overlay-only: never throws into the loop, cleared on
+   * dispose. The view owns positioning/visibility; the viewer only yields a
+   * post-camera-update tick so overlays track orbit/zoom/resize.
+   */
+  onFrame: (() => void) | null = null;
 
   /**
    * Attach to a canvas. Returns the viewer, or a webgl-unavailable status
@@ -260,7 +338,7 @@ export class ModelViewer {
     this.clearModel();
     this.wrapper.add(parsed.scene);
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) this.applyWireframe(child, this.wireframe);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup && child !== this.referenceGroup) this.applyWireframe(child, this.wireframe);
     }
     this.applyProductVisibility();
     // A parsed-but-empty (or single-point-degenerate) scene paints a blank
@@ -306,11 +384,161 @@ export class ModelViewer {
     this.camera.updateProjectionMatrix();
     this.controls.target.set(0, 0, 0);
     this.controls.update();
+    // 100% is this fitted view; the distance backs the % zoom readout.
+    this.fitDistance = distance;
+    this.zoomPct = 100;
   }
 
   /** Restore the default camera framing for the current model. */
   resetView(): void {
     this.fitView();
+  }
+
+  /**
+   * Replace the reference measurement overlay: a dashed straight chord
+   * between two wrapper-local surface points plus a midpoint label with a
+   * white backing. The label text arrives from the embedding view (never
+   * invented here). Null/invalid clears the overlay. The group rides wrapper
+   * transforms, so the line and label follow orbit, pan, zoom and resizes;
+   * the label keeps a constant CSS size via the render loop. Render-only:
+   * never mutates the model, never participates in raycasts or framing.
+   * Never throws.
+   */
+  setReferenceOverlay(ref: ReferenceOverlay | null): void {
+    try {
+      this.clearReference();
+      if (this.disposed) return;
+      if (ref === null || typeof ref !== 'object') return;
+      if (!isVec3(ref.a) || !isVec3(ref.b)) return;
+      if (typeof ref.label !== 'string') return;
+      const a = new THREE.Vector3(ref.a.x, ref.a.y, ref.a.z);
+      const b = new THREE.Vector3(ref.b.x, ref.b.y, ref.b.z);
+      const chord = a.distanceTo(b);
+      if (!Number.isFinite(chord)) return;
+      const modelSize = this.modelBBox().getSize(new THREE.Vector3()).length();
+      const base = Number.isFinite(modelSize) && modelSize > 0 ? modelSize : Math.max(chord, 1e-6);
+      const dash = chord > 0 ? Math.max(chord * 0.05, base * 0.004) : base * 0.01;
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+      const lineMaterial = new THREE.LineDashedMaterial({
+        color: 0xffc400,
+        dashSize: dash,
+        gapSize: dash * 0.6,
+        depthTest: false,
+        transparent: true,
+      });
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      line.computeLineDistances();
+      line.renderOrder = 10;
+      this.referenceGroup.add(line);
+      const { sprite } = makeReferenceLabelSprite(ref.label);
+      sprite.position.copy(a).add(b).multiplyScalar(0.5);
+      this.referenceGroup.add(sprite);
+      this.referenceLabel = sprite;
+      this.updateReferenceLabelScale();
+      // The connecting measurement belongs to the anchors layer.
+      this.referenceGroup.visible = this.markerGroup.visible;
+    } catch {
+      return;
+    }
+  }
+
+  /** Remove the reference line/label and dispose their GPU resources. */
+  private clearReference(): void {
+    this.referenceLabel = null;
+    for (let i = this.referenceGroup.children.length - 1; i >= 0; i--) {
+      const child = this.referenceGroup.children[i];
+      if (child === undefined) continue;
+      this.referenceGroup.remove(child);
+      if (child instanceof THREE.Sprite) {
+        const material = child.material;
+        if (material.map !== null) material.map.dispose();
+        material.dispose();
+        continue;
+      }
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+        const material = child.material;
+        (Array.isArray(material) ? material : [material]).forEach((entry) => entry.dispose());
+      }
+    }
+  }
+
+  /** Keep the reference label at a constant CSS size (~26px tall). */
+  private updateReferenceLabelScale(): void {
+    const sprite = this.referenceLabel;
+    if (sprite === null) return;
+    try {
+      const heightPx = this.renderer.domElement.clientHeight || 1;
+      sprite.getWorldPosition(scratchVector);
+      const dist = this.camera.position.distanceTo(scratchVector);
+      if (!Number.isFinite(dist) || dist <= 0) return;
+      const worldH =
+        ((2 * dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / heightPx) * 26;
+      if (!Number.isFinite(worldH) || worldH <= 0) return;
+      const aspect =
+        typeof sprite.userData['labelAspect'] === 'number'
+          ? (sprite.userData['labelAspect'] as number)
+          : 2;
+      sprite.scale.set(worldH * aspect, worldH, 1);
+    } catch {
+      return;
+    }
+  }
+
+  /**
+   * Set the display zoom to one of 50|75|100|125|150|200|300|400 (% of the
+   * fitted view). Camera only — native coords and mm values are untouched.
+   * Invalid, nonfinite or unsupported values are ignored. Never throws.
+   */
+  setZoomPercent(pct: number): void {
+    try {
+      if (this.disposed) return;
+      if (typeof pct !== 'number' || !(VIEW_ZOOM_STEPS as readonly number[]).includes(pct)) return;
+      this.zoomPct = pct;
+      this.applyZoomDistance();
+    } catch {
+      return;
+    }
+  }
+
+  /** Current display-zoom step (100 after fit/reset; never throws). */
+  getZoomPercent(): number {
+    try {
+      return this.zoomPct;
+    } catch {
+      return 100;
+    }
+  }
+
+  /** Refit the product view and read 100%. Camera only. Never throws. */
+  resetZoom(): void {
+    try {
+      if (this.disposed) return;
+      this.fitView();
+      this.zoomPct = 100;
+    } catch {
+      return;
+    }
+  }
+
+  /** Move the camera to the stored zoom step along the current direction. */
+  private applyZoomDistance(): void {
+    if (this.fitDistance <= 0) return;
+    const want = (this.fitDistance * 100) / this.zoomPct;
+    if (!Number.isFinite(want) || want <= 0) return;
+    scratchVector.copy(this.camera.position).sub(this.controls.target);
+    if (!Number.isFinite(scratchVector.length()) || scratchVector.length() <= 0) return;
+    scratchVector.normalize();
+    this.applyingZoom = true;
+    try {
+      this.camera.position.copy(this.controls.target.clone().addScaledVector(scratchVector, want));
+      this.camera.near = Math.max(want * NEAR_FACTOR, 0.001);
+      this.camera.far = want * FAR_FACTOR;
+      this.camera.updateProjectionMatrix();
+      this.controls.update();
+    } finally {
+      this.applyingZoom = false;
+    }
   }
 
   /**
@@ -437,36 +665,45 @@ export class ModelViewer {
   }
 
   /**
+   * Shared raycast gate: canvas client coords to the first Mesh hit,
+   * excluding marker/overlay groups. Null on any miss or bad input.
+   */
+  private raycastMesh(clientX: number, clientY: number): THREE.Intersection | null {
+    if (this.disposed) return null;
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+    const canvas = this.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return null;
+    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    if (px < 0 || py < 0 || px > rect.width || py > rect.height) return null;
+    if (this.wrapper.children.length === 0) return null;
+    this.scene.updateMatrixWorld();
+    this.camera.updateMatrixWorld();
+    const ndc = new THREE.Vector2((px / rect.width) * 2 - 1, -((py / rect.height) * 2 - 1));
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.camera);
+    const targets: THREE.Object3D[] = [];
+    for (const child of this.wrapper.children) {
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup && child !== this.referenceGroup) targets.push(child);
+    }
+    if (targets.length === 0) return null;
+    const hits = raycaster.intersectObjects(targets, true);
+    const hit = hits.find(candidate => candidate.object instanceof THREE.Mesh);
+    return hit ?? null;
+  }
+
+  /**
    * Raycast the asset model at canvas client coords; returns the hit in
    * wrapper-local (unframed asset-scene root) coords, or null on any miss
    * or bad input. Never throws. Marker meshes are never hit-tested.
    */
   pickSurface(clientX: number, clientY: number): { modelPosition: { x: number; y: number; z: number } } | null {
     try {
-      if (this.disposed) return null;
-      if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
-      const canvas = this.renderer.domElement;
-      const rect = canvas.getBoundingClientRect();
-      if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return null;
-      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
-      if (rect.width <= 0 || rect.height <= 0) return null;
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
-      if (px < 0 || py < 0 || px > rect.width || py > rect.height) return null;
-      if (this.wrapper.children.length === 0) return null;
-      this.scene.updateMatrixWorld();
-      this.camera.updateMatrixWorld();
-      const ndc = new THREE.Vector2((px / rect.width) * 2 - 1, -((py / rect.height) * 2 - 1));
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(ndc, this.camera);
-      const targets: THREE.Object3D[] = [];
-      for (const child of this.wrapper.children) {
-        if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) targets.push(child);
-      }
-      if (targets.length === 0) return null;
-      const hits = raycaster.intersectObjects(targets, true);
-      const hit = hits.find(candidate => candidate.object instanceof THREE.Mesh);
-      if (hit === undefined) return null;
+      const hit = this.raycastMesh(clientX, clientY);
+      if (hit === null) return null;
       const local = this.wrapper.worldToLocal(hit.point.clone());
       if (!Number.isFinite(local.x) || !Number.isFinite(local.y) || !Number.isFinite(local.z)) return null;
       return { modelPosition: { x: local.x, y: local.y, z: local.z } };
@@ -523,13 +760,73 @@ export class ModelViewer {
   }
 
   /**
+   * Raycast with the wrapper-local face normal of the actual mesh triangle.
+   * Same gating and target filtering as {@link pickSurface}; the normal is
+   * the geometric face normal transformed into wrapper-local coords (the
+   * wrapper carries translation only, so direction is exact). Null on any
+   * miss, bad input, face-less hit or nonfinite component. Never throws.
+   */
+  pickSurfaceDetailed(clientX: number, clientY: number): SurfacePickDetailed | null {
+    try {
+      const hit = this.raycastMesh(clientX, clientY);
+      if (hit === null || !hit.face) return null;
+      const local = this.wrapper.worldToLocal(hit.point.clone());
+      if (!Number.isFinite(local.x) || !Number.isFinite(local.y) || !Number.isFinite(local.z)) return null;
+      const worldNormal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      const toLocal = this.wrapper.getWorldQuaternion(new THREE.Quaternion()).invert();
+      const normal = worldNormal.applyQuaternion(toLocal);
+      if (!Number.isFinite(normal.x) || !Number.isFinite(normal.y) || !Number.isFinite(normal.z)) return null;
+      if (normal.lengthSq() <= 0) return null;
+      normal.normalize();
+      return {
+        modelPosition: { x: local.x, y: local.y, z: local.z },
+        normal: { x: normal.x, y: normal.y, z: normal.z },
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Project a wrapper-local model point to canvas client coords (CSS px).
+   * Inverse of picking: used to verify computed overlay corners/edges
+   * against the actual surface. Null when disposed, on bad input, or when
+   * the point is behind the camera. Never throws.
+   */
+  projectToClient(model: { x: number; y: number; z: number }): { x: number; y: number } | null {
+    try {
+      if (this.disposed) return null;
+      if (model === null || typeof model !== 'object') return null;
+      if (!Number.isFinite(model.x) || !Number.isFinite(model.y) || !Number.isFinite(model.z)) return null;
+      const world = this.wrapper.localToWorld(new THREE.Vector3(model.x, model.y, model.z));
+      const ndc = world.project(this.camera);
+      if (!Number.isFinite(ndc.x) || !Number.isFinite(ndc.y) || !Number.isFinite(ndc.z)) return null;
+      if (ndc.z > 1 || ndc.z < -1) return null;
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return null;
+      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      const x = rect.left + (ndc.x * 0.5 + 0.5) * rect.width;
+      const y = rect.top + (-ndc.y * 0.5 + 0.5) * rect.height;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Show or hide anchor markers without touching staged data. Visibility is
    * render-only: markers stay registered and keep riding wrapper transforms.
    * Never throws.
    */
   setAnchorsVisible(visible: boolean): void {
     try {
-      if (!this.disposed) this.markerGroup.visible = visible === true;
+      if (this.disposed) return;
+      // Anchors layer: endpoint markers plus the connecting measurement.
+      const shown = visible === true;
+      this.markerGroup.visible = shown;
+      this.referenceGroup.visible = shown;
     } catch {
       return;
     }
@@ -570,6 +867,24 @@ export class ModelViewer {
     }
   }
 
+  /** Number of mounted safe-area overlay primitives (lines + fills). */
+  safeAreaOverlayCount(): number {
+    try {
+      return this.safeAreaGroup.children.length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** True while the dashed A/B reference line + label are mounted. */
+  hasReferenceOverlay(): boolean {
+    try {
+      return this.referenceGroup.children.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Show or hide the product geometry (parsed model/proxy subtree) without
    * touching overlays, camera, framing bounds or staged data. Render-only:
@@ -599,7 +914,7 @@ export class ModelViewer {
   /** Apply the product flag to the model subtree only; overlays untouched. */
   private applyProductVisibility(): void {
     for (const child of this.wrapper.children) {
-      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
+      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup || child === this.referenceGroup) continue;
       child.visible = this.productVisible;
     }
   }
@@ -629,8 +944,12 @@ export class ModelViewer {
           points.push(new THREE.Vector3(corner.x, corner.y, corner.z));
         }
         if (!valid || points.length < 3) continue;
+        // Selected areas stay distinguishable; both fills remain translucent
+        // so the product shows through (≈15–25% opacity band).
+        const selected = 'selected' in item && item.selected === true;
+        const tint = selected ? 0xe67e00 : 0x0b6cab;
         const outlineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x0b6cab, depthTest: true });
+        const outlineMaterial = new THREE.LineBasicMaterial({ color: tint, depthTest: true });
         this.safeAreaGroup.add(new THREE.LineLoop(outlineGeometry, outlineMaterial));
         const fillGeometry = new THREE.BufferGeometry().setFromPoints(points);
         const triangles: number[] = [];
@@ -640,9 +959,9 @@ export class ModelViewer {
         fillGeometry.setIndex(triangles);
         fillGeometry.computeVertexNormals();
         const fillMaterial = new THREE.MeshBasicMaterial({
-          color: 0x0b6cab,
+          color: tint,
           transparent: true,
-          opacity: 0.18,
+          opacity: selected ? 0.25 : 0.18,
           side: THREE.DoubleSide,
           depthWrite: false,
         });
@@ -674,7 +993,7 @@ export class ModelViewer {
   setWireframe(enabled: boolean): void {
     this.wireframe = enabled;
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) this.applyWireframe(child, enabled);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup && child !== this.referenceGroup) this.applyWireframe(child, enabled);
     }
   }
 
@@ -690,6 +1009,7 @@ export class ModelViewer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.onFrame = null;
     ++this.generation;
     cancelAnimationFrame(this.rafId);
     this.resizeObserver?.disconnect();
@@ -705,6 +1025,8 @@ export class ModelViewer {
     this.clearPlacements();
     if (this.safeAreaGroup.parent !== null) this.safeAreaGroup.parent.remove(this.safeAreaGroup);
     this.clearSafeAreas();
+    if (this.referenceGroup.parent !== null) this.referenceGroup.parent.remove(this.referenceGroup);
+    this.clearReference();
     this.controls.dispose();
     this.renderer.dispose();
   }
@@ -712,7 +1034,7 @@ export class ModelViewer {
   private clearModel(): void {
     for (let i = this.wrapper.children.length - 1; i >= 0; i--) {
       const child = this.wrapper.children[i];
-      if (child === undefined || child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
+      if (child === undefined || child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup || child === this.referenceGroup) continue;
       this.wrapper.remove(child);
       disposeObject(child);
     }
@@ -720,6 +1042,7 @@ export class ModelViewer {
     this.clearAxes();
     this.clearPlacements();
     this.clearSafeAreas();
+    this.clearReference();
     this.wrapper.position.set(0, 0, 0);
   }
 
@@ -728,7 +1051,7 @@ export class ModelViewer {
     const box = new THREE.Box3();
     box.makeEmpty();
     for (const child of this.wrapper.children) {
-      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
+      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup || child === this.referenceGroup) continue;
       box.expandByObject(child);
     }
     return box;
@@ -956,10 +1279,12 @@ export class ModelViewer {
       // direction at the newly fitted distance instead of snapping to the
       // nearest side (which loses arbitrary orbit positions and can blank a
       // side-on view through residual OrbitControls state).
+      const keepZoom = this.zoomPct;
       const offset = this.camera.position.clone().sub(this.controls.target);
       const length = offset.length();
       this.resize();
       this.fitView();
+      this.zoomPct = keepZoom;
       if (!Number.isFinite(length) || length <= 0) return;
       const fitted = this.camera.position.distanceTo(this.controls.target);
       if (!Number.isFinite(fitted) || fitted <= 0) return;
@@ -970,6 +1295,9 @@ export class ModelViewer {
       this.camera.updateProjectionMatrix();
       this.controls.target.set(0, 0, 0);
       this.controls.update();
+      // A resize refits the framing bounds: re-apply the stored zoom step so
+      // the readout (and view) survive narrow/wide layout changes.
+      if (keepZoom !== 100) this.applyZoomDistance();
     } catch {
       return;
     }
@@ -979,6 +1307,12 @@ export class ModelViewer {
     if (this.disposed) return;
     this.rafId = requestAnimationFrame(this.loop);
     this.controls.update();
+    try {
+      this.onFrame?.();
+    } catch {
+      /* overlay-only; never breaks rendering */
+    }
+    this.updateReferenceLabelScale();
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -1077,6 +1411,69 @@ function createPlacementArtTexture(art: string): THREE.CanvasTexture {
 
 
 type Vec3Like = { x: number; y: number; z: number };
+
+/** Scratch vector for per-frame label math (never retained). */
+const scratchVector = new THREE.Vector3();
+
+/**
+ * Midpoint label sprite for the reference overlay: dark text over an opaque
+ * white rounded backing so it stays readable over any product. The caller
+ * rescales it per frame for a constant CSS size.
+ */
+function makeReferenceLabelSprite(text: string): { sprite: THREE.Sprite } {
+  const font = '600 30px system-ui, -apple-system, "Segoe UI", sans-serif';
+  const measurer = document.createElement('canvas').getContext('2d');
+  if (measurer === null) throw new Error('2d canvas context unavailable');
+  measurer.font = font;
+  const words = text === '' ? ' ' : text;
+  const textWidth = Math.ceil(measurer.measureText(words).width);
+  const padX = 18;
+  const padY = 12;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(8, textWidth + padX * 2);
+  canvas.height = 30 + padY * 2;
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) throw new Error('2d canvas context unavailable');
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  traceRoundRect(ctx, 1, 1, canvas.width - 2, canvas.height - 2, 10);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 2;
+  traceRoundRect(ctx, 1, 1, canvas.width - 2, canvas.height - 2, 10);
+  ctx.stroke();
+  ctx.font = font;
+  ctx.fillStyle = '#111111';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(words, padX, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }),
+  );
+  sprite.renderOrder = 11;
+  sprite.userData['labelAspect'] = canvas.width / canvas.height;
+  return { sprite };
+}
+
+/** Round-rect path without relying on CanvasRenderingContext2D.roundRect. */
+function traceRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
 
 /** Finite-component vector check; unknown shapes rejected without throwing. */
 function isVec3(value: unknown): value is Vec3Like {

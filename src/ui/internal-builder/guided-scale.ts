@@ -38,6 +38,14 @@
  */
 import type { PhotoMappingCorrespondence } from '../customer-editor/presentation-photo-mapping.js';
 import {
+  PRODUCT_SETUP_FIT_MIN_PX,
+  PRODUCT_SETUP_FIT_VH,
+  PRODUCT_SETUP_ZOOM_STEPS,
+  clampZoomPercentage,
+  fitPhotoBox,
+  stepZoomPercentage,
+} from './product-setup-view.js';
+import {
   fitScaleFromReferences,
   spanNativeDistance,
   validateReferenceSpan,
@@ -215,6 +223,30 @@ export interface ReferenceSpanPhoto {
 export const MAX_REFERENCE_SPAN_MM = 100000;
 
 /**
+ * Grouped millimetre label for a reference length (`1,300 mm`; decimals
+ * keep their fraction). Null unless the length is a positive finite number —
+ * callers show `Enter distance` instead. Pure; no DOM. (This panel keeps its
+ * own copy; product-setup-view.ts carries the same small helper for its
+ * saved-span label, and the lead dedupes at integration if ever shared.)
+ */
+export function formatSpanLengthMm(lengthMm: number): string | null {
+  if (!Number.isFinite(lengthMm) || !(lengthMm > 0)) return null;
+  const rounded = Math.round(lengthMm * 100) / 100;
+  const [int, frac] = String(rounded).split('.');
+  const grouped = (int ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${grouped}${frac !== undefined ? `.${frac}` : ''} mm`;
+}
+
+/**
+ * Midpoint label for a reference span: the grouped length once a positive
+ * finite length is entered, else `Enter distance` — never an invented
+ * length. Pure; no DOM.
+ */
+export function spanLengthLabel(lengthMm: number): string {
+  return formatSpanLengthMm(lengthMm) ?? 'Enter distance';
+}
+
+/**
  * Adapt clicked UV endpoints + entered length into the kernel's
  * `ReferenceSpan` shape (pixel-native points; structurally typed, no kernel
  * type import). Pure; no DOM.
@@ -330,6 +362,71 @@ export function createGuidedScale(
   let spanB: { x: number; y: number } | null = null;
   let spanPending = false;
   let natural: { width: number; height: number } | null = null;
+  /**
+   * Local span-stage zoom (100 = fitted photo view) plus display-only layer
+   * flags. Same steps/semantics as the calibrated editing stage, but local
+   * to this panel — no shared state. Zoom never touches native UV math or
+   * millimetres; visibility never deletes points or the entered length.
+   */
+  let spanZoom = 100;
+  let spanShowAnchors = true;
+  let spanShowAreas = true;
+  let spanShowProduct = true;
+  /** Stashed span-length text so re-renders never wipe the entered length. */
+  let spanMmText = '';
+  /**
+   * Resize observer for constant-CSS-pixel span markers (same strategy as
+   * the product-setup stage): re-runs the marker layout pass when the
+   * overlay box changes. Observes the svg element only (child repaints never
+   * resize it, so no feedback loop). Torn down on hide/destroy/refresh.
+   */
+  let spanResize: ResizeObserver | null = null;
+  /**
+   * Fit observers + window-resize listeners for the bounded span/rectangle
+   * stages (recompute the shared photo/overlay box on viewport/container
+   * change). Same teardown path as the marker observer.
+   */
+  let spanFitObservers: ResizeObserver[] = [];
+  let spanFitWindowCleanups: Array<() => void> = [];
+
+  function disconnectSpanResize(): void {
+    try {
+      spanResize?.disconnect();
+    } catch {
+      /* best-effort teardown */
+    }
+    spanResize = null;
+    for (const observer of spanFitObservers) {
+      try {
+        observer.disconnect();
+      } catch {
+        /* best-effort teardown */
+      }
+    }
+    spanFitObservers = [];
+    for (const cleanup of spanFitWindowCleanups) {
+      try {
+        cleanup();
+      } catch {
+        /* best-effort teardown */
+      }
+    }
+    spanFitWindowCleanups = [];
+  }
+
+  function observeSpanOverlay(): void {
+    const box = currentSpanBox();
+    if (!box) return;
+    layoutSpanMarkers(box.svg);
+    if (typeof ResizeObserver === 'function') {
+      spanResize = new ResizeObserver(() => {
+        const live = currentSpanBox();
+        if (live && live.svg.isConnected) layoutSpanMarkers(live.svg);
+        else disconnectSpanResize();
+      });
+      spanResize.observe(box.svg);
+    }
+  }
 
   function currentPhotoBox(): { img: HTMLImageElement; svg: SVGSVGElement } | null {
     const section = host.querySelector<HTMLElement>('.guided-scale-rect');
@@ -420,16 +517,197 @@ export function createGuidedScale(
     return input ? input.valueAsNumber : NaN;
   }
 
+  /**
+   * Bounded contain-fit box shared by the photo and its click overlay
+   * (white side space is fine): available stage width AND ~60vh so a
+   * portrait photo never pushes the preview past the viewport, scaled by
+   * the zoom percentage with internal stage scrolling when magnified.
+   * Display-only: UV math and millimetres never scale. Pure layout; no
+   * geometry, no state.
+   */
+  function layoutGuidedFit(
+    stage: HTMLElement,
+    box: HTMLElement,
+    photoW: number,
+    photoH: number,
+    zoomPct: number,
+  ): void {
+    stage.style.overflow = 'auto';
+    stage.style.maxHeight = '60vh';
+    const availW = stage.clientWidth;
+    const viewportH = typeof window === 'undefined' ? 0 : window.innerHeight;
+    const availH = Math.max(
+      viewportH > 0 ? viewportH * PRODUCT_SETUP_FIT_VH : PRODUCT_SETUP_FIT_MIN_PX,
+      PRODUCT_SETUP_FIT_MIN_PX,
+    );
+    const fitted = availW > 0 ? fitPhotoBox(photoW, photoH, availW, availH) : null;
+    const scale = clampZoomPercentage(zoomPct) / 100;
+    if (fitted !== null) {
+      const width = fitted.width * scale;
+      box.style.width = `${width}px`;
+      box.style.height = `${fitted.height * scale}px`;
+      box.style.margin = width < availW - 0.5 ? '0 auto' : '';
+    } else {
+      box.style.width = zoomPct !== 100 ? `${clampZoomPercentage(zoomPct)}%` : '';
+      box.style.height = '';
+      box.style.margin = '';
+    }
+  }
+
+  /**
+   * Observe one guided stage for fit recomputation (container/viewport
+   * change). The signature guard keeps the observer from looping: an
+   * unchanged box writes no styles, so no further resize fires. Display
+   * only; UV math untouched. Disposed via disconnectSpanResize.
+   */
+  function observeGuidedFit(
+    stage: HTMLElement,
+    box: HTMLElement,
+    photoW: number,
+    photoH: number,
+    zoomOf: () => number,
+  ): void {
+    let lastFit = '';
+    const apply = (): void => {
+      if (destroyed || !box.isConnected) return;
+      const availW = stage.clientWidth;
+      const signature = `${availW}x${zoomOf()}@${typeof window === 'undefined' ? 0 : window.innerHeight}`;
+      if (signature === lastFit) return;
+      lastFit = signature;
+      layoutGuidedFit(stage, box, photoW, photoH, zoomOf());
+    };
+    apply();
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const onResize = (): void => {
+        lastFit = '';
+        apply();
+      };
+      window.addEventListener('resize', onResize);
+      spanFitWindowCleanups.push(() => {
+        window.removeEventListener('resize', onResize);
+      });
+    }
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(() => {
+        apply();
+      });
+      observer.observe(stage);
+      spanFitObservers.push(observer);
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        if (!destroyed) {
+          lastFit = '';
+          apply();
+        }
+      });
+    }
+  }
+
+  /**
+   * Apply the local span-stage zoom without rebuilding (display-only, so the
+   * entered length and points are never disturbed): the bounded fitted box
+   * scales by percentage so the stage scrolls inside instead of overflowing
+   * the page. The overlay stays exactly on the photo rect, so UV math is
+   * untouched.
+   */
+  function applySpanZoom(): void {
+    const section = host.querySelector<HTMLElement>('.guided-scale-span');
+    const stage = section?.querySelector<HTMLElement>('.guided-scale-stage') ?? null;
+    const box = section?.querySelector<HTMLElement>('.guided-scale-zoombox') ?? null;
+    if (!stage || !box || !request) return;
+    layoutGuidedFit(stage, box, request.photo.widthPx, request.photo.heightPx, spanZoom);
+  }
+
+  /** Keep the photo box on the photo rect while the photo itself is hidden. */
+  function applySpanProduct(): void {
+    const section = host.querySelector<HTMLElement>('.guided-scale-span');
+    const box = section?.querySelector<HTMLElement>('.guided-scale-zoombox') ?? null;
+    const img = section?.querySelector<HTMLImageElement>('.guided-scale-photo') ?? null;
+    if (!box || !img || !request) return;
+    if (spanShowProduct) {
+      img.style.display = '';
+      box.style.aspectRatio = '';
+    } else {
+      img.style.display = 'none';
+      box.style.aspectRatio = `${request.photo.widthPx} / ${request.photo.heightPx}`;
+    }
+  }
+
+  /** Sync the zoom readout + bound buttons with the local zoom state. */
+  function paintSpanView(): void {
+    const pct = clampZoomPercentage(spanZoom);
+    const select = host.querySelector<HTMLSelectElement>('[data-ps-view="zoom"]');
+    if (select) select.value = String(pct);
+    const out = host.querySelector<HTMLButtonElement>('[data-ps-view="zoom-out"]');
+    if (out) out.disabled = pct <= PRODUCT_SETUP_ZOOM_STEPS[0]!;
+    const zin = host.querySelector<HTMLButtonElement>('[data-ps-view="zoom-in"]');
+    if (zin) zin.disabled = pct >= PRODUCT_SETUP_ZOOM_STEPS[PRODUCT_SETUP_ZOOM_STEPS.length - 1]!;
+  }
+
   function formatScale(scaleMmPerPx: number): string {
     if (!Number.isFinite(scaleMmPerPx) || !(scaleMmPerPx > 0)) return '—';
     const rounded = Math.round(scaleMmPerPx * 1000) / 1000;
     return `${rounded} mm per photo pixel`;
   }
 
+  /** CSS pixels per overlay viewBox unit (fit letterboxing), or null. */
+  function spanCssScale(svg: SVGSVGElement): number | null {
+    const rect = svg.getBoundingClientRect();
+    const box = svg.viewBox.baseVal;
+    if (!(rect.width > 0) || !(box.width > 0)) return null;
+    const scale = rect.width / box.width;
+    return scale > 0 && Number.isFinite(scale) ? scale : null;
+  }
+
+  /**
+   * Keep span markers/labels at constant rendered sizes (same data-markr /
+   * data-markfont / data-markstroke strategy as the product-setup stage):
+   * dots, halo widths, label sizes and dash patterns hold their CSS-pixel
+   * sizes on high-res photos and narrow stages. Geometry is never touched.
+   */
+  function layoutSpanMarkers(svg: SVGSVGElement): void {
+    const scale = spanCssScale(svg);
+    if (scale === null) return;
+    const units = (cssPx: number): string => String(cssPx / scale);
+    svg.querySelectorAll('[data-markr]').forEach((node) => {
+      const want = Number((node as Element).getAttribute('data-markr'));
+      if (Number.isFinite(want)) node.setAttribute('r', units(want));
+    });
+    svg.querySelectorAll('[data-markfont]').forEach((node) => {
+      const el = node as Element;
+      const want = Number(el.getAttribute('data-markfont'));
+      if (Number.isFinite(want)) node.setAttribute('font-size', String(want / scale));
+      const cx = Number(el.getAttribute('data-markcx'));
+      const cy = Number(el.getAttribute('data-markcy'));
+      if (Number.isFinite(cx) && Number.isFinite(cy)) {
+        // Endpoint tags sit right/below their dot; the midpoint length
+        // label floats above the span line via data-markdy.
+        const dyRaw = Number(el.getAttribute('data-markdy'));
+        const dy = Number.isFinite(dyRaw) ? dyRaw : 4;
+        node.setAttribute('x', String(cx + 12 / scale));
+        node.setAttribute('y', String(cy + dy / scale));
+      }
+    });
+    svg.querySelectorAll('[data-markstroke]').forEach((node) => {
+      const want = Number((node as Element).getAttribute('data-markstroke'));
+      if (Number.isFinite(want)) node.setAttribute('stroke-width', String(want / scale));
+    });
+    svg.querySelectorAll('[data-markdash]').forEach((node) => {
+      const raw = (node as Element).getAttribute('data-markdash') ?? '';
+      const parts = raw.trim().split(/[\s,]+/).map(Number)
+        .filter((n) => Number.isFinite(n) && n >= 0);
+      if (parts.length > 0) node.setAttribute('stroke-dasharray', parts.map((n) => String(n / scale)).join(' '));
+    });
+  }
+
   /**
    * Paint the A/B endpoints, the connecting span line and the entered-length
    * label. All geometry is pixel-native viewBox units (never CSS pixels), so
-   * the span reads identically at any zoom or viewport size.
+   * the span reads identically at any zoom or viewport size. The line is a
+   * dotted ~2-CSS-px stroke and the label reads `Enter distance` until a
+   * positive finite length is entered, else e.g. `1,300 mm`, updating live
+   * on every input without needing blur.
    */
   function paintSpan(): void {
     const box = currentSpanBox();
@@ -437,21 +715,38 @@ export function createGuidedScale(
     const { svg } = box;
     svg.replaceChildren();
     const mm = readSpanMm();
-    const mmText = Number.isFinite(mm) && mm > 0 ? `${mm} mm` : '— mm';
-    if (spanA && spanB) {
+    const mmText = spanLengthLabel(mm);
+    // The Anchors visibility toggle hides endpoints + line + label without
+    // deleting them; the scale preview below keeps working from the state.
+    if (spanShowAnchors) {
+      if (spanA && spanB) {
       const line = document.createElementNS(SVG_NS, 'line');
       line.setAttribute('x1', String(spanA.x));
       line.setAttribute('y1', String(spanA.y));
       line.setAttribute('x2', String(spanB.x));
       line.setAttribute('y2', String(spanB.y));
-      line.setAttribute('class', 'guided-scale-span-line');
+      // Contract classes for the Images reference overlay; the legacy class
+      // stays so existing styles keep applying.
+      line.setAttribute('class', 'guided-scale-span-line product-setup-refline');
       line.setAttribute('stroke', '#0b6cab');
+      line.setAttribute('fill', 'none');
+      // Initial viewBox-unit fallbacks; layoutSpanMarkers() below refines
+      // them to constant CSS pixels once the overlay is measurable.
       line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke-dasharray', '7 5');
+      line.setAttribute('data-markstroke', '2');
+      line.setAttribute('data-markdash', '7 5');
       svg.append(line);
       const label = document.createElementNS(SVG_NS, 'text');
       label.setAttribute('x', String((spanA.x + spanB.x) / 2 + 13));
       label.setAttribute('y', String((spanA.y + spanB.y) / 2 - 10));
-      label.setAttribute('class', 'guided-scale-label');
+      // Legacy label styling (white backing) plus the contract class.
+      label.setAttribute('class', 'guided-scale-label product-setup-reflabel');
+      label.setAttribute('data-markfont', '12');
+      label.setAttribute('data-markstroke', '3');
+      label.setAttribute('data-markdy', '-10');
+      label.setAttribute('data-markcx', String((spanA.x + spanB.x) / 2));
+      label.setAttribute('data-markcy', String((spanA.y + spanB.y) / 2));
       label.textContent = mmText;
       svg.append(label);
     }
@@ -462,16 +757,22 @@ export function createGuidedScale(
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(point.x));
       circle.setAttribute('cy', String(point.y));
-      circle.setAttribute('r', '9');
+      circle.setAttribute('r', '8');
+      circle.setAttribute('data-markr', '8');
       circle.setAttribute('class', `guided-scale-corner${tag === 'A' ? ' is-first' : ''}`);
       svg.append(circle);
       const tagLabel = document.createElementNS(SVG_NS, 'text');
       tagLabel.setAttribute('x', String(point.x + 13));
       tagLabel.setAttribute('y', String(point.y + 5));
       tagLabel.setAttribute('class', 'guided-scale-label');
+      tagLabel.setAttribute('data-markfont', '12');
+      tagLabel.setAttribute('data-markcx', String(point.x));
+      tagLabel.setAttribute('data-markcy', String(point.y));
       tagLabel.textContent = tag;
       svg.append(tagLabel);
     });
+    } // spanShowAnchors: hidden hides endpoints + line + label, keeps state.
+    layoutSpanMarkers(svg);
     const preview = host.querySelector<HTMLElement>('[data-guided="span-scale"]');
     if (preview) {
       if (spanA && spanB && natural) {
@@ -616,6 +917,106 @@ export function createGuidedScale(
     if (clear) clear.disabled = pending || corners.length === 0;
   }
 
+  function renderSpanViewbar(section: HTMLElement, figure: HTMLElement): void {
+    // Same view controls as the calibrated editing stage (same selectors so
+    // lead CSS/mount works; same 50–400% + Fit steps; 100% = fitted photo).
+    // Display-only: zoom never touches UV math or mm; Anchors hides A/B +
+    // line + label without deleting them; Safe areas is harmless here (no
+    // areas on this panel yet); Product hides only the photo.
+    const bar = document.createElement('div');
+    bar.className = 'guided-scale-viewbar';
+    bar.setAttribute('data-ps-viewbar', '');
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Span stage view controls');
+    const zoomOut = document.createElement('button');
+    zoomOut.type = 'button';
+    zoomOut.className = 'btn-secondary';
+    zoomOut.textContent = '−';
+    zoomOut.setAttribute('aria-label', 'Zoom out');
+    zoomOut.setAttribute('data-ps-view', 'zoom-out');
+    zoomOut.addEventListener('click', () => {
+      spanZoom = stepZoomPercentage(spanZoom, -1);
+      applySpanZoom();
+      paintSpanView();
+    });
+    const zoomSelect = document.createElement('select');
+    zoomSelect.setAttribute('aria-label', 'Zoom percentage (100% is the fitted photo view)');
+    zoomSelect.setAttribute('data-ps-view', 'zoom');
+    for (const step of PRODUCT_SETUP_ZOOM_STEPS) {
+      const option = document.createElement('option');
+      option.value = String(step);
+      option.textContent = `${step}%`;
+      zoomSelect.append(option);
+    }
+    zoomSelect.addEventListener('change', () => {
+      spanZoom = clampZoomPercentage(Number(zoomSelect.value));
+      applySpanZoom();
+      paintSpanView();
+    });
+    const zoomIn = document.createElement('button');
+    zoomIn.type = 'button';
+    zoomIn.className = 'btn-secondary';
+    zoomIn.textContent = '+';
+    zoomIn.setAttribute('aria-label', 'Zoom in');
+    zoomIn.setAttribute('data-ps-view', 'zoom-in');
+    zoomIn.addEventListener('click', () => {
+      spanZoom = stepZoomPercentage(spanZoom, 1);
+      applySpanZoom();
+      paintSpanView();
+    });
+    const zoomFit = document.createElement('button');
+    zoomFit.type = 'button';
+    zoomFit.className = 'btn-secondary';
+    zoomFit.textContent = 'Fit';
+    zoomFit.setAttribute('aria-label', 'Fit the photo view (100%)');
+    zoomFit.setAttribute('data-ps-view', 'fit');
+    zoomFit.addEventListener('click', () => {
+      spanZoom = 100;
+      applySpanZoom();
+      paintSpanView();
+    });
+    bar.append(zoomOut, zoomSelect, zoomIn, zoomFit);
+    const visToggle = (
+      label: string,
+      view: 'vis-anchors' | 'vis-areas' | 'vis-product',
+      pressed: () => boolean,
+      onFlip: () => void,
+    ): void => {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'btn-secondary';
+      toggle.textContent = label;
+      toggle.setAttribute('aria-pressed', pressed() ? 'true' : 'false');
+      toggle.setAttribute('data-ps-view', view);
+      toggle.addEventListener('click', () => {
+        onFlip();
+        toggle.setAttribute('aria-pressed', pressed() ? 'true' : 'false');
+      });
+      bar.append(toggle);
+    };
+    visToggle('Anchors', 'vis-anchors', () => spanShowAnchors, () => {
+      spanShowAnchors = !spanShowAnchors;
+      paintSpan();
+      setStatus(spanShowAnchors
+        ? 'Span overlay shown; nothing was changed.'
+        : 'Span overlay hidden; points A/B and the length are kept, only the display changed.');
+    });
+    visToggle('Safe areas', 'vis-areas', () => spanShowAreas, () => {
+      spanShowAreas = !spanShowAreas;
+      setStatus(spanShowAreas
+        ? 'Safe-areas layer shown; this panel stages no safe areas yet.'
+        : 'Safe-areas layer hidden; this panel stages no safe areas yet.');
+    });
+    visToggle('Product', 'vis-product', () => spanShowProduct, () => {
+      spanShowProduct = !spanShowProduct;
+      applySpanProduct();
+      setStatus(spanShowProduct
+        ? 'Product photo shown; nothing was changed.'
+        : 'Product photo hidden; the span overlay remains, only the display changed.');
+    });
+    section.insertBefore(bar, figure);
+  }
+
   function renderSpanSection(parent: HTMLElement, active: GuidedScaleRequest): void {
     const section = document.createElement('section');
     section.className = 'guided-scale-span';
@@ -694,9 +1095,17 @@ export function createGuidedScale(
         clearSpanPoints('Reference points cleared. Click point A first.');
       }
     });
-    stage.append(img, svg);
+    // Zoom sizing box: at 100% the content fits the stage; when magnified
+    // the box scales by percentage so the stage scrolls inside instead of
+    // overflowing the page. Display-only: UV math and mm never scale.
+    const zoombox = document.createElement('div');
+    zoombox.className = 'guided-scale-zoombox';
+    zoombox.style.position = 'relative';
+    zoombox.append(img, svg);
+    stage.append(zoombox);
     figure.append(stage);
     section.append(heading, hint, figure);
+    renderSpanViewbar(section, figure);
 
     const form = document.createElement('div');
     form.className = 'product-setup-list';
@@ -710,7 +1119,9 @@ export function createGuidedScale(
     mmInput.placeholder = 'e.g. 1300';
     mmInput.setAttribute('data-guided', 'span-mm');
     mmInput.setAttribute('aria-label', 'Real length between point A and point B in millimetres');
+    mmInput.value = spanMmText;
     mmInput.addEventListener('input', () => {
+      spanMmText = mmInput.value;
       paintSpan();
     });
     mmLabel.append(mmInput);
@@ -772,9 +1183,15 @@ export function createGuidedScale(
     actions.append(undoButton, clearButton, createButton, cancelButton);
     section.append(actions);
     parent.append(section);
+    // Bounded contain-fit span stage, initialized AFTER mount so the first
+    // visible box is already fitted (no detached clientWidth-0 pass, no
+    // delayed sizing jump): photo + overlay share one measured box,
+    // recomputed on container/viewport change; zoom rescales it.
+    observeGuidedFit(stage, zoombox, active.photo.widthPx, active.photo.heightPx, () => spanZoom);
   }
 
   function render(): void {
+    disconnectSpanResize();
     host.replaceChildren();
     if (!request) return;
     const active = request;
@@ -866,7 +1283,13 @@ export function createGuidedScale(
         setStatus('Corners cleared. Click C1 (top-left as seen here).');
       }
     });
-    stage.append(img, svg);
+    // Same bounded contain-fit box as the span stage (photo + overlay share
+    // one measured box at Fit; no zoom controls here, always 100%).
+    const zoombox = document.createElement('div');
+    zoombox.className = 'guided-scale-zoombox';
+    zoombox.style.position = 'relative';
+    zoombox.append(img, svg);
+    stage.append(zoombox);
     figure.append(stage);
 
     const form = document.createElement('div');
@@ -954,10 +1377,18 @@ export function createGuidedScale(
     status.textContent = 'Click point A on the known length first. Advanced rectangle: click C1 (top-left as seen in its photo); both width and height are required — one length cannot determine the affine mapping.';
 
     host.append(rectSection, status);
+    // Same contain-fit init AFTER mount for the rectangle stage (fixed 100%,
+    // no zoom controls): first visible box already fitted, observer retained
+    // for later viewport changes.
+    observeGuidedFit(stage, zoombox, active.photo.widthPx, active.photo.heightPx, () => 100);
     paintSpan();
     paintSpanButtons();
     paintMarkers();
     paintButtons();
+    observeSpanOverlay();
+    applySpanZoom();
+    applySpanProduct();
+    paintSpanView();
   }
 
   return {
@@ -969,6 +1400,11 @@ export function createGuidedScale(
       spanA = null;
       spanB = null;
       spanPending = false;
+      spanZoom = 100;
+      spanShowAnchors = true;
+      spanShowAreas = true;
+      spanShowProduct = true;
+      spanMmText = '';
       natural = { width: next.photo.widthPx, height: next.photo.heightPx };
       host.hidden = false;
       render();
@@ -980,6 +1416,7 @@ export function createGuidedScale(
       spanA = null;
       spanB = null;
       spanPending = false;
+      disconnectSpanResize();
       host.replaceChildren();
       host.hidden = true;
     },
@@ -990,6 +1427,7 @@ export function createGuidedScale(
     destroy(): void {
       destroyed = true;
       request = null;
+      disconnectSpanResize();
       host.replaceChildren();
     },
   };

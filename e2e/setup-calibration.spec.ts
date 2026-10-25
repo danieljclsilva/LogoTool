@@ -1695,7 +1695,7 @@ test('model product visibility: hide/show mesh keeps reference, areas and fit', 
     await modelSetup(page, 'toggle-anchors').click();
     await modelSetup(page, 'toggle-safe').click();
     await modelSetup(page, 'toggle-product').click();
-    await expect(modelSetup(page, 'toggle-product')).toContainText('Show product');
+    await expect(modelSetup(page, 'toggle-product')).toHaveAttribute('aria-pressed', 'false');
     await expect(modelSetup(page, 'status')).toContainText('Product hidden');
     expect(await hCall<boolean>(page, 'productVisible')).toBe(false);
     await expect.poll(async () => hCall<number>(page, 'nonBackgroundPixels')).toBeLessThan(50);
@@ -1706,7 +1706,7 @@ test('model product visibility: hide/show mesh keeps reference, areas and fit', 
     expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.reference).toBe(null);
     // Show again: the mesh paints, picking resumes, nothing was lost.
     await modelSetup(page, 'toggle-product').click();
-    await expect(modelSetup(page, 'toggle-product')).toContainText('Hide product');
+    await expect(modelSetup(page, 'toggle-product')).toHaveAttribute('aria-pressed', 'true');
     expect(await hCall<boolean>(page, 'productVisible')).toBe(true);
     await expect.poll(async () => hCall<number>(page, 'nonBackgroundPixels')).toBeGreaterThan(500);
     // The refused arm is still live: one surface click records A directly.
@@ -1821,6 +1821,551 @@ test('prepared-master save/reopen retains references, calibration and areas', as
     } finally {
       await freshContext.close();
     }
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});
+
+test('product-setup tools: dotted reference, rectangle + side edit, rollback, zoom-invariant picking, visibility, freehand', async ({ browser }, info) => {
+  test.setTimeout(300_000);
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openStation(browser, viewport);
+  try {
+    await attachEnv(info, browser, viewport, 'product-setup tools journey');
+    const frontPng = await syntheticPngBytes(page, '#2a6f4d');
+    await stageIntakeImage(page, 'Front', 'front.png', frontPng);
+    await (await shown(page, 'product-name')).fill('Tool Jacket');
+    await (await shown(page, 'product-add')).click();
+    await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Tool Jacket');
+
+    const workspace = builder(page, 'product-workspace');
+    await workspace.getByRole('button', { name: 'Set up scale' }).click();
+    const guided = builder(page, 'guided-scale');
+    const spanOverlay = guided.locator('[data-guided="span-overlay"]');
+    await expect(spanOverlay).toBeVisible();
+    // Float-precise taps (not integer-rounded clicks): the mm assertions
+    // below need sub-pixel endpoint precision.
+    const tapSpan = async (fx: number, fy: number) => {
+      await spanOverlay.scrollIntoViewIfNeeded();
+      const box = (await spanOverlay.boundingBox())!;
+      await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
+      await page.mouse.down();
+      await page.mouse.up();
+    };
+    await tapSpan(0.3, 0.5);
+    await tapSpan(0.7, 0.5);
+    await guided.locator('[data-guided="span-mm"]').fill('1300');
+    await guided.locator('[data-guided="span-create"]').click();
+    await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
+
+    // Dotted A/B line + entered length on the calibrated stage (400x300
+    // photo, A at 0.3W, B at 0.7W: scale is 1300/160 = 8.125 mm/px).
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
+
+    // Rectangle drag commits one exact four-corner area with side handles.
+    await workspace.getByRole('button', { name: 'Safe area', exact: true }).click();
+    await workspace.getByRole('button', { name: 'Rectangle' }).click();
+    const stage = workspace.locator('.product-setup-overlay').first();
+    const dragStage = async (x1: number, y1: number, x2: number, y2: number) => {
+      await stage.scrollIntoViewIfNeeded();
+      const box = (await stage.boundingBox())!;
+      await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * x2, box.y + box.height * y2, { steps: 5 });
+      await page.mouse.up();
+    };
+    await dragStage(0.1, 0.1, 0.4, 0.4);
+    await expect(workspace.getByText(/Staged a drawn safe area with 4 corners/)).toBeVisible();
+    await expect(workspace.getByRole('button', { name: 'Area 1', exact: true })).toBeVisible();
+    await expect(workspace.locator('.product-setup-sidehandle').first()).toBeVisible();
+
+    const readCorners = async (): Promise<Array<[number, number]>> => {
+      await workspace.locator('.product-setup-advanced summary').click();
+      const text = await workspace.locator('.product-setup-advanced-list').first().textContent() ?? '';
+      await workspace.locator('.product-setup-advanced summary').click();
+      const found: Array<[number, number]> = [];
+      for (const match of text.matchAll(/Corner \d+: (-?[\d.]+), (-?[\d.]+) mm/g)) {
+        found.push([Number(match[1]), Number(match[2])]);
+      }
+      return found;
+    };
+    const corners100 = await readCorners();
+    expect(corners100).toHaveLength(4);
+    // (0.4-0.1)*400 = 120 photo px wide -> 975mm; (0.4-0.1)*300 = 90 -> 731.25mm.
+    const span = (cs: Array<[number, number]>, axis: 0 | 1): number =>
+      Math.max(...cs.map((c) => c[axis])) - Math.min(...cs.map((c) => c[axis]));
+    expect(Math.abs(span(corners100, 0) - 975)).toBeLessThan(1);
+    expect(Math.abs(span(corners100, 1) - 731.25)).toBeLessThan(1);
+    // Independent checks on the tool-created ring: exact right angles and
+    // parallel opposite sides (display rounding only, far below hand-tap
+    // deviations).
+    {
+      const edgeAt = (i: number): [number, number] => [
+        corners100[(i + 1) % 4]![0] - corners100[i]![0],
+        corners100[(i + 1) % 4]![1] - corners100[i]![1],
+      ];
+      const ringEdges = [edgeAt(0), edgeAt(1), edgeAt(2), edgeAt(3)];
+      const edgeLen = (e: [number, number]): number => Math.hypot(e[0], e[1]);
+      for (let i = 0; i < 4; i += 1) {
+        const a = ringEdges[i]!;
+        const b = ringEdges[(i + 1) % 4]!;
+        expect(Math.abs((a[0] * b[0] + a[1] * b[1]) / (edgeLen(a) * edgeLen(b)))).toBeLessThan(0.001);
+        const c = ringEdges[(i + 2) % 4]!;
+        expect(Math.hypot(a[0] + c[0], a[1] + c[1]) / edgeLen(a)).toBeLessThan(0.001);
+      }
+    }
+
+    // Zoom is display-only: 200% keeps the label, and corner picking uses
+    // the inverse of the actual view transform.
+    await workspace.locator('[data-ps-view="zoom"]').selectOption('200');
+    await expect(workspace.locator('[data-ps-view="zoom"]')).toHaveValue('200');
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
+    const zoomedBox = (await stage.boundingBox())!;
+    const mmPerCssPx = (400 * 8.125) / zoomedBox.width;
+    const handle = workspace.locator('.product-setup-vertex').first();
+    // The zoomed stage scrolls internally: bring the handle itself into
+    // the scrollport before measuring, or the drag targets a clipped point.
+    await handle.scrollIntoViewIfNeeded();
+    const handleBox = (await handle.boundingBox())!;
+    const dxPx = 40;
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width / 2 + dxPx, handleBox.y + handleBox.height / 2, { steps: 5 });
+    await page.mouse.up();
+    const corners200 = await readCorners();
+    const actualDx = corners200[0]![0] - corners100[0]![0];
+    const predictedDx = dxPx * mmPerCssPx;
+    expect(Math.abs(actualDx - predictedDx) / predictedDx).toBeLessThan(0.15);
+    expect(Math.abs(corners200[0]![1] - corners100[0]![1])).toBeLessThan(0.5);
+    expect(Math.abs(corners200[2]![0] - corners100[2]![0])).toBeLessThan(0.05);
+    expect(Math.abs(corners200[2]![1] - corners100[2]![1])).toBeLessThan(0.05);
+    await workspace.locator('[data-ps-view="zoom"]').selectOption('100');
+
+    // Side drag moves that side's two corners, opposite side fixed, x fixed.
+    const beforeSide = await readCorners();
+    await stage.scrollIntoViewIfNeeded();
+    const sideHandle = workspace.locator('.product-setup-sidehandle').first();
+    const sideBox = (await sideHandle.boundingBox())!;
+    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + sideBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + sideBox.height / 2 + 25, { steps: 5 });
+    await page.mouse.up();
+    await expect(workspace.getByText(/Moved side 1/)).toBeVisible();
+    const afterSide = await readCorners();
+    const dy0 = afterSide[0]![1] - beforeSide[0]![1];
+    const dy1 = afterSide[1]![1] - beforeSide[1]![1];
+    expect(dy0).toBeLessThan(-5);
+    expect(dy1).toBeLessThan(-5);
+    expect(Math.abs(dy0 - dy1)).toBeLessThan(1);
+    for (const index of [0, 1, 2, 3]) {
+      expect(Math.abs(afterSide[index]![0] - beforeSide[index]![0])).toBeLessThan(0.05);
+    }
+    for (const index of [2, 3]) {
+      expect(Math.abs(afterSide[index]![1] - beforeSide[index]![1])).toBeLessThan(0.05);
+    }
+
+    // Escape mid-drag restores the previous draft exactly.
+    const beforeEscape = await readCorners();
+    await stage.scrollIntoViewIfNeeded();
+    const cornerHandle = workspace.locator('.product-setup-vertex').first();
+    const cornerBox = (await cornerHandle.boundingBox())!;
+    await page.mouse.move(cornerBox.x + cornerBox.width / 2, cornerBox.y + cornerBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cornerBox.x + cornerBox.width / 2 + 30, cornerBox.y + cornerBox.height / 2, { steps: 3 });
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    expect(await readCorners()).toEqual(beforeEscape);
+
+    // Taps do not create rectangles.
+    await stage.click({ position: { x: 100, y: 100 } });
+    await expect(workspace.getByText('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo clicks never alter the polygon here.')).toBeVisible();
+    await expect(workspace.getByRole('button', { name: 'Area 2' })).toHaveCount(0);
+
+    // Visibility is display-only: hiding layers keeps staged geometry.
+    await workspace.locator('[data-ps-view="vis-anchors"]').click();
+    await expect(workspace.locator('.product-setup-refline')).toHaveCount(0);
+    await workspace.locator('[data-ps-view="vis-anchors"]').click();
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await workspace.locator('[data-ps-view="vis-product"]').click();
+    await expect(workspace.locator('.product-setup-photo')).toBeHidden();
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await workspace.locator('[data-ps-view="vis-product"]').click();
+    await expect(workspace.locator('.product-setup-photo')).toBeVisible();
+    expect(await readCorners()).toEqual(afterSide);
+
+    // Reset to the saved (empty) setup, then freehand-trace a second area.
+    await workspace.getByRole('button', { name: 'Reset to saved' }).click();
+    await expect(workspace.getByRole('button', { name: 'Area 1' })).toHaveCount(0);
+    await workspace.getByRole('button', { name: 'Freehand' }).click();
+    await stage.scrollIntoViewIfNeeded();
+    const traceBox = (await stage.boundingBox())!;
+    const traceTo = (fx: number, fy: number): { x: number; y: number } => ({ x: traceBox.x + traceBox.width * fx, y: traceBox.y + traceBox.height * fy });
+    const start = traceTo(0.55, 0.2);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    for (const [fx, fy] of [[0.75, 0.2], [0.78, 0.5], [0.6, 0.72], [0.55, 0.2]] as const) {
+      const point = traceTo(fx, fy);
+      await page.mouse.move(point.x, point.y, { steps: 4 });
+    }
+    await page.mouse.up();
+    await expect(workspace.getByText(/Staged a drawn safe area with \d+ corners/)).toBeVisible();
+    await expect(workspace.getByRole('button', { name: 'Area 1', exact: true })).toBeVisible();
+
+    // ONE atomic save persists the traced area; screenshot the real overlay.
+    await workspace.getByRole('button', { name: 'Save product setup' }).click();
+    await expect(workspace.getByText(/Saved .* safe-area corners/)).toBeVisible();
+    // Evidence must show the stage: bring the toolbar + actual overlay back
+    // into view (the save bar below scrolled it away) before capturing.
+    await workspace.locator('[data-ps-viewbar]').scrollIntoViewIfNeeded();
+    await stage.scrollIntoViewIfNeeded();
+    await expect(workspace.locator('.product-setup-overlay')).toBeVisible();
+    const shotPath = info.outputPath('product-setup-tools-journey.png');
+    await page.screenshot({ path: shotPath });
+    await info.attach('product-setup-tools-journey', { path: shotPath, contentType: 'image/png' });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});
+
+test('model tools: dotted reference line, rectangle drag, side edit, interrupted trace rejected, zoom display-only', async ({ browser }, info) => {
+  test.setTimeout(300_000);
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openHarness(browser, viewport, 'setup-harness-model-tools.html');
+  try {
+    await attachEnv(info, browser, viewport, 'model tools journey');
+    await assertHarness(page);
+    expect(await hCall<string>(page, 'attachKind')).toBe('empty');
+    expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
+
+    // Reference: two real surface picks + entered length → dashed line.
+    await modelSetup(page, 'ref-pick-a').click();
+    await harnessClick(page, 0.5, 0.5);
+    await expect(modelSetup(page, 'status')).toContainText('Point A recorded');
+    // Recording A auto-arms B: pick directly.
+    await harnessClick(page, 0.58, 0.5);
+    await expect(modelSetup(page, 'status')).toContainText('Point B recorded');
+    await modelSetup(page, 'ref-mm').fill('250');
+    await modelSetup(page, 'ref-fit').click();
+    await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
+    const fitted = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    assert.ok(fitted?.reference && fitted.reference.lengthMm === 250, 'reference fitted');
+    const fittedScale = fitted.mmPerUnit;
+    assert.ok((fittedScale ?? 0) > 0, 'scale fitted');
+    expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
+    const refShot = info.outputPath('model-tools-reference.png');
+    await page.screenshot({ path: refShot });
+    await info.attach('model-tools-reference', { path: refShot, contentType: 'image/png' });
+
+    const canvasBox = async (): Promise<{ x: number; y: number; width: number; height: number }> => {
+      await page.locator('#gl').scrollIntoViewIfNeeded();
+      return page.evaluate((): { x: number; y: number; width: number; height: number } => {
+        const api = (window as unknown as { __setupHarness: { canvasBox(): { x: number; y: number; width: number; height: number } | null } }).__setupHarness;
+        const rect = api.canvasBox();
+        if (!rect) throw new Error('harness canvas has no box.');
+        return rect;
+      });
+    };
+    const dragCanvas = async (x1: number, y1: number, x2: number, y2: number) => {
+      const box = await canvasBox();
+      await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * x2, box.y + box.height * y2, { steps: 6 });
+      await page.mouse.up();
+    };
+
+    // Rectangle tool: a diagonal drag on the planar face creates one
+    // verified four-corner area with fills and side handles. (Front-left
+    // face spans roughly x 0.30–0.50: stay left of the vertical edge.)
+    await modelSetup(page, 'area-name').fill('Rect1');
+    await modelSetup(page, 'tool-rectangle').click();
+    await dragCanvas(0.36, 0.38, 0.46, 0.52);
+    await expect(modelSetup(page, 'area-list')).toContainText('Rect1');
+    const afterRect = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    assert.ok(afterRect, 'snapshot after rectangle drag');
+    expect(afterRect.areas).toHaveLength(1);
+    expect(afterRect.areas[0]!.points).toHaveLength(4);
+    expect(await hCall<number>(page, 'safeAreaOverlays')).toBeGreaterThan(0);
+    expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
+    await expect(modelSetup(page, 'area-handles')).toBeVisible();
+    const fillShot = info.outputPath('model-tools-rectangle.png');
+    await page.screenshot({ path: fillShot });
+    await info.attach('model-tools-rectangle', { path: fillShot, contentType: 'image/png' });
+
+    // Side edit DIRECT: drag the visible side-0 midpoint on the model
+    // itself — no form button. Exactly that side's two corners move, the
+    // opposite side stays fixed.
+    const rectBefore = afterRect.areas[0]!.points.map((p) => ({ ...p }));
+    {
+      const handle = modelSetup(page, 'canvas-handle-side-0');
+      await expect(handle).toBeVisible();
+      const handleBox = (await handle.boundingBox())!;
+      const box = await canvasBox();
+      const dx = box.width * 0.02;
+      const dy = box.height * 0.02;
+      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handleBox.x + handleBox.width / 2 + dx, handleBox.y + handleBox.height / 2 + dy, { steps: 5 });
+      await page.mouse.up();
+    }
+    await expect(modelSetup(page, 'status')).toContainText('Side moved');
+    const afterSide = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
+    assert.ok(afterSide && afterSide.length === 4, 'four points after side edit');
+    const moved = [0, 1, 2, 3].filter((i) => {
+      const a = rectBefore[i]!;
+      const b = afterSide[i]!;
+      return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) > 1e-9;
+    });
+    expect(moved).toHaveLength(2);
+    // The moved pair must be one side (adjacent indices); the other side stays fixed.
+    const gap = (moved[1]! - moved[0]! + 4) % 4;
+    expect([1, 3]).toContain(gap);
+
+    // Escape mid-drag restores the staged polygon exactly.
+    await modelSetup(page, 'handle-corner-0').click();
+    const escapeBox = await canvasBox();
+    await page.mouse.move(escapeBox.x + escapeBox.width * 0.41, escapeBox.y + escapeBox.height * 0.45);
+    await page.mouse.down();
+    await page.mouse.move(escapeBox.x + escapeBox.width * 0.44, escapeBox.y + escapeBox.height * 0.48, { steps: 3 });
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await expect(modelSetup(page, 'status')).toContainText('Edit cancelled');
+    const afterEscape = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
+    assert.ok(afterEscape && afterEscape.length === 4, 'four points after escape');
+    for (let i = 0; i < 4; i += 1) {
+      const a = afterSide[i]!;
+      const b = afterEscape[i]!;
+      expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)).toBeLessThan(1e-12);
+    }
+
+    // Corner edit DIRECT: drag the visible corner-0 dot on the model
+    // itself — no form button. Corner 0 moves, opposite corner 2 stays
+    // fixed, and the ring stays a 4-corner rectangle with side handles.
+    const cornerBefore = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
+    assert.ok(cornerBefore && cornerBefore.length === 4, 'four points before corner edit');
+    {
+      const handle = modelSetup(page, 'canvas-handle-corner-0');
+      await expect(handle).toBeVisible();
+      const handleBox = (await handle.boundingBox())!;
+      const box = await canvasBox();
+      const dx = box.width * 0.02;
+      const dy = box.height * 0.02;
+      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handleBox.x + handleBox.width / 2 + dx, handleBox.y + handleBox.height / 2 + dy, { steps: 5 });
+      await page.mouse.up();
+    }
+    await expect(modelSetup(page, 'status')).toContainText('Corner moved');
+    const afterCorner = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
+    assert.ok(afterCorner && afterCorner.length === 4, 'four points after corner edit');
+    const cornerMoved = [0, 1, 2, 3].filter((i) => {
+      const a = cornerBefore[i]!;
+      const b = afterCorner[i]!;
+      return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) > 1e-9;
+    });
+    expect(cornerMoved).toContain(0);
+    expect(cornerMoved).not.toContain(2);
+    expect(Math.hypot(
+      afterCorner[2]!.x - cornerBefore[2]!.x,
+      afterCorner[2]!.y - cornerBefore[2]!.y,
+      afterCorner[2]!.z - cornerBefore[2]!.z,
+    )).toBeLessThan(1e-9);
+    expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.status).toBe('current');
+    await expect(modelSetup(page, 'area-handles')).toBeVisible();
+    const handlesShot = info.outputPath('model-tools-handles.png');
+    await page.screenshot({ path: handlesShot });
+    await info.attach('model-tools-handles', { path: handlesShot, contentType: 'image/png' });
+
+    // Interrupted freehand trace: leaving the surface discards the whole
+    // stroke and retains the previous draft (gap 2 proof on real canvas).
+    await modelSetup(page, 'tool-freehand').click();
+    await modelSetup(page, 'area-name').fill('Trace1');
+    await modelSetup(page, 'area-start').click();
+    const traceBox = await canvasBox();
+    await page.mouse.move(traceBox.x + traceBox.width * 0.45, traceBox.y + traceBox.height * 0.45);
+    await page.mouse.down();
+    await page.mouse.move(traceBox.x + traceBox.width * 0.5, traceBox.y + traceBox.height * 0.45, { steps: 2 });
+    // Off the model: across empty stage background (a genuine miss).
+    await page.mouse.move(traceBox.x + traceBox.width * 0.95, traceBox.y + traceBox.height * 0.9, { steps: 4 });
+    await page.mouse.up();
+    await expect(modelSetup(page, 'status')).toContainText('left the model surface');
+    await expect(modelSetup(page, 'status')).toContainText('discarded');
+    const afterTrace = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    expect(afterTrace?.areas).toHaveLength(1);
+    expect(afterTrace?.areas[0]?.name).toBe('Rect1');
+    // Nothing was stashed: Finish stays disabled until a clean trace starts.
+    await expect(modelSetup(page, 'area-finish')).toBeDisabled();
+
+    // Valid freehand drag-trace: one press-drag-release loop wholly on the
+    // known planar face (same front-left face as the rectangle above)
+    // stages one closed named valid area on release — the requested
+    // drag-trace success proof on the real WebGL canvas.
+    await modelSetup(page, 'area-name').fill('DragTrace');
+    await modelSetup(page, 'area-start').click();
+    {
+      const box = await canvasBox();
+      const pt = (fx: number, fy: number): { x: number; y: number } => ({
+        x: box.x + box.width * fx,
+        y: box.y + box.height * fy,
+      });
+      const start = pt(0.38, 0.4);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      for (const [fx, fy] of [[0.44, 0.4], [0.44, 0.5], [0.38, 0.5], [0.38, 0.4]] as const) {
+        const p = pt(fx, fy);
+        await page.mouse.move(p.x, p.y, { steps: 4 });
+      }
+      await page.mouse.up();
+    }
+    await expect(modelSetup(page, 'area-list')).toContainText('DragTrace');
+    const afterDrag = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    assert.ok(afterDrag, 'snapshot after drag trace');
+    expect(afterDrag.areas).toHaveLength(2);
+    const dragArea = afterDrag.areas.find((area) => area.name === 'DragTrace');
+    assert.ok(dragArea, 'drag trace stages DragTrace');
+    expect(dragArea.points.length).toBeGreaterThanOrEqual(3);
+    expect(dragArea.status).toBe('current');
+    // The successful trace stages the area but leaves its drawing session
+    // open under the existing session model (area-start stays armed);
+    // cancel it via the existing control so the click-based zoom proof below
+    // can start a fresh drawing. Staged areas are untouched.
+    await modelSetup(page, 'area-cancel').click();
+    await expect(modelSetup(page, 'area-list')).toContainText('DragTrace');
+
+    // Zoom is display-only: scale identical, label intact, picks still work.
+    expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.mmPerUnit).toBe(fittedScale);
+    await modelSetup(page, 'viewbar').locator('[data-ps-view="zoom"]').selectOption('200');
+    await expect(modelSetup(page, 'viewbar').locator('[data-ps-view="zoom"]')).toHaveValue('200');
+    expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.mmPerUnit).toBe(fittedScale);
+    expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
+    await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
+    // Fresh surface picks at 200%: three magnified clicks still validate.
+    await modelSetup(page, 'tool-freehand').click();
+    await modelSetup(page, 'area-name').fill('Zoomface');
+    await modelSetup(page, 'area-start').click();
+    await harnessClick(page, 0.5, 0.48);
+    await harnessClick(page, 0.54, 0.48);
+    await harnessClick(page, 0.52, 0.54);
+    await modelSetup(page, 'area-finish').click();
+    await expect(modelSetup(page, 'area-list')).toContainText('Zoomface');
+    const zoomed = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    expect(zoomed?.areas).toHaveLength(3);
+    expect(zoomed?.mmPerUnit).toBe(fittedScale);
+    const zoomShot = info.outputPath('model-tools-zoom200.png');
+    await page.screenshot({ path: zoomShot });
+    await info.attach('model-tools-zoom200', { path: zoomShot, contentType: 'image/png' });
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});
+
+test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ browser }, info) => {
+  test.setTimeout(300_000);
+  const viewport = { width: 390, height: 844 };
+  const { context, page, probe } = await openStation(browser, viewport);
+  try {
+    await attachEnv(info, browser, viewport, 'product-setup tools narrow');
+    const frontPng = await syntheticPngBytes(page, '#3a6f2a', 300, 900);
+    await stageIntakeImage(page, 'Front', 'front.png', frontPng);
+    await (await shown(page, 'product-name')).fill('Narrow Jacket');
+    await (await shown(page, 'product-add')).click();
+    await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Narrow Jacket');
+
+    const workspace = builder(page, 'product-workspace');
+    await workspace.getByRole('button', { name: 'Set up scale' }).click();
+    const guided = builder(page, 'guided-scale');
+    const spanOverlay = guided.locator('[data-guided="span-overlay"]');
+    await expect(spanOverlay).toBeVisible();
+    const tapSpan = async (fx: number, fy: number) => {
+      await spanOverlay.scrollIntoViewIfNeeded();
+      const box = (await spanOverlay.boundingBox())!;
+      await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
+      await page.mouse.down();
+      await page.mouse.up();
+    };
+    await tapSpan(0.3, 0.5);
+    await tapSpan(0.7, 0.5);
+    await guided.locator('[data-guided="span-mm"]').fill('1300');
+    await guided.locator('[data-guided="span-create"]').click();
+    await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
+
+    // Reference line + label survive on the narrow calibrated stage.
+    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
+
+    // Rectangle creation works narrow; the toolbar wraps without page scroll.
+    await workspace.getByRole('button', { name: 'Safe area', exact: true }).click();
+    await workspace.getByRole('button', { name: 'Rectangle' }).click();
+    const stage = workspace.locator('.product-setup-overlay').first();
+    await stage.scrollIntoViewIfNeeded();
+    const stageBox = (await stage.boundingBox())!;
+    await page.mouse.move(stageBox.x + stageBox.width * 0.15, stageBox.y + stageBox.height * 0.15);
+    await page.mouse.down();
+    await page.mouse.move(stageBox.x + stageBox.width * 0.45, stageBox.y + stageBox.height * 0.45, { steps: 5 });
+    await page.mouse.up();
+    await expect(workspace.getByText(/Staged a drawn safe area with 4 corners/)).toBeVisible();
+    await expect(workspace.getByRole('button', { name: 'Area 1', exact: true })).toBeVisible();
+    await expect(workspace.locator('[data-ps-viewbar]')).toBeVisible();
+    // Portrait Fit on a real calibrated stage: the bounded stage contains
+    // the whole photo + overlay (toolbar adjacent above), and staged mm
+    // survive zoom + viewport resize (reuse the 300x900 portrait fixture).
+    const narrowStage = workspace.locator('.product-setup-stage').first();
+    const narrowPhoto = workspace.locator('.product-setup-photo').first();
+    const narrowViewbar = workspace.locator('[data-ps-viewbar]').first();
+    const cornersOf = async (): Promise<Array<[number, number]>> => {
+      await workspace.locator('.product-setup-advanced summary').click();
+      const text = await workspace.locator('.product-setup-advanced-list').first().textContent() ?? '';
+      await workspace.locator('.product-setup-advanced summary').click();
+      const found: Array<[number, number]> = [];
+      for (const match of text.matchAll(/Corner \d+: (-?[\d.]+), (-?[\d.]+) mm/g)) {
+        found.push([Number(match[1]), Number(match[2])]);
+      }
+      return found;
+    };
+    const stageFit = (await narrowStage.boundingBox())!;
+    const photoFit = (await narrowPhoto.boundingBox())!;
+    const overlayFit = (await stage.boundingBox())!;
+    expect(stageFit.height).toBeLessThanOrEqual(viewport.height * 0.6 + 2);
+    expect(photoFit.height).toBeLessThanOrEqual(stageFit.height + 1);
+    expect(photoFit.width).toBeLessThanOrEqual(stageFit.width + 1);
+    for (const [a, b] of [
+      [overlayFit.x, photoFit.x],
+      [overlayFit.y, photoFit.y],
+      [overlayFit.width, photoFit.width],
+      [overlayFit.height, photoFit.height],
+    ] as const) {
+      expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+    }
+    const barBox = (await narrowViewbar.boundingBox())!;
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(stageFit.y + 1);
+    const cornersFit = await cornersOf();
+    expect(cornersFit).toHaveLength(4);
+    await workspace.locator('[data-ps-view="zoom"]').selectOption('50');
+    expect(await cornersOf()).toEqual(cornersFit);
+    await workspace.locator('[data-ps-view="zoom"]').selectOption('200');
+    expect(await cornersOf()).toEqual(cornersFit);
+    await workspace.locator('[data-ps-view="zoom"]').selectOption('100');
+    const stageRefit = (await narrowStage.boundingBox())!;
+    expect(stageRefit.height).toBeLessThanOrEqual(viewport.height * 0.6 + 2);
+    await page.setViewportSize({ width: 390, height: 700 });
+    const stageResized = (await narrowStage.boundingBox())!;
+    expect(stageResized.height).toBeLessThanOrEqual(700 * 0.6 + 2);
+    expect(await cornersOf()).toEqual(cornersFit);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    // Evidence must show the stage: bring the toolbar + actual overlay back
+    // into view before capturing.
+    await narrowViewbar.scrollIntoViewIfNeeded();
+    await narrowStage.scrollIntoViewIfNeeded();
+    const narrowShot = info.outputPath('product-setup-tools-narrow.png');
+    await page.screenshot({ path: narrowShot });
+    await info.attach('product-setup-tools-narrow', { path: narrowShot, contentType: 'image/png' });
     expectOfflineClean(probe);
   } finally {
     await context.close();

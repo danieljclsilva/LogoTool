@@ -16,7 +16,6 @@ import {
 import { selectPresentationModel, selectPresentationViews } from '../customer-editor/presentation-assets.js';
 import {
   PHOTO_MAPPINGS_PATH,
-  mappingDisplayLabel,
   mappingViewIdOf,
   parsePhotoMappings,
   serializePhotoMappings,
@@ -66,6 +65,7 @@ import { createProductSetupView, validateAnchors, isSiblingRegionId, areaIdFromS
 import type {
   ProductSetupCallbacks,
   ProductSetupPhotoView,
+  ProductSetupReferenceSpan,
   ProductSetupScope,
   ProductSetupSide,
   ProductSetupWorkspaceInput,
@@ -862,7 +862,6 @@ async function loadJobFile(file: File): Promise<void> {
     configurationsTouched = false;
     renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
-    resetMappingSessionUI();
     source.anchors = anchors;
     guidedScale.hide();
     refreshWorkspace();
@@ -1508,7 +1507,6 @@ async function createEmptyProject(): Promise<void> {
     configurationsTouched = false;
     renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
-    resetMappingSessionUI();
     guidedScale.hide();
     refreshWorkspace();
     refreshAddProductDisclosure();
@@ -2132,7 +2130,6 @@ async function addProductFromStaged(): Promise<void> {
     }
     refreshSelectionValidation();
     reprepareJobDigest();
-    refreshMappingOptions();
     // The calibration workspace opens automatically on the new product:
     // selection moves there and keyboard focus follows, so the next action
     // (draw the safe area, place anchors, save once) is immediate.
@@ -2606,7 +2603,6 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
           });
         }
       }
-      refreshMappingOptions();
       refreshWorkspace();
       // The package changed under any generated delivery: mark outputs stale
       // and refresh the issue gate so a regen is required before download.
@@ -2923,7 +2919,6 @@ async function attachSlugViewImage(file: File, viewKey: string): Promise<void> {
           });
         }
       }
-      refreshMappingOptions();
       refreshWorkspace();
       // The package changed under any generated delivery: mark outputs stale
       // and refresh the issue gate so a regen is required before download.
@@ -3119,7 +3114,6 @@ async function renameExistingView(viewKey: string, rawLabel: string): Promise<vo
       // busy guard BEFORE repainting so the rows, tabs and status refresh.
       photoAttaching = false;
       updateControls();
-      refreshMappingOptions();
       refreshWorkspace();
       // The package changed under any generated delivery: mark outputs stale
       // and refresh the issue gate so a regen is required before download.
@@ -3712,7 +3706,6 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
     configurationsTouched = false;
     renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
-    resetMappingSessionUI();
     guidedScale.hide();
     refreshWorkspace();
     refreshAddProductDisclosure();
@@ -3754,31 +3747,6 @@ function openApprovalResponseEntry(): void {
 mountJobModules();
 wireIssueIdentityControls();
 setJobStep('landing');
-
-/* ------------------------------------------------------------------ */
-/* Optional visual-trial photo mapping setup (Choose items disclosure). */
-/* Provisional trial only, never production geometry/calibration.       */
-/* Staged entries merge into the issued package at generate time via    */
-/* the existing mergedPresentationInputs path. Failed validation never  */
-/* touches the staged set.                                              */
-/* ------------------------------------------------------------------ */
-
-const mappingDisclosureBox = hook<HTMLDetailsElement>('mapping-disclosure');
-const mappingProduct = hook<HTMLSelectElement>('mapping-product');
-const mappingVariant = hook<HTMLSelectElement>('mapping-variant');
-const mappingRegion = hook<HTMLSelectElement>('mapping-region');
-const mappingFrame = hook<HTMLElement>('mapping-frame');
-const mappingSide = hook<HTMLSelectElement>('mapping-side');
-const mappingPhoto = hook<HTMLSelectElement>('mapping-photo');
-const mappingPhotoStatus = hook<HTMLElement>('mapping-photo-status');
-const mappingRowsBox = hook<HTMLElement>('mapping-rows');
-const mappingAddRow = hook<HTMLButtonElement>('mapping-add-row');
-const mappingStatus = hook<HTMLSelectElement>('mapping-status');
-const mappingNote = hook<HTMLInputElement>('mapping-note');
-const mappingCheck = hook<HTMLButtonElement>('mapping-check');
-const mappingSave = hook<HTMLButtonElement>('mapping-save');
-const mappingStatusLine = hook<HTMLElement>('mapping-status-line');
-const mappingSaved = hook<HTMLElement>('mapping-saved');
 
 /* ------------------------------------------------------------------ */
 /* Product-preparation anchor + safe-area setup (Choose items).        */
@@ -3885,14 +3853,6 @@ async function loadAnchorsSidecar(assets: ProjectPackageAsset[], project: Projec
 }
 
 let stagedPhotoMappings: PhotoMappingEntry[] = [];
-
-interface MappingRowInputs {
-  u: HTMLInputElement;
-  v: HTMLInputElement;
-  x: HTMLInputElement;
-  y: HTMLInputElement;
-}
-let mappingRowInputs: MappingRowInputs[] = [];
 
 function mappingKeyOf(entry: PhotoMappingEntry): string {
   return `${entry.productId}\0${entry.variantId ?? ''}\0${entry.regionId}\0${mappingViewIdOf(entry)}\0${entry.image}`;
@@ -4159,6 +4119,54 @@ function workspaceEmptyScope(productId: string, variantId: string, viewId: strin
   };
 }
 
+/**
+ * Saved A/B span evidence for ONE calibrated photo view (UV endpoints +
+ * entered length), bound to the exact asset/view/calibration via the span
+ * sidecar. Reads the `presentation/setup-calibration/*` bundle (pixel-native
+ * endpoints ÷ photo size = UV). Null on any absence or mismatch — the
+ * editing stage then draws no line and invents no length; a missing or
+ * stale reference stays visibly incomplete.
+ */
+function workspaceReferenceSpan(
+  productId: string,
+  viewId: string,
+  photo: WorkspacePhotoRef,
+  region: { calibrationRef: { calibrationId: string; version: string } },
+): ProductSetupReferenceSpan | null {
+  if (!Number.isFinite(photo.widthPx) || !(photo.widthPx > 0)) return null;
+  if (!Number.isFinite(photo.heightPx) || !(photo.heightPx > 0)) return null;
+  const sidecarBytes = sessionAssetMap().get(
+    spanSidecarPathFor(productId, viewId, spanPhotoVariantScope(photo.imagePath)),
+  );
+  if (!sidecarBytes) return null;
+  const parsed = parseSpanSidecar(sidecarBytes);
+  if (!parsed.ok) return null;
+  const sidecar = parsed.sidecar;
+  if (sidecar.productId !== productId) return null;
+  if ((sidecar.viewId ?? sidecar.side) !== viewId) return null;
+  if (sidecar.imagePath !== photo.imagePath) return null;
+  if (sidecar.calibrationId !== region.calibrationRef.calibrationId) return null;
+  const span = sidecar.bundle.spans[0];
+  if (span === undefined) return null;
+  if (typeof span.lengthMm !== 'number' || !(span.lengthMm > 0)) return null;
+  // Images bundles carry 2D pixel-native endpoints; anything else (3D, NaN,
+  // out-of-photo) is refused here — the view re-checks UV bounds anyway.
+  if (!('x' in span.a) || !('y' in span.a) || 'z' in span.a) return null;
+  if (!('x' in span.b) || !('y' in span.b) || 'z' in span.b) return null;
+  const ax = span.a.x;
+  const ay = span.a.y;
+  const bx = span.b.x;
+  const by = span.b.y;
+  if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(bx) || !Number.isFinite(by)) return null;
+  return {
+    aUv: { u: ax / photo.widthPx, v: ay / photo.heightPx },
+    bUv: { u: bx / photo.widthPx, v: by / photo.heightPx },
+    lengthMm: span.lengthMm,
+    calibrationId: sidecar.calibrationId,
+    calibrationVersion: region.calibrationRef.version,
+  };
+}
+
 function workspaceViewFor(
   product: ProjectDocument['products'][number],
   variant: { id: string },
@@ -4205,7 +4213,7 @@ function workspaceViewFor(
   }
   const region = product.regions.find((entry) => entry.id === mapping.regionId);
   if (!region) {
-    return { error: `The saved mapping for the ${display} view references missing region “${mapping.regionId}”. Re-map this view (Advanced product setup → Map artwork photos).` };
+    return { error: `The saved mapping for the ${display} view references missing region “${mapping.regionId}”. Re-measure this view with a reference span, or replace the view image (which retires its mapping and span evidence) and measure again.` };
   }
   const safePoints = region.safeArea
     .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
@@ -4246,6 +4254,7 @@ function workspaceViewFor(
       .map((anchor) => ({ ...anchor, posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number] })),
     savedAreas,
     savedActiveAreaId: hintedActive ?? (activeSibling !== undefined ? activeSibling.id : null),
+    referenceSpan: workspaceReferenceSpan(product.id, photo.viewId, photo, region),
   };
 }
 
@@ -4693,8 +4702,7 @@ async function saveWorkspaceSetup(
     if (approvalHandle) approvalHandle.notifyJobChanged();
     refreshWorkspaceSelectors();
     workspaceView.refresh();
-    refreshMappingOptions();
-    renderSavedMappings();
+    refreshWorkspace();
     workspaceStatus.textContent =
       `Saved ${scope.regionName ?? 'measured area'} · ${workspaceViewNoun(scopeViewId(scope), scope.viewLabel)} ` +
       `(${result.safeArea.length} safe-area corners, ${result.anchors.length} anchors).` +
@@ -5820,8 +5828,7 @@ async function commitGuidedScale(
     guidedScale.hide();
     refreshWorkspaceSelectors();
     workspaceView.refresh();
-    refreshMappingOptions();
-    renderSavedMappings();
+    refreshWorkspace();
     workspaceStatus.textContent =
       `Measured the ${viewDisplay} view: ${widthMm}×${heightMm} mm ` +
       `(max residual ${maxResidualMm.toFixed(3)} mm). Draw the safe area and place anchors, then save once.` +
@@ -6087,7 +6094,7 @@ async function commitGuidedSpan(
         ownerRegionId = owner !== null && ownRegionIds.has(owner) ? owner : null;
       }
       if (ownerRegionId === null) {
-        return fail('This view already has a saved mapping from another setup. Re-measure through Advanced product setup → Map artwork photos, or replace the view image (which retires its mapping and span evidence) and measure again.');
+        return fail('This view already has a saved mapping from another setup. Re-measure with the known-rectangle flow in Measure setup, or replace the view image (which retires its mapping and span evidence) and measure again.');
       }
       recalibrating = true;
       recalibrateRegionId = ownerRegionId;
@@ -6306,8 +6313,7 @@ async function commitGuidedSpan(
     guidedScale.hide();
     refreshWorkspaceSelectors();
     workspaceView.refresh();
-    refreshMappingOptions();
-    renderSavedMappings();
+    refreshWorkspace();
     workspaceStatus.textContent = recalibrating
       ? `Re-measured the ${viewDisplay} view: A/B = ${checked.span.lengthMm} mm ` +
         `(uniform scale ${scaleMmPerPx} mm per photo pixel; origin at A, +x toward B). ` +
@@ -6323,11 +6329,6 @@ async function commitGuidedSpan(
     return fail(error instanceof Error ? error.message : String(error));
   }
   }, () => ({ ok: false, error: 'The project changed before measuring finished (new file opened or product added); measure again.' }));
-}
-
-function mappingSelectedProduct(): ProjectDocument['products'][number] | null {
-  if (source === null) return null;
-  return source.project.products.find((entry) => entry.id === mappingProduct.value) ?? null;
 }
 
 function sessionAssetMap(): Map<string, Uint8Array> {
@@ -6354,414 +6355,3 @@ function parseJsonBytes(bytes: Uint8Array | undefined): unknown {
     return null;
   }
 }
-
-function refreshMappingOptions(): void {
-  if (source === null) {
-    for (const select of [mappingProduct, mappingVariant, mappingRegion, mappingPhoto]) select.replaceChildren();
-    mappingFrame.textContent = 'Create or open a project first.';
-    mappingPhotoStatus.textContent = '';
-    mappingSave.disabled = true;
-    renderSavedMappings();
-    return;
-  }
-  const keptProduct = mappingProduct.value;
-  mappingProduct.replaceChildren();
-  for (const product of source.project.products) {
-    const option = document.createElement('option');
-    option.value = product.id;
-    option.textContent = product.name?.trim() || 'Unnamed product';
-    mappingProduct.append(option);
-  }
-  if (keptProduct !== '' && source.project.products.some((entry) => entry.id === keptProduct)) {
-    mappingProduct.value = keptProduct;
-  }
-  refreshMappingVariants();
-}
-
-function refreshMappingVariants(): void {
-  const product = mappingSelectedProduct();
-  const kept = mappingVariant.value;
-  mappingVariant.replaceChildren();
-  if (product !== null) {
-    const wide = document.createElement('option');
-    wide.value = '';
-    wide.textContent = '(product-wide)';
-    mappingVariant.append(wide);
-    for (const variant of product.variants) {
-      const option = document.createElement('option');
-      option.value = variant.id;
-      option.textContent = displayVariantName(product, variant.id) ?? 'Standard option';
-      mappingVariant.append(option);
-    }
-    if (kept !== '' && product.variants.some((entry) => entry.id === kept)) {
-      mappingVariant.value = kept;
-    } else if (product.variants.length > 0) {
-      mappingVariant.value = product.variants[0]!.id;
-    }
-  }
-  refreshMappingRegions();
-}
-
-function refreshMappingRegions(): void {
-  const product = mappingSelectedProduct();
-  const kept = mappingRegion.value;
-  mappingRegion.replaceChildren();
-  if (product !== null) {
-    const variantId = mappingVariant.value;
-    const variant = product.variants.find((entry) => entry.id === variantId);
-    const allowed = variant !== undefined ? new Set(variant.regionIds) : null;
-    for (const region of product.regions) {
-      if (allowed !== null && !allowed.has(region.id)) continue;
-      const option = document.createElement('option');
-      option.value = region.id;
-      option.textContent = region.name?.trim() || 'Unnamed area';
-      mappingRegion.append(option);
-    }
-    if (kept !== '' && product.regions.some((entry) => entry.id === kept) && (allowed === null || allowed.has(kept))) {
-      mappingRegion.value = kept;
-    }
-  }
-  updateMappingFrame();
-  refreshMappingPhotos();
-}
-
-function updateMappingFrame(): void {
-  const product = mappingSelectedProduct();
-  const region = product?.regions.find((entry) => entry.id === mappingRegion.value);
-  mappingFrame.textContent = region === undefined
-    ? 'Choose a region to see its frame and calibration.'
-    : `Frame: ${region.frame.originDescription}; +x ${region.frame.axes.xPositive}; +y ${region.frame.axes.yPositive} · Calibration ${region.calibrationRef.calibrationId} v${region.calibrationRef.version}`;
-}
-
-function refreshMappingPhotos(): void {
-  mappingPhoto.replaceChildren();
-  const product = mappingSelectedProduct();
-  if (source === null || product === null) {
-    mappingPhotoStatus.textContent = '';
-    mappingSave.disabled = true;
-    return;
-  }
-  const variantId = mappingVariant.value;
-  const assets = sessionAssetMap();
-  const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
-  const manifest = parsePresentationManifest(manifestBytes);
-  // Same lookup rules as the customer preview: exact product(+variant)
-  // match through selectPresentationViews, never filename inference. Photos
-  // list across all named views (legacy sides and flexible ids); the Side
-  // select below stays the mapping-math bucket, inert for flexible views.
-  const selection = selectPresentationViews(
-    manifest,
-    manifestBytes !== undefined,
-    product.id,
-    variantId,
-    (path) => assets.get(path),
-  );
-  const matches = selection.views.filter((view) => view.view !== null);
-  if (matches.length === 0) {
-    const detail = selection.warning !== null ? ` ${selection.warning}` : '';
-    mappingPhotoStatus.textContent = `No photo for this product yet — add a view image above first.${detail}`;
-    mappingSave.disabled = true;
-    return;
-  }
-  for (const view of matches) {
-    const option = document.createElement('option');
-    option.value = view.imagePath;
-    const name = view.label !== null ? view.label : view.view ?? view.imagePath;
-    option.textContent = view.label !== null ? `${view.imagePath} — ${view.label}` : `${view.imagePath} — ${view.view ?? ''}`;
-    option.setAttribute('aria-label', `Map photo ${name}`);
-    mappingPhoto.append(option);
-  }
-  mappingPhotoStatus.textContent = selection.warning ?? '';
-  mappingSave.disabled = false;
-}
-
-function addMappingRow(): void {
-  const index = mappingRowInputs.length + 1;
-  const row = document.createElement('div');
-  row.style.display = 'grid';
-  row.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
-  row.style.gap = '8px';
-  row.style.alignItems = 'end';
-  const created = {} as MappingRowInputs;
-  const defs = [
-    ['u', `Reference point ${index} U (0..1)`, 'U (0..1)', '0.25'],
-    ['v', `Reference point ${index} V (0..1)`, 'V (0..1)', '0.75'],
-    ['x', `Reference point ${index} X millimetres`, 'X mm', '50'],
-    ['y', `Reference point ${index} Y millimetres`, 'Y mm', '25'],
-  ] as const;
-  for (const [key, aria, label, placeholder] of defs) {
-    const field = document.createElement('label');
-    field.style.display = 'grid';
-    field.style.gap = '4px';
-    field.style.fontSize = '0.9rem';
-    const caption = document.createElement('span');
-    caption.textContent = label;
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.step = 'any';
-    input.placeholder = placeholder;
-    input.setAttribute('aria-label', aria);
-    input.style.width = '100%';
-    field.append(caption, input);
-    row.append(field);
-    created[key] = input;
-  }
-  mappingRowsBox.append(row);
-  mappingRowInputs.push(created);
-}
-
-function readMappingPairs(): {
-  pairs: Array<{ uv: { u: number; v: number }; mm: { xMm: number; yMm: number } }>;
-  errors: string[];
-} {
-  const pairs: Array<{ uv: { u: number; v: number }; mm: { xMm: number; yMm: number } }> = [];
-  const errors: string[] = [];
-  mappingRowInputs.forEach((row, index) => {
-    const texts = [row.u.value.trim(), row.v.value.trim(), row.x.value.trim(), row.y.value.trim()];
-    if (texts.every((text) => text === '')) return;
-    const values = [row.u.valueAsNumber, row.v.valueAsNumber, row.x.valueAsNumber, row.y.valueAsNumber];
-    const names = ['U', 'V', 'X mm', 'Y mm'] as const;
-    for (let k = 0; k < values.length; k += 1) {
-      if (!Number.isFinite(values[k])) {
-        errors.push(`Reference point ${index + 1}: ${names[k]} must be a finite number.`);
-        return;
-      }
-    }
-    pairs.push({
-      uv: { u: values[0]!, v: values[1]! },
-      mm: { xMm: values[2]!, yMm: values[3]! },
-    });
-  });
-  return { pairs, errors };
-}
-
-/**
- * Stable view identity + label for one packaged photo: the manifest entry's
- * id when it is a flexible (non-legacy) view, otherwise no viewId so the
- * mapping keeps resolving through the legacy side bucket. Labels are
- * display-only; matching never uses them.
- */
-function manifestViewForPhoto(productId: string, imagePath: string): { viewId?: string; label?: string } | null {
-  const flexible = parseFlexiblePresentationManifest(parseJsonBytes(sessionAssetMap().get(PRESENTATION_MANIFEST_PATH)));
-  if (flexible === null) return null;
-  const entry = flexible.views.find((candidate) => candidate.productId === productId && candidate.image === imagePath);
-  if (!entry) return null;
-  if (isLegacyViewId(entry.view)) {
-    return entry.label !== undefined ? { label: entry.label } : {};
-  }
-  return { viewId: entry.view, ...(entry.label !== undefined ? { label: entry.label } : {}) };
-}
-
-type MappingFit =
-  | {
-    ok: true;
-    transform: PhotoMappingTransform;
-    determinant: number;
-    maxResidualMm: number;
-    count: number;
-    productId: string;
-    variantId: string | undefined;
-    regionId: string;
-    view: PhotoMappingView;
-    /** Stable view identity for flexible named views; absent for legacy sides. */
-    viewId?: string;
-    /** Display-only human label for the view; absent for legacy sides. */
-    label?: string;
-    image: string;
-    calibrationId: string;
-    calibrationVersion: string;
-  }
-  | { ok: false; error: string };
-
-function fitSessionMapping(): MappingFit {
-  if (source === null) return { ok: false, error: 'Create or open a project before mapping photos.' };
-  const product = source.project.products.find((entry) => entry.id === mappingProduct.value);
-  if (product === undefined) return { ok: false, error: 'Choose a product for the mapping.' };
-  const variantId = mappingVariant.value !== '' ? mappingVariant.value : undefined;
-  const region = product.regions.find((entry) => entry.id === mappingRegion.value);
-  if (region === undefined) return { ok: false, error: 'Choose a region for the mapping.' };
-  const side = mappingSide.value;
-  if (side !== 'front' && side !== 'back' && side !== 'left' && side !== 'right') {
-    return { ok: false, error: 'Choose a side for the mapping.' };
-  }
-  const photo = mappingPhoto.value;
-  if (photo === '') {
-    return { ok: false, error: 'No photo for this product yet — add a view image above first.' };
-  }
-  // Stable view identity follows the chosen photo's manifest entry (slug
-  // ids included); the Side select stays the mapping-math bucket, inert
-  // for flexible views. Legacy photos carry no viewId and resolve by bucket.
-  const manifestView = manifestViewForPhoto(product.id, photo);
-  const { pairs, errors } = readMappingPairs();
-  if (errors.length > 0) return { ok: false, error: errors.join(' ') };
-  if (pairs.length < 3) {
-    return { ok: false, error: `Add at least 3 complete reference points (have ${pairs.length}).` };
-  }
-  const transform = solveAffineFromCorrespondences(pairs);
-  if (transform === null) {
-    return { ok: false, error: 'Reference points do not determine a mapping: use at least 3 finite, non-collinear points (a line or a repeated point is refused).' };
-  }
-  const det = transform.a * transform.e - transform.b * transform.d;
-  let maxResidualMm = 0;
-  for (const pair of pairs) {
-    const du = pair.uv.u - transform.c;
-    const dv = pair.uv.v - transform.f;
-    const xPred = (transform.e * du - transform.b * dv) / det;
-    const yPred = (-transform.d * du + transform.a * dv) / det;
-    const residual = Math.hypot(xPred - pair.mm.xMm, yPred - pair.mm.yMm);
-    if (!Number.isFinite(residual)) {
-      return { ok: false, error: 'Fit produced a non-finite residual; check the reference values.' };
-    }
-    maxResidualMm = Math.max(maxResidualMm, residual);
-  }
-  return {
-    ok: true,
-    transform,
-    determinant: det,
-    maxResidualMm,
-    count: pairs.length,
-    productId: product.id,
-    variantId,
-    regionId: region.id,
-    view: side,
-    ...(manifestView?.viewId !== undefined ? { viewId: manifestView.viewId } : {}),
-    ...(manifestView?.label != null ? { label: manifestView.label } : {}),
-    image: photo,
-    calibrationId: region.calibrationRef.calibrationId,
-    calibrationVersion: region.calibrationRef.version,
-  };
-}
-
-function formatFitNumber(value: number): string {
-  if (!Number.isFinite(value)) return 'non-finite';
-  const abs = Math.abs(value);
-  if (abs !== 0 && (abs < 0.001 || abs >= 10000)) return value.toExponential(2);
-  return String(Number(value.toPrecision(4)));
-}
-
-function mappingBusy(): boolean {
-  return loading || creating || logoImporting || productImporting ;
-}
-
-function onMappingCheck(): void {
-  if (mappingBusy()) return;
-  const fit = fitSessionMapping();
-  if (!fit.ok) {
-    mappingStatusLine.textContent = `Check failed: ${fit.error} Nothing was saved.`;
-    return;
-  }
-  mappingStatusLine.textContent =
-    `Fit OK over ${fit.count} points: determinant ${formatFitNumber(fit.determinant)}, max residual ${fit.maxResidualMm.toFixed(3)} mm. ` +
-    'Nothing saved — press “Save mapping” to stage it.';
-}
-
-function onMappingSave(): void {
-  if (mappingBusy()) return;
-  const fit = fitSessionMapping();
-  if (!fit.ok) {
-    mappingStatusLine.textContent = `Not saved: ${fit.error} Previous staged mappings are unchanged.`;
-    return;
-  }
-  const status = mappingStatus.value;
-  if (status !== 'provisional' && status !== 'review') {
-    mappingStatusLine.textContent = 'Not saved: choose a status of provisional or review. Previous staged mappings are unchanged.';
-    return;
-  }
-  const note = mappingNote.value.trim();
-  const entry: PhotoMappingEntry = {
-    productId: fit.productId,
-    regionId: fit.regionId,
-    view: fit.view,
-    image: fit.image,
-    transform: fit.transform,
-    calibrationId: fit.calibrationId,
-    calibrationVersion: fit.calibrationVersion,
-    status,
-  };
-  if (fit.variantId !== undefined) entry.variantId = fit.variantId;
-  if (fit.viewId !== undefined) entry.viewId = fit.viewId;
-  if (fit.label !== undefined) entry.label = fit.label;
-  if (note !== '') entry.note = note;
-  const problems = validatePhotoMapping(entry);
-  if (problems.length > 0) {
-    mappingStatusLine.textContent = `Not saved: ${problems.join('; ')}. Previous staged mappings are unchanged.`;
-    return;
-  }
-  const key = mappingKeyOf(entry);
-  const at = stagedPhotoMappings.findIndex((candidate) => mappingKeyOf(candidate) === key);
-  if (at >= 0) stagedPhotoMappings[at] = entry;
-  else stagedPhotoMappings.push(entry);
-  renderSavedMappings();
-  mappingStatusLine.textContent =
-    `Saved ${status} mapping for ${fit.productId}${fit.variantId ? `/${fit.variantId}` : ''} · ${fit.regionId} · ${mappingDisplayLabel(fit.label !== undefined ? { label: fit.label } : {}, fit.view)} · ${fit.image} ` +
-    `(${stagedPhotoMappings.length} staged). It ships with the next customer file when you press “Create customer file”.`;
-  refreshWorkspace();
-}
-
-function renderSavedMappings(): void {
-  mappingSaved.replaceChildren();
-  if (stagedPhotoMappings.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'No staged mappings yet.';
-    mappingSaved.append(empty);
-    return;
-  }
-  const title = document.createElement('p');
-  title.textContent = `Staged mappings (${stagedPhotoMappings.length}):`;
-  mappingSaved.append(title);
-  stagedPhotoMappings.forEach((entry, index) => {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.gap = '12px';
-    row.style.alignItems = 'baseline';
-    row.style.justifyContent = 'space-between';
-    row.style.padding = '8px 0';
-    const label = document.createElement('span');
-    label.textContent =
-      `${entry.productId}${entry.variantId ? `/${entry.variantId}` : ''} · ${entry.regionId} · ${mappingDisplayLabel(entry, entry.view)} · ${entry.image} — ${entry.status}` +
-      (entry.note ? ` — ${entry.note}` : '');
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'btn-secondary';
-    remove.style.width = 'auto';
-    remove.style.flex = 'none';
-    remove.textContent = 'Remove';
-    remove.setAttribute('aria-label', `Remove staged mapping ${index + 1}`);
-    remove.addEventListener('click', () => {
-      stagedPhotoMappings.splice(index, 1);
-      renderSavedMappings();
-      refreshWorkspace();
-      mappingStatusLine.textContent = `Removed one staged mapping (${stagedPhotoMappings.length} remain).`;
-    });
-    row.append(label, remove);
-    mappingSaved.append(row);
-  });
-}
-
-function resetMappingSessionUI(): void {
-  stagedPhotoMappings = [];
-  mappingRowInputs = [];
-  mappingRowsBox.replaceChildren();
-  for (let i = 0; i < 3; i += 1) addMappingRow();
-  mappingStatus.value = 'provisional';
-  mappingNote.value = '';
-  mappingStatusLine.textContent = '';
-  refreshMappingOptions();
-  renderSavedMappings();
-}
-
-mappingDisclosureBox.addEventListener('toggle', () => {
-  if (mappingDisclosureBox.open) refreshMappingOptions();
-});
-mappingProduct.addEventListener('change', refreshMappingVariants);
-mappingVariant.addEventListener('change', refreshMappingRegions);
-mappingRegion.addEventListener('change', updateMappingFrame);
-mappingSide.addEventListener('change', refreshMappingPhotos);
-mappingAddRow.addEventListener('click', () => {
-  if (!mappingBusy()) addMappingRow();
-});
-mappingCheck.addEventListener('click', onMappingCheck);
-mappingSave.addEventListener('click', onMappingSave);
-for (let i = 0; i < 3; i += 1) addMappingRow();
-renderSavedMappings();
