@@ -46,10 +46,48 @@ import {
   rotatedFootprintCorners,
   type DimensionBinding,
 } from "../operation-measurements/index.js";
+import type {
+  AnyPresentationManifest,
+  FlexibleViewSelection,
+} from "../presentation-views/index.js";
+import {
+  presentationMappingKey,
+  selectFlexibleViewsForScope,
+} from "../presentation-views/index.js";
 
 const MARGIN_FACTOR = 0.12;
 const MIN_SIZE = 50;
 const AXES_LENGTH = 30;
+
+/**
+ * Display-only variant label for operator-facing surfaces (never an id).
+ * Human name when set; `Option N` (1-based product order) when the variant
+ * is unnamed and the product is multi-option; null when the single unnamed
+ * option should be omitted so the product name stands alone. Diagnostics
+ * and persistence keep the exact variant ids.
+ */
+export function displayVariantName(
+  product: ProductDefinition | undefined,
+  variantId: string,
+): string | null {
+  const variants = product?.variants ?? [];
+  const name = variants.find((entry) => entry.id === variantId)?.name?.trim();
+  if (name) return name;
+  if (variants.length <= 1) return null;
+  const index = variants.findIndex((entry) => entry.id === variantId);
+  return `Option ${index >= 0 ? index + 1 : 1}`;
+}
+
+/** Display-only `Product` / `Product / Variant` title for operator surfaces. */
+export function displayScopeTitle(
+  product: ProductDefinition | undefined,
+  productId: string,
+  variantId: string,
+): string {
+  const productName = product?.name?.trim() || productId;
+  const variant = displayVariantName(product, variantId);
+  return variant === null ? productName : `${productName} / ${variant}`;
+}
 const SHORT_DIGEST_CHARS = 16;
 
 /**
@@ -637,6 +675,7 @@ function buildOperationSheet(
   input: BuildOperationSheetViewInput,
   logoNameById: Map<string, string>,
   regionNameFor: (productId: string, regionId: string) => string | null,
+  product: ProductDefinition | undefined,
 ): OperationSheet {
   const logos = configuration.placements.map((placement, placementIndex) =>
     buildSheetLogo(
@@ -660,6 +699,7 @@ function buildOperationSheet(
     variantId: configuration.variantId,
     ...(configuration.productName !== undefined ? { productName: configuration.productName } : {}),
     ...(configuration.variantName !== undefined ? { variantName: configuration.variantName } : {}),
+    variantDisplay: displayVariantName(product, configuration.variantId),
     sides: sheetSidesFor(configuration.id, input),
     logos,
     instructions: [...(input.operationalInstructions ?? [])],
@@ -696,7 +736,62 @@ export function buildOperationSheetView(input: BuildOperationSheetViewInput): Op
       ...(typeof job.article === "string" && job.article.length > 0 ? { article: job.article } : {}),
     },
     sheets: candidate.configurations.map((configuration) =>
-      buildOperationSheet(configuration, input, logoNameById, regionNameFor)
+      buildOperationSheet(configuration, input, logoNameById, regionNameFor, productById.get(configuration.productId))
     ),
   };
 }
+
+/**
+ * Flexible named-view pass-through for the operation document (provisional
+ * intake-UX contract; pure, deterministic, no DOM/IO).
+ *
+ * Maps the bounded presentation-view selection for one product/variant scope
+ * 1:1 onto operation-document `ReferenceViewInput` entries: stable view ids
+ * are preserved verbatim (never relabelled, never the mutable human label),
+ * equal labels across different products are never conflated (selection is
+ * always product-scoped), and no view is dropped for exceeding four — the
+ * bounded parser already caps scopes at 12 views. Input order (sorted by
+ * view id) is preserved; inputs are never mutated.
+ */
+export function toOperationReferenceInputs(
+  selections: readonly FlexibleViewSelection[],
+): ReferenceViewInput[] {
+  return selections.map((selection) => ({
+    view: selection.view,
+    imagePath: selection.imagePath,
+    ...(selection.label === null ? {} : { label: selection.label }),
+  }));
+}
+
+/**
+ * Select operation-document reference inputs straight from a bounded v2/v3
+ * presentation manifest for one product/variant scope. Thin wrapper over the
+ * presentation-views selector so operation callers need exactly one import.
+ * Model-only scopes (zero views) yield an explicit "not supplied" note
+ * rather than a photo request.
+ */
+export function selectOperationReferenceInputs(
+  manifest: AnyPresentationManifest | null,
+  manifestPresent: boolean,
+  productId: string,
+  variantId: string,
+): { views: ReferenceViewInput[]; note: string | null } {
+  const selected = selectFlexibleViewsForScope(manifest, manifestPresent, productId, variantId);
+  return { views: toOperationReferenceInputs(selected.views), note: selected.note };
+}
+
+/**
+ * Explicit reference note for a model-only configuration: all viewpoints
+ * come from the 3D model, so the operation sheet must never request photos.
+ */
+export function modelOnlyReferenceNote(): string {
+  return "No product photos supplied for this configuration: model-only product, all viewpoints come from the 3D model; no photos requested.";
+}
+
+/**
+ * Canonical mapping/invalidation identity for one named operation view: the
+ * exact image path plus the stable view id plus the exact product/variant/
+ * region scope. Labels are never part of the key, so renaming a view never
+ * retires or rebinds evidence.
+ */
+export { presentationMappingKey as operationMappingKey };

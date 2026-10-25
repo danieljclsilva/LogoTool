@@ -1,5 +1,4 @@
 import { BUILDER_URL, STATION_DIR, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
-import { countPdfPages } from './sheet-fixtures.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -13,16 +12,20 @@ import { buildCandidateExport } from '../src/core/index.js';
 import type { Sha256HexFn } from '../src/core/index.js';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
+import { appendPreparedProduct, preparedEvidencePaths } from '../src/core/project-builder/prepared-import.js';
+import { assertProjectEditorLimits } from '../src/core/project-editor/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
 // Whole-workflow browser QA: one coherent user journey per issued format,
-// spanning artifacts issued by the internal builder (never isolated unit
-// examples, never direct core mutation). Each journey covers: Builder Create
-// (primary path) with a prepared-product import plus a locally synthesized
-// raster logo, issue in one format, real offline customer editing with
+// spanning artifacts issued by the operator job shell (never isolated unit
+// examples, never direct core mutation). Each journey covers: job-shell
+// Create (primary path) with a prepared project opened as an ordinary saved
+// job plus a locally synthesized raster logo, zero-placement issue in one
+// format (the branch issues CURRENT staff placements; the customer places in
+// the customer file as before), real offline customer editing with
 // unsafe-fit rejection and reconfirmation, draft/return downloads, reopen,
-// fresh staff review with candidate + operation document, invalid/wrong-file
-// preservation, an in-station proposal loop, and mobile shots.
+// same-station branch review with Use/Keep decisions, mismatch/tamper
+// preservation, operation-document review with print gating, and mobile shots.
 // Only tracked synthetic fixtures are used (e2e/fixtures/*, examples/*,
 // dist/dev/trusted-issued.logo-project as the wrong-baseline fixture); the only
 // synthesized bytes are a tiny in-spec PNG and downloads preserved under
@@ -65,16 +68,38 @@ function builder(page: Page, name: string) {
 
 async function shown(page: Page, name: string) {
   await revealBuilderControl(page, name);
-  return ['builder-next', 'builder-back'].includes(name)
-    ? builder(page, name).filter({ visible: true }).first()
-    : builder(page, name);
+  return builder(page, name);
+}
+
+function placement(page: Page, name: string) {
+  return page.locator(`[data-placement-hook="${name}"]`);
+}
+
+async function pshown(page: Page, name: string) {
+  if (await page.locator('[data-job-step="placements"]').isHidden()) {
+    await expect(builder(page, 'job-step-2')).toBeEnabled();
+    await builder(page, 'job-step-2').click();
+  }
+  return placement(page, name);
+}
+
+function branch(page: Page) {
+  return page.locator('[data-job-branch="approval"]');
+}
+
+function branchSummary(page: Page) {
+  return branch(page).locator('section[aria-label="Job and selection summary"]');
+}
+
+function reviewHost(page: Page) {
+  return builder(page, 'job-review-host');
 }
 
 function customer(page: Page, name: string) {
   return page.locator(`[data-customer-hook="${name}"]`);
 }
 
-async function syntheticCataloguePackage(): Promise<Uint8Array> {
+async function journeyProjectPackage(): Promise<Uint8Array> {
   const productFiles = (await readdir(resolve(process.cwd(), 'examples/products')))
     .filter((file: string) => file.endsWith('.product.json'))
     .sort();
@@ -92,16 +117,92 @@ async function syntheticCataloguePackage(): Promise<Uint8Array> {
   })));
   const draft = createProjectFromDefinitions({ products, logos, projectId: 'SYN-PROJ-FIXTURE-001', synthetic: true });
   if (!draft.ok) throw new Error(`fixture draft invalid: ${draft.errors.map((error) => error.message).join('; ')}`);
-  return createProjectPackage({ project: draft.project, assets }, { sha256: sha256bytes });
+  // The prepared inspector-bridge product joins through the validated
+  // developer path (the station offers no prepared import): same append,
+  // exact-byte evidence-hash check and evidence packaging the former
+  // station control applied.
+  const parsed: unknown = JSON.parse(await readFile(FIXTURE_PATH, 'utf8'));
+  const appended = appendPreparedProduct(draft.project, parsed);
+  if (!appended.ok) throw new Error(`prepared fixture rejected: ${appended.errors.map((error) => `${error.code} at ${error.path}`).join('; ')}`);
+  const bridgeId = appended.project.products[appended.project.products.length - 1]!.id;
+  if (appended.areaBundleText === null || appended.areaBundleSha256 === null) {
+    throw new Error('prepared fixture carries no verified area-bundle evidence');
+  }
+  const evidenceBytes = new Uint8Array(Buffer.from(appended.areaBundleText, 'utf8'));
+  if (createHash('sha256').update(evidenceBytes).digest('hex') !== appended.areaBundleSha256) {
+    throw new Error('prepared fixture evidence hash mismatch');
+  }
+  const evidencePaths = preparedEvidencePaths(bridgeId);
+  const additionalAssets: Array<{ path: string; bytes: Uint8Array }> = [];
+  if (appended.sidecar !== null && typeof appended.sidecar === 'object') {
+    additionalAssets.push({ path: evidencePaths.sidecar, bytes: new Uint8Array(Buffer.from(JSON.stringify(appended.sidecar, null, 2), 'utf8')) });
+  }
+  additionalAssets.push({ path: evidencePaths.areaBundle, bytes: evidenceBytes });
+  assertProjectEditorLimits(appended.project);
+  return createProjectPackage({ project: appended.project, assets, additionalAssets }, { sha256: sha256bytes });
 }
 
-async function openSyntheticCatalogue(page: Page): Promise<void> {
-  const bytes = await syntheticCataloguePackage();
-  await (await shown(page, 'source-file')).setInputFiles({
-    name: 'synthetic-catalogue.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
+/** Open the explicit journey fixture as an ordinary saved job (header Open). */
+async function openJourneyProject(page: Page): Promise<void> {
+  const bytes = await journeyProjectPackage();
+  await builder(page, 'job-open-file').setInputFiles({
+    name: 'synthetic-journey.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
   });
-  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
-  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-journey.logo-project');
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+}
+
+async function setChecked(box: import('@playwright/test').Locator, checked: boolean): Promise<void> {
+  await box.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.checked = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
+/** Pick the workspace product/option context on Step 2 (real selects). */
+async function selectWorkspaceOption(page: Page, productId: string, variantId?: string): Promise<void> {
+  const productSelect = await pshown(page, 'pw-product-select');
+  if (await productSelect.count() > 0) {
+    await productSelect.selectOption(productId);
+  }
+  const optionSelect = placement(page, 'pw-option-select');
+  if (await optionSelect.count() > 0) {
+    if (variantId !== undefined) await optionSelect.selectOption(variantId);
+    else await optionSelect.selectOption({ index: 0 });
+  }
+}
+
+/** Enter the approval branch from Step 2 (real branch entry). */
+async function openApprovalBranch(page: Page): Promise<void> {
+  await (await pshown(page, 'pw-approval')).click();
+  await expect(branch(page)).toBeVisible();
+  await expect(branch(page)).toContainText('Send for customer approval');
+}
+
+/** Mint a fresh unique issue ID, then create the customer file in the branch. */
+async function createBranchIssue(page: Page): Promise<string> {
+  await (await shown(page, 'job-issue-project-new')).click();
+  const issueId = await builder(page, 'job-issue-project-id').inputValue();
+  expect(issueId.length).toBeGreaterThan(0);
+  await branch(page).getByRole('button', { name: 'Create customer file' }).click();
+  await expect(branch(page)).toContainText('Customer file created');
+  return issueId;
+}
+
+/** Open a file through a branch button (real file-chooser wiring). */
+async function branchOpenFile(
+  page: Page,
+  buttonName: 'Open office copy' | 'Open customer response',
+  fileName: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  await Promise.all([
+    page.waitForEvent('filechooser').then((chooser) => chooser.setFiles({
+      name: fileName, mimeType: 'application/zip', buffer: Buffer.from(bytes),
+    })),
+    branch(page).getByRole('button', { name: buttonName }).click(),
+  ]);
 }
 
 async function downloadTo(
@@ -138,7 +239,7 @@ async function setCustomerNumber(page: Page, hook: string, value: number): Promi
 async function unlockRatioForEdit(page: Page): Promise<void> {
   // New-placement forms render Keep shape CHECKED BUT DISABLED (the app only
   // enables it once an existing placement is selected), so never force it:
-  // typing a height auto-unlocks and sticks (height input handler), which is
+  // typing a height after width auto-unlocks and sticks (height input handler), which is
   // the actual new-placement workflow. Only uncheck when the app has the
   // control enabled, i.e. while editing an existing placement.
   await revealCustomerControl(page, 'ratio-lock');
@@ -164,8 +265,8 @@ function bbox(points: Point2[]): { minX: number; minY: number; maxX: number; max
   let maxY = -Infinity;
   for (const [x, y] of points) {
     minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
     maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
   return { minX, minY, maxX, maxY };
@@ -175,7 +276,6 @@ async function runUserWorkflow(
   browser: Browser,
   format: 'self' | 'hybrid',
   stationUrl: string = BUILDER_URL,
-  withPdf = false,
 ): Promise<void> {
   const jobRef = format === 'self' ? 'WF-SELF-01' : 'WF-HYB-01';
   const probe: Probe = { pageErrors: [], consoleErrors: [], networkRequests: [] };
@@ -192,7 +292,6 @@ async function runUserWorkflow(
       offline: true,
       entryPoint: stationUrl,
       format,
-      withPdf,
     }, null, 2),
   });
   const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport });
@@ -201,27 +300,20 @@ async function runUserWorkflow(
   });
   let directory = '';
   try {
-    // ---- Builder: Start a genuinely new job (primary Create path). ----
+    // ---- Job shell: create a genuinely new job from the landing. ----
     const page = await context.newPage();
     watchPage(page, probe);
     await page.goto(stationUrl);
-    await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
-    await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
     await shoot(page, `${format}-01-start`);
 
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    await expect(builder(page, 'demo-create')).toHaveCount(0);
-    await expect(await shown(page, 'create-status')).toContainText('empty draft');
-    // Explicit synthetic catalogue fixture (same example definitions the old
-    // embedded catalogue carried) through the real source chooser.
-    await openSyntheticCatalogue(page);
-
-    // Import the prepared inspector-bridge product through the real file input.
-    await (await shown(page, 'prepared-product-file')).setInputFiles(FIXTURE_PATH);
-    await expect(await shown(page, 'product-status')).toContainText(
-      'Imported prepared product with',
-    );
+    await builder(page, 'job-landing-create').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toContainText('Prepare the job');
+    // Explicit synthetic project (catalogue definitions plus the prepared
+    // inspector-bridge product, assembled through the validated developer
+    // path) opened as an ordinary saved job through the real chooser.
+    await openJourneyProject(page);
     // Add a locally synthesized raster logo through the real file input.
     await (await shown(page, 'logo-file')).setInputFiles({
       name: RASTER_NAME,
@@ -236,7 +328,7 @@ async function runUserWorkflow(
       await logoList.locator(`input[value="${logoId}"]`).check();
     }
 
-    // Keep the imported bridge product plus one prepared tee; drop the rest.
+    // Keep the prepared bridge product plus one prepared tee; drop the rest.
     // Top-level product toggles only: variant boxes live in a container that
     // the app hides as soon as its product is unchecked
     // ([data-options-for] hidden when the product leaves the selection), so
@@ -281,53 +373,43 @@ async function runUserWorkflow(
       }
     }
     assert.ok(keptConfigurations.length >= 3, `expected bridge + tee setups, saw ${keptConfigurations.join(',')}`);
-    await expect(await shown(page, 'selection-summary')).toContainText('2 products');
-    await expect(await shown(page, 'builder-next')).toBeEnabled();
-    await shoot(page, `${format}-02-selection`);
-    await (await shown(page, 'builder-next')).click();
-
-    // ---- Builder: customer details + format chosen via More options. ----
-    await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
     await (await shown(page, 'customer-name')).fill(CUSTOMER);
     await (await shown(page, 'job-ref')).fill(jobRef);
     await (await shown(page, 'issued-by')).fill(ISSUED_BY);
-    const formatControl = await shown(page, format === 'self' ? 'format-self' : 'format-hybrid');
-    await formatControl.check();
-    await expect(formatControl).toBeChecked();
-    const issuedProjectId = await builder(page, 'project-id').inputValue();
-    assert.ok(issuedProjectId.length > 0, 'expected an automatic project ID');
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText(
-      `Customer file ready (revision 1)`,
-    );
-    await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
+    await expect(builder(page, 'job-to-placements')).toBeEnabled();
+    await shoot(page, `${format}-02-selection`);
+    await builder(page, 'job-to-placements').click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    await selectWorkspaceOption(page, 'SYN-BRIDGE-001');
+
+    // ---- Approval branch: zero-placement issue of current staff geometry. ----
+    await openApprovalBranch(page);
+    await expect(branch(page)).toContainText(`${CUSTOMER} / job ${jobRef}`);
+    if (format === 'hybrid') {
+      await branch(page).locator('summary', { hasText: 'More options' }).click();
+      await branch(page).getByRole('radio', { name: 'ZIP file with the setup files inside' }).check();
+    }
     await shoot(page, `${format}-03-issued`);
+    const issuedProjectId = await createBranchIssue(page);
 
     const officeCopy = await downloadTo(page, `${jobRef}-office-copy.logo-project`, () =>
-      shown(page, 'download-baseline').then((control) => control.click()),
+      branch(page).getByRole('button', { name: 'Save office copy' }).click(),
     );
     const delivery = await downloadTo(page, `${jobRef}-customer-file`, () =>
-      shown(page, 'download-package').then((control) => control.click()),
+      branch(page).getByRole('button', { name: 'Save customer file' }).click(),
     );
-    if (format === 'hybrid') expect(delivery.name).toBe(`${jobRef}.zip`);
+    if (format === 'hybrid') expect(delivery.name).toBe(`${jobRef}-customer-file.zip`);
     else expect(delivery.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
     // Second issue with a fresh ID but an identical selection: same assets,
-    // different project. Saved now through the real generate UI and used much
-    // later as the wrong-baseline return probe (same assets so the app reaches
-    // the project-identity check instead of stopping at asset comparison).
+    // different project. Saved now and used later as the wrong-baseline
+    // return probe (same assets so the app reaches the project-identity
+    // check instead of stopping at asset comparison).
     // Issued after the delivery download above, so the customer journey keeps
     // the first issue's files.
-    await (await shown(page, 'step-details')).click();
-    await (await shown(page, 'project-id-new')).click();
-    const otherProjectId = await builder(page, 'project-id').inputValue();
+    const otherProjectId = await createBranchIssue(page);
     assert.ok(otherProjectId.length > 0 && otherProjectId !== issuedProjectId, 'expected a fresh project ID');
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText(
-      `Customer file ready (revision 1)`,
-    );
-    await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
     await downloadTo(page, `${jobRef}-office-copy-2.logo-project`, () =>
-      shown(page, 'download-baseline').then((control) => control.click()),
+      branch(page).getByRole('button', { name: 'Save office copy' }).click(),
     );
     const issued = await parseProjectPackage(officeCopy.bytes, { sha256: sha256bytes });
     expect(issued.project.projectId).toBe(issuedProjectId);
@@ -579,239 +661,155 @@ async function runUserWorkflow(
     await expect(customer(editor, 'review')).toContainText(`Notes for the whole project: Workflow instructions ${jobRef}.`);
     await shoot(editor, `${format}-08-reopened`);
 
-    // ---- Fresh staff Builder review: office copy first, then the return. ----
-    const fresh = await context.newPage();
-    watchPage(fresh, probe);
-    await fresh.goto(stationUrl);
-    await (await shown(fresh, 'mode-review')).click();
-    await expect(fresh.locator('[data-builder-step="office"]')).toBeVisible();
-    await expect(fresh.locator('[data-builder-step="office"]')).toContainText('Choose office copy');
-    await (await shown(fresh, 'baseline-file')).setInputFiles(
-      test.info().outputPath(`${jobRef}-office-copy.logo-project`),
-    );
-    await expect(await shown(fresh, 'baseline-load-status')).toContainText('Loaded office copy');
-    await (await shown(fresh, 'step-return')).click();
-    await (await shown(fresh, 'return-file')).setInputFiles(
-      test.info().outputPath(`${jobRef}-return.logo-project`),
-    );
-    await expect(await shown(fresh, 'review-panel')).toBeVisible();
-    await expect(await shown(fresh, 'review-changes')).toContainText(`Workflow instructions ${jobRef}.`);
-    await expect(await shown(fresh, 'ticket-summary')).toContainText(
-      'decision pending (no current internal review)',
-    );
-    await expect(await shown(fresh, 'return-status')).toContainText('Internal review is pending.');
-    await expect(await shown(fresh, 'handoff-summary')).toContainText(`${jobRef}-return.logo-project`);
-    await (await shown(fresh, 'step-check')).click();
-    await shoot(fresh, `${format}-09-review-diffs`);
+    // ---- Same-station branch review: open the office copy, then the return. ----
+    await selectWorkspaceOption(page, 'SYN-BRIDGE-001');
+    await openApprovalBranch(page);
+    await branchOpenFile(page, 'Open office copy', officeCopy.name, officeCopy.bytes);
+    await expect(branch(page)).toContainText(`Office copy loaded: ${officeCopy.name}`);
+    await branchOpenFile(page, 'Open customer response', returned.name, returned.bytes);
+    await expect(branch(page)).toContainText('Response checked against the office copy');
+    await expect(branch(page)).toContainText(`Workflow instructions ${jobRef}.`);
+    await expect(branch(page)).toContainText('confirmed by Workflow customer');
+    await shoot(page, `${format}-09-response-checked`);
 
-    const candidateFile = await downloadTo(fresh, `${jobRef}-candidate.json`, () =>
-      shown(fresh, 'candidate-download').then((control) => control.click()),
-    );
-    const candidateJson = JSON.parse(Buffer.from(candidateFile.bytes).toString('utf8')) as {
-      revision: number;
-      digest: string;
-      status: string;
-      configurations: Array<{
-        productId: string;
-        placements: Array<{
-          regionId: string;
-          pos: { xMm: number; yMm: number };
-          widthMm: number;
-          heightMm: number;
-        }>;
-      }>;
-    };
-    expect(candidateJson.status).toBe('candidate-pending-review');
-    expect(candidateJson.revision).toBe(returnedProject.revision);
-    const expectedCandidate = buildCandidateExport(returnedProject, sha256text);
-    expect(candidateJson.digest).toBe(expectedCandidate.digest);
-    const bridgeCandidate = candidateJson.configurations.find((entry) => entry.productId === 'SYN-BRIDGE-001');
-    assert.ok(bridgeCandidate, 'candidate should carry the bridge configuration');
-    expect(bridgeCandidate.placements).toHaveLength(2);
-    expect(bridgeCandidate.placements[0]).toMatchObject({
-      regionId: 'SYN-BRIDGE-CHEST',
-      pos: { xMm: p1x, yMm: p1y },
-      widthMm: 52,
-      heightMm: 30,
-    });
-    const teeCandidate = candidateJson.configurations.find((entry) => entry.productId === 'SYN-TEE-001');
-    assert.ok(teeCandidate, 'candidate should carry the tee configuration');
-    expect(teeCandidate.placements).toHaveLength(1);
-
-    // Operation sheet: business identity and unfinished honesty, print CSS.
-    // No digest, no customer notes, no review status on the operator sheet.
-    await (await shown(fresh, 'preview-document')).click();
-    const operation = await shown(fresh, 'operation-container');
-    await expect(operation).toBeVisible();
-    await expect(operation.locator('.opsheet').first()).toBeVisible();
-    await expect(operation).not.toContainText(candidateJson.digest);
-    await expect(operation).not.toContainText(`Workflow instructions ${jobRef}.`);
-    await expect(operation).not.toContainText('First bridge mark.');
-    await expect(operation).not.toContainText('Status: candidate-pending-review');
-    await expect(operation).toContainText('setup needed before production');
-    await shoot(fresh, `${format}-10-operation-document`);
-    if (withPdf) {
-      // Department authoring + actual one-page branded PDF on the same page.
-      await (await shown(fresh, 'sheet-customer')).fill('Fresh Copy Athletics');
-      await (await shown(fresh, 'sheet-reference')).fill(`FRESH-${format}-01`);
-      await (await shown(fresh, 'sheet-instructions')).fill(
-        'Press the bridge emblem at 160°C for 15 seconds with medium pressure. Check all four edges visually before packing.',
-      );
-      // The preview button toggles: open it only if a previous block closed it.
-      if ((await builder(fresh, 'preview-document').getAttribute('aria-expanded')) !== 'true') {
-        await (await shown(fresh, 'preview-document')).click();
-      }
-      const pdfOperation = await shown(fresh, 'operation-container');
-      await expect(pdfOperation).toBeVisible();
-      await expect(pdfOperation.locator('.opsheet').first()).toBeVisible();
-      const pdfBytes = await fresh.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-      await writeFile(test.info().outputPath(`${format}-fresh-copy.pdf`), pdfBytes);
-      // Multi-configuration journey: one branded sheet per product/option.
-      // Exact pagination is a contract, not a hope: the 3-sheet set must
-      // print exactly 3 pages (the set summary is screen-only so it cannot
-      // fragment the first page; every printed page repeats its own header
-      // context). Single-sheet exactness is additionally pinned by the
-      // station-entry fresh-copy leg and operation-sheet-print.spec.ts.
-      const sheetCount = await pdfOperation.locator('section.opsheet').count();
-      assert.ok(sheetCount >= 1, 'expected at least one operation sheet');
-      expect(countPdfPages(new Uint8Array(pdfBytes))).toBe(sheetCount);
-      const pdfOperatorEvent = fresh.waitForEvent('download');
-      await (await shown(fresh, 'operator-download')).click();
-      const pdfOperatorFile = await pdfOperatorEvent;
-      const pdfOperatorPath = await pdfOperatorFile.path();
-      assert.ok(pdfOperatorPath, 'operator download path is available');
-      const pdfOperatorPayload = JSON.parse(await readFile(pdfOperatorPath, 'utf8')) as { format: string };
-      expect(pdfOperatorPayload.format).toBe('operation-export/1');
-      await shoot(fresh, `${format}-10b-operation-pdf`);
-    }
-    await fresh.emulateMedia({ media: 'print' });
-    await expect(fresh.locator('main#internal-builder')).toBeHidden();
-    await expect(fresh.locator('.opsheet').first()).toBeVisible();
-    await fresh.emulateMedia({ media: 'screen' });
+    // Keep current job first: the checked response is discarded without
+    // touching the active job; then check again and install it.
+    const scopeBefore = await branchSummary(page).textContent();
+    await branch(page).getByRole('button', { name: 'Keep current job' }).click();
+    await expect(branch(page)).toContainText('Kept the current job.');
+    expect(await branchSummary(page).textContent()).toBe(scopeBefore);
+    await branchOpenFile(page, 'Open customer response', returned.name, returned.bytes);
+    await expect(branch(page)).toContainText('Response checked against the office copy');
+    await branch(page).getByRole('button', { name: 'Use customer changes' }).click();
+    // Installing the validated response opens Step 2 with the new geometry.
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    await selectWorkspaceOption(page, 'SYN-BRIDGE-001');
+    // Both customer-authored bridge placements ride along on the option.
+    await expect(placement(page, 'pw-placement-list').locator('button')).toHaveCount(2);
+    await expect(placement(page, 'pw-placement-list')).toContainText('synthetic raster logo');
+    await shoot(page, `${format}-10-installed-placements`);
 
     // Invalid and wrong-project files preserve the previous good state: the
     // invalid return is rejected before reading, and the second office copy
-    // carries the same assets under a different project ID, so the return
-    // check reaches baseline-project-mismatch without touching the summary.
-    const priorSummary = await (await shown(fresh, 'ticket-summary')).textContent();
-    await (await shown(fresh, 'return-file')).setInputFiles({
-      name: 'invalid-return.logo-project',
-      mimeType: 'application/zip',
-      buffer: Buffer.from('not a logo project'),
+    // carries the same assets under a different project ID, so the check
+    // reaches baseline-project-mismatch without touching the job.
+    const summaryAfterInstall = await branchSummary(page).textContent();
+    await openApprovalBranch(page);
+    await branchOpenFile(
+      page,
+      'Open customer response',
+      'invalid-return.logo-project',
+      new TextEncoder().encode('not a logo project'),
+    );
+    await expect(branch(page)).toContainText('Could not import response invalid-return.logo-project');
+    await expect(branch(page)).toContainText('The active job and outputs are unchanged.');
+    expect(await branchSummary(page).textContent()).toBe(summaryAfterInstall);
+    await branchOpenFile(page, 'Open office copy', `${jobRef}-office-copy-2.logo-project`, new Uint8Array(
+      await readFile(test.info().outputPath(`${jobRef}-office-copy-2.logo-project`)),
+    ));
+    await expect(branch(page)).toContainText(`Office copy loaded: ${jobRef}-office-copy-2.logo-project`);
+    await branchOpenFile(page, 'Open customer response', returned.name, returned.bytes);
+    await expect(branch(page)).toContainText('Could not import response');
+    await expect(branch(page)).toContainText('baseline-project-mismatch');
+    await expect(branch(page)).toContainText('The active job and outputs are unchanged.');
+    expect(await branchSummary(page).textContent()).toBe(summaryAfterInstall);
+
+    // ---- Step 3: review the actual operational document for the job. ----
+    // Installing the response lands like a new source with nothing
+    // pre-selected (empty-start UX): re-include the installed products exactly
+    // as the operator would before reviewing the installed geometry.
+    // Top-level boxes first (variant rows only appear while their product
+    // stays checked), then every visible variant box, mirroring deliberate
+    // narrowing: untouched setups ride along automatically afterwards.
+    await builder(page, 'job-step-1').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    const installedProducts = await shown(page, 'product-list');
+    for (const id of ['SYN-BRIDGE-001', 'SYN-TEE-001']) {
+      await installedProducts.locator(`input[type="checkbox"][value="${id}"]:not([data-product])`).check();
+    }
+    for (const id of ['SYN-BRIDGE-001', 'SYN-TEE-001']) {
+      const variants = installedProducts.locator(`input[type="checkbox"][data-product="${id}"]`);
+      for (let index = 0; index < await variants.count(); index += 1) {
+        if (await variants.nth(index).isVisible()) await variants.nth(index).check();
+      }
+    }
+    await builder(page, 'job-step-3').click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    await expect(reviewHost(page)).toContainText('Review operational document');
+    await expect(reviewHost(page)).toContainText(`Customer: ${CUSTOMER}`);
+    await expect(reviewHost(page)).toContainText(`Job: ${jobRef}`);
+    await expect(reviewHost(page)).toContainText('Products: 2');
+    await expect(reviewHost(page)).toContainText('Placements: 3');
+    const preview = reviewHost(page).locator('[data-doc-review-preview]');
+    await expect(preview.locator('.opsheet').first()).toBeVisible();
+    // Placed customer artwork is listed by name; its customer-authored notes
+    // stay read-only context and never print as staff instructions.
+    await expect(preview).toContainText('Synthetic Mark A');
+    await expect(preview).not.toContainText('First bridge mark.');
+    await expect(preview).toContainText('No logos configured on this sheet');
+    // The operator sheet carries business geometry only: no digest, no
+    // customer notes, no review status on the sheet.
+    const expectedCandidate = buildCandidateExport(returnedProject, sha256text);
+    await expect(preview).not.toContainText(expectedCandidate.digest);
+    await expect(preview).not.toContainText(`Workflow instructions ${jobRef}.`);
+    // Department-authored instructions print on the sheet; customer notes stay
+    // read-only context above and never become staff instructions.
+    await reviewHost(page).locator('[data-doc-review-instructions]').fill(
+      'Press the bridge emblem at 160°C for 15 seconds with medium pressure.',
+    );
+    await reviewHost(page).locator('[data-doc-review-instructions]').press('Tab');
+    await expect(preview).toContainText('Press the bridge emblem at 160°C');
+    // Installed customer geometry carries no staff measurement bindings, so
+    // the document is honestly incomplete: complete print stays disabled and
+    // the operator uses the explicitly marked Print draft (decision 14 —
+    // confirmation never substitutes for staff measurement). The operator
+    // adds placement measurements afterwards, or ships the marked draft.
+    await expect(reviewHost(page).getByRole('button', { name: 'Print / save PDF' })).toBeDisabled();
+    const draftButton = reviewHost(page).getByRole('button', { name: 'Print draft' });
+    await expect(draftButton).toBeVisible();
+    await expect(draftButton).toBeEnabled();
+    await expect(preview).toContainText(/DRAFT/i);
+    // The draft control is wired to the browser print dialog (stubbed here —
+    // the native dialog itself is never asserted in tests).
+    await page.evaluate(() => {
+      const gate = globalThis as unknown as { printed?: boolean };
+      gate.printed = false;
+      globalThis.print = () => { gate.printed = true; };
     });
-    await expect(await shown(fresh, 'return-status')).toContainText('Could not import return');
-    await expect(await shown(fresh, 'return-status')).toContainText('previous valid review remains unchanged');
-    await expect(builder(fresh, 'ticket-summary')).toHaveText(priorSummary ?? '');
-    await (await shown(fresh, 'return-file')).setInputFiles(
-      test.info().outputPath(`${jobRef}-office-copy-2.logo-project`),
-    );
-    await expect(await shown(fresh, 'return-status')).toContainText('baseline-project-mismatch');
-    await expect(builder(fresh, 'ticket-summary')).toHaveText(priorSummary ?? '');
+    await draftButton.click();
+    expect(await page.evaluate(() => (globalThis as unknown as { printed?: boolean }).printed)).toBe(true);
+    await shoot(page, `${format}-11-review-document`);
 
-    // In-station revised proposal: no second application. The office revises
-    // one bridge placement plus the project note in the same station; the
-    // new update needs customer confirmation before any approval.
-    await (await shown(fresh, 'step-check')).click();
-    await expect(await shown(fresh, 'proposal-current')).toContainText(`Update ${returnedProject.revision}`);
-    await (await shown(fresh, 'proposal-config')).selectOption(bridgeConfigId);
-    await (await shown(fresh, 'proposal-placement')).selectOption('0');
-    const proposalX = Number(await builder(fresh, 'proposal-x').inputValue());
-    await (await shown(fresh, 'proposal-x')).fill(String(proposalX + 2));
-    await (await shown(fresh, 'proposal-instructions')).fill('Revised proposal instructions.');
-    await (await shown(fresh, 'proposal-apply')).click();
-    await expect(await shown(fresh, 'proposal-status')).toContainText(
-      `Applied revised proposal as update ${returnedProject.revision + 1}`,
+    // Structured outputs for the exact preview snapshot: operator data plus
+    // the diagnostic candidate (digest must match the returned project).
+    await reviewHost(page).locator('summary', { hasText: 'More output options' }).click();
+    const operatorFile = await downloadTo(page, `${jobRef}-operator-data.json`, () =>
+      reviewHost(page).getByRole('button', { name: 'Save operator data' }).click(),
     );
-    const proposal = await downloadTo(fresh, `${jobRef}-proposal.logo-project`, () =>
-      shown(fresh, 'proposal-download').then((control) => control.click()),
+    expect(operatorFile.name).toBe(`${jobRef}-operator-data.json`);
+    const operatorView = JSON.parse(Buffer.from(operatorFile.bytes).toString('utf8')) as { format: string };
+    expect(operatorView.format).toBe('operation-export/1');
+    const diagnosticFile = await downloadTo(page, `${jobRef}-candidate.json`, () =>
+      reviewHost(page).getByRole('button', { name: 'Save diagnostic data' }).click(),
     );
-    expect(proposal.name).toMatch(/-r\d+-proposal\.logo-project$/);
-    const revised = (await parseProjectPackage(proposal.bytes, { sha256: sha256bytes })).project;
-    // One in-station apply lands geometry + note as a single new revision.
-    expect(revised.revision).toBe(returnedProject.revision + 1);
-    expect(revised.confirmation).toBeUndefined();
-    expect(revised.instructions).toBe('Revised proposal instructions.');
-    const revisedBridge = revised.configurations.find((entry) => entry.id === bridgeConfigId);
-    assert.ok(revisedBridge && revisedBridge.placements.length > 0, 'proposal should keep bridge placements');
-    expect(revisedBridge.placements[0]!.pos.xMm).toBe(proposalX + 2);
-    await shoot(fresh, `${format}-11-station-proposal`);
-
-    // The customer sees the stale confirmation, reconfirms, and returns it.
-    await customer(editor, 'file-input').setInputFiles(test.info().outputPath(`${jobRef}-proposal.logo-project`));
-    await expect(customer(editor, 'revision')).toHaveText(String(revised.revision));
-    await expect(customer(editor, 'confirmation')).toContainText(/no longer counts/i);
-    await revealCustomerControl(editor, 'confirmed-by');
-    await customer(editor, 'confirmed-by').fill('Workflow customer again');
-    await revealCustomerControl(editor, 'confirm');
-    await customer(editor, 'confirm').click();
-    await expect(customer(editor, 'confirmation')).toContainText('Confirmed: version');
-    const reconfirmed = await downloadTo(editor, `${jobRef}-reconfirmed.logo-project`, async () => {
-      await revealCustomerControl(editor, 'submit');
-      await customer(editor, 'submit').click();
-    });
-    const reconfirmedProject = (await parseProjectPackage(reconfirmed.bytes, { sha256: sha256bytes })).project;
-    expect(reconfirmedProject.revision).toBe(revised.revision);
-    expect(reconfirmedProject.confirmation?.revision).toBe(revised.revision);
-    expect(reconfirmedProject.confirmation?.confirmedBy).toBe('Workflow customer again');
-
-    // Final staff decision in the same station: import the reconfirmed
-    // return, record approval, save the reviewed return. No second page.
-    await (await shown(fresh, 'step-return')).click();
-    await (await shown(fresh, 'return-file')).setInputFiles(
-      test.info().outputPath(`${jobRef}-reconfirmed.logo-project`),
-    );
-    await expect(await shown(fresh, 'review-panel')).toBeVisible();
-    await (await shown(fresh, 'step-check')).click();
-    await (await shown(fresh, 'review-decision-reviewer')).fill('Final reviewer');
-    await (await shown(fresh, 'review-decision-choice')).selectOption('approved');
-    await (await shown(fresh, 'review-decision-note')).fill('Internal workflow approval; still pending production.');
-    await (await shown(fresh, 'review-decision-record')).click();
-    await expect(await shown(fresh, 'review-decision-status')).toContainText(
-      `Recorded approved for update ${revised.revision}`,
-    );
-    await shoot(fresh, `${format}-12-reconfirmed-review`);
-
-    const reviewedDownload = await downloadTo(fresh, `${jobRef}-reviewed.logo-project`, () =>
-      shown(fresh, 'review-decision-download').then((control) => control.click()),
-    );
-    expect(reviewedDownload.name).toMatch(/-r\d+-reviewed\.logo-project$/);
-    const reviewedProject = (await parseProjectPackage(reviewedDownload.bytes, { sha256: sha256bytes })).project;
-    expect(reviewedProject.review?.decision).toBe('approved');
-    expect(reviewedProject.revision).toBe(revised.revision);
-    // The approved artifact descends from the revised proposal (its
-    // instructions survive the customer reconfirmation), while the earlier
-    // changesRequested page-state decision is rightly not carried as internal
-    // authority into the new revision: only the trusted baseline history is
-    // preserved on return import.
-    expect(reviewedProject.instructions).toBe('Revised proposal instructions.');
-    expect(reviewedProject.reviewHistory ?? []).toEqual(issued.project.reviewHistory ?? []);
-
-    const finalCandidateFile = await downloadTo(fresh, `${jobRef}-final-candidate.json`, () =>
-      shown(fresh, 'candidate-download').then((control) => control.click()),
-    );
-    const finalCandidate = JSON.parse(Buffer.from(finalCandidateFile.bytes).toString('utf8')) as {
+    expect(diagnosticFile.name).toBe(`${jobRef}-candidate.json`);
+    const diagnosticJson = JSON.parse(Buffer.from(diagnosticFile.bytes).toString('utf8')) as {
       revision: number;
       digest: string;
       status: string;
     };
-    expect(finalCandidate.revision).toBe(revised.revision);
-    expect(finalCandidate.status).toBe('candidate-pending-review');
-    expect(finalCandidate.digest).toBe(buildCandidateExport(reconfirmedProject, sha256text).digest);
-    // The operator sheet carries business data only: no review status, no
-    // digest, no customer notes (the reconfirmed project instructions stay
-    // source context). Nothing is authored on this read-only view, so every
-    // logo honestly reports setup needed.
-    await (await shown(fresh, 'preview-document')).click();
-    const finalSheet = await shown(fresh, 'operation-container');
-    await expect(finalSheet.locator('.opsheet').first()).toBeVisible();
-    await expect(finalSheet).not.toContainText('candidate-pending-review');
-    await expect(finalSheet).not.toContainText(finalCandidate.digest);
-    await expect(finalSheet).not.toContainText('Revised proposal instructions.');
-    await expect(finalSheet).toContainText('setup needed before production');
+    expect(diagnosticJson.status).toBe('candidate-pending-review');
+    expect(diagnosticJson.revision).toBe(returnedProject.revision);
+    expect(diagnosticJson.digest).toBe(expectedCandidate.digest);
 
-    await fresh.setViewportSize({ width: 390, height: 844 });
-    expect(await fresh.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await shoot(fresh, `${format}-13-review-mobile`);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('header.station-header')).toBeHidden();
+    await expect(preview.locator('.opsheet').first()).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await shoot(page, `${format}-12-review-mobile`);
 
     expectOfflineClean(probe);
   } finally {
@@ -821,26 +819,29 @@ async function runUserWorkflow(
 }
 
 test('whole-workflow journey through the self-contained customer file', async ({ browser }) => {
+  test.setTimeout(300_000);
   await runUserWorkflow(browser, 'self');
 });
 
 test('whole-workflow journey through the hybrid ZIP customer file', async ({ browser }) => {
+  test.setTimeout(300_000);
   await runUserWorkflow(browser, 'hybrid');
 });
 
 for (const format of ['self', 'hybrid'] as const) {
-test(`whole-workflow journey from a fresh station copy (${format} customer file)`, async ({ browser }) => {
-  // The complete staff journey — prepare, issue, customer edit/confirm,
-  // same-station check, in-station proposal, reconfirmation, approval,
-  // candidate, operation sheet and PDF — running every staff page from a
-  // fresh copy of dist/station with spaces in its path, keeping the actual
-  // downloaded customer bytes throughout. No repo-checkout dependence.
-  const stationCopy = await mkdtemp(join(tmpdir(), 'Logo Station copy '));
-  try {
-    await cp(STATION_DIR, stationCopy, { recursive: true });
-    await runUserWorkflow(browser, format, pathToFileURL(join(stationCopy, 'Logo Station.html')).href, true);
-  } finally {
-    await rm(stationCopy, { recursive: true, force: true });
-  }
-});
+  test(`whole-workflow journey from a fresh station copy (${format} customer file)`, async ({ browser }) => {
+    test.setTimeout(300_000);
+    // The complete staff journey — prepare, issue, customer edit/confirm,
+    // same-station branch review, install, operation-document review — running
+    // every staff page from a fresh copy of dist/station with spaces in its
+    // path, keeping the actual downloaded customer bytes throughout. No
+    // repo-checkout dependence.
+    const stationCopy = await mkdtemp(join(tmpdir(), 'Logo Station copy '));
+    try {
+      await cp(STATION_DIR, stationCopy, { recursive: true });
+      await runUserWorkflow(browser, format, pathToFileURL(join(stationCopy, 'Logo Station.html')).href);
+    } finally {
+      await rm(stationCopy, { recursive: true, force: true });
+    }
+  });
 }

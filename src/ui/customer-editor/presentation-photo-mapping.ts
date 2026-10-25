@@ -24,6 +24,16 @@ export const PHOTO_MAPPINGS_PATH = 'presentation/photo-mappings.json';
 const MAX_PHOTO_MAPPINGS_BYTES = 64 * 1024;
 const MAX_PHOTO_MAPPINGS = 32;
 
+/**
+ * Stable view identity independent of the human label. A mapping stays bound
+ * to its exact image + view/viewId + scope when the label is renamed: labels
+ * never validate, never invalidate and never identify. Bounded so envelopes
+ * stay small and deterministic.
+ */
+export const MAX_PHOTO_VIEW_ID_LENGTH = 128;
+/** Display-only view label bound (labels never affect identity or math). */
+export const MAX_PHOTO_VIEW_LABEL_LENGTH = 80;
+
 /** Minimum |determinant| for an invertible mapping. */
 const MIN_ABS_DET = 1e-12;
 
@@ -45,6 +55,15 @@ export interface PhotoMappingEntry {
   variantId?: string;
   regionId: string;
   view: PhotoMappingView;
+  /**
+   * Stable view identity for flexible named views (W3-owned intake workspace).
+   * The legacy `view` bucket above stays for mapping math and backward
+   * compatibility; `viewId` is the true identity and defaults to `view` when
+   * absent. Identity matching is exact; the display `label` never identifies.
+   */
+  viewId?: string;
+  /** Display-only human label for the view (never validated as identity). */
+  label?: string;
   /** Exact `presentation/` raster path; must match the issued image asset. */
   image: string;
   /** Region-mm (Y-up) -> normalized UV (v = 0 at top). */
@@ -59,6 +78,21 @@ export interface PhotoMappingsV1 {
   version: 1;
   mappings: PhotoMappingEntry[];
 }
+
+/**
+ * Envelope version 2: same mapping shape, but entries may carry `viewId`
+ * (stable identity) and `label` (display-only). Writers emit version 2 only
+ * when at least one entry carries view identity; readers accept both
+ * versions (see {@link parsePhotoMappings}, which normalizes to the shared
+ * entry shape so existing callers keep compiling).
+ */
+export interface PhotoMappingsV2 {
+  version: 2;
+  mappings: PhotoMappingEntry[];
+}
+
+/** Either accepted photo-mappings envelope version. */
+export type PhotoMappings = PhotoMappingsV1 | PhotoMappingsV2;
 
 export interface PhotoMappingSelection {
   mapping: PhotoMappingEntry | null;
@@ -142,6 +176,20 @@ export function validatePhotoMapping(entry: unknown): string[] {
   if (typeof item['view'] !== 'string' || VIEW_LOOKUP[item['view']] !== true) {
     errors.push('view must be one of front|back|left|right');
   }
+  if (item['viewId'] !== undefined) {
+    if (typeof item['viewId'] !== 'string' || item['viewId'].trim().length === 0) {
+      errors.push('viewId must be a non-empty string when present');
+    } else if (item['viewId'].length > MAX_PHOTO_VIEW_ID_LENGTH) {
+      errors.push(`viewId must be at most ${MAX_PHOTO_VIEW_ID_LENGTH} characters`);
+    }
+  }
+  if (item['label'] !== undefined) {
+    if (typeof item['label'] !== 'string') {
+      errors.push('label must be a string when present');
+    } else if (item['label'].length > MAX_PHOTO_VIEW_LABEL_LENGTH) {
+      errors.push(`label must be at most ${MAX_PHOTO_VIEW_LABEL_LENGTH} characters`);
+    }
+  }
   if (typeof item['image'] !== 'string' || item['image'].length === 0) {
     errors.push('image must be a non-empty string');
   } else if (!isValidMappingImagePath(item['image'])) {
@@ -204,13 +252,18 @@ function toValidatedEntry(item: Record<string, unknown>): PhotoMappingEntry | nu
     status: item['status'] as PhotoMappingStatus,
   };
   if (typeof item['variantId'] === 'string') entry.variantId = item['variantId'];
+  if (typeof item['viewId'] === 'string') entry.viewId = item['viewId'];
+  if (typeof item['label'] === 'string') entry.label = item['label'];
   if (typeof item['note'] === 'string') entry.note = item['note'];
   return entry;
 }
 
 /**
- * Parse an optional photo-mappings file. Returns null when absent or invalid
- * (invalid data is dropped, never thrown past the UI). Never mutates input.
+ * Parse an optional photo-mappings file. Accepts envelope version 1 and 2
+ * (backward reader) and normalizes to the shared entry shape so existing
+ * callers keep compiling; entries preserve `viewId`/`label` when present.
+ * Returns null when absent or invalid (invalid data is dropped, never thrown
+ * past the UI). Never mutates input.
  */
 export function parsePhotoMappings(mappingsBytes: Uint8Array | undefined): PhotoMappingsV1 | null {
   if (!mappingsBytes || mappingsBytes.length === 0) return null;
@@ -223,7 +276,7 @@ export function parsePhotoMappings(mappingsBytes: Uint8Array | undefined): Photo
   }
   if (typeof raw !== 'object' || raw === null) return null;
   const record = raw as Record<string, unknown>;
-  if (record['version'] !== 1) return null;
+  if (record['version'] !== 1 && record['version'] !== 2) return null;
   if (!Array.isArray(record['mappings'])) return null;
   const list = record['mappings'] as unknown[];
   if (list.length === 0 || list.length > MAX_PHOTO_MAPPINGS) return null;
@@ -239,16 +292,20 @@ export function parsePhotoMappings(mappingsBytes: Uint8Array | undefined): Photo
 
 /**
  * Deterministic serialization: entries sorted by
- * (productId, variantId, regionId, view, image) with fixed key order and no
- * whitespace. Byte-stable across input key order and entry order.
+ * (productId, variantId, regionId, view, viewId, image) with fixed key order
+ * and no whitespace. Byte-stable across input key order and entry order.
+ * Legacy entries (no `viewId`/`label`) serialize to a version-1 envelope
+ * byte-identical to previous writers; any view identity upgrades the
+ * envelope to version 2 (readers accept both).
  */
-export function serializePhotoMappings(mappings: PhotoMappingsV1): Uint8Array {
+export function serializePhotoMappings(mappings: PhotoMappingsV1 | PhotoMappingsV2): Uint8Array {
   const sorted = [...mappings.mappings].sort((x, y) => {
     const keys = [
       [x.productId, y.productId],
       [x.variantId ?? '', y.variantId ?? ''],
       [x.regionId, y.regionId],
       [x.view, y.view],
+      [x.viewId ?? '', y.viewId ?? ''],
       [x.image, y.image],
     ] as Array<[string, string]>;
     for (const [a, b] of keys) {
@@ -257,43 +314,35 @@ export function serializePhotoMappings(mappings: PhotoMappingsV1): Uint8Array {
     }
     return 0;
   });
+  const version = sorted.some((entry) => entry.viewId !== undefined || entry.label !== undefined) ? 2 : 1;
   const normalized = sorted.map((entry) => {
+    // Fixed key order: legacy order preserved byte-for-byte for legacy
+    // entries (`label` slots after `image`, `viewId` after `view`, each only
+    // when present).
     const out: Record<string, unknown> = {
       calibrationId: entry.calibrationId,
       calibrationVersion: entry.calibrationVersion,
       image: entry.image,
-      productId: entry.productId,
-      regionId: entry.regionId,
-      status: entry.status,
-      transform: {
-        a: entry.transform.a,
-        b: entry.transform.b,
-        c: entry.transform.c,
-        d: entry.transform.d,
-        e: entry.transform.e,
-        f: entry.transform.f,
-      },
-      view: entry.view,
     };
-    if (entry.variantId !== undefined) {
-      const withVariant: Record<string, unknown> = {
-        calibrationId: entry.calibrationId,
-        calibrationVersion: entry.calibrationVersion,
-        image: entry.image,
-        productId: entry.productId,
-        regionId: entry.regionId,
-        status: entry.status,
-        transform: out['transform'],
-        variantId: entry.variantId,
-        view: entry.view,
-      };
-      if (entry.note !== undefined) withVariant['note'] = entry.note;
-      return withVariant;
-    }
+    if (entry.label !== undefined) out['label'] = entry.label;
+    out['productId'] = entry.productId;
+    out['regionId'] = entry.regionId;
+    out['status'] = entry.status;
+    out['transform'] = {
+      a: entry.transform.a,
+      b: entry.transform.b,
+      c: entry.transform.c,
+      d: entry.transform.d,
+      e: entry.transform.e,
+      f: entry.transform.f,
+    };
+    if (entry.variantId !== undefined) out['variantId'] = entry.variantId;
+    out['view'] = entry.view;
+    if (entry.viewId !== undefined) out['viewId'] = entry.viewId;
     if (entry.note !== undefined) out['note'] = entry.note;
     return out;
   });
-  return new TextEncoder().encode(JSON.stringify({ version: 1, mappings: normalized }));
+  return new TextEncoder().encode(JSON.stringify({ version, mappings: normalized }));
 }
 
 /**
@@ -510,7 +559,30 @@ export interface PhotoMappingContext {
   calibrationId: string;
   calibrationVersion: string;
   /** Declared preview views for the configuration; entry view+image must match one exactly. */
-  manifestViews: ReadonlyArray<{ view: PhotoMappingView; image: string }>;
+  manifestViews: ReadonlyArray<{ view: string; viewId?: string; image: string }>;
+}
+
+/**
+ * Stable view identity of one mapping entry: the explicit `viewId` when
+ * present, else the legacy `view` bucket. Pure. The lead's intake mapping key
+ * (`mappingKeyOf`) should incorporate this (not the display label) so file
+ * replacement retires only the affected view's evidence.
+ */
+export function mappingViewIdOf(entry: Pick<PhotoMappingEntry, 'view' | 'viewId'>): string {
+  return entry.viewId ?? entry.view;
+}
+
+/**
+ * Display-only label for one mapping entry: the trimmed `label` when
+ * non-blank, else the caller-supplied fallback (legacy bucket text, image
+ * path, …). Labels never affect identity, validation or math. Pure.
+ */
+export function mappingDisplayLabel(
+  entry: Pick<PhotoMappingEntry, 'label'>,
+  fallback: string,
+): string {
+  const label = entry.label?.trim() ?? '';
+  return label.length > 0 ? label : fallback;
 }
 
 /**
@@ -532,7 +604,17 @@ export function validateMappingContext(entry: PhotoMappingEntry, context: PhotoM
   if (entry.calibrationId !== context.calibrationId || entry.calibrationVersion !== context.calibrationVersion) {
     errors.push(`mapping calibration ${entry.calibrationId} ${entry.calibrationVersion} does not match the logo area calibration ${context.calibrationId} ${context.calibrationVersion}`);
   }
-  const declared = context.manifestViews.some((view) => view.view === entry.view && view.image === entry.image);
+  const declared = context.manifestViews.some((view) => {
+    if (view.image !== entry.image) return false;
+    // Labels never validate: only image + view identity bind. When the
+    // mapping declares a stable viewId, a manifest viewId must agree when the
+    // manifest declares one; otherwise the legacy view bucket must agree.
+    if (entry.viewId !== undefined) {
+      if (view.viewId !== undefined) return view.viewId === entry.viewId;
+      return view.view === entry.view;
+    }
+    return view.view === entry.view;
+  });
   if (!declared) {
     errors.push(`mapping photo "${entry.image}" (${entry.view}) is not a declared preview view for this product option`);
   }
@@ -636,23 +718,38 @@ export function selectPhotoMapping(
   imagePath: string,
   lookup: PresentationAssetLookup,
   context?: PhotoMappingContext,
+  viewId?: string,
 ): PhotoMappingSelection {
   if (!manifestPresent) return { mapping: null, warning: null };
   if (!mappings) {
     return { mapping: null, warning: 'Photo mapping data was invalid and has been ignored.' };
   }
+  // Identity-first when the caller declares a stable view id (flexible
+  // named views): the legacy `view` bucket is inert and must not filter.
+  // Legacy callers (no viewId) keep the exact bucket match.
   const candidates = mappings.mappings.filter((entry) =>
     entry.productId === productId &&
     entry.regionId === regionId &&
-    entry.view === view &&
-    entry.image === imagePath,
+    entry.image === imagePath &&
+    (viewId !== undefined ? mappingViewIdOf(entry) === viewId : entry.view === view),
   );
   if (candidates.length === 0) {
     return { mapping: null, warning: 'No photo mapping supplied for this region and view; photo is reference only.' };
   }
-  const scoped = candidates.find((entry) => entry.variantId === variantId)
-    ?? candidates.find((entry) => entry.variantId === undefined)
-    ?? null;
+  const forVariant = candidates.filter((entry) => entry.variantId === variantId);
+  const unscoped = candidates.filter((entry) => entry.variantId === undefined);
+  // Exact view identity first (stable viewId match), then the legacy
+  // unscoped-view fallback so older packages without viewIds keep resolving
+  // through their view bucket. Deterministic; never a blend.
+  const scoped = viewId !== undefined
+    ? forVariant.find((entry) => entry.viewId === viewId)
+      ?? unscoped.find((entry) => entry.viewId === viewId)
+      ?? forVariant.find((entry) => entry.viewId === undefined)
+      ?? unscoped.find((entry) => entry.viewId === undefined)
+      ?? null
+    : candidates.find((entry) => entry.variantId === variantId)
+      ?? candidates.find((entry) => entry.variantId === undefined)
+      ?? null;
   if (!scoped) {
     return { mapping: null, warning: 'No photo mapping supplied for this product option; photo is reference only.' };
   }
@@ -676,4 +773,68 @@ export function selectPhotoMapping(
     return { mapping: null, warning: `Photo-mapped image “${scoped.image}” is missing or too large; showing the measured diagram instead.` };
   }
   return { mapping: scoped, warning: null };
+}
+
+/**
+ * Two-click reference-span similarity transform (lead-owned, setup-calibration).
+ *
+ * Builds the uniform-scale region-mm (Y-up) -> normalized UV map from ONE
+ * operator-measured span: clicked photo endpoints A/B plus the declared real
+ * straight-line length in millimetres. Pure math; no DOM, no assets.
+ *
+ * Declared frame convention (operator-determined, never invented silently):
+ * the mm origin sits exactly on A and the +x axis runs from A toward B.
+ * The scale is uniform (`lengthMm` / pixel-native |AB|); the mapping is a
+ * similarity (rotation + uniform scale, no shear, no perspective correction).
+ * A single span cannot solve arbitrary perspective — the caller must state
+ * the front-on planar assumption wherever this is surfaced. Output is a
+ * provisional draft: never production approval.
+ *
+ * Returns null when the span is unusable: non-finite/out-of-range UV,
+ * non-positive/non-finite length, non-positive photo size, or coincident A/B
+ * (pixel-native distance <= 1e-9). The result always satisfies
+ * `validatePhotoMapping` transform checks (|det| = 1/(s^2*W*H) for scale s;
+ * absurd scales whose determinant underflows 1e-12 are refused) and
+ * round-trips exactly through `forwardPhotoMapping` / `inversePhotoMapping`
+ * (A -> (0,0), B -> (lengthMm, 0)).
+ */
+export function similarityTransformFromSpan(input: {
+  widthPx: number;
+  heightPx: number;
+  aUv: { u: number; v: number };
+  bUv: { u: number; v: number };
+  lengthMm: number;
+}): PhotoMappingTransform | null {
+  const { widthPx: width, heightPx: height, aUv, bUv, lengthMm } = input;
+  if (!Number.isFinite(width) || !(width > 0)) return null;
+  if (!Number.isFinite(height) || !(height > 0)) return null;
+  if (!isFiniteNumber(aUv?.u) || !isFiniteNumber(aUv?.v)) return null;
+  if (!isFiniteNumber(bUv?.u) || !isFiniteNumber(bUv?.v)) return null;
+  if (aUv.u < 0 || aUv.u > 1 || aUv.v < 0 || aUv.v > 1) return null;
+  if (bUv.u < 0 || bUv.u > 1 || bUv.v < 0 || bUv.v > 1) return null;
+  if (!Number.isFinite(lengthMm) || !(lengthMm > 0)) return null;
+  const dxPx = (bUv.u - aUv.u) * width;
+  const dyPx = (bUv.v - aUv.v) * height;
+  const nativePx = Math.hypot(dxPx, dyPx);
+  if (!Number.isFinite(nativePx) || !(nativePx > 1e-9)) return null;
+  const scale = lengthMm / nativePx;
+  if (!Number.isFinite(scale) || !(scale > 0)) return null;
+  // Millimetres convert to pixels by DIVISION (px offset = mm / scale):
+  // x = lengthMm must land exactly on B (offset |AB|_px = lengthMm / scale).
+  const perMm = 1 / scale;
+  if (!Number.isFinite(perMm) || !(perMm > 0)) return null;
+  const transform: PhotoMappingTransform = {
+    a: (perMm * dxPx) / (width * nativePx),
+    b: (perMm * dyPx) / (width * nativePx),
+    c: aUv.u,
+    d: (perMm * dyPx) / (height * nativePx),
+    e: (-perMm * dxPx) / (height * nativePx),
+    f: aUv.v,
+  };
+  for (const value of [transform.a, transform.b, transform.c, transform.d, transform.e, transform.f]) {
+    if (!Number.isFinite(value)) return null;
+  }
+  const det = transform.a * transform.e - transform.b * transform.d;
+  if (!Number.isFinite(det) || Math.abs(det) <= MIN_ABS_DET) return null;
+  return transform;
 }

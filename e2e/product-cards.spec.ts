@@ -1,28 +1,25 @@
-// Tranche E acceptance (lead-owned): product cards replace nested rows.
-// Thumbnail/name cards (real photo bytes, white background, human fallback
-// labels never IDs); include checkbox independent from Open setup; single
-// option products ship their only option with no second decision; real
-// multi-option choices; deliberate configuration subsets kept; both
-// customer formats + master roundtrip unchanged. Synthetic fixtures only.
-// Offline file://, zero console/page errors, zero HTTP(S) requests.
+// Product cards acceptance through the operator job shell: opened fixture
+// packages render thumbnail/name cards (real photo bytes, white
+// background, human fallback labels never IDs); include checkbox is
+// independent from Open setup; single-option products ship their only
+// option with no second decision; deliberate narrowing (variant + setup
+// unticks) survives into the placement/review outputs. Product cards
+// arrive unchecked for an opened fixture: the operator ticks to include
+// and unticks to exclude. Synthetic fixtures only. Offline file://, zero
+// console/page errors, zero HTTP(S) requests.
 
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { unzipSync } from 'fflate';
-import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { createProjectPackage } from '../src/packaging/project-package/index.js';
+import { createHash } from 'node:crypto';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
-import { gotoBuilder, revealBuilderControl } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import type { Probe } from './helpers.js';
+import { release } from 'node:os';
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
-
-interface Probe {
-  pageErrors: string[];
-  consoleErrors: string[];
-  networkRequests: string[];
-}
 
 function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
@@ -30,25 +27,23 @@ function builder(page: Page, name: string) {
 
 async function shown(page: Page, name: string) {
   await revealBuilderControl(page, name);
-  return ['builder-next', 'builder-back'].includes(name)
-    ? builder(page, name).filter({ visible: true }).first()
-    : builder(page, name);
+  return builder(page, name);
 }
 
-async function openBuilder(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
-  const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
-  await context.setDefaultTimeout(15000);
-  const page = await context.newPage();
-  const probe: Probe = { pageErrors: [], consoleErrors: [], networkRequests: [] };
-  page.on('pageerror', (error) => probe.pageErrors.push(String(error)));
-  page.on('console', (message) => {
-    if (message.type() === 'error') probe.consoleErrors.push(String(message.text()));
+async function openStation(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
+  await test.info().attach('product-cards-environment', {
+    contentType: 'application/json',
+    body: JSON.stringify({
+      os: process.platform, release: release(), arch: process.arch,
+      browser: browser.browserType().name(), browserVersion: browser.version(),
+      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: BUILDER_URL,
+    }, null, 2),
   });
-  context.on('request', (request) => {
-    if (/^https?:/i.test(request.url())) probe.networkRequests.push(request.url());
-  });
+  const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.locator('[data-job-landing]')).toBeVisible();
+  await builder(page, 'job-landing-create').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   return { context, page, probe };
 }
 
@@ -118,9 +113,15 @@ function measuredRegion(regionId: string, regionName: string, calibrationId: str
   };
 }
 
+function expectOfflineClean(probe: Probe): void {
+  expect(probe.pageErrors).toEqual([]);
+  expect(probe.consoleErrors).toEqual([]);
+  expect(probe.httpRequests).toEqual([]);
+}
+
 test('product cards: thumbnails, independent open, single-option default, narrowed subset', async ({ browser }, info) => {
   test.setTimeout(240_000);
-  const { context, page, probe } = await openBuilder(browser);
+  const { context, page, probe } = await openStation(browser);
   try {
     const soloPng = await syntheticPngBytes(page, '#1d6f3a', 400, 300);
     const multiPng = await syntheticPngBytes(page, '#6f1d3a', 400, 300);
@@ -198,10 +199,12 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     }, { sha256 });
     const fixturePath = info.outputPath('product-cards.logo-project');
     await writeFile(fixturePath, Buffer.from(bytes));
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    // Open the explicit fixture through the real Open job chooser.
+    await builder(page, 'job-open-file').setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded product-cards.logo-project');
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await (await shown(page, 'customer-name')).fill('Card Customer');
+    await (await shown(page, 'job-ref')).fill('CARDS-01');
 
     // Cards: real thumbnails, human names, model-only fallback (never an ID).
     const soloCard = page.locator('div[data-product-card="CARD-SOLO"]');
@@ -217,8 +220,12 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     // Single-option product: no variant row, inclusion stated once.
     await expect(soloCard.locator('[data-options-for]')).toHaveCount(0);
     await expect(soloCard).toContainText('Includes Standard option.');
-    // Multi-option product reveals its real choices once included.
+    // Opened fixture cards arrive unchecked: tick to include. Multi-option
+    // product reveals its real choices once included.
+    await expect(soloCard.locator('input[type="checkbox"]').first()).not.toBeChecked();
+    await expect(multiCard.locator('input[type="checkbox"]').first()).not.toBeChecked();
     await multiCard.locator('input[type="checkbox"][value="CARD-MULTI"]').check();
+    await expect(multiCard.locator('input[type="checkbox"][value="CARD-MULTI"]')).toBeChecked();
     await expect(multiCard.locator('[data-options-for]')).toBeVisible();
     await expect(multiCard.getByRole('checkbox', { name: 'Size M' })).toBeVisible();
     await expect(multiCard.getByRole('checkbox', { name: 'Size L' })).toBeVisible();
@@ -226,12 +233,13 @@ test('product cards: thumbnails, independent open, single-option default, narrow
       await page.screenshot({ path: info.outputPath('product-cards.png') });
     }
 
-    // Include is independent from Open setup: checking Solo never moves
-    // the workspace; only its Open button does.
+    // Include is independent from Open setup: opening Multi never moves the
+    // include state; only its Open button moves the workspace.
     await multiCard.getByRole('button', { name: 'Open setup for Multi Jacket' }).click();
     await expect(builder(page, 'workspace-product')).toHaveValue('CARD-MULTI');
     await soloCard.locator('input[type="checkbox"]').check();
-    await expect(await shown(page, 'selection-summary')).toContainText('1 option');
+    await expect(soloCard.locator('input[type="checkbox"]').first()).toBeChecked();
+    await expect(await shown(page, 'selection-summary')).toContainText('2 products');
     await expect(builder(page, 'workspace-product')).toHaveValue('CARD-MULTI');
     await soloCard.getByRole('button', { name: 'Open setup for Solo Jacket' }).click();
     await expect(builder(page, 'workspace-product')).toHaveValue('CARD-SOLO');
@@ -246,66 +254,57 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     await expect(await shown(page, 'selection-summary')).toContainText('2 options');
     await expect(await shown(page, 'selection-summary')).toContainText('1 logo');
 
-    // Issue: Solo's only setup ships by default; Multi ships only Size M.
-    await (await shown(page, 'builder-next')).click();
-    await (await shown(page, 'customer-name')).fill('Card Customer');
-    await (await shown(page, 'job-ref')).fill('CARDS-01');
-    await (await shown(page, 'issued-by')).fill('Lead check');
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('Customer file ready (revision 1)');
-    const baselineEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-baseline')).click();
-    const baseline = await baselineEvent;
-    const baselinePath = info.outputPath('cards-issued.logo-project');
-    await baseline.saveAs(baselinePath);
-    const parsed = await parseProjectPackage(new Uint8Array(await readFile(baselinePath)), { sha256 });
-    expect(parsed.project.configurations.map((entry) => entry.id).sort()).toEqual(['cfg-multi-m', 'cfg-solo']);
-
-    // Deliberate configuration subset survives regeneration.
-    await (await shown(page, 'step-choose')).click();
+    // Deliberate configuration subset: untick the Size L setup as well (the
+    // Size L option is already out; this pins the narrowed choice).
     await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
-    await page.locator('[data-builder-hook="configuration-list"] input[type="checkbox"][value="cfg-multi-m"]').uncheck();
-    await (await shown(page, 'builder-next')).click();
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('Customer file ready (revision 1)');
-    const baselineEvent2 = page.waitForEvent('download');
-    await (await shown(page, 'download-baseline')).click();
-    const baseline2 = await baselineEvent2;
-    const baselinePath2 = info.outputPath('cards-narrowed.logo-project');
-    await baseline2.saveAs(baselinePath2);
-    const parsed2 = await parseProjectPackage(new Uint8Array(await readFile(baselinePath2)), { sha256 });
-    expect(parsed2.project.configurations.map((entry) => entry.id)).toEqual(['cfg-solo']);
+    await page.locator('[data-builder-hook="configuration-list"] input[type="checkbox"][value="cfg-multi-l"]').uncheck();
 
-    // Both customer formats + master roundtrip unchanged.
-    const htmlEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-package')).click();
-    const html = await htmlEvent;
-    assert.ok(html.suggestedFilename().endsWith('.html'), 'self-contained customer file downloads');
-    await html.saveAs(info.outputPath('cards-customer.html'));
-    await (await shown(page, 'step-details')).click();
-    await (await shown(page, 'format-hybrid')).check();
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('Customer file ready (revision 1)');
-    const zipEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-package')).click();
-    const zip = await zipEvent;
-    const zipPath = info.outputPath('cards-hybrid.zip');
-    await zip.saveAs(zipPath);
-    expect(Object.keys(unzipSync(new Uint8Array(await readFile(zipPath)))).sort())
-      .toEqual(['CARDS-01.logo-project', 'OPEN_LOGO_CONFIGURATOR.html']);
-    const masterEvent = page.waitForEvent('download');
-    await (await shown(page, 'save-master')).click();
-    await expect(await shown(page, 'master-status')).toContainText('Saved prepared master');
-    const master = await masterEvent;
-    const masterPath = info.outputPath('cards-master.logo-project');
-    await master.saveAs(masterPath);
-    const masterParsed = await parseProjectPackage(new Uint8Array(await readFile(masterPath)), { sha256 });
-    expect(masterParsed.project.products).toHaveLength(3);
-    await (await shown(page, 'source-file')).setInputFiles(masterPath);
-    await expect(await shown(page, 'source-status')).toContainText('Loaded cards-master.logo-project');
-    await expect(page.locator('div[data-product-card="CARD-SOLO"]')).toBeVisible();
+    // Step 2 shows only the included scope: Solo plus Multi. Size L was
+    // unticked in Step 1 and stays out of the placement scope.
+    await expect(await shown(page, 'job-prepare-gate')).toHaveText('');
+    await (await shown(page, 'job-to-placements')).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    const host = builder(page, 'job-placement-host');
+    await expect(host).toContainText('Solo Jacket');
+    await expect(host).toContainText('Multi Jacket');
+    // Untick Solo: the editable catalogue keeps it (Step 2 still lists it
+    // for editing), but scoped outputs must omit it — proven at review.
+    await (await shown(page, 'job-step-1')).click();
+    await soloCard.locator('input[type="checkbox"]').uncheck();
+    await expect(soloCard.locator('input[type="checkbox"]').first()).not.toBeChecked();
+    await (await shown(page, 'job-step-2')).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    await expect(builder(page, 'job-placement-host')).toContainText('Solo Jacket');
+    await expect(builder(page, 'job-placement-host')).toContainText('Multi Jacket');
+
+    // Review carries the narrowed job: one product, one option, and zero
+    // placements stay present with the explicit no-placement statement.
+    // The operator data pins the surviving variant by name.
+    await builder(page, 'job-placement-host').getByRole('button', { name: 'Review document' }).click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    const reviewHost = builder(page, 'job-review-host');
+    await expect(reviewHost).toContainText('Products: 1 · Options: 1 · Placements: 0');
+    await expect(reviewHost).not.toContainText('Solo Jacket');
+    await expect(reviewHost.locator('[data-doc-review-preview]')).toContainText('No logos configured on this sheet — 0 logos, nothing to place, measure, or produce.');
+    await expect(reviewHost.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled();
+    await reviewHost.locator('summary', { hasText: 'More output options' }).click();
+    const operatorEvent = page.waitForEvent('download');
+    await reviewHost.getByRole('button', { name: 'Save operator data' }).click();
+    const operatorFile = await operatorEvent;
+    const operatorPath = await operatorFile.path();
+    assert.ok(operatorPath, 'operator download path is available');
+    const operatorView = JSON.parse(await readFile(operatorPath, 'utf8')) as {
+      format: string;
+      products: Array<{ product: string; variant: string; logos: unknown[]; instructions: string[] }>;
+    };
+    expect(operatorView.format).toBe('operation-export/1');
+    expect(operatorView.products).toHaveLength(1);
+    expect(operatorView.products[0]!.product).toBe('Multi Jacket');
+    expect(operatorView.products[0]!.variant).toBe('Size M');
+    expect(operatorView.products[0]!.logos).toEqual([]);
 
     // Narrow viewport keeps cards usable.
+    await (await shown(page, 'job-step-1')).click();
     await page.setViewportSize({ width: 480, height: 900 });
     await expect(page.locator('div[data-product-card="CARD-MULTI"]')).toBeVisible();
     if (info.project.name === 'chromium') {
@@ -313,9 +312,7 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     }
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    expect(probe.pageErrors).toEqual([]);
-    expect(probe.consoleErrors).toEqual([]);
-    expect(probe.networkRequests).toEqual([]);
+    expectOfflineClean(probe);
   } finally {
     await context.close();
   }

@@ -30,10 +30,18 @@ export interface PresentationReferenceEntry {
 
 export type PresentationViewSide = 'front' | 'back' | 'left' | 'right';
 
+/**
+ * Stable view identity: the legacy four sides for v1/v2 history, or a
+ * caller-minted slug (e.g. `view-1`) for flexible named views (v3).
+ * Identity is exact and case-sensitive; the human `label` is display only.
+ */
+export type PresentationViewId = string;
+
 export interface PresentationMultiviewEntry {
   productId: string;
   variantId?: string;
-  view: PresentationViewSide;
+  /** Stable view identity (legacy side or flexible slug); never the label. */
+  view: PresentationViewId;
   image: string;
   label?: string;
 }
@@ -62,7 +70,21 @@ export interface PresentationManifestV2 {
   references?: PresentationReferenceEntry[];
 }
 
-export type PresentationManifest = PresentationManifestV1 | PresentationManifestV2;
+/**
+ * Flexible named views: same shapes as v2, but `view` is a stable caller
+ * identity (legacy sides included) with a free human `label`. Bounded like
+ * v2 (32 entries total); per-scope caps are enforced by writers. Readers
+ * accept v2 and v3; v2 keeps the strict four-side check so legacy history
+ * parses exactly as before.
+ */
+export interface PresentationManifestV3 {
+  version: 3;
+  views: PresentationMultiviewEntry[];
+  models?: PresentationModelEntry[];
+  references?: PresentationReferenceEntry[];
+}
+
+export type PresentationManifest = PresentationManifestV1 | PresentationManifestV2 | PresentationManifestV3;
 
 export interface PresentationSelection {
   /** Explicit package path of the validated raster image, or null. */
@@ -73,7 +95,8 @@ export interface PresentationSelection {
 }
 
 export interface PresentationViewSelection {
-  view: PresentationViewSide | null;
+  /** Stable view identity (legacy side or flexible slug), or null for v1. */
+  view: PresentationViewId | null;
   imagePath: string;
   label: string | null;
 }
@@ -93,6 +116,17 @@ export interface PresentationModelSelection {
 
 const MAX_MANIFEST_BYTES = 64 * 1024;
 const MAX_REFERENCES = 32;
+/** Stable view-identity bound for v3 (mirrors the core presentation contract). */
+const MAX_VIEW_ID_LENGTH = 128;
+/** Display-only label bound for v3 (labels never identify). */
+const MAX_VIEW_LABEL_LENGTH = 80;
+
+/** v3 view identities: non-empty printable ids without path separators. */
+function isValidViewId(value: string): boolean {
+  if (value.trim().length === 0) return false;
+  if (value.includes('/') || value.includes('\\') || value.includes(':')) return false;
+  return true;
+}
 
 const ALLOWLISTED_MEDIA: Record<string, 'image/png' | 'image/jpeg' | 'image/webp'> = {
   '.png': 'image/png',
@@ -102,7 +136,6 @@ const ALLOWLISTED_MEDIA: Record<string, 'image/png' | 'image/jpeg' | 'image/webp
 };
 
 const VIEW_SIDE_LOOKUP: Record<string, true> = { front: true, back: true, left: true, right: true };
-const SIDE_ORDER: PresentationViewSide[] = ['front', 'back', 'left', 'right'];
 
 function extensionOf(path: string): string {
   const dot = path.lastIndexOf('.');
@@ -163,10 +196,11 @@ export function parsePresentationManifest(manifestBytes: Uint8Array | undefined)
     }
     return { version: 1, references: valid };
   }
-  if (record['version'] === 2) {
+  if (record['version'] === 2 || record['version'] === 3) {
     if (!Array.isArray(record['views'])) return null;
     if (record['models'] !== undefined && !Array.isArray(record['models'])) return null;
     if (record['references'] !== undefined && !Array.isArray(record['references'])) return null;
+    const flexibleIds = record['version'] === 3;
     const viewsRaw = record['views'] as unknown[];
     const modelsRaw = (record['models'] ?? []) as unknown[];
     const referencesRaw = (record['references'] ?? []) as unknown[];
@@ -178,15 +212,20 @@ export function parsePresentationManifest(manifestBytes: Uint8Array | undefined)
       const item = entry as Record<string, unknown>;
       if (typeof item['productId'] !== 'string' || item['productId'].length === 0) return null;
       if (item['variantId'] !== undefined && typeof item['variantId'] !== 'string') return null;
-      if (typeof item['view'] !== 'string' || VIEW_SIDE_LOOKUP[item['view']] !== true) return null;
+      // v2 history keeps the strict four-side check; v3 carries stable
+      // caller identities (legacy sides included) bounded like side names.
+      if (typeof item['view'] !== 'string' || item['view'].length === 0) return null;
+      if (!flexibleIds && VIEW_SIDE_LOOKUP[item['view']] !== true) return null;
+      if (flexibleIds && (item['view'].length > MAX_VIEW_ID_LENGTH || !isValidViewId(item['view']))) return null;
       if (typeof item['image'] !== 'string' || item['image'].length === 0) return null;
       if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
+      if (item['label'] !== undefined && item['label'].length > MAX_VIEW_LABEL_LENGTH) return null;
       if (!isValidPresentationPath(item['image'])) return null;
       if (ALLOWLISTED_MEDIA[extensionOf(item['image'])] === undefined) return null;
       views.push({
         productId: item['productId'],
         ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
-        view: item['view'] as PresentationViewSide,
+        view: item['view'] as string,
         image: item['image'],
         ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
       });
@@ -226,6 +265,12 @@ export function parsePresentationManifest(manifestBytes: Uint8Array | undefined)
       });
     }
     if (views.length + models.length + references.length === 0) return null;
+    if (flexibleIds) {
+      const out: PresentationManifestV3 = { version: 3, views };
+      if (models.length > 0) out.models = models;
+      if (references.length > 0) out.references = references;
+      return out;
+    }
     const out: PresentationManifestV2 = { version: 2, views };
     if (models.length > 0) out.models = models;
     if (references.length > 0) out.references = references;
@@ -252,7 +297,7 @@ export function selectPresentationReference(
 ): PresentationSelection {
   if (!manifestPresent) return { imagePath: null, label: null, warning: null };
   if (!manifest) return { imagePath: null, label: null, warning: 'Reference preview data was invalid and has been ignored.' };
-  if (manifest.version === 2) {
+  if (manifest.version === 2 || manifest.version === 3) {
     const candidates = manifest.views.filter((entry) => entry.productId === productId);
     if (candidates.length === 0) {
       return { imagePath: null, label: null, warning: `No reference image supplied for this product in the package.` };
@@ -291,12 +336,14 @@ export function selectPresentationReference(
 }
 
 /**
- * Select the per-side reference views for the current product/variant.
- * Exact-id match only; per side, variant-scoped entries win over
+ * Select the reference views for the current product/variant. Exact-id
+ * match only; per view identity, variant-scoped entries win over
  * product-wide ones. v1 manifests map to a single `view: null` entry with
  * the same label semantics as `selectPresentationReference`. Views whose
  * bytes are missing, oversized or undecodable are omitted with a warning;
- * missing sides are never invented.
+ * missing views are never invented. Order follows the manifest (v2 legacy
+ * sides keep their front/back/left/right order from the writer); no view
+ * is dropped for exceeding four.
  */
 export function selectPresentationViews(
   manifest: PresentationManifest | null,
@@ -318,22 +365,24 @@ export function selectPresentationViews(
   if (candidates.length === 0) {
     return { views: [], warning: null };
   }
-  const perSide: Record<PresentationViewSide, PresentationMultiviewEntry | undefined> = { front: undefined, back: undefined, left: undefined, right: undefined };
+  // Per stable view identity: variant-scoped entries win over product-wide
+  // ones; first manifest entry wins on repeats (deterministic, never a
+  // blend). Identity is the `view` string itself (legacy side or v3 slug);
+  // labels never participate.
+  const byId = new Map<string, PresentationMultiviewEntry>();
   for (const entry of candidates) {
     if (entry.variantId !== undefined && entry.variantId !== variantId) continue;
-    const current = perSide[entry.view];
+    const current = byId.get(entry.view);
     if (current === undefined || (current.variantId === undefined && entry.variantId === variantId)) {
-      perSide[entry.view] = entry;
+      byId.set(entry.view, entry);
     }
   }
-  if (perSide.front === undefined && perSide.back === undefined && perSide.left === undefined && perSide.right === undefined) {
+  if (byId.size === 0) {
     return { views: [], warning: null };
   }
   const views: PresentationViewSelection[] = [];
   const dropped: string[] = [];
-  for (const side of SIDE_ORDER) {
-    const entry = perSide[side];
-    if (!entry) continue;
+  for (const entry of byId.values()) {
     const bytes = lookup(entry.image);
     if (!bytes || bytes.length === 0 || bytes.length > PRESENTATION_MAX_IMAGE_BYTES) {
       dropped.push(entry.image);
@@ -375,7 +424,7 @@ export function selectPresentationModel(
 ): PresentationModelSelection {
   if (!manifestPresent) return { modelPath: null, label: null, warning: null };
   if (!manifest) return { modelPath: null, label: null, warning: 'Reference preview data was invalid and has been ignored.' };
-  if (manifest.version !== 2 || !manifest.models || manifest.models.length === 0) {
+  if ((manifest.version !== 2 && manifest.version !== 3) || !manifest.models || manifest.models.length === 0) {
     // A valid one-input package may be image-only — benign, not a warning.
     return { modelPath: null, label: null, warning: null };
   }
@@ -489,7 +538,7 @@ export function selectPresentationPackageAssets(
     if (retained.length === 0) return [];
     return [{ path: PHOTO_MAPPINGS_PATH, bytes: serializePhotoMappings({ version: 1, mappings: retained }) }];
   };
-  if (manifest.version === 2) {
+  if (manifest.version === 2 || manifest.version === 3) {
     const retainedViews = manifest.views.filter((entry) => configurations.some((configuration) =>
       configuration.productId === entry.productId && (entry.variantId === undefined || configuration.variantId === entry.variantId)))
       .filter((entry) => {
@@ -517,10 +566,14 @@ export function selectPresentationPackageAssets(
         return asset !== undefined && readRasterHeader(asset.bytes)?.mediaType === ALLOWLISTED_MEDIA[extensionOf(entry.image)];
       });
     if (retainedViews.length === 0 && retainedModels.length === 0 && retainedReferences.length === 0) return [];
+    // Sorted for determinism (v2 legacy keeps image order, which preserves
+    // the historical front/back/left/right sequence from the writer).
     const sortedViews = [...retainedViews].sort((a, b) => (a.image < b.image ? -1 : a.image > b.image ? 1 : 0));
     const sortedModels = [...retainedModels].sort((a, b) => (a.model < b.model ? -1 : a.model > b.model ? 1 : 0));
     const sortedReferences = [...retainedReferences].sort((a, b) => (a.image < b.image ? -1 : a.image > b.image ? 1 : 0));
-    const rewritten: { version: 2; views: typeof sortedViews; models?: typeof sortedModels; references?: typeof sortedReferences } = { version: 2, views: sortedViews };
+    // The envelope version rides through unchanged (v2 stays v2 byte-shape;
+    // v3 keeps its flexible identities) so issuing never downgrades views.
+    const rewritten: { version: 2 | 3; views: typeof sortedViews; models?: typeof sortedModels; references?: typeof sortedReferences } = { version: manifest.version, views: sortedViews };
     if (sortedModels.length > 0) rewritten.models = sortedModels;
     if (sortedReferences.length > 0) rewritten.references = sortedReferences;
     const paths = [...new Set([...sortedViews.map((entry) => entry.image), ...sortedModels.map((entry) => entry.model), ...sortedReferences.map((entry) => entry.image)])].sort();

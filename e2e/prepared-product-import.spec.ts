@@ -10,13 +10,19 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildCandidateExport } from '../src/core/index.js';
 import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
-import { parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { appendPreparedProduct, preparedEvidencePaths } from '../src/core/project-builder/prepared-import.js';
+import { assertProjectEditorLimits } from '../src/core/project-editor/index.js';
+import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-html/index.js';
 
-// Prepared-product import roundtrip (inspector bridge -> Builder -> customer
-// file -> placements in the same mm regions -> confirm/save/reopen ->
-// baseline review -> candidate JSON consistent). Opens built pages and
+// Prepared-product roundtrip (developer conversion output -> ordinary Open
+// saved project -> customer file -> placements in the same mm regions ->
+// confirm/save/reopen -> baseline review -> candidate JSON consistent). The
+// station no longer offers a prepared-JSON import control: prepared products
+// reach the operator as ordinary saved projects, built here in Node through
+// the same validated core (append + exact-byte evidence-hash check +
+// packaging) the removed station control used to run. Opens built pages and
 // generated packages through file:// in offline contexts with synthetic
 // fixtures only. Every test asserts zero console/page errors and zero
 // HTTP(S) requests.
@@ -25,7 +31,6 @@ const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').updat
 const sha256Text: Sha256HexFn = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 const FIXTURE_PATH = resolve(process.cwd(), 'e2e/fixtures/prepared-bridge-product.json');
-const REVIEW_HTML = pathToFileURL(resolve(process.cwd(), 'dist/dev/customer-return-review.html')).href;
 
 const CUSTOMER = 'Acme Athletics';
 const ISSUED_BY = 'Internal operator';
@@ -81,34 +86,124 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
     if (/^https?:/i.test(request.url())) probe.networkRequests.push(request.url());
   });
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await page.locator('[data-builder-hook="job-landing-create"]').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();
   return { context, page, probe };
 }
 
 async function createFromCatalogue(page: Page): Promise<void> {
-  await (await shown(page, 'start-create')).click();
-  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+  // Landing create already lands on Prepare job: no hidden wizard steps to
+  // advance through.
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+}
+
+/**
+ * Developer-side prepared build: append the bridge fixture to a fresh draft,
+ * verify the evidence digest over the EXACT bytes that will be packaged, and
+ * emit an ordinary saved project. Mirrors the checks the former station
+ * import control applied, so tampered evidence fails here before the station
+ * ever sees it; the station only ever Opens the resulting saved project.
+ */
+async function buildPreparedProjectPackage(fixturePath: string = FIXTURE_PATH): Promise<{ fileName: string; bytes: Uint8Array }> {
+  const parsed: unknown = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const base: ProjectDocument = {
+    schemaVersion: '0.1.0-provisional',
+    projectId: 'SYN-PREPARED-BASE',
+    revision: 1,
+    products: [],
+    logos: [],
+    configurations: [],
+  };
+  const appended = appendPreparedProduct(base, parsed);
+  if (!appended.ok) {
+    throw new Error(`prepared product rejected: ${appended.errors.map((error) => `${error.code} at ${error.path}`).join('; ')}`);
+  }
+  const importedProductId = appended.project.products[appended.project.products.length - 1]!.id;
+  if (appended.areaBundleText === null) {
+    throw new Error('prepared product rejected: area bundle text supplied without its SHA-256; refusing to package unverified evidence');
+  }
+  if (appended.areaBundleSha256 === null) {
+    throw new Error('prepared product rejected: area bundle text supplied without its SHA-256; refusing to package unverified evidence');
+  }
+  const evidenceBytes = new Uint8Array(Buffer.from(appended.areaBundleText, 'utf8'));
+  const evidenceDigest = createHash('sha256').update(evidenceBytes).digest('hex');
+  if (evidenceDigest !== appended.areaBundleSha256) {
+    throw new Error('prepared product rejected: evidence hash mismatch at areaBundleSha256 (recorded digest does not match the evidence bytes); refusing to package unverified evidence');
+  }
+  const evidencePaths = preparedEvidencePaths(importedProductId);
+  const additionalAssets: Array<{ path: string; bytes: Uint8Array }> = [];
+  if (appended.sidecar !== null && typeof appended.sidecar === 'object') {
+    additionalAssets.push({ path: evidencePaths.sidecar, bytes: new Uint8Array(Buffer.from(JSON.stringify(appended.sidecar, null, 2), 'utf8')) });
+  }
+  additionalAssets.push({ path: evidencePaths.areaBundle, bytes: evidenceBytes });
+  assertProjectEditorLimits(appended.project);
+  const packageBytes = await createProjectPackage(
+    { project: appended.project, assets: [], additionalAssets },
+    { sha256 },
+  );
+  return { fileName: 'prepared-bridge.logo-project', bytes: packageBytes };
 }
 
 async function importPreparedFixture(page: Page): Promise<void> {
-  // The Add button opens the native file picker for human operators; the
-  // file input itself drives the import, so automation sets files directly.
-  await expect(await shown(page, 'prepared-product-add')).toBeEnabled();
-  await (await shown(page, 'prepared-product-file')).setInputFiles(FIXTURE_PATH);
-  await expect(await shown(page, 'product-status')).toContainText('Imported prepared product with');
+  // No prepared-JSON import control remains in normal station UI: the
+  // prepared product arrives as an ordinary saved project through the real
+  // Open control, exactly as an operator reopens handoff work.
+  const { fileName, bytes } = await buildPreparedProjectPackage();
+  await page.locator('[data-builder-hook="job-open-file"]').setInputFiles({
+    name: fileName, mimeType: 'application/zip', buffer: Buffer.from(bytes),
+  });
+  await expect(page.locator('[data-builder-hook="source-status"]')).toContainText(`Loaded ${fileName}`);
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+  await expect(await shown(page, 'product-status')).not.toContainText('Could not');
+}
+
+function approvalBranch(page: Page) {
+  return page.locator('[data-job-branch="approval"]');
+}
+
+/** Placements entry: Step 1 -> placements, explicit product/option scope where
+ * the workspace offers a choice, then the approval branch. */
+async function enterApprovalBranch(page: Page): Promise<import('@playwright/test').Locator> {
+  await page.locator('[data-builder-hook="job-to-placements"]').click();
+  await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+  for (const selectHook of ['pw-product-select', 'pw-option-select']) {
+    const select = page.locator(`[data-placement-hook="${selectHook}"]`);
+    if (await select.count() > 0) {
+      const value = await select.evaluate((element) => (element as HTMLSelectElement).options[0]?.value ?? '');
+      if (value !== '') await select.selectOption(value);
+    }
+  }
+  await page.getByRole('button', { name: 'Send for customer approval' }).click();
+  const branch = approvalBranch(page);
+  await expect(branch).toBeVisible();
+  await expect(branch.getByRole('heading', { name: 'Send for customer approval' })).toBeVisible();
+  return branch;
 }
 
 async function issueCustomerFile(page: Page, job: string): Promise<{ issuedProjectId: string }> {
-  await (await shown(page, 'step-details')).click();
+  // Identity lives directly on Step 1 (Prepare the job) in the job shell.
   await (await shown(page, 'customer-name')).fill(CUSTOMER);
   await (await shown(page, 'job-ref')).fill(job);
   await (await shown(page, 'issued-by')).fill(ISSUED_BY);
-  await revealBuilderControl(page, 'project-id');
-  const issuedProjectId = await builder(page, 'project-id').inputValue();
+  const branch = await enterApprovalBranch(page);
+  await (await shown(page, 'job-issue-project-new')).click();
+  const issuedProjectId = await page.locator('[data-builder-hook="job-issue-project-id"]').inputValue();
   assert.ok(issuedProjectId.length > 0);
-  await (await shown(page, 'generate')).click();
-  await expect(await shown(page, 'generate-status')).toContainText(`Customer file ready (revision 1)`);
+  await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+  await expect(branch.getByText('Customer file created')).toBeVisible();
   return { issuedProjectId };
+}
+
+async function readOfficeCopy(page: Page, fileName: string): Promise<Uint8Array> {
+  return readDownload(page, fileName, () =>
+    approvalBranch(page).getByRole('button', { name: 'Save office copy', exact: true }).click());
+}
+
+async function readCustomerFile(page: Page, fileName: string): Promise<Uint8Array> {
+  return readDownload(page, fileName, () =>
+    approvalBranch(page).getByRole('button', { name: 'Save customer file', exact: true }).click());
 }
 
 /** Synthetic 20x10 PNG bytes rendered in the page (exact original bytes). */
@@ -167,12 +262,16 @@ function expectOfflineClean(probe: Probe): void {
   expect(probe.networkRequests).toEqual([]);
 }
 
-test('imports a prepared product and issues it with exact mm geometry and sidecar evidence', async ({ browser }) => {
+test('opens a prepared saved project and issues it with exact mm geometry and sidecar evidence', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     await createFromCatalogue(page);
     await importPreparedFixture(page);
-    // The imported product is listed and selected for the issue.
+    // The prepared product is listed; the operator selects it for the issue.
+    // Opening a saved project never pre-selects anything (empty start), so
+    // tick the imported product deliberately like a human operator.
+    const bridgeBox = builder(page, 'product-list').locator('input[type="checkbox"][value="SYN-BRIDGE-001"]');
+    await bridgeBox.check();
     const checked = await page.evaluate((): string[] => {
       const root = document.querySelector('[data-builder-hook="product-list"]');
       if (!root) throw new Error('Missing builder product list.');
@@ -182,11 +281,16 @@ test('imports a prepared product and issues it with exact mm geometry and sideca
     });
     expect(checked).toContain('SYN-BRIDGE-001');
 
-    // A malformed file fails atomically and keeps the imported product.
-    const badPath = test.info().outputPath('not-a-product.json');
+    // A malformed saved project fails to open atomically and keeps the loaded project.
+    // Ticking the product above dirtied the job, so opening raises the inline
+    // Save/Discard/Keep-editing guard first: discard explicitly, then the
+    // failed open must keep the previous project intact.
+    const badPath = test.info().outputPath('not-a-product.logo-project');
     await writeFile(badPath, '{"product": {"id": 7}}');
-    await (await shown(page, 'prepared-product-file')).setInputFiles(badPath);
-    await expect(await shown(page, 'product-status')).toContainText('Could not import prepared product');
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(badPath);
+    await expect(page.locator('[data-builder-hook="builder-alert"]')).toContainText('unsaved changes');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Could not load not-a-product.logo-project');
     const kept = await page.evaluate((): string[] => {
       const root = document.querySelector('[data-builder-hook="product-list"]');
       if (!root) throw new Error('Missing builder product list.');
@@ -195,9 +299,7 @@ test('imports a prepared product and issues it with exact mm geometry and sideca
     expect(kept).toContain('SYN-BRIDGE-001');
 
     const { issuedProjectId } = await issueCustomerFile(page, 'BRIDGE-JOB-1');
-    const officeCopy = await readDownload(page, 'office-copy.logo-project', () =>
-      shown(page, 'download-baseline').then((control) => control.click()),
-    );
+    const officeCopy = await readOfficeCopy(page, 'office-copy.logo-project');
     const issued = await parseProjectPackage(officeCopy, { sha256 });
     expect(issued.project.revision).toBe(1);
     expect(issued.project.confirmation).toBeUndefined();
@@ -242,9 +344,7 @@ test('imports a prepared product and issues it with exact mm geometry and sideca
     expect(areaRecord.exclusions).toEqual([{ id: 'hole', name: 'Button hole', polygon: [{ x: 10, y: 10 }, { x: 20, y: 10 }, { x: 20, y: 20 }, { x: 10, y: 20 }] }]);
 
     // The delivered self-contained customer file embeds the same bytes.
-    const customerHtml = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
-      shown(page, 'download-package').then((control) => control.click()),
-    );
+    const customerHtml = await readCustomerFile(page, 'OPEN_LOGO_CONFIGURATOR.html');
     const embedded = extractEmbeddedProjectPackage(customerHtml);
     assert.ok(embedded, 'customer HTML should embed the issued project package');
     const embeddedParsed = await parseProjectPackage(embedded, { sha256 });
@@ -276,21 +376,17 @@ async function issuePreparedDelivery(page: Page, job: string): Promise<{
   const png = await syntheticPngBytes(page);
   await (await shown(page, 'logo-file')).setInputFiles({ name: 'bridge-mark.png', mimeType: 'image/png', buffer: Buffer.from(png) });
   await expect(await shown(page, 'logo-status')).toContainText('Added bridge-mark.png');
-  // Empty start: the imported product arrives unselected; select everything
+  // Empty start: the opened project arrives unselected; select everything
   // deliberately before issuing.
   await selectAllLists(page);
   const { issuedProjectId } = await issueCustomerFile(page, job);
-  const officeCopy = await readDownload(page, 'office-copy.logo-project', () =>
-    shown(page, 'download-baseline').then((control) => control.click()),
-  );
+  const officeCopy = await readOfficeCopy(page, 'office-copy.logo-project');
   const officeParsed = await parseProjectPackage(officeCopy, { sha256 });
   const preparedConfig = officeParsed.project.configurations.find((config) => config.productId === 'SYN-BRIDGE-001');
   assert.ok(preparedConfig, 'issued project should configure the imported prepared product');
   const uploadedLogo = officeParsed.project.logos.find((logo) => logo.name === 'bridge mark');
   assert.ok(uploadedLogo, 'issued project should carry the uploaded raster logo');
-  const customerHtml = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
-    shown(page, 'download-package').then((control) => control.click()),
-  );
+  const customerHtml = await readCustomerFile(page, 'OPEN_LOGO_CONFIGURATOR.html');
   return { issuedProjectId, preparedConfigId: preparedConfig.id, uploadedLogoId: uploadedLogo.id, officeCopy, customerHtml };
 }
 
@@ -357,7 +453,7 @@ async function placeConfirmAndSubmit(
   return new Uint8Array(await readFile(returnPath));
 }
 
-test('customer places in the imported mm region, confirms, saves and reopens', async ({ browser }) => {
+test('customer places in the prepared mm region, confirms, saves and reopens', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   const directory = await mkdtemp(join(tmpdir(), 'LogoTool prepared bridge roundtrip '));
   try {
@@ -398,34 +494,53 @@ test('baseline review of the prepared-product return yields a consistent candida
     const returnBytes = await placeConfirmAndSubmit(editor, htmlPath, issuedProjectId, preparedConfigId, uploadedLogoId, (name) => test.info().outputPath(name));
     await editor.close();
 
-    // Baseline review in the standalone reviewer: candidate JSON is consistent.
+    // Branch review of the prepared-product return: the office copy plus the
+    // customer return open in the approval branch, the validated changes show,
+    // Use installs them, and the Step 3 review diagnostic candidate matches the
+    // returned project bytes exactly.
     const reviewer = await context.newPage();
     attachProbe(reviewer, probe);
-    await reviewer.goto(REVIEW_HTML);
-    await expect(reviewer.locator('h1')).toHaveText('Review a customer return');
-    await reviewer.locator('[data-review-hook="baseline-file"]').setInputFiles({
+    await gotoBuilder(reviewer);
+    await reviewer.locator('[data-builder-hook="job-landing-create"]').click();
+    await expect(reviewer.locator('[data-job-step="prepare"]')).toBeVisible();
+    await reviewer.locator('[data-builder-hook="job-response"]').click();
+    const reviewBranch = reviewer.locator('[data-job-branch="approval"]');
+    await expect(reviewBranch).toBeVisible();
+    await reviewBranch.locator('input[aria-label="Choose the saved office copy for this job"]').setInputFiles({
       name: 'office-copy.logo-project',
       mimeType: 'application/zip',
       buffer: Buffer.from(officeCopy),
     });
-    await expect(reviewer.locator('[data-review-hook="status"]')).toContainText('Opened the saved copy');
-    await reviewer.locator('[data-review-hook="return-file"]').setInputFiles({
+    const responseStatus = reviewBranch.locator('section[aria-label="Customer response"] [role="status"]');
+    await expect(responseStatus).toContainText('Office copy loaded');
+    await reviewBranch.locator('input[aria-label="Choose the returned customer file"]').setInputFiles({
       name: 'bridge-return.logo-project',
       mimeType: 'application/zip',
       buffer: Buffer.from(returnBytes),
     });
-    await expect(reviewer.locator('[data-review-hook="review-panel"]')).toBeVisible();
-    await expect(reviewer.locator('[data-review-hook="candidate-status"]')).toContainText('candidate-pending-review');
-    // The candidate download lives inside the collapsed Technical details
-    // disclosure; expand it through its summary like a human operator.
-    await reviewer.evaluate(() => {
-      const details = document.querySelector<HTMLDetailsElement>('[data-review-hook="technical-details"]');
-      if (!details) throw new Error('Missing technical details disclosure.');
-      details.open = true;
-    });
-    await expect(reviewer.locator('[data-review-hook="technical-details"]')).toHaveAttribute('open', '');
+    await expect(responseStatus).toContainText('Response checked against the office copy');
+    await expect(responseStatus).toContainText('choose Use customer changes or Keep current job');
+    await reviewBranch.getByRole('button', { name: 'Use customer changes', exact: true }).click();
+    await expect(reviewer.locator('[data-job-step="placements"]')).toBeVisible();
+    // Explicit inclusion for the scoped review: Use installs the validated
+    // content unselected, and the review document/candidate covers only
+    // checked products/setups. Tick everything deliberately, as on Step 1.
+    await reviewer.locator('[data-builder-hook="job-step-1"]').click();
+    await expect(reviewer.locator('[data-job-step="prepare"]')).toBeVisible();
+    for (const listHook of ['product-list', 'logo-list', 'configuration-list']) {
+      const list = reviewer.locator(`[data-builder-hook="${listHook}"]`);
+      const boxes = list.locator('input[type="checkbox"]');
+      for (let index = 0; index < await boxes.count(); index += 1) {
+        const box = boxes.nth(index);
+        if (await box.isVisible() && await box.isEnabled()) await box.check();
+      }
+    }
+    await reviewer.locator('[data-builder-hook="job-step-3"]').click();
+    await expect(reviewer.locator('[data-job-step="review"]')).toBeVisible();
+    const reviewStep = reviewer.locator('[data-job-step="review"]');
+    await reviewStep.locator('summary', { hasText: 'More output options' }).click();
     const candidateTextPromise = reviewer.waitForEvent('download');
-    await reviewer.locator('[data-review-hook="candidate-download"]').click();
+    await reviewStep.getByRole('button', { name: 'Save diagnostic data', exact: true }).click();
     const candidateDownload = await candidateTextPromise;
     const candidatePath = await candidateDownload.path();
     assert.ok(candidatePath, 'candidate JSON download should be retained');
@@ -458,17 +573,16 @@ test('baseline review of the prepared-product return yields a consistent candida
   }
 });
 
-test('rejects tampered evidence digests and discards obsolete evidence hashes', async ({ browser }) => {
+test('rejects tampered evidence digests before the station ever sees them', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     await createFromCatalogue(page);
     await importPreparedFixture(page);
 
-    // Tampered digest: identical evidence text but a forged SHA-256 under a
-    // distinct product id (reusing the imported id would fail earlier on
-    // duplicate-id, never reaching the cryptographic check). The hash check —
-    // not the kernel's format check — must reject it before anything is
-    // committed; the previous source stays intact and the forgery is absent.
+    // Tampered digest: identical evidence text but a forged SHA-256. The
+    // developer-side build hashes the exact bytes it would package and
+    // refuses before anything reaches the station; the previously opened
+    // project stays intact and the forgery is absent.
     const tamperedPath = test.info().outputPath('tampered-digest.json');
     const forged = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as {
       product: { id: string };
@@ -479,8 +593,7 @@ test('rejects tampered evidence digests and discards obsolete evidence hashes', 
     forged.sidecar.labels.product.id = 'SYN-BRIDGE-FORGED';
     forged.areaBundleSha256 = 'cd'.repeat(32);
     await writeFile(tamperedPath, JSON.stringify(forged));
-    await (await shown(page, 'prepared-product-file')).setInputFiles(tamperedPath);
-    await expect(await shown(page, 'product-status')).toContainText('evidence hash mismatch');
+    await expect(buildPreparedProjectPackage(tamperedPath)).rejects.toThrow('evidence hash mismatch');
     const kept = await page.evaluate((): string[] => {
       const root = document.querySelector('[data-builder-hook="product-list"]');
       if (!root) throw new Error('Missing builder product list.');
@@ -489,49 +602,7 @@ test('rejects tampered evidence digests and discards obsolete evidence hashes', 
     expect(kept).toContain('SYN-BRIDGE-001');
     expect(kept.filter((id) => id === 'SYN-BRIDGE-001')).toHaveLength(1);
     expect(kept).not.toContain('SYN-BRIDGE-FORGED');
-
-    // Obsolete hash: hold the first SubtleCrypto digest (the evidence hash),
-    // obsolete the import by staging a product, then release. The late hash
-    // must be discarded: no second product, no success status, prior source
-    // and outputs preserved.
-    const secondPath = test.info().outputPath('second-product.json');
-    const second = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as { product: { id: string } };
-    second.product.id = 'SYN-BRIDGE-002';
-    await writeFile(secondPath, JSON.stringify(second));
-    await page.evaluate(() => {
-      const native = crypto.subtle.digest.bind(crypto.subtle);
-      const state = window as Window & { releaseDigest?: () => void; digestHeld?: boolean; digestDone?: boolean };
-      let held = false;
-      crypto.subtle.digest = (algorithm, data) => {
-        if (!held) {
-          held = true;
-          state.digestHeld = true;
-          return new Promise<ArrayBuffer>((resolve, reject) => { state.releaseDigest = () => { void native(algorithm, data).then((bytes) => { state.digestDone = true; resolve(bytes); }, reject); }; });
-        }
-        return native(algorithm, data);
-      };
-    });
-    await (await shown(page, 'prepared-product-file')).setInputFiles(secondPath);
-    await expect(await shown(page, 'product-status')).toContainText('Reading prepared product');
-    // Wait until the evidence hash is actually held before obsoleting the
-    // import: the release below must free a stale hash, not win a race.
-    await expect.poll(() => page.evaluate(() => (window as Window & { digestHeld?: boolean }).digestHeld)).toBe(true);
-    await (await shown(page, 'product-file')).setInputFiles({
-      name: 'synthetic-block.glb',
-      mimeType: 'model/gltf-binary',
-      buffer: Buffer.from(readFileSync('examples/models/synthetic-block.glb')),
-    });
-    await expect(await shown(page, 'product-status')).toContainText('Staged 3D model');
-    await page.evaluate(() => (window as Window & { releaseDigest?: () => void }).releaseDigest!());
-    await expect.poll(() => page.evaluate(() => (window as Window & { digestDone?: boolean }).digestDone)).toBe(true);
-    const products = await page.evaluate((): string[] => {
-      const root = document.querySelector('[data-builder-hook="product-list"]');
-      if (!root) throw new Error('Missing builder product list.');
-      return Array.from(root.querySelectorAll('input[type="checkbox"]')).map((element) => (element as HTMLInputElement).value);
-    });
-    expect(products).not.toContain('SYN-BRIDGE-002');
-    expect(products).toContain('SYN-BRIDGE-001');
-    expect(await shown(page, 'product-status')).not.toContainText('Imported prepared product SYN-BRIDGE-002');
+    await expect(await shown(page, 'source-status')).toContainText('Loaded prepared-bridge.logo-project');
     expectOfflineClean(probe);
   } finally {
     await context.close();

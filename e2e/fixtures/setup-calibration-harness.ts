@@ -1,0 +1,123 @@
+/**
+ * setup-calibration-harness.ts — self-contained browser entry for
+ * e2e/setup-calibration.spec.ts (W3-owned).
+ *
+ * Mounts the REAL ModelViewer plus the NEW model-setup-view against a
+ * synthetic GLB loaded at runtime. No images, no network, no server: the
+ * spec bundles this file with repo-local esbuild, inlines the IIFE into a
+ * generated HTML page, and opens it through file:// in an offline context.
+ * Synthetic fixtures only.
+ */
+import { ModelViewer } from '../../src/viewer/model-viewer.js';
+import { createModelSetupView } from '../../src/ui/internal-builder/model-setup-view.js';
+import type { ModelSetupSnapshot } from '../../src/ui/internal-builder/model-setup-view.js';
+
+declare global {
+  // eslint-disable-next-line no-unused-vars
+  interface Window {
+    __setupHarness: unknown;
+  }
+}
+
+const canvas = document.getElementById('gl') as HTMLCanvasElement | null;
+const stage = document.getElementById('stage') as HTMLElement | null;
+const host = document.getElementById('setup') as HTMLElement | null;
+
+if (!canvas || !stage || !host) {
+  throw new Error('setup-calibration harness: missing #gl, #stage or #setup nodes.');
+}
+
+let viewer: ModelViewer | null = null;
+let lastSnapshot: ModelSetupSnapshot | null = null;
+let lastStatusText = '';
+const activeProductId: string | null = 'SYN-BOX';
+
+const attached = ModelViewer.attach({ canvas, container: stage, background: 0xffffff });
+viewer = attached.viewer;
+
+const handle = createModelSetupView(
+  host,
+  () => viewer,
+  () => canvas,
+  () => ({
+    products: [{ productId: 'SYN-BOX', productName: 'Syn Box', modelPath: 'harness/model.glb' }],
+    activeProductId,
+    assetKey: 'harness-asset-1',
+  }),
+  {
+    onStatus: (message: string): void => {
+      lastStatusText = message;
+    },
+    onChange: (snapshot: ModelSetupSnapshot): void => {
+      lastSnapshot = snapshot;
+    },
+  },
+);
+handle.refresh();
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    out[index] = binary.charCodeAt(index);
+  }
+  return out;
+}
+
+window.__setupHarness = {
+  attachKind(): string {
+    return attached.status.kind;
+  },
+  async loadGlb(base64: string): Promise<string> {
+    if (!viewer) return 'no-viewer';
+    const status = await viewer.showModel(base64ToBytes(base64));
+    handle.refresh();
+    return status.kind;
+  },
+  anchorsVisible(): boolean {
+    return viewer !== null && viewer.getAnchorsVisible();
+  },
+  safeAreasVisible(): boolean {
+    return viewer !== null && viewer.getSafeAreasVisible();
+  },
+  productVisible(): boolean {
+    return viewer !== null && viewer.getProductVisible();
+  },
+  /**
+   * Actual rendered pixels differing from the white stage background
+   * (sampled every 4th pixel). Proves the model mesh really paints (or is
+   * really gone) rather than trusting a flag. -1 when no viewer is live.
+   */
+  nonBackgroundPixels(): number {
+    if (!viewer) return -1;
+    const source = canvas as HTMLCanvasElement;
+    const width = source.width;
+    const height = source.height;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return -1;
+    const probe = document.createElement('canvas');
+    probe.width = width;
+    probe.height = height;
+    const context = probe.getContext('2d', { willReadFrequently: true });
+    if (!context) return -1;
+    context.drawImage(source, 0, 0);
+    const data = context.getImageData(0, 0, width, height).data;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      const r = data[i]!;
+      const g = data[i + 1]!;
+      const b = data[i + 2]!;
+      if (255 - r + (255 - g) + (255 - b) > 48) count += 1;
+    }
+    return count;
+  },
+  lastStatus(): string {
+    return lastStatusText;
+  },
+  lastSnapshot(): ModelSetupSnapshot | null {
+    return lastSnapshot;
+  },
+  canvasBox(): { x: number; y: number; width: number; height: number } | null {
+    const rect = canvas.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  },
+};

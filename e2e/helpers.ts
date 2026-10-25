@@ -81,27 +81,44 @@ export async function gotoBuilder(page: Page): Promise<void> {
   await page.goto(BUILDER_URL);
 }
 
-/** Navigate the guided builder to the mode/disclosure holding a control. */
+/** Navigate the operator job shell to the step/branch holding a control. */
 export async function revealBuilderControl(page: Page, name: string): Promise<void> {
   const selector = `[data-builder-hook="${name}"]`;
-  const control = page.locator(selector).first();
-  const mode = await control.evaluate(
-    (element) => element.closest('[data-builder-mode-panel]')?.getAttribute('data-builder-mode-panel'),
-  );
-  if (mode) {
-    const panel = page.locator(`[data-builder-mode-panel="${mode}"]`).first();
-    if (!await panel.isVisible()) {
-      await page.locator(`[data-builder-hook="mode-${mode}"]`).first().click();
-      await panel.first().waitFor({ state: 'visible' });
+  // Legacy wizard entry points map onto the operator job shell.
+  const entryRedirects: Record<string, string> = {
+    'start-create': 'job-landing-create',
+    'source-choose': 'job-open',
+  };
+  if (entryRedirects[name]) {
+    const target = page.locator(`[data-builder-hook="${entryRedirects[name]}"]`).first();
+    if (await target.isVisible()) {
+      await revealControl(page, `[data-builder-hook="${entryRedirects[name]}"]`);
+      return;
     }
   }
+  const control = page.locator(selector).first();
   // Status assertions can inspect hidden context without changing the journey.
   // Interactive controls and disclosed review content use real step navigation.
   if (!await control.isDisabled() && !name.endsWith('status') && !['builder-next','builder-back','size-estimate','handoff-summary'].includes(name)) {
     const step = await control.evaluate(element => element.closest('[data-builder-step]')?.getAttribute('data-builder-step'));
-    if (step && !await page.locator(`[data-builder-step="${step}"]`).isVisible()) {
-      const tabs: Record<string,string> = {open:'open',choose:'choose',details:'details',send:'send',office:'office',return:'return',check:'check'};
-      await page.locator(`[data-builder-hook="step-${tabs[step]}"]`).click();
+    if (step) {
+      // Legacy wizard sections map onto job-shell locations: setup/identity
+      // content lives in Prepare job; the legacy check section is superseded
+      // by Review document. Legacy send/office/return issue and response
+      // sections are superseded by the approval branch: route to placements,
+      // where the branch entry lives, and let branch flows drive branch UI.
+      const jobTarget: Record<string, string> = { open: 'prepare', choose: 'prepare', details: 'prepare', send: 'placements', office: 'placements', return: 'placements', check: 'review' };
+      const target = jobTarget[step];
+      if (target && !await page.locator(`[data-builder-step="${step}"]`).isVisible()) {
+        if (target === 'prepare') await page.locator('[data-builder-hook="job-step-1"]').first().click();
+        else if (target === 'placements') await page.locator('[data-builder-hook="job-step-2"]').first().click();
+        else await page.locator('[data-builder-hook="job-step-3"]').first().click();
+      }
+    }
+    const jobStep = await control.evaluate(element => element.closest('[data-job-step]')?.getAttribute('data-job-step'));
+    if (jobStep && !await page.locator(`[data-job-step="${jobStep}"]`).isVisible()) {
+      const nav: Record<string, string> = { prepare: 'job-step-1', placements: 'job-step-2', review: 'job-step-3' };
+      if (nav[jobStep]) await page.locator(`[data-builder-hook="${nav[jobStep]}"]`).first().click();
     }
   }
   await revealControl(page, selector);

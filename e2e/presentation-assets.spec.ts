@@ -126,41 +126,53 @@ test('Builder prunes unselected reference images and preserves the selected imag
   let directory = '';
   try {
     await gotoBuilder(page);
-    await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toBeVisible();
+    await page.locator('[data-builder-hook="job-landing-create"]').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     const source = await fixture(); const png = await syntheticPng(page);
     const references = source.project.configurations.map((configuration,index) => ({ productId:configuration.productId,variantId:configuration.variantId,image:`presentation/product-${index}.png` }));
     const bytes = await packageWith(source.project,source.assets,[{ path:'presentation/preview.json',bytes:new TextEncoder().encode(JSON.stringify({ version:1,references })) },...references.map(entry => ({ path:entry.image,bytes:png })),{ path:'presentation/unrelated.png',bytes:png }]);
     const show = async (name: string) => { await revealBuilderControl(page, name); const visible = page.locator(`[data-builder-hook="${name}"]`).filter({ visible: true }); if ((await visible.count()) > 0) return visible; return page.locator(`[data-builder-hook="${name}"]`); };
-    await (await show('source-file')).setInputFiles({ name:'synthetic-reference-source.logo-project',mimeType:'application/zip',buffer:Buffer.from(bytes) });
-    // Loading advances to Choose items and hides the Start panel. Read the
-    // status directly so this assertion survives that navigation boundary.
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles({ name:'synthetic-reference-source.logo-project',mimeType:'application/zip',buffer:Buffer.from(bytes) });
     await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded');
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     // Empty start: select everything deliberately before refining.
     await selectAllLists(page);
     await expect(await show('selection-summary')).toContainText('2 products');
     const secondProduct = source.project.products[1]!.id;
     await (await show('product-list')).locator(`input[value="${secondProduct}"]:not([data-product])`).uncheck();
     await expect(await show('selection-summary')).toContainText('1 product');
-    await (await show('builder-next')).click();
-    await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
+    // Identity lives directly on Step 1 (Prepare the job) in the job shell.
     for (const [name,value] of Object.entries({ 'customer-name':'Synthetic visual customer','job-ref':'VISUAL-QA','issued-by':'Synthetic QA' })) await (await show(name)).fill(value);
-    const issuedProjectId = await (await show('project-id')).inputValue();
-    expect(issuedProjectId.length).toBeGreaterThan(0);
-    const primary = await show('generate');
-    await expect(primary).toContainText('Create customer file');
-    await primary.click();
-    await expect(await show('generate-status')).toContainText(`Customer file ready (revision 1)`);
-    await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
-    await expect(await show('download-baseline')).toContainText('Save office copy');
-    await expect(await show('download-package')).toContainText('Save customer file');
-    const baseline = await downloadBytes(page,() => show('download-baseline').then(control => control.click()));
+    // Approval branch: Step 1 -> placements (explicit scope where offered) ->
+    // Send for customer approval, with a fresh issue ID for this delivery.
+    await page.locator('[data-builder-hook="job-to-placements"]').click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    for (const selectHook of ['pw-product-select', 'pw-option-select']) {
+      const select = page.locator(`[data-placement-hook="${selectHook}"]`);
+      if (await select.count() > 0) {
+        const value = await select.evaluate((element) => (element as HTMLSelectElement).options[0]?.value ?? '');
+        if (value !== '') await select.selectOption(value);
+      }
+    }
+    await page.getByRole('button', { name: 'Send for customer approval' }).click();
+    const branch = page.locator('[data-job-branch="approval"]');
+    await expect(branch).toBeVisible();
+    await expect(branch.getByRole('heading', { name: 'Send for customer approval' })).toBeVisible();
+    await (await show('job-issue-project-new')).click();
+    const issueId = await page.locator('[data-builder-hook="job-issue-project-id"]').inputValue();
+    expect(issueId.length).toBeGreaterThan(0);
+    await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+    await expect(branch.getByText('Customer file created')).toBeVisible();
+    await expect(branch.getByRole('button', { name: 'Save office copy', exact: true })).toBeVisible();
+    await expect(branch.getByRole('button', { name: 'Save customer file', exact: true })).toBeVisible();
+    const baseline = await downloadBytes(page,() => branch.getByRole('button', { name: 'Save office copy', exact: true }).click());
     const parsed = await parseProjectPackage(baseline,{ sha256 });
     const retainedManifest = JSON.parse(new TextDecoder().decode(parsed.assets.find(asset => asset.path === 'presentation/preview.json')!.bytes));
     expect(retainedManifest.references).toHaveLength(1);
     expect(parsed.assets.some(asset => asset.path === 'presentation/product-1.png')).toBe(false);
     expect(parsed.assets.some(asset => asset.path === 'presentation/unrelated.png')).toBe(false);
-    const html = await downloadBytes(page,() => show('download-package').then(control => control.click()));
+    const html = await downloadBytes(page,() => branch.getByRole('button', { name: 'Save customer file', exact: true }).click());
     directory = await mkdtemp(join(tmpdir(),'LogoTool reference delivery ')); const htmlPath = join(directory,'OPEN.html'); await writeFile(htmlPath,html);
     const customer = await context.newPage(); customer.on('pageerror',error => probe.pageErrors.push(String(error))); customer.on('console',message => { if(message.type()==='error') probe.consoleErrors.push(message.text()); });
     await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeHidden();
@@ -171,11 +183,14 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const returned = await downloadBytes(customer,() => hook(customer,'submit').click());
     const parsedReturn = await parseProjectPackage(returned,{ sha256 });
     expect(parsedReturn.assets.filter(asset => asset.kind==='additional')).toEqual(parsed.assets.filter(asset => asset.kind==='additional'));
-    await (await show('mode-review')).click();
-    await expect(page.locator('[data-builder-step="office"]')).toBeVisible();
-    await (await show('return-file')).setInputFiles({ name:'reference-return.logo-project',mimeType:'application/zip',buffer:Buffer.from(returned) });
-    await expect(await show('review-panel')).toBeVisible();
-    await expect(await show('review-changes')).not.toBeEmpty();
+    // Branch response review: the stored office copy is the baseline, the
+    // return validates against it, and installing lands on Step 2.
+    await branch.getByLabel('Choose the saved office copy for this job').setInputFiles({ name:'reference-office-copy.logo-project',mimeType:'application/zip',buffer:Buffer.from(baseline) });
+    await expect(branch).toContainText('Office copy loaded');
+    await branch.getByLabel('Choose the returned customer file').setInputFiles({ name:'reference-return.logo-project',mimeType:'application/zip',buffer:Buffer.from(returned) });
+    await expect(branch).toContainText('Response checked against the office copy');
+    await branch.getByRole('button', { name: 'Use customer changes' }).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
     assertCleanProbe(probe);
   } finally { await context.close(); if(directory) await rm(directory,{recursive:true,force:true}); }
 });

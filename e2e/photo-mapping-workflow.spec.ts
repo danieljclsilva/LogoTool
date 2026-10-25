@@ -35,8 +35,49 @@ async function openBuilder(browser: Browser): Promise<{ context: BrowserContext;
   const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await page.locator('[data-builder-hook="job-landing-create"]').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();
   return { context, page };
+}
+
+function approvalBranch(page: Page) {
+  return page.locator('[data-job-branch="approval"]');
+}
+
+/** Placements entry: Step 1 -> placements, explicit product/option scope where
+ * the workspace offers a choice, then the approval branch. */
+async function enterApprovalBranch(page: Page): Promise<import('@playwright/test').Locator> {
+  await page.locator('[data-builder-hook="job-to-placements"]').click();
+  await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+  for (const selectHook of ['pw-product-select', 'pw-option-select']) {
+    const select = page.locator(`[data-placement-hook="${selectHook}"]`);
+    if (await select.count() > 0) {
+      const value = await select.evaluate((element) => (element as HTMLSelectElement).options[0]?.value ?? '');
+      if (value !== '') await select.selectOption(value);
+    }
+  }
+  await page.getByRole('button', { name: 'Send for customer approval' }).click();
+  const branch = approvalBranch(page);
+  await expect(branch).toBeVisible();
+  await expect(branch.getByRole('heading', { name: 'Send for customer approval' })).toBeVisible();
+  return branch;
+}
+
+/** Branch issue: fresh issue ID, Create customer file, then both downloads. */
+async function issueViaBranch(page: Page, officeName: string, customerName: string): Promise<{ officeCopy: Uint8Array; customerHtml: Uint8Array }> {
+  const branch = await enterApprovalBranch(page);
+  await (await shown(page, 'job-issue-project-new')).click();
+  const issueId = await page.locator('[data-builder-hook="job-issue-project-id"]').inputValue();
+  assert.ok(issueId.length > 0, 'branch mints a fresh issue project ID');
+  await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+  await expect(branch.getByText('Customer file created')).toBeVisible();
+  const officeCopy = await readDownload(page, officeName, () =>
+    branch.getByRole('button', { name: 'Save office copy', exact: true }).click());
+  const customerHtml = await readDownload(page, customerName, () =>
+    branch.getByRole('button', { name: 'Save customer file', exact: true }).click());
+  return { officeCopy, customerHtml };
 }
 
 async function syntheticPng(page: Page, color: string): Promise<Uint8Array> {
@@ -113,8 +154,9 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     const { bytes: sourceBytes, png } = await mappedSource(page);
     const sourcePath = join(directory, 'mapping-source.logo-project');
     await writeFile(sourcePath, sourceBytes);
-    await (await shown(page, 'source-file')).setInputFiles(sourcePath);
-    await expect(await shown(page, 'source-status')).toContainText('Loaded mapping-source.logo-project');
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(sourcePath);
+    await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded mapping-source.logo-project');
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     // A raster customer logo for the real artwork overlay.
     await (await shown(page, 'logo-file')).setInputFiles({ name: 'overlay.png', mimeType: 'image/png', buffer: Buffer.from(png) });
     await expect(await shown(page, 'logo-status')).toContainText('Added overlay.png');
@@ -153,15 +195,35 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     await expect(await shown(page, 'mapping-status-line')).toContainText('Check failed');
     await expect(await shown(page, 'mapping-saved')).toContainText('SYN-TEE-CHEST');
 
-    // ---- Issue with the staged mapping serialized into the package. ----
-    await (await shown(page, 'builder-next')).click();
+    // ---- The branch issues saved source assets only: staged-but-unsaved
+    // photo mappings ship only after Save master + reopen. Persist the
+    // staged mapping into a prepared master, then reopen it (the reopened
+    // master restores the mapping setup, so issuing needs no re-entry).
+    const masterBytes = await readDownload(page, 'mapping-master.logo-project', () =>
+      shown(page, 'save-master').then((control) => control.click()));
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles({ name: 'mapping-master.logo-project', mimeType: 'application/zip', buffer: Buffer.from(masterBytes) });
+    await expect.poll(async () => {
+      const alert = await page.locator('[data-builder-hook="builder-alert"]').innerText().catch(() => '');
+      if (alert.includes('This job has unsaved changes')) {
+        await page.getByRole('button', { name: 'Discard changes' }).click();
+      }
+      return page.locator('[data-builder-hook="source-status"]').innerText();
+    }).toContain('Loaded mapping-master.logo-project');
+    await page.locator('[data-builder-hook="job-step-1"]').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    // Reopening resets logo imports and selection: re-upload the raster
+    // artwork and select everything deliberately again.
+    await (await shown(page, 'logo-file')).setInputFiles({ name: 'overlay.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await expect(await shown(page, 'logo-status')).toContainText('Added overlay.png');
+    await selectAllLists(page);
+    await expect(await shown(page, 'selection-summary')).toContainText('2 products');
+
+    // ---- Issue with the saved mapping serialized into the package. ----
+    // Identity lives directly on Step 1 (Prepare the job) in the job shell.
     await (await shown(page, 'customer-name')).fill('Mapping QA');
     await (await shown(page, 'job-ref')).fill('MAP-01');
     await (await shown(page, 'issued-by')).fill('Mapping operator');
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('revision 1');
-    const baseline = await readDownload(page, 'mapping-baseline.logo-project', () =>
-      shown(page, 'download-baseline').then((control) => control.click()));
+    const { officeCopy: baseline, customerHtml: html } = await issueViaBranch(page, 'mapping-baseline.logo-project', 'OPEN_LOGO_CONFIGURATOR.html');
     const issued = await parseProjectPackage(baseline, { sha256 });
     const mappingBytes = issued.assets.find((asset) => asset.path === 'presentation/photo-mappings.json')?.bytes;
     assert.ok(mappingBytes, 'issued package carries the staged photo mapping');
@@ -174,8 +236,6 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     );
 
     // ---- Customer: mapped photo proof with real PNG artwork. ----
-    const html = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
-      shown(page, 'download-package').then((control) => control.click()));
     const htmlPath = join(directory, 'OPEN.html');
     await writeFile(htmlPath, html);
     const customer = await context.newPage();
@@ -247,28 +307,44 @@ test('operator maps a photo, issues it, and the customer proves placement on the
     await expect(hook('confirmation')).toContainText('Confirmed: version');
     await customer.close();
 
-    // ---- Staff review: baseline holds, candidate matches, proof is provisional. ----
-    await (await shown(page, 'mode-review')).click();
-    await (await shown(page, 'baseline-file')).setInputFiles({ name: 'mapping-baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline) });
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
-    await (await shown(page, 'return-file')).setInputFiles({ name: 'mapping-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(savedReturn) });
-    await expect(await shown(page, 'review-panel')).toBeVisible();
-    await expect(await shown(page, 'review-changes')).toContainText('Mapped proof instructions.');
+    // ---- Staff review: baseline holds, candidate matches, proof is provisional.
+    // The office copy plus the customer return open in the approval branch;
+    // Use installs the validated content, and Step 3 review carries the
+    // operation document plus the diagnostic candidate.
+    const branch = approvalBranch(page);
+    await expect(branch).toBeVisible();
+    await branch.locator('input[aria-label="Choose the saved office copy for this job"]').setInputFiles({ name: 'mapping-baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline) });
+    const responseStatus = branch.locator('section[aria-label="Customer response"] [role="status"]');
+    await expect(responseStatus).toContainText('Office copy loaded');
+    await branch.locator('input[aria-label="Choose the returned customer file"]').setInputFiles({ name: 'mapping-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(savedReturn) });
+    await expect(responseStatus).toContainText('Response checked against the office copy');
+    await expect(branch).toContainText('Mapped proof instructions.');
+    await branch.getByRole('button', { name: 'Use customer changes', exact: true }).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    // Explicit inclusion for the scoped review: Use installs the validated
+    // content unselected, and the review document/candidate covers only
+    // checked products/setups. Tick everything deliberately, as on Step 1.
+    await page.locator('[data-builder-hook="job-step-1"]').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await selectAllLists(page);
+    await page.locator('[data-builder-hook="job-step-3"]').click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    const reviewStep = page.locator('[data-job-step="review"]');
+    await reviewStep.locator('summary', { hasText: 'More output options' }).click();
     const candidateBytes = await readDownload(page, 'mapping-candidate.json', () =>
-      shown(page, 'candidate-download').then((control) => control.click()));
+      reviewStep.getByRole('button', { name: 'Save diagnostic data', exact: true }).click());
     const candidate = JSON.parse(new TextDecoder().decode(candidateBytes));
     const returned = await parseProjectPackage(savedReturn, { sha256 });
     assert.equal(candidate.revision, returned.project.revision);
     assert.equal(candidate.digest, buildCandidateExport(returned.project, sha256Text).digest);
-    await (await shown(page, 'preview-document')).click();
     // The one-sheet preview composites the actual mapped PNG artwork (photo
     // + real artwork through the evaluated mapping), never just binding
     // metadata; SVG originals stay unrendered. Captions are side-only with
     // one trial disclaimer for the sheet.
-    await expect(page.locator('svg.opsheet-photo-svg').first()).toBeVisible();
-    await expect(page.locator('image.opsheet-artwork-overlay')).toHaveCount(1);
-    await expect(page.locator('figure.opsheet-photo figcaption').first()).toHaveText('front');
-    await expect(page.locator('p.opsheet-trial-note')).toHaveCount(1);
+    await expect(reviewStep.locator('svg.opsheet-photo-svg').first()).toBeVisible();
+    await expect(reviewStep.locator('image.opsheet-artwork-overlay')).toHaveCount(1);
+    await expect(reviewStep.locator('figure.opsheet-photo figcaption').first()).toHaveText('front');
+    await expect(reviewStep.locator('p.opsheet-trial-note')).toHaveCount(1);
     expect(probe.pageErrors).toEqual([]);
     expect(probe.consoleErrors).toEqual([]);
     expect(probe.networkRequests).toEqual([]);
@@ -429,11 +505,10 @@ test('staged mappings survive Save master, reopen, issue and the mapped photo pr
     try {
       const sourcePath = join(directory, 'reuse-source.logo-project');
       await writeFile(sourcePath, sourceBytes);
-      // Open through the real native file chooser on the visible action.
-      const chooserPromise = page.waitForEvent('filechooser');
-      await (await shown(page, 'source-choose')).click();
-      await (await chooserPromise).setFiles(sourcePath);
-      await expect(await shown(page, 'source-status')).toContainText('Loaded reuse-source.logo-project');
+      // Open through the supported header Open job input.
+      await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(sourcePath);
+      await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded reuse-source.logo-project');
+      await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
       // Without staged mappings the master saves verbatim.
       const plainMaster = await readDownload(page, 'plain-master.logo-project', () =>
         shown(page, 'save-master').then((control) => control.click()));
@@ -477,15 +552,15 @@ test('staged mappings survive Save master, reopen, issue and the mapped photo pr
       // re-entering the mapping, and the customer sees the mapped photo proof.
       const fresh = await context.newPage();
       await gotoBuilder(fresh);
-      await fresh.locator('[data-builder-hook="source-file"]').setInputFiles({
+      await fresh.locator('[data-builder-hook="job-landing-create"]').click();
+      await expect(fresh.locator('[data-job-step="prepare"]')).toBeVisible();
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles({
         name: 'master.logo-project', mimeType: 'application/zip', buffer: Buffer.from(master),
       });
       await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('Loaded master.logo-project');
       const freshShown = async (name: string) => {
         await revealBuilderControl(fresh, name);
-        return ['builder-next', 'builder-back'].includes(name)
-          ? fresh.locator(`[data-builder-hook="${name}"]`).filter({ visible: true }).first()
-          : fresh.locator(`[data-builder-hook="${name}"]`);
+        return fresh.locator(`[data-builder-hook="${name}"]`);
       };
       const freshLists = ['product-list', 'logo-list', 'configuration-list'] as const;
       for (const listHook of freshLists) {
@@ -496,15 +571,36 @@ test('staged mappings survive Save master, reopen, issue and the mapped photo pr
           if (await box.isVisible() && await box.isEnabled()) await box.check();
         }
       }
-      await (await freshShown('builder-next')).click();
+      // Identity lives directly on Step 1 (Prepare the job) in the job shell.
       await (await freshShown('customer-name')).fill('Master QA');
       await (await freshShown('job-ref')).fill('MASTER-01');
       await (await freshShown('issued-by')).fill('Master operator');
-      await (await freshShown('generate')).click();
-      await expect(await freshShown('generate-status')).toContainText('revision 1');
+      const freshEnterBranch = async () => {
+        await fresh.locator('[data-builder-hook="job-to-placements"]').click();
+        await expect(fresh.locator('[data-job-step="placements"]')).toBeVisible();
+        for (const selectHook of ['pw-product-select', 'pw-option-select']) {
+          const select = fresh.locator(`[data-placement-hook="${selectHook}"]`);
+          if (await select.count() > 0) {
+            const value = await select.evaluate((element) => (element as HTMLSelectElement).options[0]?.value ?? '');
+            if (value !== '') await select.selectOption(value);
+          }
+        }
+        await fresh.getByRole('button', { name: 'Send for customer approval' }).click();
+        const branch = fresh.locator('[data-job-branch="approval"]');
+        await expect(branch).toBeVisible();
+        return branch;
+      };
+      const masterBranch = await freshEnterBranch();
+      // The issue ID control lives inside the approval branch: mint it only
+      // after entering the branch (mirrors landing→create→prepare→branch).
+      await (await freshShown('job-issue-project-new')).click();
+      const masterIssueId = await fresh.locator('[data-builder-hook="job-issue-project-id"]').inputValue();
+      assert.ok(masterIssueId.length > 0, 'branch mints a fresh issue project ID');
+      await masterBranch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+      await expect(masterBranch.getByText('Customer file created')).toBeVisible();
       const issuedMaster = await (async () => {
         const downloadPromise = fresh.waitForEvent('download');
-        await (await freshShown('download-baseline')).click();
+        await masterBranch.getByRole('button', { name: 'Save office copy', exact: true }).click();
         const download = await downloadPromise;
         const outputPath = join(directory, 'master-issued.logo-project');
         await download.saveAs(outputPath);
@@ -604,16 +700,32 @@ test('mapped proof print layout stays compact on two sides', async ({ browser })
       assets: sharedReferenced,
       additionalAssets: sharedAdditional,
     }, { sha256 });
-    await (await shown(page, 'mode-review')).click();
-    await (await shown(page, 'baseline-file')).setInputFiles({ name: 'baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baselineBytes) });
-    await expect(await shown(page, 'baseline-load-status')).toContainText('Loaded office copy');
-    await (await shown(page, 'return-file')).setInputFiles({ name: 'proof-print-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returnBytes) });
-    await expect(await shown(page, 'review-panel')).toBeVisible();
-    await (await shown(page, 'preview-document')).click();
-    const figures = page.locator('figure.opsheet-photo');
+    // Branch review of the synthetic baseline/return pair: the office copy and
+    // the return open in the approval branch, Use installs the validated
+    // content, and Step 3 review renders the operation document for the
+    // print-layout checks.
+    await page.locator('[data-builder-hook="job-response"]').click();
+    const printBranch = approvalBranch(page);
+    await expect(printBranch).toBeVisible();
+    await printBranch.locator('input[aria-label="Choose the saved office copy for this job"]').setInputFiles({ name: 'baseline.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baselineBytes) });
+    await expect(printBranch.locator('section[aria-label="Customer response"] [role="status"]')).toContainText('Office copy loaded');
+    await printBranch.locator('input[aria-label="Choose the returned customer file"]').setInputFiles({ name: 'proof-print-return.logo-project', mimeType: 'application/zip', buffer: Buffer.from(returnBytes) });
+    await expect(printBranch.locator('section[aria-label="Customer response"] [role="status"]')).toContainText('Response checked against the office copy');
+    await printBranch.getByRole('button', { name: 'Use customer changes', exact: true }).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    // Explicit inclusion for the scoped review: Use installs the validated
+    // content unselected, and the review figures render only for checked
+    // products/setups. Tick everything deliberately, as on Step 1.
+    await page.locator('[data-builder-hook="job-step-1"]').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await selectAllLists(page);
+    await page.locator('[data-builder-hook="job-step-3"]').click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    const reviewScope = page.locator('[data-job-step="review"]');
+    const figures = reviewScope.locator('figure.opsheet-photo');
     await expect(figures).toHaveCount(2);
     // Both sides composite their PNG artwork through the evaluated mappings.
-    await expect(page.locator('image.opsheet-artwork-overlay')).toHaveCount(2);
+    await expect(reviewScope.locator('image.opsheet-artwork-overlay')).toHaveCount(2);
     // Bounded figures on screen: well under one viewport per image.
     for (let index = 0; index < 2; index += 1) {
       const svg = figures.nth(index).locator('svg.opsheet-photo-svg');
@@ -634,8 +746,8 @@ test('mapped proof print layout stays compact on two sides', async ({ browser })
       expect(box.height).toBeLessThanOrEqual(360);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await expect(page.locator('figure.opsheet-photo figcaption').first()).toHaveText('Front');
-    await expect(page.locator('p.opsheet-trial-note')).toHaveCount(1);
+    await expect(reviewScope.locator('figure.opsheet-photo figcaption').first()).toHaveText('Front');
+    await expect(reviewScope.locator('p.opsheet-trial-note')).toHaveCount(1);
     await page.screenshot({ path: test.info().outputPath('proof-print.png'), fullPage: true });
     await page.emulateMedia({ media: 'screen' });
   } finally {

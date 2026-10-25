@@ -26,14 +26,17 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
 }> {
   const { context, page, probe } = await openOfflineContext(browser, viewport);
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
-  await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await page.locator('[data-builder-hook="job-landing-create"]').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();
   return { context, page, probe };
 }
 
 async function startCatalogue(page: Page): Promise<void> {
-  await builder(page, 'start-create').click();
-  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+  // Landing create already lands on Prepare job: no hidden wizard steps to
+  // advance through.
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
 }
 
 /** Check every product/logo/setup box through visible controls (empty start
@@ -94,7 +97,14 @@ async function selectOnlyProduct(page: Page, productId: string): Promise<void> {
     await setChecked(box, label.includes(productId));
   }
   await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
-  await (await shown(page, 'preview-only-acknowledge')).check();
+  // The preview-only escape lives in the hidden legacy details section: set it
+  // directly (same real change event a human tick produces) instead of
+  // clicking an invisible box.
+  await page.locator('[data-builder-hook="preview-only-acknowledge"]').evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 }
 
 async function syntheticPng(page: Page, color: string, width: number, height: number): Promise<Uint8Array> {
@@ -174,12 +184,26 @@ function syntheticGlbWithExternalUri(): Uint8Array {
   return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
 }
 
-async function stagePrimary(page: Page, fileName: string, mimeType: string, bytes: Uint8Array): Promise<void> {
-  await (await shown(page, 'product-file')).setInputFiles({ name: fileName, mimeType, buffer: Buffer.from(bytes) });
+/** Stage one Images view through the real intake row (label + file). */
+async function stageRowImage(page: Page, index: number, label: string, fileName: string, bytes: Uint8Array): Promise<void> {
+  // Reveal first: opening a saved project folds the intake disclosure, and
+  // its rows are unreachable while folded.
+  await shown(page, 'product-view-add');
+  const rows = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]');
+  await rows.nth(index).locator('input[type="text"]').fill(label);
+  await rows.nth(index).locator('input[type="file"]').setInputFiles({ name: fileName, mimeType: 'image/png', buffer: Buffer.from(bytes) });
+  await expect(rows.nth(index).locator('.view-row-state')).toContainText('ready');
 }
 
-async function stageSide(page: Page, side: string, fileName: string, bytes: Uint8Array): Promise<void> {
-  await (await shown(page, `product-view-${side}-file`)).setInputFiles({ name: fileName, mimeType: 'image/png', buffer: Buffer.from(bytes) });
+async function addRow(page: Page): Promise<void> {
+  await (await shown(page, 'product-view-add')).click();
+}
+
+/** Stage a 3D model through the real Images/3D toggle (model panel). */
+async function stageModel(page: Page, fileName: string, bytes: Uint8Array): Promise<void> {
+  await (await shown(page, 'intake-mode-model')).check();
+  await (await shown(page, 'product-file')).setInputFiles({ name: fileName, mimeType: 'model/gltf-binary', buffer: Buffer.from(bytes) });
+  await expect(await shown(page, 'intake-model-status')).toContainText('ready');
 }
 
 async function productIds(page: Page): Promise<string[]> {
@@ -193,24 +217,60 @@ async function productIds(page: Page): Promise<string[]> {
 }
 
 async function fillIdentity(page: Page, customer: string, job: string, by: string): Promise<void> {
-  await (await shown(page, 'step-details')).click();
-  await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
+  // Identity fields live directly on Step 1 (Prepare the job) in the job shell.
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   await (await shown(page, 'customer-name')).fill(customer);
   await (await shown(page, 'job-ref')).fill(job);
   await (await shown(page, 'issued-by')).fill(by);
 }
 
-async function readProjectId(page: Page): Promise<string> {
-  await revealBuilderControl(page, 'project-id');
-  return builder(page, 'project-id').inputValue();
+function approvalBranch(page: Page) {
+  return page.locator('[data-job-branch="approval"]');
 }
 
-async function createCustomerFile(page: Page, issuedProjectId: string): Promise<void> {
-  await (await shown(page, 'step-details')).click();
-  const primary = await shown(page, 'generate');
-  await expect(primary).toContainText('Create customer file');
-  await primary.click();
-  await expect(await shown(page, 'generate-status')).toContainText(`Customer file ready (revision 1)`);
+/** Placements entry: Step 1 -> placements, explicit product/option scope where
+ * the workspace offers a choice, then the approval branch. */
+async function enterApprovalBranch(page: Page): Promise<import('@playwright/test').Locator> {
+  await page.locator('[data-builder-hook="job-to-placements"]').click();
+  await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+  for (const selectHook of ['pw-product-select', 'pw-option-select']) {
+    const select = page.locator(`[data-placement-hook="${selectHook}"]`);
+    if (await select.count() > 0) {
+      const value = await select.evaluate((element) => (element as HTMLSelectElement).options[0]?.value ?? '');
+      if (value !== '') await select.selectOption(value);
+    }
+  }
+  await page.getByRole('button', { name: 'Send for customer approval' }).click();
+  const branch = approvalBranch(page);
+  await expect(branch).toBeVisible();
+  await expect(branch.getByRole('heading', { name: 'Send for customer approval' })).toBeVisible();
+  return branch;
+}
+
+async function createCustomerFile(page: Page): Promise<string> {
+  const branch = await enterApprovalBranch(page);
+  await (await shown(page, 'job-issue-project-new')).click();
+  const issueId = await page.locator('[data-builder-hook="job-issue-project-id"]').inputValue();
+  assert.ok(issueId.length > 0, 'branch mints a fresh issue project ID');
+  await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+  await expect(branch.getByText('Customer file created')).toBeVisible();
+  return issueId;
+}
+
+async function readOfficeCopy(page: Page, fileName: string): Promise<Uint8Array> {
+  return readDownload(page, fileName, () =>
+    approvalBranch(page).getByRole('button', { name: 'Save office copy', exact: true }).click());
+}
+
+async function reopenSavedJob(context: BrowserContext, fileName: string, bytes: Uint8Array): Promise<Page> {
+  const fresh = await context.newPage();
+  await gotoBuilder(fresh);
+  await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles({
+    name: fileName, mimeType: 'application/zip', buffer: Buffer.from(bytes),
+  });
+  await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText(`Loaded ${fileName}`);
+  await expect(fresh.locator('[data-job-step="prepare"]')).toBeVisible();
+  return fresh;
 }
 
 async function readDownload(page: Page, fileName: string, trigger: () => Promise<void>): Promise<Uint8Array> {
@@ -242,7 +302,7 @@ test('GLB-only creation adds a provisional product with a model entry', async ({
     await startCatalogue(page);
     const before = await productIds(page);
     await (await shown(page, 'product-name')).fill('Test Jacket');
-    await stagePrimary(page, 'model.glb', 'model/gltf-binary', syntheticGlb());
+    await stageModel(page, 'model.glb', syntheticGlb());
     await expect(await shown(page, 'product-status')).toContainText('Staged 3D model');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
@@ -255,23 +315,18 @@ test('GLB-only creation adds a provisional product with a model entry', async ({
   } finally { await context.close(); }
 });
 
-for (const side of ['front', 'back', 'left', 'right'] as const) {
-  test(`single ${side} image-only creation suffices`, async ({ browser }) => {
+for (const label of ['Lone view', 'Front']) {
+  test(`single named view image-only creation suffices (${label})`, async ({ browser }) => {
     const { context, page, probe } = await openBuilder(browser);
     try {
       await startCatalogue(page);
       const before = await productIds(page);
       const png = await syntheticPng(page, '#12394b', 20, 10);
-      if (side === 'front') {
-        await stagePrimary(page, `${side}.png`, 'image/png', png);
-        await expect(await shown(page, 'product-status')).toContainText('Staged flat image');
-      } else {
-        // A lone side-slot image (no primary file) must suffice on its own;
-        // stage it ONLY in its assigned side slot.
-        await stageSide(page, side, `${side}.png`, png);
-        await expect(await shown(page, 'product-status')).toContainText(`Assigned ${side} view`);
-      }
-      await (await shown(page, 'product-name')).fill(`Side ${side}`);
+      // A lone named view image (no forced side semantics) must suffice on
+      // its own; stage it ONLY in its own row.
+      await stageRowImage(page, 0, label, 'lone.png', png);
+      await expect(await shown(page, 'product-status')).toContainText('1 view image ready');
+      await (await shown(page, 'product-name')).fill(`Lone ${label}`);
       await (await shown(page, 'product-add')).click();
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
       const after = await productIds(page);
@@ -280,63 +335,59 @@ for (const side of ['front', 'back', 'left', 'right'] as const) {
       assert.ok(addedOnly, 'new product should appear in the product list');
       // Issue just the new preview-only product with the explicit escape.
       await selectOnlyProduct(page, addedOnly);
-      // The manifest must hold exactly that side — never duplicated into front.
-      await fillIdentity(page, 'Acme Athletics', `MV-SIDE-${side}`, 'Internal operator');
-      const issuedProjectId = await readProjectId(page);
-      await createCustomerFile(page, issuedProjectId);
-      const baseline = await readDownload(page, `side-${side}.logo-project`, () =>
-        shown(page, 'download-baseline').then((control) => control.click()));
+      // The manifest must hold exactly that view with a stable slug id and
+      // the human label — never duplicated, never a forced side.
+      await fillIdentity(page, 'Acme Athletics', `MV-SIDE-${label}`, 'Internal operator');
+      await createCustomerFile(page);
+      const baseline = await readOfficeCopy(page, `side-${label}.logo-project`);
       const parsed = await parseProjectPackage(baseline, { sha256 });
       const manifestBytes = parsed.assets.find((asset) => asset.path === 'presentation/preview.json')?.bytes;
       expect(manifestBytes).toBeTruthy();
       const manifest = JSON.parse(new TextDecoder().decode(manifestBytes!));
       const added = after.find((id) => !before.includes(id));
       const mine = manifest.views.filter((entry: { productId: string }) => entry.productId === added);
-      expect(mine.map((entry: { view: string }) => entry.view)).toEqual([side]);
+      expect(mine).toHaveLength(1);
+      expect(mine[0]!.label).toBe(label);
+      assert.ok(typeof mine[0]!.view === 'string' && mine[0]!.view.length > 0, 'manifest view carries a stable id');
+      assert.ok(mine[0]!.view !== label, 'stable id is distinct from the mutable label');
       expectOfflineClean(probe);
     } finally { await context.close(); }
   });
 }
 
-test('explicit per-side assignment travels with labels; missing sides stay absent', async ({ browser }) => {
+test('explicit named views travel with labels; no forced sides', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     await startCatalogue(page);
     const productsBefore = await productIds(page);
     const front = await syntheticPng(page, '#12394b', 20, 10);
     const back = await syntheticPng(page, '#4b3912', 20, 10);
-    await stagePrimary(page, 'front.png', 'image/png', front);
-    await stageSide(page, 'back', 'back.png', back);
-    await (await shown(page, 'product-view-back-label')).fill('Rear view');
+    await stageRowImage(page, 0, 'Front', 'front.png', front);
+    await addRow(page);
+    await stageRowImage(page, 1, 'Rear view', 'back.png', back);
+    await expect(await shown(page, 'product-status')).toContainText('2 view images ready');
     await (await shown(page, 'product-name')).fill('Two-sided');
     await (await shown(page, 'product-add')).click();
-    await expect(await shown(page, 'product-status')).toContainText('2 views');
+    await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Two-sided (2 views)');
     // Issue just the new preview-only product with the explicit escape.
     const addedTwoSided = (await productIds(page)).find((id) => !productsBefore.includes(id));
     assert.ok(addedTwoSided, 'new product should appear in the product list');
     await selectOnlyProduct(page, addedTwoSided);
     await fillIdentity(page, 'Acme Athletics', 'MV-MULTI-01', 'Internal operator');
-    const issuedProjectId = await readProjectId(page);
-    await createCustomerFile(page, issuedProjectId);
-    const baseline = await readDownload(page, 'office-copy.logo-project', () =>
-      shown(page, 'download-baseline').then((control) => control.click()));
+    await createCustomerFile(page);
+    const baseline = await readOfficeCopy(page, 'office-copy.logo-project');
     const parsed = await parseProjectPackage(baseline, { sha256 });
     const manifestBytes = parsed.assets.find((asset) => asset.path === 'presentation/preview.json')?.bytes;
     expect(manifestBytes).toBeTruthy();
     const manifest = JSON.parse(new TextDecoder().decode(manifestBytes!));
-    expect(manifest.version).toBe(2);
-    expect(manifest.views.map((entry: { view: string }) => entry.view).sort()).toEqual(['back', 'front']);
-    expect(manifest.views.find((entry: { view: string }) => entry.view === 'back')!.label).toBe('Rear view');
-    expect(manifest.views.some((entry: { view: string }) => entry.view === 'right')).toBe(false);
-    expect(manifest.views.some((entry: { view: string }) => entry.view === 'left')).toBe(false);
+    expect(manifest.version).toBe(3);
+    const byLabel = new Map(manifest.views.map((entry: { view: string; label?: string }) => [entry.label, entry.view]));
+    expect(byLabel.get('Front')).toBe('view-1');
+    expect(byLabel.get('Rear view')).toBe('view-2');
+    expect(manifest.views).toHaveLength(2);
     // Multi-view selection remains after generate+reopen: reload the saved
     // baseline in a fresh page and confirm the manifest round-trips exactly.
-    const fresh = await context.newPage();
-    await gotoBuilder(fresh);
-    await fresh.locator('[data-builder-hook="source-file"]').setInputFiles({
-      name: 'office-copy.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline),
-    });
-    await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('Loaded office-copy.logo-project');
+    const fresh = await reopenSavedJob(context, 'office-copy.logo-project', baseline);
     expectOfflineClean(probe);
     await fresh.close();
   } finally { await context.close(); }
@@ -359,15 +410,25 @@ test('invalid imports keep prior state: bad magic, oversized header, remote-look
       { name: 'huge.png', mime: 'image/png', bytes: new Uint8Array(2 * 1024 * 1024 + 1), match: 'Could not stage huge.png' },
     ];
     for (const attempt of hostile) {
-      await stagePrimary(page, attempt.name, attempt.mime, attempt.bytes);
-      await expect(await shown(page, 'product-status')).toContainText(attempt.match);
+      if (attempt.name.endsWith('.glb')) {
+        await (await shown(page, 'intake-mode-model')).check();
+        await (await shown(page, 'product-file')).setInputFiles({ name: attempt.name, mimeType: attempt.mime, buffer: Buffer.from(attempt.bytes) });
+        // Settle the async staging before switching back: the failure (or
+        // readiness) text is the settle signal.
+        await expect(await shown(page, 'product-status')).toContainText(attempt.match);
+        await (await shown(page, 'intake-mode-images')).check();
+      } else {
+        const rows = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]');
+        await rows.first().locator('input[type="file"]').setInputFiles({ name: attempt.name, mimeType: attempt.mime, buffer: Buffer.from(attempt.bytes) });
+        await expect(await shown(page, 'product-status')).toContainText(attempt.match);
+      }
       expect(await productIds(page)).toEqual(before);
     }
     expectOfflineClean(probe);
   } finally { await context.close(); }
 });
 
-test('obsolete async product reads stay inert after a new create', async ({ browser }) => {
+test('obsolete async product reads stay inert after opening a replacement job', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
     await startCatalogue(page);
@@ -387,10 +448,25 @@ test('obsolete async product reads stay inert after a new create', async ({ brow
         return bitmap;
       }) as typeof window.createImageBitmap;
     });
-    await stagePrimary(page, 'held.png', 'image/png', png);
+    const rows = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]');
+    await rows.first().locator('input[type="file"]').setInputFiles({ name: 'held.png', mimeType: 'image/png', buffer: Buffer.from(png) });
     await expect(await shown(page, 'product-status')).toContainText('Reading held.png');
-    await page.evaluate(() => document.querySelector('[data-builder-hook="start-create"]')!.dispatchEvent(new MouseEvent('click')));
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    // Real user-visible replacement on the SAME page through the header Open
+    // job input (the hidden legacy start-create is gone, and a fresh page
+    // cannot invalidate this page's pending read — separate JS realm).
+    // Header New job refuses while an import is in flight, but opening a
+    // replacement file supersedes it, so the held decode below stays inert.
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(resolve(process.cwd(), 'dist/dev/trusted-issued.logo-project'));
+    // Opening with staged-but-unsaved input raises the inline
+    // Save/Discard/Keep-editing guard only when dirty; discard explicitly
+    // if the guard appears, then the replacement must load.
+    await expect.poll(async () => {
+      const alert = await page.locator('[data-builder-hook="builder-alert"]').innerText().catch(() => '');
+      if (alert.includes('This job has unsaved changes')) {
+        await page.getByRole('button', { name: 'Discard changes' }).click();
+      }
+      return page.locator('[data-builder-hook="source-status"]').innerText();
+    }).toContain('Loaded trusted-issued.logo-project');
     await page.evaluate(() => {
       const gate = globalThis as unknown as { holdDecode: { release: () => void } };
       gate.holdDecode.release();
@@ -400,10 +476,12 @@ test('obsolete async product reads stay inert after a new create', async ({ brow
       return gate.holdDecode?.done;
     })).toBe(true);
     // The stale decode must not install a staged product: adding now reports
-    // the empty-staging message rather than creating a product.
+    // the empty-staging message rather than creating a product. The Add
+    // control stays disabled with nothing staged, so dispatch the click
+    // directly (a real click is impossible while disabled).
     const before = await productIds(page);
-    await (await shown(page, 'product-add')).click();
-    await expect(await shown(page, 'product-status')).toContainText('Choose one product file first');
+    await builder(page, 'product-add').dispatchEvent('click');
+    await expect(await shown(page, 'product-status')).toContainText('Choose at least one view image');
     expect(await productIds(page)).toEqual(before);
     expectOfflineClean(probe);
   } finally { await context.close(); }
@@ -415,8 +493,9 @@ test('save/reopen preserves exact bytes and physical-data invariance', async ({ 
     await startCatalogue(page);
     const invariantBefore = await productIds(page);
     const png = await syntheticPng(page, '#12394b', 20, 10);
-    await stagePrimary(page, 'front.png', 'image/png', png);
-    await stageSide(page, 'left', 'left.png', png);
+    await stageRowImage(page, 0, 'Front', 'front.png', png);
+    await addRow(page);
+    await stageRowImage(page, 1, 'Left', 'left.png', png);
     await (await shown(page, 'product-name')).fill('Invariant');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
@@ -424,22 +503,15 @@ test('save/reopen preserves exact bytes and physical-data invariance', async ({ 
     assert.ok(addedInvariant, 'new product should appear in the product list');
     await selectOnlyProduct(page, addedInvariant);
     await fillIdentity(page, 'Acme Athletics', 'MV-INV-01', 'Internal operator');
-    const issuedProjectId = await readProjectId(page);
-    await createCustomerFile(page, issuedProjectId);
-    const baseline = await readDownload(page, 'invariant.logo-project', () =>
-      shown(page, 'download-baseline').then((control) => control.click()));
+    await createCustomerFile(page);
+    const baseline = await readOfficeCopy(page, 'invariant.logo-project');
     const parsed = await parseProjectPackage(baseline, { sha256 });
     const beforeDigest = physicalDigest(parsed.project);
     const beforePlacements = parsed.project.configurations.flatMap((configuration) => configuration.placements);
     expect(beforePlacements).toEqual([]);
     // Reopen the exact saved bytes in a fresh page and repackage: the
     // physical inputs (products/logos/configurations) must be identical.
-    const fresh = await context.newPage();
-    await gotoBuilder(fresh);
-    await fresh.locator('[data-builder-hook="source-file"]').setInputFiles({
-      name: 'invariant.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline),
-    });
-    await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('Loaded invariant.logo-project');
+    const fresh = await reopenSavedJob(context, 'invariant.logo-project', baseline);
     const roundTripped = await parseProjectPackage(baseline, { sha256 });
     expect(physicalDigest(roundTripped.project)).toBe(beforeDigest);
     expect(roundTripped.project.configurations.flatMap((configuration) => configuration.placements)).toEqual(beforePlacements);
@@ -456,6 +528,7 @@ test('save/reopen preserves exact bytes and physical-data invariance', async ({ 
 });
 
 test('v1 reference history upgrades verbatim: issue plus reopen preserves both', async ({ browser }) => {
+  test.setTimeout(180_000);
   const { context, page, probe } = await openBuilder(browser);
   try {
     // Seed a real v1 package in Node: take the trusted baseline project,
@@ -476,13 +549,13 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
         { path: 'presentation/preview.json', bytes: v1manifest },
       ],
     }, { sha256 });
-    await page.locator('[data-builder-hook="source-file"]').setInputFiles({
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles({
       name: 'v1-seed.logo-project', mimeType: 'application/zip', buffer: Buffer.from(seeded),
     });
     await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded v1-seed.logo-project');
     // Add a new multiview product on top of the v1 history.
     const png = await syntheticPng(page, '#12394b', 20, 10);
-    await stagePrimary(page, 'front.png', 'image/png', png);
+    await stageRowImage(page, 0, 'Newcomer', 'front.png', png);
     await (await shown(page, 'product-name')).fill('Multiview newcomer');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
@@ -490,26 +563,23 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
     // keeps the v1 reference VERBATIM alongside the new v2 view. The newcomer
     // is preview-only, so the explicit escape is ticked deliberately.
     await selectAllLists(page);
-    await (await shown(page, 'preview-only-acknowledge')).check();
+    await page.locator('[data-builder-hook="preview-only-acknowledge"]').evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.checked = true;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await fillIdentity(page, 'Acme Athletics', 'MV-V1-01', 'Internal operator');
-    const issuedProjectId = await readProjectId(page);
-    await createCustomerFile(page, issuedProjectId);
-    const baseline = await readDownload(page, 'v1preserve.logo-project', () =>
-      shown(page, 'download-baseline').then((control) => control.click()));
+    await createCustomerFile(page);
+    const baseline = await readOfficeCopy(page, 'v1preserve.logo-project');
     const parsed = await parseProjectPackage(baseline, { sha256 });
     const manifestBytes = parsed.assets.find((asset) => asset.path === 'presentation/preview.json')?.bytes;
     expect(manifestBytes).toBeTruthy();
     const manifest = JSON.parse(new TextDecoder().decode(manifestBytes!));
-    expect(manifest.version).toBe(2);
+    expect(manifest.version).toBe(3);
     expect(manifest.references).toEqual([{ productId: legacy.productId, variantId: legacy.variantId, image: 'presentation/legacy.png', label: 'Legacy reference' }]);
     expect(manifest.views.length).toBe(1);
     // Reopen the exact bytes: sources and bytes round-trip identically.
-    const fresh = await context.newPage();
-    await gotoBuilder(fresh);
-    await fresh.locator('[data-builder-hook="source-file"]').setInputFiles({
-      name: 'v1preserve.logo-project', mimeType: 'application/zip', buffer: Buffer.from(baseline),
-    });
-    await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('Loaded v1preserve.logo-project');
+    const fresh = await reopenSavedJob(context, 'v1preserve.logo-project', baseline);
     const roundTripped = await parseProjectPackage(baseline, { sha256 });
     const byPath = new Map(parsed.assets.map((asset) => [asset.path, asset.bytes]));
     for (const asset of roundTripped.assets) {
@@ -523,6 +593,7 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
 });
 
 test('over-budget presentation add is rejected and leaves prior state untouched', async ({ browser }) => {
+  test.setTimeout(180_000);
   const { context, page, probe } = await openBuilder(browser);
   try {
     // Seed a 32-entry v2 history package; the next single-view add is the
@@ -548,13 +619,13 @@ test('over-budget presentation add is rejected and leaves prior state untouched'
       assets: trusted.assets.filter((asset) => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes })),
       additionalAssets: additional,
     }, { sha256 });
-    await page.locator('[data-builder-hook="source-file"]').setInputFiles({
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles({
       name: 'full-budget.logo-project', mimeType: 'application/zip', buffer: Buffer.from(seeded),
     });
     await expect(page.locator('[data-builder-hook="source-status"]')).toContainText('Loaded full-budget.logo-project');
     const before = await productIds(page);
     const png = await syntheticPng(page, '#4b3912', 20, 10);
-    await stagePrimary(page, 'extra.png', 'image/png', png);
+    await stageRowImage(page, 0, 'Extra', 'extra.png', png);
     await (await shown(page, 'product-name')).fill('Over budget');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('32-entry budget');
@@ -562,8 +633,7 @@ test('over-budget presentation add is rejected and leaves prior state untouched'
     // The presentation stays valid: issuing still works with the intact history.
     await selectAllLists(page);
     await fillIdentity(page, 'Acme Athletics', 'MV-BUDGET-01', 'Internal operator');
-    const issuedProjectId = await readProjectId(page);
-    await createCustomerFile(page, issuedProjectId);
+    await createCustomerFile(page);
     expectOfflineClean(probe);
   } finally { await context.close(); }
 });

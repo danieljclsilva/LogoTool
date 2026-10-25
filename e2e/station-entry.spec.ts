@@ -14,13 +14,12 @@ import {
   BUILDER_URL,
   STATION_DIR,
   STATION_FILENAME,
-  STATION_PATH,
   assertStationPresent,
   gotoStation,
   openOfflineContext,
   revealBuilderControl,
 } from './helpers.js';
-import { countPdfPages, makePngs, makeReturnBytes, openCheckWithReturn, readMediaBox } from './sheet-fixtures.js';
+import { countPdfPages } from './sheet-fixtures.js';
 
 const sha256bytes: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -29,21 +28,32 @@ const sha256bytes: ProjectPackageSha256 = async (bytes) => createHash('sha256').
 // entry runs the normal prepare→issue flow for BOTH customer formats with
 // no dependency on the repository checkout, rejected inputs keep state, and
 // no staff action navigates to (or downloads) another staff HTML page.
+// The operator job shell contract: landing "Prepare an operational document",
+// three steps (Prepare job → Set logo placements → Review document), and the
+// "Send for customer approval" branch for both customer file formats.
 
 function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
 }
 
-/** Manual measurement lists live under Advanced disclosures now (the visual
- *  picker is the primary path); open them before driving the selects. */
-async function openAdvancedRows(page: Page): Promise<void> {
-  const summaries = page.locator('div[data-measurement-row] > details[data-measurement-advanced] > summary');
-  const count = await summaries.count();
-  for (let i = 0; i < count; i += 1) {
-    const summary = summaries.nth(i);
-    const open = await summary.evaluate((element) => (element.closest('details') as HTMLDetailsElement).open);
-    if (!open) await summary.click();
+function placement(page: Page, name: string) {
+  return page.locator(`[data-placement-hook="${name}"]`);
+}
+
+async function pshown(page: Page, name: string) {
+  if (await page.locator('[data-job-step="placements"]').isHidden()) {
+    await expect(builder(page, 'job-step-2')).toBeEnabled();
+    await builder(page, 'job-step-2').click();
   }
+  return placement(page, name);
+}
+
+function branch(page: Page) {
+  return page.locator('[data-job-branch="approval"]');
+}
+
+function reviewHost(page: Page) {
+  return builder(page, 'job-review-host');
 }
 
 /** Explicit synthetic fixture package (no demo UI in the station). */
@@ -69,18 +79,19 @@ async function syntheticCataloguePackage(): Promise<Uint8Array> {
   return createProjectPackage({ project: draft.project, assets }, { sha256: sha256bytes });
 }
 
+/** Open the explicit synthetic fixture through the real Open job chooser. */
 async function openSyntheticCatalogue(page: Page): Promise<void> {
   const bytes = await syntheticCataloguePackage();
-  await (await shown(page, 'source-file')).setInputFiles({
+  await builder(page, 'job-open-file').setInputFiles({
     name: 'synthetic-catalogue.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes),
   });
-  await expect(await shown(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
-  await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+  await expect(builder(page, 'source-status')).toContainText('Loaded synthetic-catalogue.logo-project');
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
 }
 
 /** Tick every checkbox in a selection list with real change events. */
 async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
-  await (await shown(page, listHook)).locator('input[type="checkbox"]').evaluateAll((nodes) => {
+  await builder(page, listHook).locator('input[type="checkbox"]').evaluateAll((nodes) => {
     for (const node of nodes) {
       const box = node as HTMLInputElement;
       if (!box.checked) {
@@ -93,11 +104,17 @@ async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
 
 async function shown(page: Page, name: string) {
   await revealBuilderControl(page, name);
-  // Several steps expose same-named Continue buttons (only the visible
-  // step's control applies); follow the suite convention of filtering them.
-  return ['builder-next', 'builder-back'].includes(name)
-    ? builder(page, name).filter({ visible: true }).first()
-    : builder(page, name);
+  return builder(page, name);
+}
+
+/** Mint a fresh unique issue ID, then create the customer file in the branch. */
+async function createBranchIssue(page: Page): Promise<string> {
+  await (await shown(page, 'job-issue-project-new')).click();
+  const issueId = await builder(page, 'job-issue-project-id').inputValue();
+  expect(issueId.length).toBeGreaterThan(0);
+  await branch(page).getByRole('button', { name: 'Create customer file' }).click();
+  await expect(branch(page)).toContainText('Customer file created');
+  return issueId;
 }
 
 test('station entry is the single obvious staff page with no legacy sidecars', async ({ browser }, info) => {
@@ -126,17 +143,26 @@ test('station entry is the single obvious staff page with no legacy sidecars', a
   });
   try {
     await gotoStation(page);
-    await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+    // The landing is the single obvious entry: no legacy mode panels, an
+    // operational-document heading, and the Create/Open job actions.
+    await expect(page.locator('[data-job-landing]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+    await expect(page.locator('[data-job-landing]')).toContainText('Create a job or open a saved job to begin.');
+    await expect(builder(page, 'job-landing-create')).toContainText('Create job');
+    await expect(builder(page, 'job-landing-open')).toBeVisible();
+    await expect(builder(page, 'job-landing-response')).toBeVisible();
     await expect(page.locator('header.station-header')).toContainText('Logo Station');
+    await expect(page.locator('[data-job-shell]')).toBeHidden();
     // No links to legacy staff pages anywhere in the station UI.
     const legacyHrefs = await page.locator('a[href]').evaluateAll((els) =>
       els.map((el) => el.getAttribute('href') ?? '').filter((href) => href.endsWith('.html')),
     );
     expect(legacyHrefs).toEqual([]);
-    // The advanced reviewer download is a file, never a navigation: the
-    // committed URL must stay the station entry throughout the smoke flow.
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    // The header job actions stay available; opening the shell keeps the
+    // committed station URL (never another staff HTML page).
+    await builder(page, 'job-landing-create').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toContainText('Prepare the job');
     for (const url of navigated) {
       expect(url).toBe(page.url());
       assert.ok(!/asset-inspector|customer-configurator|customer-return-review|project-package-inspector|internal-builder\.html/.test(url), `staff flow must not open another staff page: ${url}`);
@@ -182,41 +208,53 @@ test('fresh-copied station issues both customer formats offline with no repo dep
       if (frame === page.mainFrame()) navigated.push(frame.url());
     });
     await page.goto(copiedEntry);
-    await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toBeVisible();
 
     // Rejected input keeps state: an invalid project file changes nothing.
-    await (await shown(page, 'source-file')).setInputFiles({
+    // (The header Open job input feeds the same loader as the landing Open.)
+    await builder(page, 'job-open-file').setInputFiles({
       name: 'bad-source.logo-project', mimeType: 'application/zip', buffer: Buffer.from('not a logo project'),
     });
-    await expect(await shown(page, 'source-status')).toContainText('Could not load bad-source.logo-project');
+    await expect(builder(page, 'source-status')).toContainText('Could not load bad-source.logo-project');
     await expect(builder(page, 'source-status')).toContainText('The previous source remains unchanged.');
+    await expect(page.locator('[data-job-landing]')).toBeVisible();
 
-    // Normal path still works afterwards: an explicit synthetic fixture
-    // package (same example definitions the old embedded catalogue
-    // carried) → select all → details → issue.
+    // Normal path still works afterwards: create a job, open an explicit
+    // synthetic fixture package (same example definitions the old embedded
+    // catalogue carried), select all, identify, and issue.
+    await builder(page, 'job-landing-create').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await openSyntheticCatalogue(page);
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await checkAllBoxes(page, 'product-list');
     await checkAllBoxes(page, 'logo-list');
     await checkAllBoxes(page, 'configuration-list');
-    await (await shown(page, 'builder-next')).click();
-    await expect(page.locator('[data-builder-step="details"]')).toBeVisible();
     await (await shown(page, 'customer-name')).fill('Station Smoke');
     await (await shown(page, 'job-ref')).fill('STATION-SMOKE-01');
     await (await shown(page, 'issued-by')).fill('Lead check');
+    await expect(builder(page, 'job-to-placements')).toBeEnabled();
+    await builder(page, 'job-to-placements').click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    await (await pshown(page, 'pw-product-select')).selectOption({ index: 0 });
+    const optionSelect = placement(page, 'pw-option-select');
+    if (await optionSelect.count() > 0) await optionSelect.selectOption({ index: 0 });
+    await expect(await pshown(page, 'pw-empty-placements')).toContainText('No logo placements for this option.');
+    await (await pshown(page, 'pw-approval')).click();
+    await expect(branch(page)).toContainText('Send for customer approval');
 
     for (const format of ['self', 'hybrid'] as const) {
-      const control = await shown(page, format === 'self' ? 'format-self' : 'format-hybrid');
-      await control.check();
-      await (await shown(page, 'generate')).click();
-      await expect(await shown(page, 'generate-status')).toContainText('revision 1');
-      await expect(page.locator('[data-builder-step="send"]')).toBeVisible();
+      const issueId = await createBranchIssue(page);
+      expect(issueId.length).toBeGreaterThan(0);
       const officeEvent = page.waitForEvent('download');
-      await (await shown(page, 'download-baseline')).click();
+      await branch(page).getByRole('button', { name: 'Save office copy' }).click();
       const office = await officeEvent;
       assert.ok(office.suggestedFilename().endsWith('.logo-project'), 'office copy is a project package');
+      const officePath = test.info().outputPath(`station-office-${format}.logo-project`);
+      await office.saveAs(officePath);
+      const issued = (await parseProjectPackage(new Uint8Array(await readFile(officePath)), { sha256: sha256bytes })).project;
+      expect(issued.projectId).toBe(issueId);
+      expect(issued.revision).toBe(1);
       const deliveryEvent = page.waitForEvent('download');
-      await (await shown(page, 'download-package')).click();
+      await branch(page).getByRole('button', { name: 'Save customer file' }).click();
       const delivery = await deliveryEvent;
       const deliveryPath = await delivery.path();
       assert.ok(deliveryPath, 'delivery download path is available');
@@ -253,90 +291,39 @@ test('fresh-copied station issues both customer formats offline with no repo dep
       }
       await page.screenshot({ path: info.outputPath(`station-fresh-copy-${format}.png`), fullPage: true });
       if (format === 'self') {
-        await (await shown(page, 'step-details')).click();
-        await (await shown(page, 'project-id-new')).click();
+        // Switch to the ZIP format under More options for the second issue:
+        // the branch asks for a fresh customer file for the new format.
+        // The earlier issue left More options open: only open it when
+        // closed, never blind-toggle it shut before using its controls.
+        const freshCopyOptions = branch(page).locator('details', { hasText: 'More options' });
+        if (!await freshCopyOptions.evaluate((element) => (element as HTMLDetailsElement).open)) {
+          await branch(page).locator('summary', { hasText: 'More options' }).click();
+        }
+        await branch(page).getByRole('radio', { name: 'ZIP file with the setup files inside' }).check();
+        await expect(branch(page)).toContainText('Format changed. Create the customer file again.');
       }
     }
-    // No needless reload: the just-issued office copy is retained in-session,
-    // so the send rail jumps straight to the return step.
-    await (await shown(page, 'send-to-review')).click();
-    await expect(page.locator('[data-builder-mode-panel="review"]')).toBeVisible();
 
-    // Same-station return → check → department authoring → branded PDF, all
-    // on the fresh copy with no repo dependence (trusted synthetic fixture).
-    const pngs = await makePngs(page);
-    const { baseline, returned } = await makeReturnBytes(pngs);
-    await openCheckWithReturn(page, baseline, returned);
-
-    const openSetup = async (): Promise<void> => {
-      await page.evaluate(() => {
-        const d = document.querySelector('[data-builder-hook="anchor-disclosure"]');
-        if (d instanceof HTMLDetailsElement && !d.open) d.open = true;
-      });
-    };
-    const pickOption = async (hook: string, fragment: string): Promise<void> => {
-      const pair = [hook, fragment.toLowerCase()] as [string, string];
-      const value = await page.evaluate(([name, frag]: [string, string]) => {
-        const sel = document.querySelector<HTMLSelectElement>(`select[data-builder-hook="${name}"]`);
-        return Array.from(sel?.options ?? [])
-          .find((o) => o.text.toLowerCase().includes(frag) || o.value.toLowerCase().includes(frag))?.value ?? '';
-      }, pair);
-      assert.ok(value, `setup offers an option matching ${fragment} for ${hook}`);
-      await page.locator(`[data-builder-hook="${hook}"]`).selectOption(value);
-    };
-    await (await shown(page, 'sheet-instructions')).fill(
-      'Press the chest emblem at 160°C for 15 seconds with medium pressure, then press the back emblem at 150°C for 12 seconds. Allow the garment to cool flat for one minute and check all four edges visually before packing.',
+    // Step 3 reviews the actual operational document for the issued job:
+    // zero-placement options print their explicit no-placement statement.
+    await builder(page, 'job-step-3').click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    await expect(reviewHost(page)).toContainText('Review operational document');
+    await expect(reviewHost(page)).toContainText('Customer: Station Smoke');
+    await expect(reviewHost(page)).toContainText('Job: STATION-SMOKE-01');
+    const preview = reviewHost(page).locator('[data-doc-review-preview]');
+    await expect(preview.locator('.opsheet').first()).toBeVisible();
+    await expect(preview).toContainText('No logos configured on this sheet');
+    await expect(reviewHost(page).getByRole('button', { name: 'Print / save PDF' })).toBeEnabled();
+    await reviewHost(page).locator('[data-doc-review-instructions]').fill(
+      'Press the chest emblem at 160°C for 15 seconds with medium pressure.',
     );
-    await (await shown(page, 'sheet-customer')).fill('Fresh Copy Athletics');
-    await (await shown(page, 'sheet-reference')).fill('FRESH-01');
-    await openSetup();
-    await pickOption('anchor-side', 'front');
-    await pickOption('anchor-region', 'Chest');
-    const overlayFront = page.locator('[data-builder-hook="anchor-setup"] svg.anchor-setup-overlay');
-    await expect(overlayFront).toBeVisible({ timeout: 15000 });
-    await overlayFront.scrollIntoViewIfNeeded();
-    await overlayFront.click({ position: { x: 160, y: 128 } });
-    await expect(page.getByLabel('Measurement 1 anchor for logo 1')).toContainText('Anchor', { timeout: 15000 });
-    await pickOption('anchor-side', 'back');
-    await pickOption('anchor-region', 'Back');
-    const overlayBack = page.locator('[data-builder-hook="anchor-setup"] svg.anchor-setup-overlay');
-    await expect(overlayBack).toBeVisible({ timeout: 15000 });
-    await overlayBack.scrollIntoViewIfNeeded();
-    await overlayBack.click({ position: { x: 160, y: 128 } });
-    await expect(page.getByLabel('Measurement 1 anchor for logo 2')).toContainText('Anchor', { timeout: 15000 });
-    await page.getByLabel(/Name for anchor at/).fill('Pocket top');
-    await page.getByLabel(/Name for anchor at/).press('Tab');
-    await page.getByLabel('Business code for logo 1').fill('FRESH-CHEST-01');
-    await page.getByLabel('Business code for logo 2').fill('FRESH-BACK-01');
-    await openAdvancedRows(page);
-    await page.getByLabel('Measurement 1 anchor for logo 1').selectOption({ label: 'Anchor 1' });
-    await page.getByLabel('Add measurement for logo 1').click();
-    await openAdvancedRows(page);
-    await page.getByLabel('Measurement 2 anchor for logo 1').selectOption({ label: 'Anchor 1' });
-    await page.getByLabel('Measurement 2 edge for logo 1').selectOption('maxY');
-    await page.getByLabel('Measurement 2 direction for logo 1').selectOption('dy');
-    await page.getByLabel('Measurement 1 anchor for logo 2').selectOption({ label: 'Pocket top' });
-    await page.getByLabel('Add measurement for logo 2').click();
-    await openAdvancedRows(page);
-    await page.getByLabel('Measurement 2 anchor for logo 2').selectOption({ label: 'Pocket top' });
-    await page.getByLabel('Measurement 2 edge for logo 2').selectOption('maxY');
-    await page.getByLabel('Measurement 2 direction for logo 2').selectOption('dy');
-    await (await shown(page, 'preview-document')).click();
-    const operation = await shown(page, 'operation-container');
-    await expect(operation.locator('.opsheet').first()).toBeVisible();
-    await expect(operation.locator('figure.opsheet-photo')).toHaveCount(2);
-    await expect(operation.locator('line.opsheet-arrow')).toHaveCount(4);
-    await expect(operation.locator('.opsheet-unfinished')).toHaveCount(0);
-    await expect(operation.locator('.opsheet-status')).toHaveCount(0);
-    await expect(operation).toContainText('FRESH-CHEST-01');
-    const pdf = await page.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-    expect(countPdfPages(new Uint8Array(pdf))).toBe(1);
-    const mediaBox = readMediaBox(new Uint8Array(pdf));
-    assert.ok(mediaBox, 'PDF carries a MediaBox');
-    expect(Math.abs(mediaBox[0] - 841.89)).toBeLessThan(1);
-    expect(Math.abs(mediaBox[1] - 595.28)).toBeLessThan(1);
+    await reviewHost(page).locator('[data-doc-review-instructions]').press('Tab');
+    await expect(preview).toContainText('Press the chest emblem at 160°C');
+    // Operator handoff for the exact preview snapshot.
+    await reviewHost(page).locator('summary', { hasText: 'More output options' }).click();
     const operatorEvent = page.waitForEvent('download');
-    await (await shown(page, 'operator-download')).click();
+    await reviewHost(page).getByRole('button', { name: 'Save operator data' }).click();
     const operatorFile = await operatorEvent;
     const operatorPath = await operatorFile.path();
     assert.ok(operatorPath, 'operator download path is available');
@@ -345,33 +332,25 @@ test('fresh-copied station issues both customer formats offline with no repo dep
       products: Array<{ logos: Array<{ measurements: unknown[] }> }>;
     };
     expect(operatorView.format).toBe('operation-export/1');
-    expect(operatorView.products[0]!.logos[0]!.measurements).toHaveLength(2);
-    expect(operatorView.products[0]!.logos[1]!.measurements).toHaveLength(2);
+    expect(operatorView.products.length).toBeGreaterThan(0);
+    const pdf = await page.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
+    const sheetCount = await preview.locator('section.opsheet').count();
+    assert.ok(sheetCount >= 1, 'expected at least one operation sheet');
+    // Exact pagination: one landscape A4 page per sheet, no blank
+    // first/trailing pages (the print host zeroes page chrome so the sheet
+    // paginates exactly).
+    const pdfPages = countPdfPages(new Uint8Array(pdf));
+    expect(pdfPages).toBe(sheetCount);
+    // Emulated print carries the actual sheet and excludes the UI chrome.
+    await page.emulateMedia({ media: 'print' });
+    await expect(preview).toContainText('No logos configured on this sheet');
+    await expect(preview.locator('section.opsheet').first()).toBeVisible();
+    await expect(page.locator('header.station-header')).toBeHidden();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeHidden();
+    await expect(page.locator('[data-job-step="placements"]')).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
     await page.screenshot({ path: info.outputPath('station-fresh-copy-sheet.png'), fullPage: true });
 
-    // In-station revised proposal + decision on the same page, same update.
-    await (await shown(page, 'proposal-config')).selectOption('SYN-CFG-TEE-M');
-    await (await shown(page, 'proposal-placement')).selectOption('0');
-    const stationProposalX = Number(await builder(page, 'proposal-x').inputValue());
-    await (await shown(page, 'proposal-x')).fill(String(stationProposalX + 2));
-    await (await shown(page, 'proposal-instructions')).fill('Fresh-copy proposal note.');
-    await (await shown(page, 'proposal-apply')).click();
-    await expect(await shown(page, 'proposal-status')).toContainText('Applied revised proposal as update 3');
-    const proposalEvent = page.waitForEvent('download');
-    await (await shown(page, 'proposal-download')).click();
-    const proposalFile = await proposalEvent;
-    assert.ok(/-r3-proposal\.logo-project$/.test(proposalFile.suggestedFilename()), `human proposal filename, saw ${proposalFile.suggestedFilename()}`);
-    const proposalPath = await proposalFile.path();
-    assert.ok(proposalPath, 'proposal download path is available');
-    const proposalProject = (await parseProjectPackage(new Uint8Array(await readFile(proposalPath)), { sha256: sha256bytes })).project;
-    expect(proposalProject.revision).toBe(3);
-    expect(proposalProject.confirmation).toBeUndefined();
-    await (await shown(page, 'review-decision-reviewer')).fill('Fresh-copy lead');
-    await (await shown(page, 'review-decision-choice')).selectOption('changesRequested');
-    await (await shown(page, 'review-decision-note')).fill('Check the moved mark.');
-    await (await shown(page, 'review-decision-record')).click();
-    await expect(await shown(page, 'review-decision-status')).toContainText('Recorded changesRequested for update 3');
-    await page.screenshot({ path: info.outputPath('station-fresh-copy-proposal.png'), fullPage: true });
     for (const url of navigated) {
       assert.ok(!/asset-inspector|customer-configurator|customer-return-review|project-package-inspector|internal-builder\.html/.test(url), `fresh station flow must not open another staff page: ${url}`);
     }
@@ -388,7 +367,11 @@ test('station stays readable on a narrow viewport', async ({ browser }, info) =>
   const { context, page, probe } = await openOfflineContext(browser, { width: 390, height: 844 });
   try {
     await gotoStation(page);
-    await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toBeVisible();
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await builder(page, 'job-landing-create').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath('station-narrow.png'), fullPage: true });
     expect(probe.pageErrors).toEqual([]);

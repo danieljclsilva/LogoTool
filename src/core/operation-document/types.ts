@@ -83,7 +83,12 @@ export interface OperationProofPlacement {
 
 /** One reference side of the compact proof summary. */
 export interface OperationProofSide {
-  /** Presentation side, or null for a legacy single reference. */
+  /**
+   * Stable presentation view id (never the mutable human label), or null
+   * for a legacy single reference. Legacy `front`/`back`/`left`/`right`
+   * names are ordinary view ids; flexible ids (e.g. `crown`, `sleeve`)
+   * pass through untouched with no forced garment semantics.
+   */
   view: string | null;
   label: string | null;
   imagePath: string;
@@ -194,7 +199,11 @@ export interface OperationArtwork {
 }
 
 export interface OperationReferenceView {
-  /** Presentation side (`front`/`back`/`left`/`right`), or null for a legacy single reference. */
+  /**
+   * Stable presentation view id (never the mutable human label), or null
+   * for a legacy single reference. Legacy `front`/`back`/`left`/`right`
+   * names are ordinary view ids; flexible ids pass through untouched.
+   */
   view: string | null;
   imagePath: string;
   label: string | null;
@@ -264,6 +273,10 @@ export interface DiagramAxes {
 
 /** One caller-selected product reference view (via the presentation adapter). */
 export interface ReferenceViewInput {
+  /**
+   * Stable presentation view id (never the mutable human label), or null
+   * for a legacy single reference.
+   */
   view: string | null;
   imagePath: string;
   label?: string | null;
@@ -310,7 +323,7 @@ export interface PhotoMappingState {
   status: "provisional" | "review";
   /** Region this mapping binds (caller's current product/variant context). */
   regionId?: string;
-  /** Declared preview side this mapping binds. */
+  /** Stable presentation view id this mapping binds (never the human label). */
   view?: string;
   /** Region-local mm to normalized-UV affine coefficients. */
   transform?: PhotoMappingTransform;
@@ -326,7 +339,11 @@ export interface OperationSheetJob {
 }
 
 export interface OperationSheetSide {
-  /** Presentation side (`front`/`back`/`left`/`right`), or null when undeclared. */
+  /**
+   * Stable presentation view id (never the mutable human label), or null
+   * when undeclared. Legacy `front`/`back`/`left`/`right` names are
+   * ordinary view ids; flexible ids pass through untouched.
+   */
   view: string | null;
   imagePath: string;
   label?: string;
@@ -387,6 +404,15 @@ export interface OperationSheet {
   variantId: string;
   productName?: string;
   variantName?: string;
+  /**
+   * Display-only variant label for operator-facing headers and exports:
+   * human name when set, `Option N` (1-based product order) when the
+   * variant is unnamed and multi-option, or null when the single unnamed
+   * option should be omitted so the product name stands alone. Set by the
+   * sheet builder from the product definition; never an id. Diagnostics
+   * and persistence keep the exact variant ids.
+   */
+  variantDisplay: string | null;
   sides: OperationSheetSide[];
   /** One entry per placement, in placement order (0..N; empty = explicit zero). */
   logos: OperationSheetLogo[];

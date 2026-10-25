@@ -26,7 +26,10 @@ import {
   validateMappingContext,
   validatePhotoMapping,
 } from "../../customer-editor/presentation-photo-mapping.js";
-import type { PhotoMappingContext } from "../../customer-editor/presentation-photo-mapping.js";
+import type {
+  PhotoMappingContext,
+  PhotoMappingEntry,
+} from "../../customer-editor/presentation-photo-mapping.js";
 import type {
   ArtworkPreviewStatus,
   PhotoMappingState,
@@ -112,6 +115,13 @@ export interface OperationDocumentAssetLookup {
 export interface SheetOverlayMapping {
   regionId: string;
   view: string;
+  /**
+   * Stable view identity for flexible named views (defaults to `view` when
+   * absent). Display labels never identify: use `label` for captions.
+   */
+  viewId?: string;
+  /** Display-only view label, or null when the legacy view text applies. */
+  label?: string | null;
   transform: { a: number; b: number; c: number; d: number; e: number; f: number };
   status: "provisional" | "review";
 }
@@ -299,6 +309,13 @@ export interface OperationSheetPhotoOverlay {
   imagePath: string;
   regionId: string;
   view: string | null;
+  /**
+   * Stable view identity for flexible named views (defaults to `view` when
+   * absent). Display-only; binding stays exact on `imagePath`.
+   */
+  viewId?: string;
+  /** Display-only view label, or null when the legacy view text applies. */
+  label?: string | null;
   status: "provisional" | "review";
   /** Region-local mm to normalized-UV affine coefficients. */
   transform: { a: number; b: number; c: number; d: number; e: number; f: number };
@@ -361,6 +378,14 @@ export function evaluateOperationSheetOverlays(
   const bytes = normalizeSheetAssetBytes(assetBytes);
   if (bytes === undefined) return out;
   const states = evaluateOperationPhotoStates(candidate, bytes);
+  // Stable view identity + display labels ride along by exact image path
+  // (first entry wins, matching the overlay's first-configuration-wins rule).
+  // Labels never affect binding; the renderer keeps legacy views byte-stable.
+  const mappings = parsePhotoMappings(bytes.get(PHOTO_MAPPINGS_PATH));
+  const viewByImage = new Map<string, PhotoMappingEntry>();
+  for (const entry of mappings?.mappings ?? []) {
+    if (!viewByImage.has(entry.image)) viewByImage.set(entry.image, entry);
+  }
   const logoNameById = new Map(
     candidate.logos.flatMap((logo) => (logo.name !== undefined ? [[logo.id, logo.name] as const] : [])),
   );
@@ -372,7 +397,17 @@ export function evaluateOperationSheetOverlays(
       const det = a * e - b * d;
       if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) continue;
       if (Object.hasOwn(out, state.imagePath)) continue;
-      const artworks: OperationSheetOverlayArtwork[] = [];
+      const bound = viewByImage.get(state.imagePath);
+      const overlay: OperationSheetPhotoOverlay = {
+        imagePath: state.imagePath,
+        regionId: state.regionId,
+        view: state.view ?? null,
+        status: state.status,
+        transform: { a, b, c, d, e, f },
+        artworks: [],
+      };
+      if (bound?.viewId !== undefined) overlay.viewId = bound.viewId;
+      if (typeof bound?.label === 'string') overlay.label = bound.label;
       for (const placement of configuration.placements) {
         if (placement.regionId !== state.regionId) continue;
         const uri = sheetOverlayArtworkUri(placement.artwork.assets);
@@ -385,7 +420,7 @@ export function evaluateOperationSheetOverlays(
         ) {
           continue;
         }
-        artworks.push({
+        overlay.artworks.push({
           uri,
           label: logoNameById.get(placement.logoId) ?? placement.logoId,
           xMm: placement.pos.xMm,
@@ -395,14 +430,7 @@ export function evaluateOperationSheetOverlays(
           rotationDeg: placement.rotationDeg,
         });
       }
-      out[state.imagePath] = {
-        imagePath: state.imagePath,
-        regionId: state.regionId,
-        view: state.view ?? null,
-        status: state.status,
-        transform: { a, b, c, d, e, f },
-        artworks,
-      };
+      out[state.imagePath] = overlay;
     }
   }
   // Touch the header reader so a future refactor cannot silently pass

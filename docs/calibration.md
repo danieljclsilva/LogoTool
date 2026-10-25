@@ -118,6 +118,211 @@ comparison is still pending; Phase 1 is not complete.
   candidates are NOT integrated into the product calibration schema or
   production output yet.
 
+## Model-only 3D setup (W3 view + lead station wiring)
+
+Status: provisional, WIRED into the station (lead mounts
+`createModelSetupView` from `src/ui/internal-builder/model-setup-view.ts` in
+the model pane for model-only products; `Save 3D setup to master` commits a
+calibration record, per-area projected regions and a deterministic sidecar).
+A 3D model contains all viewpoints, so the model-only workflow requires NO
+images: every input is an actual 3D surface pick — a raycast mesh hit in
+asset coordinates through the viewer's pick API
+(`pickSurface`/`pickSurfaceFromEvent`), never screen pixels and never model
+bounds.
+
+- `src/viewer/model-viewer.ts` (additive only, existing behavior preserved):
+  pure `isSurfaceClick` click-vs-drag gate (≤6px, mirrors the calibration
+  panel), `pickSurfaceFromEvent` convenience, `setAnchorsVisible`/
+  `getAnchorsVisible` and `setSafeAreasVisible`/`getSafeAreasVisible`
+  display-only toggles (staged data always kept), and a `safe-area-overlays`
+  group with `setSafeAreaOverlays` (outline loop + translucent fan fill per
+  named polygon). Overlays are excluded from raycasts, framing bounds and
+  wireframe exactly like existing markers/axes/placements.
+  `setProductVisible`/`getProductVisible` hide/show ONLY the product mesh
+  subtree (flag re-applied on every model attach, so a replacement model
+  cannot silently reset it); overlays, camera, framing bounds and staged
+  data are untouched. The setup view exposes this as Hide/Show product and
+  blocks canvas surface picking with a clear route while hidden (the
+  invisible mesh must never silently accept picks); showing resumes exactly
+  where staging left off.
+- The view stages a two-click A/B surface reference plus a real-mm entry
+  (visible endpoints, chord length, fitted scale; zero/coincident/invalid
+  spans refused with actionable messages), fits ONE uniform scale through the
+  real `src/core/setup-calibration/` contract (`validateReferenceSpan`,
+  `fitScaleFromReferences`, `spanNativeDistance` over a single 3D span), and
+  authors multiple named safe areas as 3D surface polygons (≥3 picks, no
+  invented default). Each polygon derives its own region plane locally
+  (`planeFromPolygon`, Newell normal + centroid origin); the polygon is
+  projected onto that plane, scaled to mm under the current fit, and then
+  ring-validated through the real `validateNamedSafeArea` — topology is
+  kernel-checked, not reimplemented. While uncalibrated, ring checks run in
+  native units and the kernel's 1e-9 numeric epsilon is unit-relative.
+- Editing endpoints/mm or clearing the reference marks every dependent area
+  stale; an explicit **Recompute** revalidates them under the current fit —
+  never silently. Show/hide anchors + safe-areas + product and per-product
+  switching are display-only and data-preserving (single-scope setups hide
+  the redundant scope selector; the station-level Show product buttons
+  checkbox stays separate). The standalone setup-JSON download/import and
+  the raw A/B coordinate readout sit behind one collapsed **Advanced**
+  disclosure (open state survives re-renders); reference/scale feedback,
+  areas, toggles and the station master save (primary) stay in the normal
+  flow. Save/reopen is a deterministic
+  `0.1.0-provisional-model-setup` JSON envelope (asset-key bound; imported
+  fit recomputed locally, never trusted; areas reopen stale). E2E is
+  `e2e/setup-calibration.spec.ts` with a self-contained esbuild harness
+  (`e2e/fixtures/setup-calibration-harness.ts`: real ModelViewer + view +
+  synthetic cube GLB, no images).
+
+Honest limits: straight-line chords, NOT geodesic arcs — curved-surface
+mapping is out of scope. One span cannot prove shape correctness,
+anisotropy or production validity. Safe-area planes assume a locally planar
+patch; caps, sleeves and curved crowns are NOT modeled. Every output stays
+`pendingReview: true, productionApproved: false`. No real product
+measurements were taken; Windows Chrome/Edge delivery remains untested.
+
+### Station persistence for model setup (lead)
+
+`Save 3D setup to master` (model pane) requires a fitted, non-stale
+reference and zero stale areas, then commits atomically (repackage-and-
+reparse, verified): a scope-keyed calibration record
+(`cal-model-<product>-<product|variant-…>`, straight-line chord wording,
+never approval), ONE domain region per saved area (the area's plane-projected
+ring in mm under the fitted scale — explicit planar projection via
+`projectAreaToMm`, shared with the view's own check), variant linkage for the
+saved model scope, and a deterministic `setup-model-sidecar/1` sidecar
+carrying the verbatim view envelope (3D points, reference, areas).
+Calibration, region, draft and snapshot identity are all scoped to the exact
+model scope (product-wide or one variant): variant-specific models never
+share drafts, snapshots, calibrations or regions, and viewer agreement
+follows the same exact-or-product-wide rule (`selectPresentationModel`) — no
+other variant's model is ever exposed or used. Region ids derive stably from
+area ids plus scope, so re-saving updates regions in place and placements
+never dangle; the stored reference span is compared, so areas-only saves
+reuse the calibration version while a changed reference bumps it. Regions
+whose area was deleted are removed when unplaced, retired when placed
+(emptied polygon, current ref, links kept — placements preserved, geometry
+gates re-verify); the save names them explicitly. Reopening the master
+hydrates the view against the identical
+model asset key with exact scope match (fit recomputed, areas stale); a
+replaced model refuses the old setup. The customer file carries the
+calibration record, projected regions and model bytes through the existing
+passthrough. Multi-span consistency, curved mapping and per-variant
+independent measurement remain open.
+
+## Images two-click span calibration (lead — station primary)
+
+Status: provisional, wired as the primary Images-path flow
+(`GuidedScaleCallbacks.onSpanCommit` → `commitGuidedSpan` in
+`src/ui/internal-builder/main.ts`). The operator clicks reference points A
+and B on the actual photo and enters their real straight-line length
+(placeholder e.g. 1300 mm); endpoints, connecting line and length stay
+visible; zero/coincident/invalid spans are refused with actionable messages.
+ONE span determines a uniform scale only. The mm frame convention is
+operator-determined and stated everywhere: origin exactly on A, +x from A
+toward B. The pure similarity (`similarityTransformFromSpan` in
+`presentation-photo-mapping.ts`, tested in `tests-ts/span-similarity.test.ts`)
+is rotation + uniform scale — no shear, no perspective correction. A single
+span cannot solve arbitrary perspective: front-on planar photos only.
+
+One atomic commit stores the calibration record (`cal-span-<side>[…]`,
+versioned), an UNCONFIGURED region (`safeArea: []` — no safe polygon ever
+invented; see the unconfigured-region rule below), the provisional similarity
+mapping, and a deterministic `setup-span-sidecar/1` sidecar (verbatim W1
+bundle: spans, fitted scale, no areas). The workspace seeds staging from the
+saved empty polygon, so fresh calibrations start genuinely empty; the
+operator draws named areas explicitly and saves once through the normal
+path. Recalibrating bumps the calibration version, replaces the mapping and
+explicitly clears the drawn polygon (old frame); staged drafts retire;
+failures keep prior state. Photos whose mapping comes from another setup are
+refused here (re-measure there, or replace the photo — replacement retires
+mappings AND span sidecars naming the superseded path). The advanced
+four-corner affine rectangle path is unchanged and stays available.
+
+Rendering note (lead fix): the station stylesheet overrode first-corner
+draft markers with a unit-less CSS `r: 11`, which Chromium resolves in
+viewBox units — on small photos the hit area grew to ~200px and swallowed
+drawing clicks (found via the shared-scope guard test, fixed fill-only).
+Marker radii are now owned solely by the JS constant-pixel scaler.
+
+### Named sibling areas (Images P1 — lead, corrected)
+
+Every staged non-scope entry persists as its own domain region
+(`<scope region id>--area-<area id>`, same frame/calibration/methods).
+Identity is by STABLE AREA ID plus an explicit `activeAreaId` passed with
+every save — never by polygon content or selection: the scope region always
+carries exactly the scope-entry polygon (first-drawn binding; deleting the
+scope entry while its region has placements is refused rather than
+relocating them), so switching the staged selection or saving can never
+relocate existing placements.
+Identical polygons with different names are fully supported (separate
+regions, separate ids, separate names). Renames, multiple polygons and the
+active selection survive save/reopen deterministically (stable ids; an
+explicit per-product `active-areas.json` hint records the active id per
+scope, with a deterministic fallback when absent). A per-session baseline
+per scope region rejects concurrent stale list replacement (another scope
+saving first): the stale submitter is refused instead of silently merged,
+and re-opening (Reset to saved) resynchronises. A second guard compares live
+siblings against the submitter's own seed-time list (`baseNamedAreas`,
+advanced on every successful save): entries live but never seen by this
+bucket are refused as well. Buckets carry the explicit `activeAreaId` with
+every save (unknown ids fail); deleting the scope entry while its region has
+placements is refused rather than adopting a fallback polygon. Save
+settlement re-baselines to the saved SCOPE polygon (never staged content),
+so follow-up renders cannot misread multi-area staging as live drift.
+
+Every region of a scope — scope plus siblings — gets its own photo mapping
+(same photo/view/transform/calibration, own regionId), because the customer
+binds photo preview per regionId and would otherwise fall back to a
+reference-only warning for sibling areas. The staff workspace always works
+through the scope region (sibling mappings never resolve as scope). Mapping
+mutations are region-aware: photo replacement retires all photo-bound
+mappings; span recalibration rewrites them with the new transform+version;
+removal drops mappings of removed regions.
+
+Deletion follows delete-or-retire (Codex): live regions no longer staged are
+REMOVED with variant links when no placement references them (real delete —
+the customer can no longer select them); REFERENCED ones are RETIRED in
+place (emptied polygon so nothing new fits, current calibration ref so the
+project stays valid, links kept so placed data stays resolvable while
+geometry gates mark it invalid). Stale geometry is never relabelled as
+current calibration output. Legacy single-area packages reopen unchanged
+(scope polygon seeds one transient entry; untouched re-saves create no
+siblings). Sibling regions travel to the customer file as ordinary regions,
+so every named area is a real placement option there.
+
+## Unconfigured regions (`safeArea: []`)
+
+Status: provisional domain relaxation (lead). A calibrated region may carry
+`safeArea: []`, meaning measured-but-unconfigured: the calibration and frame
+exist, no safe polygon was invented, and NOTHING fits until the operator
+draws it (`footprintFits` reports invalid-safe → `fits:false`; geometry
+evaluation never throws; the customer diagram falls back to a neutral frame;
+the operation document already marks `safeSupplied: false`). The all-or-
+nothing preview-only invariant is untouched (the region, calibration and
+variant linkage all exist). Drawing/authoring validation stays strict
+(`validateSafeAreaPolygon`, `validateNamedSafeArea` still require ≥3-point
+rings) — only the SAVED domain admits []. Exclusions keep their minimum.
+`schemas/product.schema.json` and `src/core/validate.ts` changed together
+(runtime Ajv contracts agree); `tests-ts/unconfigured-region.test.ts` pins
+acceptance, 1/2-point rejection, invariant stability and fits:false
+evaluation. Issuing a product with an unconfigured region is currently
+possible without a warning (same as any undrawn setup) — recorded as a gap:
+a future issue-time notice is wanted, but no silent approval exists anywhere.
+
+## Setup-calibration kernel (`src/core/setup-calibration/`)
+
+Status: provisional pure kernel (W1), re-exported through `src/core/index.ts`.
+Unified Images/3D reference spans (2D pixel-native or 3D surface points in
+one frame per call; coincident ≤1e-9 rejected; `lengthMm` > 0), single-span
+exact ratio or multi-span unweighted least-squares via `fitUniformScale`
+(inconsistency beyond prototype max(0.5 mm, 1%) refuses — a prototype
+threshold, never a production tolerance), named safe areas (unique id,
+non-blank name, valid ring, no partial acceptance), deterministic bounded
+serialize/parse (sorted, stable keys, no timestamps, no approval flags at
+all), and a provisional legacy-combined migrate (verbatim geometry, scale
+recomputed, mixed-frame rejected). 3D distances are straight-line chords.
+Tested in `tests-ts/setup-calibration.test.ts` (19 tests).
+
 ## Rules
 
 - Every fit returns `productionApproved: false, pendingReview: true`.
@@ -271,3 +476,41 @@ production datum still needs validation. Curved mappings remain later work.
 Windows Chrome/Edge validation, real FlexiTog/Tripo assets, measured product setup,
 and production readiness remain open. No live Odoo or external generation/upload
 requests were made.
+
+### Independent Codex closing verification — 24 October 2026
+
+Reviewed the integrated OpenCode Contributor implementation and corrected
+persistence, identity, deletion, output invalidation and 3D visibility findings
+through the lead. No commits, pushes, uploads, installs or Odoo calls.
+
+Environment: macOS 27.2 arm64; Chromium 156.0.8078.4 and installed Chrome
+155.0.8059.85; Playwright 1.64.0. Repository tests open built HTML with
+`file://`, networking disabled. Synthetic fixtures only. Flow viewports:
+1280×900 and 390×844. The Browser plugin was absent from the actual session
+tool inventory; repository Playwright was used as required by AGENTS.md.
+
+- Independent final `npm run typecheck` and `npm test`: pass; 740 unit tests.
+- Independent affected Chromium run: 17/17 pass before the final product
+  visibility/Advanced change. Independent closing station-model,
+  product-visibility and prepared-master tests: 3/3 Chromium + 3/3 Chrome pass
+  after that change. Lead reports 18/18 affected Chrome checks pass.
+- Independent preceding affected Chrome run: 16/17 pass, with a browser-process
+  closure and macOS CVDisplayLink errors in the remaining master-roundtrip
+  case. That case passed in the closing independent run. This does not turn
+  the earlier combined run into an all-green run.
+- Lead closing full Chromium run: 172 passed, 1 failed (placement restore).
+  Independent isolated rerun of that existing restore case: 1/1 pass.
+  Full Chrome runs likewise recorded process crashes. Broad-suite stability
+  therefore remains caveated; no entirely green final matrix is claimed.
+- Independent station render check: correct title and meaningful content,
+  no application console/page errors or HTTP(S) requests. Inspected desktop
+  and narrow screenshots of the actual model setup, including the three
+  visibility buttons and collapsed Advanced controls. Test flows exercise
+  reference fitting, safe areas, save/reopen, issued customer placement,
+  deletion and invalidation of stale downloads.
+
+Logs and test evidence are local under the ignored
+`.opencode/setup-calibration-2026-10-24/`; additional visual captures live in
+`/tmp/logotool-model-setup.png` and `/tmp/logotool-model-setup-mobile.png`.
+Actual Windows Chrome/Edge offline delivery, physical measurement accuracy
+and curved-surface mapping remain unverified. Calibration remains provisional.

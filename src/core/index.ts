@@ -116,6 +116,30 @@ export {
 export type { GeoPoint, PolygonCheck } from "./geometry/index.js";
 export { footprintFits, pointInPolygon, validateSafePolygon } from "./geometry/index.js";
 export type {
+  FitScaleResult,
+  MigrateLegacyCombinedResult,
+  NamedSafeArea,
+  ParseSetupCalibrationResult,
+  ReferenceSpan,
+  SetupCalibrationBundle,
+  SetupCalibrationMode,
+  SetupPoint,
+  SetupPoint2D,
+  SetupPoint3D,
+} from "./setup-calibration/index.js";
+export {
+  SETUP_CALIBRATION_VERSION,
+  SETUP_LIMITS,
+  distanceMm,
+  fitScaleFromReferences,
+  migrateLegacyCombined,
+  parseSetupCalibration,
+  serializeSetupCalibration,
+  spanNativeDistance,
+  validateNamedSafeArea,
+  validateReferenceSpan,
+} from "./setup-calibration/index.js";
+export type {
   AddExclusionResult,
   AreaBundle,
   AreaExclusion,
@@ -201,3 +225,30 @@ export {
   serializeTransferBundle as serializeVariantTransferBundle,
   transferPlacements,
 } from "./variant-transfer/index.js";
+export type {
+  AnyPresentationManifest,
+  FlexibleViewSelection,
+  PresentationManifestV2,
+  PresentationManifestVNext,
+  PresentationModelEntry,
+  PresentationReferenceEntry,
+  PresentationViewEntry,
+  PresentationViewScope,
+} from "./presentation-views/types.js";
+export {
+  PRESENTATION_VIEW_LIMITS,
+} from "./presentation-views/types.js";
+export {
+  LEGACY_VIEW_IDS,
+  defaultLabelForViewId,
+  isLegacyViewId,
+  isPresentationViewId,
+  isPresentationViewLabel,
+  parsePresentationManifest,
+  parsePresentationViewEntry,
+  presentationMappingKey,
+  renameManifestViewLabel,
+  samePresentationScope,
+  selectFlexibleViewsForScope,
+  serializePresentationManifest,
+} from "./presentation-views/index.js";

@@ -49,7 +49,9 @@ async function openBuilder(browser: Browser): Promise<{ context: BrowserContext;
     if (/^https?:/i.test(request.url())) probe.networkRequests.push(request.url());
   });
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.locator('[data-job-landing]')).toBeVisible();
+  await page.locator('[data-builder-hook="job-landing-create"]').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   return { context, page, probe };
 }
 
@@ -218,8 +220,7 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     await writeFile(fixturePath, Buffer.from(await bigPhotoFixture(
       await syntheticPngBytes(page, '#274a68', 2000, 1600),
     )));
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'source-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-big.logo-project');
     const workspace = builder(page, 'product-workspace');
@@ -386,8 +387,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
       await syntheticPngBytes(page, '#1d6f3a'),
       await syntheticPngBytes(page, '#6f1d3a'),
     )));
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'source-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-two-products.logo-project');
     const workspace = builder(page, 'product-workspace');
@@ -512,8 +512,7 @@ test('contextual workspace: variant switches restore drafts, shared effect state
     await writeFile(fixturePath, Buffer.from(await sharedVariantFixture(
       await syntheticPngBytes(page, '#1d3a6f', 400, 300),
     )));
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'source-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-shared.logo-project');
     const workspace = builder(page, 'product-workspace');

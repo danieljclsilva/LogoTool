@@ -80,9 +80,10 @@ curved-surface placement claim.
 
 `dist/dev/customer-return-review.html` is a dev-only internal harness with two
 explicit file pickers: a locally selected trusted-issued baseline and a separate
-customer return. (Staff review, decisions and revised proposals live in the
-station itself at `dist/station/Logo Station.html`; the dev page exists for
-engineering regression tests.) The page guides opening both files, checking the return and
+customer return. (Staff review lives in the station itself at
+`dist/station/Logo Station.html` — the optional approval branch with Use/Keep
+and the direct Step 3 document; the dev page exists for engineering
+regression tests.) The page guides opening both files, checking the return and
 recording a review. Differences stay visible before the decision. Optional
 layout changes and export data use separate collapsed sections; the printable
 operation document remains linked from the review. It imports through `importCustomerReturn`,
@@ -200,10 +201,13 @@ preview-unavailable states (missing WebGL, failed parse, external-reference
 models rejected by the self-contained boundary) surface a clear warning and
 fallback instead of a blank canvas with a success caption. The measured
 placement diagram stays the default for placement decisions and is never
-overlaid with a pretend logo mapping. Provisional preview-only products carry
-NO measurements at all (empty regions, calibrations and variant region lists)
-and cannot host placements; they show `Uncalibrated provisional area - not
-for production` and export zero placements. Model bytes are bounded to
+overlaid with a pretend logo mapping. Truly unmeasured products (no regions
+AND no calibrations) are preview-only: they carry NO measurements, cannot
+host placements, show `Uncalibrated provisional area - not for production`
+and export zero placements. Calibrated 3D-model products are different: once
+their two-click reference is saved, their plane-projected regions host
+schematic placements exactly like photo-measured regions (same pending-review
+gates; the diagram is planar-schematic, never a 3D overlay). Model bytes are bounded to
 16 MiB, header-parsed AND self-contained-validated at render selection
 (external URIs rejected); view switching never mutates the project.
 

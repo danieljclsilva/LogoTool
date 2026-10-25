@@ -24,7 +24,11 @@
  *   (non-number, non-finite, or outside (-180, 180]).
  * - Malformed region frame, unresolvable calibrationRef, bad method
  *   (not in region `allowedMethods`), region not supported by the variant.
- * - Safe-area polygon with fewer than 3 finite points; malformed exclusions.
+ * - Safe-area polygon: either [] (UNCONFIGURED — a calibrated region whose
+ *   safe polygon was never invented; nothing fits until the operator draws
+ *   it) or >=3 finite points forming a ring; malformed exclusions fail.
+ *   Unconfigured regions keep their calibration/region/variant linkage, so
+ *   the all-or-nothing preview-only invariant is unaffected.
  * - Nested `pos` is authoritative; any own flat placement coordinate
  *   property is a shape error, never silently accepted.
  * - Zero placements valid; repeated same `logoId` valid (no uniqueness check).
@@ -442,7 +446,14 @@ function validateProductAt(value: unknown, basePath: string): ValidationError[] 
       regionIds.push(id);
       validateRegionFrame(region["frame"], `${path}.frame`, errors);
       validateCalibrationRef(region["calibrationRef"], `${path}.calibrationRef`, errors, calibrationVersions);
-      checkPolygon(region["safeArea"], `${path}.safeArea`, errors, "safeArea", "bad-safe-area");
+      // Unconfigured safe area: [] is permitted (never invented; nothing
+      // fits until drawn). Any non-empty polygon keeps the >=3-point ring
+      // rule; exclusions keep it unconditionally.
+      if (Array.isArray(region["safeArea"]) && (region["safeArea"] as unknown[]).length === 0) {
+        /* unconfigured — valid by construction */
+      } else {
+        checkPolygon(region["safeArea"], `${path}.safeArea`, errors, "safeArea", "bad-safe-area");
+      }
       const exclusions = region["exclusions"];
       if (exclusions !== undefined) {
         if (!Array.isArray(exclusions)) {

@@ -17,8 +17,7 @@ async function openBuilder(browser: Browser): Promise<{
 }> {
   const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
-  await expect(page.locator('[data-builder-step="open"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
   return { context, page, probe };
 }
 
@@ -42,23 +41,23 @@ function expectOfflineClean(probe: Probe): void {
   expect(probe.httpRequests).toEqual([]);
 }
 
-test('visible product chooser stages a file; add alone still reports empty staging', async ({ browser }) => {
+test('visible view chooser stages a file; add alone still reports empty staging', async ({ browser }) => {
   const { context, page, probe } = await openBuilder(browser);
   try {
-    await builder(page, 'start-create').click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
+    await builder(page, 'job-landing-create').click();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
 
-    // Add with nothing staged still reports the empty-staging message.
-    await (await shown(page, 'product-add')).click();
-    await expect(await shown(page, 'product-status')).toContainText('Choose one product file first');
+    // Add with nothing staged still reports the empty-staging message (the
+    // Add control stays disabled, so dispatch the click directly).
+    await builder(page, 'product-add').dispatchEvent('click');
+    await expect(await shown(page, 'product-status')).toContainText('Choose at least one view image');
 
-    // The visible chooser is operable while the raw file input stays CSS-hidden.
-    const choose = await shown(page, 'product-choose');
+    // The visible row chooser is operable while the raw file input stays CSS-hidden.
+    const row = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]').first();
+    const choose = row.getByRole('button', { name: 'Choose view image' });
     await expect(choose).toBeVisible();
     await expect(choose).toBeEnabled();
-    const hiddenBox = await page.evaluate(() => {
-      const input = document.querySelector<HTMLInputElement>('[data-builder-hook="product-file"]');
-      if (!input) throw new Error('Missing product-file input.');
+    const hiddenBox = await row.locator('input[type="file"]').evaluate((input) => {
       const rect = input.getBoundingClientRect();
       const style = getComputedStyle(input);
       return { width: rect.width, height: rect.height, position: style.position, overflow: style.overflow };
@@ -75,7 +74,8 @@ test('visible product chooser stages a file; add alone still reports empty stagi
     await choose.click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles({ name: 'flat.png', mimeType: 'image/png', buffer: Buffer.from(png) });
-    await expect(await shown(page, 'product-status')).toContainText('Staged flat image');
+    await expect(row.locator('.view-row-state')).toContainText('ready');
+    await expect(await shown(page, 'product-status')).toContainText('1 view image ready');
 
     await (await shown(page, 'product-name')).fill('Operator Provisional');
     await (await shown(page, 'product-add')).click();

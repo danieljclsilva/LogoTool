@@ -68,7 +68,7 @@ export interface Region {
   name?: string;
   frame: RegionFrame;
   calibrationRef: CalibrationRef;
-  /** Safe-area polygon in the region frame (mm). Minimum 3 finite points. */
+  /** Safe-area polygon in the region frame (mm): [] (unconfigured — draw before production) or >=3 finite points. */
   safeArea: PointMm[];
   exclusions?: PointMm[][];
   allowedMethods: string[];

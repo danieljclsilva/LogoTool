@@ -77,8 +77,9 @@
         "frame": { "$ref": "#/$defs/frame" },
         "calibrationRef": { "$ref": "#/$defs/calibrationRef" },
         "safeArea": {
-          "$ref": "#/$defs/polygon",
-          "description": "Safe-area polygon in the region frame (mm). Minimum 3 finite points."
+          "type": "array",
+          "items": { "$ref": "#/$defs/point" },
+          "description": "Safe-area polygon in the region frame (mm): either [] (unconfigured — no safe polygon invented; draw before production, nothing fits until drawn) or >=3 finite points (validated as a ring by core)."
         },
         "exclusions": {
           "type": "array",

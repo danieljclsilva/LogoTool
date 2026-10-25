@@ -41,6 +41,8 @@ import type { PresentationManifest } from './presentation-assets.js';
 import {
   forwardPhotoMapping,
   inversePhotoMapping,
+  mappingDisplayLabel,
+  mappingViewIdOf,
   parsePhotoMappings,
   PHOTO_MAPPINGS_PATH,
   artworkPhotoMatrix,
@@ -415,11 +417,11 @@ function resolveActivePhoto(): void {
       (entry.variantId === undefined || entry.variantId === variantId))
     .sort((left, right) => (left.variantId === undefined ? 1 : 0) - (right.variantId === undefined ? 1 : 0));
   for (const candidate of candidates) {
-    // Full-key selection (product, variant, region, view, image): exact
-    // match only, bytes validated by the mapping adapter. The caller's
+    // Full-key selection (product, variant, region, view/viewId, image):
+    // exact match only, bytes validated by the mapping adapter. The caller's
     // context additionally enforces the region calibration reference and
     // the declared preview image/view binding; stale entries fall back.
-    const selection = selectPhotoMapping(mappings, true, productId, variantId, regionId, candidate.view, candidate.image, lookup, context);
+    const selection = selectPhotoMapping(mappings, true, productId, variantId, regionId, candidate.view, candidate.image, lookup, context, candidate.viewId);
     if (selection.mapping) {
       const bytes = lookup(selection.mapping.image);
       if (bytes && bytes.length > 0) {
@@ -451,8 +453,11 @@ function mappedRegionForSide(side: PhotoMappingView): Region | undefined {
   const entries = mappingEntriesForSelection();
   const contexts = new Map<string, PhotoMappingContext | null>();
   for (const regionId of variant.regionIds) {
+    // Legacy side buckets only: flexible named views (viewId set) resolve
+    // per region through the region selector, never through side buttons.
     const entry = entries.find((candidate) => candidate.regionId === regionId &&
       (candidate.variantId === undefined || candidate.variantId === configuration.variantId) &&
+      candidate.viewId === undefined &&
       candidate.view === side);
     if (!entry) continue;
     // Side availability needs a CURRENT binding: region calibration and
@@ -483,6 +488,38 @@ function legacySidePresent(side: PhotoMappingView): boolean {
     configuration.variantId,
     lookup,
   ).views.some((view) => view.view === side);
+}
+
+/**
+ * Region bound to one stable view id (lead integration point for the future
+ * dynamic view switcher): same currency rules as {@link mappedRegionForSide}
+ * (region calibration + declared preview binding must agree, bytes present),
+ * keyed by `viewId` instead of the legacy side bucket. Labels never
+ * participate. Pure w.r.t. inputs; reads the loaded package.
+ */
+function mappedRegionForViewId(viewId: string): Region | undefined {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const product = project && configuration && productForConfiguration(project, configuration);
+  const variant = product?.variants.find((item) => item.id === configuration?.variantId);
+  if (!project || !configuration || !product || !variant || !loaded) return undefined;
+  const entries = mappingEntriesForSelection();
+  const contexts = new Map<string, PhotoMappingContext | null>();
+  for (const regionId of variant.regionIds) {
+    const entry = entries.find((candidate) => candidate.regionId === regionId &&
+      (candidate.variantId === undefined || candidate.variantId === configuration.variantId) &&
+      mappingViewIdOf(candidate) === viewId);
+    if (!entry) continue;
+    let context = contexts.get(regionId);
+    if (context === undefined) {
+      context = mappingContextFor(regionId);
+      contexts.set(regionId, context);
+    }
+    if (!context || validateMappingContext(entry, context).length > 0) continue;
+    const bytes = loaded.assets.find((asset) => asset.path === entry.image)?.bytes;
+    if (bytes && bytes.length > 0) return product.regions.find((region) => region.id === regionId);
+  }
+  return undefined;
 }
 
 function revokePhotoUrl(): void {
@@ -580,8 +617,10 @@ function describeMappingStatus(): string {
   if (!loaded?.project) return 'Open a project to see the photo mapping status.';
   if (activePhoto) {
     const entry = activePhoto.entry;
-    const base = `Mapped photo · ${entry.view} view · calibrated ${entry.calibrationId} ${entry.calibrationVersion}. Editing uses the measured diagram.`;
-    return entry.status === 'provisional' ? `Mapped photo (visual trial, not production approval) · ${entry.view} view · ${entry.calibrationId} ${entry.calibrationVersion}.` : base;
+    // Display-only label where present; legacy `${view} view` text otherwise.
+    const viewName = mappingDisplayLabel(entry, `${entry.view} view`);
+    const base = `Mapped photo · ${viewName} · calibrated ${entry.calibrationId} ${entry.calibrationVersion}. Editing uses the measured diagram.`;
+    return entry.status === 'provisional' ? `Mapped photo (visual trial, not production approval) · ${viewName} · ${entry.calibrationId} ${entry.calibrationVersion}.` : base;
   }
   return photoWarning ?? 'No photo mapping for this logo area — Reference only — editing uses measured diagram.';
 }
@@ -612,7 +651,7 @@ function renderPrimaryMode(): void {
   const caption = optionalHook<HTMLElement>('view-caption');
   if (caption) {
     caption.textContent = showingPhoto && activePhoto
-      ? `Mapped photo · ${activePhoto.entry.view} view · preview only, not to scale`
+      ? `Mapped photo · ${mappingDisplayLabel(activePhoto.entry, `${activePhoto.entry.view} view`)} · preview only, not to scale`
       : showing3d ? '3D availability · reference only' : 'Placement diagram · millimetres';
   }
   mappingStatus.textContent = describeMappingStatus();
@@ -705,8 +744,8 @@ interface LogoPresentationApi {
   getViewsState: () => {
     available: boolean;
     mode: ViewsMode;
-    side: ProductViewSide;
-    sides: ProductViewSide[];
+    side: string;
+    sides: string[];
     modelPath: string | null;
     caption: string;
     warning: string | null;
@@ -730,7 +769,7 @@ window.__logoPresentation = {
     available: showcaseAvailable,
     mode: showcaseMode,
     side: showcaseSide,
-    sides: showcaseViews.map((entry) => entry.view).filter((view): view is ProductViewSide => view !== null),
+    sides: showcaseViews.map((entry) => entry.view).filter((view): view is string => view !== null),
     modelPath: showcaseModelPath,
     caption: (document.querySelector<HTMLElement>('[data-customer-hook="views-caption"]')?.textContent ?? describeShowcaseCaption()),
     warning: showcaseWarning || null,
@@ -740,20 +779,22 @@ window.__logoPresentation = {
   }),
 };
 
-// ---- Product views showcase (flat / 2D / 3D, per-side) ----
+// ---- Product views showcase (flat / 2D / 3D, per-view) ----
 // Independent of the measured placement diagram: the showcase never takes
-// a mapped logo overlay, never invents a missing side, and never mutates
-// the project. Only package-present views are offered.
+// a mapped logo overlay, never invents a missing view, and never mutates
+// the project. Only package-present views are offered; legacy four-side
+// packages keep their side order and camera presets.
 type ViewsMode = 'flat' | '2d' | '3d';
 type ProductViewSide = ViewerSide;
-interface ShowcaseView { view: ProductViewSide | null; imagePath: string; label: string | null }
+interface ShowcaseView { view: string | null; imagePath: string; label: string | null }
 const VIEWS_SIDES: ProductViewSide[] = ['front', 'back', 'left', 'right'];
 let showcaseViews: ShowcaseView[] = [];
 let showcaseModelPath: string | null = null;
 let showcaseModelLabel: string | null = null;
 let showcaseAvailable = false;
 let showcaseMode: ViewsMode = 'flat';
-let showcaseSide: ProductViewSide = 'front';
+/** Current showcase view id (legacy side or flexible slug). */
+let showcaseSide: string = 'front';
 let showcaseFlatPath: string | null = null;
 let showcaseFlatBytes: Uint8Array | undefined;
 let showcaseFlatUrl: string | null = null;
@@ -890,7 +931,7 @@ function paintShowcase(): void {
     if (mode === '2d') button.disabled = showcaseViews.length === 0 && showcaseModelPath === null;
     if (mode === '3d') button.disabled = showcaseViews.length === 0 && showcaseModelPath === null;
   });
-  const present: Record<ProductViewSide, boolean> = { front: false, back: false, left: false, right: false };
+  const present: Record<string, boolean> = {};
   for (const entry of showcaseViews) {
     if (entry.view !== null) present[entry.view] = true;
   }
@@ -1129,7 +1170,13 @@ async function refreshMode3dViewer(): Promise<void> {
     showcaseSurface = 'model';
     showcaseShownModelPath = modelPath;
     showcaseShownModelBytes = bytes;
-    try { viewer.setViewSide(showcaseSide); } catch { /* default framing stands */ }
+    try {
+      // Camera presets exist only for the legacy four sides; flexible named
+      // views keep the current framing (photos gate only the raster itself).
+      if (showcaseSide === 'front' || showcaseSide === 'back' || showcaseSide === 'left' || showcaseSide === 'right') {
+        viewer.setViewSide(showcaseSide);
+      }
+    } catch { /* default framing stands */ }
   } else {
     // Empty-bounds and corrupt parses land here: failure caption, no canvas.
     showcaseModelFailed = true;
@@ -1173,7 +1220,7 @@ function chooseShowcaseMode(mode: ViewsMode): void {
   void refreshShowcase();
 }
 
-function chooseShowcaseSide(side: ProductViewSide): void {
+function chooseShowcaseSide(side: string): void {
   cancelDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
   cancelPhotoDrag('Move cancelled because the product view changed. Your saved logo is unchanged.');
   showcaseSide = side;
@@ -1518,6 +1565,12 @@ function renderCanvas(): void {
       minY = Math.min(minY, y);
       maxY = Math.max(maxY, y);
     }
+  }
+  // Unconfigured regions (safeArea []) have no finite bounds: fall back to a
+  // neutral frame instead of an infinite viewBox. Placements there stay
+  // geometrically invalid (nothing fits an unconfigured area).
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+    minX = -60; maxX = 60; minY = -50; maxY = 50;
   }
   const padX = Math.max((maxX - minX) * .12, 8);
   const padY = Math.max((maxY - minY) * .12, 8);

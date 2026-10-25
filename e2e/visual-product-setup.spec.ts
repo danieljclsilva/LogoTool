@@ -5,30 +5,22 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createProjectPackage } from '../src/packaging/project-package/index.js';
 import { release } from 'node:os';
-import { resolve } from 'node:path';
-import { unzipSync } from 'fflate';
-import { pathToFileURL } from 'node:url';
-import { BUILDER_URL, gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
-import { countPdfPages } from './sheet-fixtures.js';
+import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import type { Probe } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
-// Visual product setup acceptance (lead-owned): the main staff path on a
-// release-clean station. Clean empty draft → real product photo upload →
-// honest unmeasured pending → guided first measured region (4 photo corners
-// + real width/height + orientation through the existing affine solver) →
+// Visual product setup acceptance through the operator job shell: clean
+// empty draft → real product photo upload → honest unmeasured pending →
+// guided first measured region (4 photo corners + real width/height) →
 // draw safe area + click anchor on the photo → ONE atomic save → per-view
-// isolation → prepared-master roundtrip → issue BOTH customer formats.
-// No demo/mock content anywhere; synthetic fixtures only (in-page canvas
-// PNGs, tracked example SVGs are never loaded here). Offline file://.
+// isolation → Save job → fresh station Open restores the workspace →
+// placement + real measurement binding + review document. The prepared
+// setup then rides the ordinary job save/reopen path (no separate master
+// file, no customer issue/return in this flow). No demo/mock content;
+// synthetic fixtures only (in-page canvas PNGs). Offline file://.
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
-
-interface Probe {
-  pageErrors: string[];
-  consoleErrors: string[];
-  networkRequests: string[];
-}
 
 function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
@@ -36,27 +28,23 @@ function builder(page: Page, name: string) {
 
 async function shown(page: Page, name: string) {
   await revealBuilderControl(page, name);
-  return ['builder-next', 'builder-back'].includes(name)
-    ? builder(page, name).filter({ visible: true }).first()
-    : builder(page, name);
+  return builder(page, name);
 }
 
-async function openBuilder(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
-  const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
-  // Bounded actions: a missing locator must fail fast with the real step
-  // visible, never hang to the overall test timeout (action default is 0).
-  await context.setDefaultTimeout(15000);
-  const page = await context.newPage();
-  const probe: Probe = { pageErrors: [], consoleErrors: [], networkRequests: [] };
-  page.on('pageerror', (error) => probe.pageErrors.push(String(error)));
-  page.on('console', (message) => {
-    if (message.type() === 'error') probe.consoleErrors.push(String(message.text()));
+async function openStation(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
+  await test.info().attach('visual-product-setup-environment', {
+    contentType: 'application/json',
+    body: JSON.stringify({
+      os: process.platform, release: release(), arch: process.arch,
+      browser: browser.browserType().name(), browserVersion: browser.version(),
+      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: BUILDER_URL,
+    }, null, 2),
   });
-  context.on('request', (request) => {
-    if (/^https?:/i.test(request.url())) probe.networkRequests.push(request.url());
-  });
+  const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.locator('[data-job-landing]')).toBeVisible();
+  await builder(page, 'job-landing-create').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   return { context, page, probe };
 }
 
@@ -77,48 +65,39 @@ async function syntheticPngBytes(page: Page, fill = '#1d6f3a', w = 400, h = 300)
   return new Uint8Array(Buffer.from(base64, 'base64'));
 }
 
-async function shownFresh(freshPage: Page, name: string) {
-  await revealBuilderControl(freshPage, name);
-  return ['builder-next', 'builder-back'].includes(name)
-    ? builder(freshPage, name).filter({ visible: true }).first()
-    : builder(freshPage, name);
+function pw(page: Page, name: string) {
+  return page.locator(`[data-placement-hook="${name}"]`);
 }
 
-/** Fill a customer field the way a human tabs out (reveals + commits change). */
-async function cfill(page: import('@playwright/test').Page, hook: string, value: string): Promise<void> {
-  const target = page.locator(`[data-customer-hook="${hook}"]`);
-  await revealCustomerControl(page, hook);
-  await target.fill(value);
-  await target.press('Tab');
+async function downloadTo(page: Page, button: import('@playwright/test').Locator, outPath: string): Promise<string> {
+  const event = page.waitForEvent('download');
+  await button.click();
+  const download = await event;
+  await download.saveAs(outPath);
+  return outPath;
 }
 
-async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
-  await (await shown(page, listHook)).locator('input[type="checkbox"]').evaluateAll((nodes) => {
-    for (const node of nodes) {
-      const box = node as HTMLInputElement;
-      if (!box.checked) {
-        box.checked = true;
-        box.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  });
-}
-
-test('visual setup: upload → guided measure → draw + anchors → save → master roundtrip → both formats', async ({ browser }, info) => {
-  test.setTimeout(180_000);
-  const { context, page, probe } = await openBuilder(browser);
+test('visual setup: upload → guided measure → draw + anchors → save → job roundtrip → review', async ({ browser }, info) => {
+  test.setTimeout(300_000);
+  const { context, page, probe } = await openStation(browser);
   try {
     // Clean empty draft: no demo, workspace waits for a real product.
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
     await expect(builder(page, 'demo-create')).toHaveCount(0);
-    await expect(await shown(page, 'workspace-status')).toContainText('Add a real product first');
+    await expect(await shown(page, 'workspace-status')).toContainText('No product yet');
 
-    // Real fresh upload: front + back photos staged, product added.
+    // Real fresh upload: two named view images staged through real rows, product added.
     const frontPng = await syntheticPngBytes(page, '#1d6f3a');
     const backPng = await syntheticPngBytes(page, '#6f1d3a');
-    await (await shown(page, 'product-file')).setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: Buffer.from(frontPng) });
-    await (await shown(page, 'product-view-back-file')).setInputFiles({ name: 'back.png', mimeType: 'image/png', buffer: Buffer.from(backPng) });
+    const rows = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]');
+    await rows.nth(0).locator('input[type="text"]').fill('Front');
+    await rows.nth(0).locator('input[type="file"]').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: Buffer.from(frontPng) });
+    await expect(rows.nth(0).locator('.view-row-state')).toContainText('ready');
+    await (await shown(page, 'product-view-add')).click();
+    await rows.nth(1).locator('input[type="text"]').fill('Back');
+    await rows.nth(1).locator('input[type="file"]').setInputFiles({ name: 'back.png', mimeType: 'image/png', buffer: Buffer.from(backPng) });
+    await expect(rows.nth(1).locator('.view-row-state')).toContainText('ready');
+    await (await shown(page, 'customer-name')).fill('Visual Customer');
+    await (await shown(page, 'job-ref')).fill('VISUAL-01');
     await (await shown(page, 'product-name')).fill('Test Jacket');
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Test Jacket');
@@ -128,6 +107,10 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
     await expect(workspace.locator('[role="tablist"]')).toBeVisible();
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
     await expect(workspace.getByRole('tab', { name: 'Back' })).toBeVisible();
+    // Stable view identity: tab hooks key on the view id (never label text),
+    // so legacy sides keep their hooks across renames.
+    await expect(workspace.locator('[data-fkey="psv-tab-view-1"]')).toBeVisible();
+    await expect(workspace.locator('[data-fkey="psv-tab-view-2"]')).toBeVisible();
     await expect(workspace.getByText('has no scale mapping yet')).toBeVisible();
     await expect(workspace.getByRole('button', { name: 'Set up scale' })).toBeVisible();
 
@@ -135,7 +118,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
     await workspace.getByRole('button', { name: 'Set up scale' }).click();
     const guided = builder(page, 'guided-scale');
     await expect(guided).toBeVisible();
-    const overlay = guided.locator('.guided-scale-overlay');
+    const overlay = guided.locator('.guided-scale-overlay[aria-label*="rectangle corners"]');
     await expect(overlay).toBeVisible();
     const box = (await overlay.boundingBox())!;
     const corner = async (fx: number, fy: number) => {
@@ -162,7 +145,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
       await stage.click({ position: { x: Math.round(live.width * fx), y: Math.round(live.height * fy) } });
     };
     // Pick lists collapse behind "All …" disclosures while an item is
-    // selected (Tranche C contextual controls); expand before choosing.
+    // selected; expand before choosing.
     const openPickList = async (prefix: 'All anchors' | 'All corners'): Promise<void> => {
       const summary = workspace.locator('summary', { hasText: prefix });
       if ((await summary.count()) === 0) return;
@@ -285,205 +268,119 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
     await expect(workspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
     await expect(workspace.getByRole('button', { name: /Anchor \(1\)/ })).toBeVisible();
 
-    // Prepared-master roundtrip: save, parse the ACTUAL master bytes
-    // (region geometry + sidecar anchors), reopen, workspace restored.
-    const masterEvent = page.waitForEvent('download');
-    await (await shown(page, 'save-master')).click();
-    await expect(await shown(page, 'master-status')).toContainText('Saved prepared master');
-    const master = await masterEvent;
-    const masterPath = info.outputPath('visual-setup-master.logo-project');
-    await master.saveAs(masterPath);
-    // Save the staged corners for the roundtrip assertions below.
+    // Save job → parse the ACTUAL package bytes (region geometry + sidecar
+    // anchors): the scope region keeps the measured rectangle; the
+    // drawn+dragged polygon persists as a named sibling.
+    const jobEvent = page.waitForEvent('download');
+    await builder(page, 'job-save').click();
+    const job = await jobEvent;
+    const jobPath = info.outputPath('visual-setup.job.logo-project');
+    await job.saveAs(jobPath);
+    await expect(builder(page, 'job-persistence')).toHaveText('Job file download started. Keep the downloaded file to reopen this job.');
     const expectedCorners = stagedAfter;
-    const masterParsed = await parseProjectPackage(new Uint8Array(await readFile(masterPath)), { sha256 });
-    const masterRegion = masterParsed.project.products[0]!.regions[0]!;
-    expect(masterRegion.safeArea).toHaveLength(4);
+    const saved = await parseProjectPackage(new Uint8Array(await readFile(jobPath)), { sha256 });
+    const savedScope = saved.project.products[0]!.regions[0]!;
+    expect(savedScope.id).toBe('region-visual-1');
+    expect(savedScope.safeArea).toEqual([[0, 0], [280, 0], [280, 200], [0, 200]]);
+    expect(savedScope.calibrationRef.calibrationId).toBe('cal-visual-1');
+    const savedSiblings = saved.project.products[0]!.regions.filter((entry) =>
+      entry.id.startsWith('region-visual-1--area-'));
+    expect(savedSiblings).toHaveLength(1);
+    expect(savedSiblings[0]!.safeArea).toHaveLength(4);
     for (let index = 0; index < 4; index += 1) {
-      expect(Math.abs(masterRegion.safeArea[index]![0] - expectedCorners[index]![0])).toBeLessThan(0.05);
-      expect(Math.abs(masterRegion.safeArea[index]![1] - expectedCorners[index]![1])).toBeLessThan(0.05);
+      expect(Math.abs(savedSiblings[0]!.safeArea[index]![0] - expectedCorners[index]![0])).toBeLessThan(0.05);
+      expect(Math.abs(savedSiblings[0]!.safeArea[index]![1] - expectedCorners[index]![1])).toBeLessThan(0.05);
     }
-    expect(masterRegion.calibrationRef.calibrationId).toBe('cal-visual-1');
-    const sidecarRaw = masterParsed.assets.find((asset) => asset.path === 'presentation/operation-anchors.json');
-    assert.ok(sidecarRaw, 'master must carry the anchors sidecar');
+    expect(savedSiblings[0]!.calibrationRef.calibrationId).toBe('cal-visual-1');
+    const sidecarRaw = saved.assets.find((asset) => asset.path === 'presentation/operation-anchors.json');
+    assert.ok(sidecarRaw, 'saved job must carry the anchors sidecar');
     const sidecar = JSON.parse(Buffer.from(sidecarRaw.bytes).toString('utf8')) as { anchors: Array<{ name: string }> };
     expect(sidecar.anchors.map((anchor) => anchor.name)).toEqual(['Chest center']);
-    await (await shown(page, 'source-file')).setInputFiles(masterPath);
-    await expect(await shown(page, 'source-status')).toContainText('Loaded visual-setup-master.logo-project');
-    await expect(workspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
-    await expect(workspace.getByRole('button', { name: 'Anchor (1)', exact: true })).toBeVisible();
 
-    // Issue BOTH customer formats from the measured setup, with ordinary
-    // product/variant/logo selection only (setups ride along automatically).
-    await (await shown(page, 'logo-file')).setInputFiles({ name: 'crest.png', mimeType: 'image/png', buffer: Buffer.from(frontPng) });
-    await expect(await shown(page, 'logo-status')).toContainText('Added crest.png');
-    await checkAllBoxes(page, 'product-list');
-    await checkAllBoxes(page, 'logo-list');
-    await (await shown(page, 'builder-next')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('included automatically');
-    await (await shown(page, 'customer-name')).fill('Visual Customer');
-    await (await shown(page, 'job-ref')).fill('VISUAL-01');
-    await (await shown(page, 'issued-by')).fill('Lead check');
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('Customer file ready (revision 1)');
-    const baselineEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-baseline')).click();
-    const baseline = await baselineEvent;
-    const baselinePath = info.outputPath('visual-issued.logo-project');
-    await baseline.saveAs(baselinePath);
-    const parsed = await parseProjectPackage(new Uint8Array(await readFile(baselinePath)), { sha256 });
-    expect(parsed.project.revision).toBe(1);
-    expect(parsed.project.products).toHaveLength(1);
-    const region = parsed.project.products[0]!.regions[0]!;
-    expect(region.safeArea).toHaveLength(4);
-    for (let index = 0; index < 4; index += 1) {
-      expect(Math.abs(region.safeArea[index]![0] - expectedCorners[index]![0])).toBeLessThan(0.05);
-      expect(Math.abs(region.safeArea[index]![1] - expectedCorners[index]![1])).toBeLessThan(0.05);
+    // Fresh station → Open job restores identity, card inclusion, workspace.
+    const freshContext = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
+    const fresh = await freshContext.newPage();
+    const freshProbe: Probe = { pageErrors: [], consoleErrors: [], httpRequests: [] };
+    fresh.on('pageerror', (error) => freshProbe.pageErrors.push(String(error)));
+    fresh.on('console', (message) => { if (message.type() === 'error') freshProbe.consoleErrors.push(message.text()); });
+    freshContext.on('request', (request) => { if (/^https?:/.test(request.url())) freshProbe.httpRequests.push(request.url()); });
+    try {
+      await gotoBuilder(fresh);
+      await fresh.locator('[data-builder-hook="job-landing-open"]').click();
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(jobPath);
+      await expect(fresh.locator('[data-job-step="prepare"]')).toBeVisible();
+      await expect(fresh.locator('[data-builder-hook="customer-name"]')).toHaveValue('Visual Customer');
+      await expect(fresh.locator('[data-builder-hook="job-ref"]')).toHaveValue('VISUAL-01');
+      const jacketCard = fresh.locator('[data-product-card]', { hasText: 'Test Jacket' }).first();
+      await expect(jacketCard.locator('input[type="checkbox"]').first()).toBeChecked();
+      const freshWorkspace = fresh.locator('[data-builder-hook="product-workspace"]');
+      await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
+      await expect(freshWorkspace.getByRole('button', { name: 'Anchor' }).first()).toBeVisible();
+
+      // The restored anchor binds a real placement measurement, which flows
+      // into the review document with staff-authored instructions.
+      const freshLogo = new Uint8Array(Buffer.from((await fresh.evaluate((): string => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 200; canvas.height = 120;
+        const context = canvas.getContext('2d')!;
+        context.fillStyle = '#d4af37'; context.fillRect(0, 0, 200, 120);
+        return canvas.toDataURL('image/png').split(',')[1] ?? '';
+      })) as string, 'base64'));
+      await fresh.locator('[data-builder-hook="logo-file"]').setInputFiles({ name: 'crest.png', mimeType: 'image/png', buffer: Buffer.from(freshLogo) });
+      await expect(fresh.locator('[data-builder-hook="logo-status"]')).toContainText('Added crest.png');
+      await fresh.locator('[data-builder-hook="job-to-placements"]').click();
+      await expect(fresh.locator('[data-job-step="placements"]')).toBeVisible();
+      const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
+      await freshHost.getByRole('button', { name: 'Add logo placement' }).click();
+      await fresh.locator('[data-placement-hook="pw-add-logo"]').selectOption({ label: 'crest' });
+      const freshMethod = fresh.locator('[data-placement-hook="pw-add-method"]');
+      if ((await freshMethod.count()) > 0) await freshMethod.selectOption({ label: 'print' });
+      await fresh.locator('[data-placement-hook="pw-add-width"]').fill('90');
+      await fresh.locator('[data-placement-hook="pw-add-height"]').fill('40');
+      await fresh.locator('[data-placement-hook="pw-add-confirm"]').click();
+      await expect(freshHost.locator('[data-placement-hook="pw-placement-list"]')).toContainText('crest');
+      await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
+      await freshHost.getByRole('button', { name: 'Add measurement' }).click();
+      await fresh.locator('[data-placement-hook="pw-measure-anchor"]').selectOption({ label: 'Chest center' });
+      await fresh.locator('[data-placement-hook="pw-measure-edge"]').selectOption({ label: 'left' });
+      await fresh.locator('[data-placement-hook="pw-measure-direction"]').selectOption({ label: 'Horizontal' });
+      await fresh.locator('[data-placement-hook="pw-measure-save"]').click();
+      const freshMeasure = await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText();
+      expect(freshMeasure).toMatch(/Chest center to left edge, horizontal/);
+      expect(freshMeasure).toMatch(/\d+(\.\d)? mm/);
+      await freshHost.getByRole('button', { name: 'Review document' }).click();
+      await expect(fresh.locator('[data-job-step="review"]')).toBeVisible();
+      const freshReview = fresh.locator('[data-builder-hook="job-review-host"]');
+      await freshReview.locator('[data-doc-review-instructions]').fill('Press the chest crest at 160C for 15 seconds.');
+      await freshReview.locator('[data-doc-review-instructions]').press('Tab');
+      const freshPreview = freshReview.locator('[data-doc-review-preview]');
+      await expect(freshPreview).toContainText('Press the chest crest at 160C for 15 seconds.');
+      await expect(freshPreview).toContainText('Chest center, left edge, horizontal');
+      await expect(freshReview.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled();
+      await freshReview.locator('summary', { hasText: 'More output options' }).click();
+      const operatorEvent = fresh.waitForEvent('download');
+      await freshReview.getByRole('button', { name: 'Save operator data' }).click();
+      const operatorFile = await operatorEvent;
+      const operatorPath = await operatorFile.path();
+      assert.ok(operatorPath, 'operator download path is available');
+      const operatorView = JSON.parse(await readFile(operatorPath, 'utf8')) as {
+        format: string;
+        products: Array<{ logos: Array<{ measurements: Array<{ anchor: string; distanceMm: number }> }> }>;
+      };
+      expect(operatorView.format).toBe('operation-export/1');
+      expect(operatorView.products[0]!.logos[0]!.measurements).toHaveLength(1);
+      expect(operatorView.products[0]!.logos[0]!.measurements[0]!.anchor).toBe('Chest center');
+      expect(typeof operatorView.products[0]!.logos[0]!.measurements[0]!.distanceMm).toBe('number');
+      expect(freshProbe.pageErrors).toEqual([]);
+      expect(freshProbe.consoleErrors).toEqual([]);
+      expect(freshProbe.httpRequests).toEqual([]);
+    } finally {
+      await freshContext.close();
     }
-    expect(region.calibrationRef.calibrationId).toBe('cal-visual-1');
-    const issuedProductId = parsed.project.products[0]!.id;
-    const issuedVariantId = parsed.project.products[0]!.variants[0]!.id;
-    const issuedConfigId = parsed.project.configurations[0]!.id;
-    const issuedLogoId = parsed.project.logos[0]!.id;
-    // The issued baseline doubles as the office copy for staff review.
-    const officePath = baselinePath;
-
-    const htmlEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-package')).click();
-    const html = await htmlEvent;
-    assert.ok(html.suggestedFilename().endsWith('.html'), 'self-contained customer file downloads');
-    const htmlPath = info.outputPath('visual-customer.html');
-    await html.saveAs(htmlPath);
-
-    await (await shown(page, 'step-details')).click();
-    await (await shown(page, 'format-hybrid')).check();
-    await (await shown(page, 'generate')).click();
-    await expect(await shown(page, 'generate-status')).toContainText('Customer file ready (revision 1)');
-    const zipEvent = page.waitForEvent('download');
-    await (await shown(page, 'download-package')).click();
-    const zip = await zipEvent;
-    const zipPath = info.outputPath('visual-hybrid.zip');
-    await zip.saveAs(zipPath);
-    const entries = unzipSync(new Uint8Array(await readFile(zipPath)));
-    expect(Object.keys(entries).sort()).toEqual(['OPEN_LOGO_CONFIGURATOR.html', 'VISUAL-01.logo-project']);
-
-    // The customer opens the ACTUAL generated file, places the logo on the
-    // guided region, confirms and returns it.
-    const editor = await context.newPage();
-    editor.on('pageerror', (error) => probe.pageErrors.push(String(error)));
-    editor.on('console', (message) => {
-      if (message.type() === 'error') probe.consoleErrors.push(message.text());
-    });
-    await editor.goto(pathToFileURL(htmlPath).href);
-    const customer = (name: string) => editor.locator(`[data-customer-hook="${name}"]`);
-    await expect(customer('project-id')).toHaveText(parsed.project.projectId);
-    await selectCustomerOption(editor, 'configuration', issuedConfigId);
-    await selectCustomerOption(editor, 'region', 'region-visual-1');
-    await selectCustomerOption(editor, 'logo', issuedLogoId);
-    await selectCustomerOption(editor, 'method', 'embroidery');
-    await cfill(editor, 'x-mm', '140');
-    await cfill(editor, 'y-mm', '100');
-    await cfill(editor, 'width-mm', '60');
-    await cfill(editor, 'height-mm', '30');
-    await cfill(editor, 'rotation', '0');
-    await cfill(editor, 'placement-instructions', 'Chest crest.');
-    await revealCustomerControl(editor, 'add');
-    await customer('add').click();
-    await expect(customer('geometry')).toContainText('Fits: yes');
-    await expect(customer('review')).toContainText('Center: 140.0 mm, 100.0 mm');
-    await expect(customer('review')).toContainText('Width × height: 60.0 mm × 30.0 mm');
-    await cfill(editor, 'confirmed-by', 'Visual Customer');
-    await revealCustomerControl(editor, 'confirm');
-    await customer('confirm').click();
-    await expect(customer('confirmation')).toContainText('Confirmed: version');
-    const returnEvent = editor.waitForEvent('download');
-    await revealCustomerControl(editor, 'submit');
-    await customer('submit').click();
-    const returned = await returnEvent;
-    const returnPath = info.outputPath('visual-return.logo-project');
-    await returned.saveAs(returnPath);
-    const returnedProject = (await parseProjectPackage(new Uint8Array(await readFile(returnPath)), { sha256 })).project;
-    expect(returnedProject.confirmation?.revision).toBe(returnedProject.revision);
-    const returnedPlacement = returnedProject.configurations[0]!.placements[0]!;
-    expect(returnedPlacement.pos).toMatchObject({ xMm: 140, yMm: 100 });
-    expect(returnedPlacement.widthMm).toBe(60);
-    expect(returnedPlacement.heightMm).toBe(30);
-    await editor.close();
-
-    // Same-station review: office copy + return → accept → candidate JSON →
-    // operation sheet + exact one-page branded PDF + minimal operator JSON.
-    const fresh = await context.newPage();
-    fresh.on('pageerror', (error) => probe.pageErrors.push(String(error)));
-    fresh.on('console', (message) => {
-      if (message.type() === 'error') probe.consoleErrors.push(message.text());
-    });
-    await fresh.goto(BUILDER_URL);
-    await expect(fresh.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
-    await (await shownFresh(fresh, 'mode-review')).click();
-    await (await shownFresh(fresh, 'baseline-file')).setInputFiles(officePath);
-    await expect(await shownFresh(fresh, 'baseline-load-status')).toContainText('Loaded office copy');
-    await (await shownFresh(fresh, 'step-return')).click();
-    await (await shownFresh(fresh, 'return-file')).setInputFiles(returnPath);
-    await expect(await shownFresh(fresh, 'review-panel')).toBeVisible();
-    await (await shownFresh(fresh, 'step-check')).click();
-    await (await shownFresh(fresh, 'review-decision-reviewer')).fill('Visual reviewer');
-    await (await shownFresh(fresh, 'review-decision-choice')).selectOption('approved');
-    await (await shownFresh(fresh, 'review-decision-note')).fill('Guided geometry accepted.');
-    await (await shownFresh(fresh, 'review-decision-record')).click();
-    await expect(await shownFresh(fresh, 'review-decision-status')).toContainText('Recorded approved');
-    const reviewedEvent = fresh.waitForEvent('download');
-    await (await shownFresh(fresh, 'review-decision-download')).click();
-    const reviewed = await reviewedEvent;
-    const reviewedPath = info.outputPath('visual-reviewed.logo-project');
-    await reviewed.saveAs(reviewedPath);
-    const reviewedProject = (await parseProjectPackage(new Uint8Array(await readFile(reviewedPath)), { sha256 })).project;
-    expect(reviewedProject.review?.decision).toBe('approved');
-
-    const candidateEvent = fresh.waitForEvent('download');
-    await (await shownFresh(fresh, 'candidate-download')).click();
-    const candidateFile = await candidateEvent;
-    const candidatePath = info.outputPath('visual-candidate.json');
-    await candidateFile.saveAs(candidatePath);
-    const candidateJson = JSON.parse(await readFile(candidatePath, 'utf8')) as {
-      revision: number; digest: string; status: string;
-      configurations: Array<{ productId: string; placements: Array<{ regionId: string; pos: { xMm: number; yMm: number }; widthMm: number; heightMm: number }> }>;
-    };
-    expect(candidateJson.status).toBe('candidate-pending-review');
-    expect(candidateJson.revision).toBe(returnedProject.revision);
-    const candidateConfig = candidateJson.configurations.find((entry) => entry.productId === issuedProductId);
-    assert.ok(candidateConfig, 'candidate should carry the guided configuration');
-    expect(candidateConfig.placements).toHaveLength(1);
-    expect(candidateConfig.placements[0]).toMatchObject({
-      regionId: 'region-visual-1', pos: { xMm: 140, yMm: 100 }, widthMm: 60, heightMm: 30,
-    });
-
-    await (await shownFresh(fresh, 'preview-document')).click();
-    const operation = await shownFresh(fresh, 'operation-container');
-    await expect(operation.locator('.opsheet').first()).toBeVisible();
-    // Human job fields on the real sheet (no anchor dimensions were authored
-    // in this synthetic run, so the sheet stays honestly pending-production).
-    await (await shownFresh(fresh, 'sheet-customer')).fill('Visual Customer');
-    await (await shownFresh(fresh, 'sheet-reference')).fill('VISUAL-01');
-    await (await shownFresh(fresh, 'sheet-instructions')).fill('Press the chest crest at 160C for 15 seconds.');
-    await expect(operation).toContainText('Visual Customer');
-    await expect(operation).toContainText('VISUAL-01');
-    await expect(operation).toContainText('setup needed before production');
-    const sheetCount = await operation.locator('section.opsheet').count();
-    assert.ok(sheetCount >= 1, 'expected at least one operation sheet');
-    const pdfBytes = await fresh.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-    await writeFile(info.outputPath('visual-sheet.pdf'), pdfBytes);
-    expect(countPdfPages(new Uint8Array(pdfBytes))).toBe(sheetCount);
-    const operatorEvent = fresh.waitForEvent('download');
-    await (await shownFresh(fresh, 'operator-download')).click();
-    const operatorFile = await operatorEvent;
-    const operatorPath = info.outputPath('visual-operator.json');
-    await operatorFile.saveAs(operatorPath);
-    const operatorPayload = JSON.parse(await readFile(operatorPath, 'utf8')) as { format: string };
-    expect(operatorPayload.format).toBe('operation-export/1');
-    await fresh.close();
 
     expect(probe.pageErrors).toEqual([]);
     expect(probe.consoleErrors).toEqual([]);
-    expect(probe.networkRequests).toEqual([]);
+    expect(probe.httpRequests).toEqual([]);
   } finally {
     await context.close();
   }
@@ -491,11 +388,8 @@ test('visual setup: upload → guided measure → draw + anchors → save → ma
 
 test('shared region: one safe-area edit reaches both variants, anchors stay per-variant', async ({ browser }, info) => {
   test.setTimeout(120_000);
-  const { context, page, probe } = await openBuilder(browser);
+  const { context, page, probe } = await openStation(browser);
   try {
-    await (await shown(page, 'start-create')).click();
-    await expect(page.locator('[data-builder-step="choose"]')).toBeVisible();
-
     // Crafted fixture: product P with variants A/B sharing ONE measured
     // region R (280x200), one photo, one evaluated mapping per variant.
     const png = await syntheticPngBytes(page, '#1d3a6f', 40, 30);
@@ -570,7 +464,7 @@ test('shared region: one safe-area edit reaches both variants, anchors stay per-
     }, { sha256 });
     const fixturePath = info.outputPath('shared-region.logo-project');
     await writeFile(fixturePath, Buffer.from(bytes));
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    await builder(page, 'job-open-file').setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded shared-region.logo-project');
 
     const workspace = builder(page, 'product-workspace');
@@ -601,7 +495,7 @@ test('shared region: one safe-area edit reaches both variants, anchors stay per-
 
     expect(probe.pageErrors).toEqual([]);
     expect(probe.consoleErrors).toEqual([]);
-    expect(probe.networkRequests).toEqual([]);
+    expect(probe.httpRequests).toEqual([]);
   } finally {
     await context.close();
   }

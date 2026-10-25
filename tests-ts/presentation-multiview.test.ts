@@ -384,3 +384,95 @@ test('side-only creation shapes keep each image on its assigned side', () => {
     assert.equal(selected.warning, null);
   }
 });
+
+test('v3 flexible views parse with stable ids, arbitrary labels and no four-slot cap', () => {
+  const raw = {
+    version: 3,
+    views: [
+      { productId: 'p', view: 'view-1', image: 'presentation/crown.png', label: 'Crown' },
+      { productId: 'p', view: 'view-2', image: 'presentation/sleeve.png', label: 'Sleeve' },
+      { productId: 'p', view: 'view-3', image: 'presentation/a.png' },
+      { productId: 'p', view: 'view-4', image: 'presentation/b.png', label: 'Crown' },
+      { productId: 'p', view: 'view-5', image: 'presentation/c.png', label: '' },
+      { productId: 'p', view: 'front', image: 'presentation/front.png', label: 'Front' },
+    ],
+  };
+  const parsed = parsePresentationManifest(enc(raw));
+  assert.equal(parsed?.version, 3);
+  const lookup = lookupOf({
+    'presentation/crown.png': PIXEL,
+    'presentation/sleeve.png': PIXEL,
+    'presentation/a.png': PIXEL,
+    'presentation/b.png': PIXEL,
+    'presentation/c.png': PIXEL,
+    'presentation/front.png': PIXEL,
+  });
+  const selected = selectPresentationViews(parsed, true, 'p', 'v', lookup);
+  assert.equal(selected.warning, null);
+  // Manifest order, all six views, labels ride along verbatim.
+  assert.deepEqual(selected.views.map((entry) => entry.view), ['view-1', 'view-2', 'view-3', 'view-4', 'view-5', 'front']);
+  assert.deepEqual(selected.views.map((entry) => entry.label), ['Crown', 'Sleeve', null, 'Crown', '', 'Front']);
+  // Duplicate human labels never conflate identities.
+  assert.equal(new Set(selected.views.map((entry) => entry.imagePath)).size, 6);
+});
+
+test('v3 rejects malformed ids, oversized labels and over-budget envelopes', () => {
+  const viewFor = (view: unknown, extra: Record<string, unknown> = {}): unknown => ({
+    version: 3, views: [{ productId: 'p', view, image: 'presentation/a.png', ...extra }],
+  });
+  for (const bad of ['', '  ', 'a/b', 'a\\b', 'a:b', 'x'.repeat(129)]) {
+    assert.equal(parsePresentationManifest(enc(viewFor(bad))), null, JSON.stringify(bad));
+  }
+  assert.equal(parsePresentationManifest(enc(viewFor('view-1', { label: 'x'.repeat(81) }))), null);
+  assert.equal(parsePresentationManifest(enc(viewFor(7))), null);
+  assert.equal(parsePresentationManifest(enc({ version: 3, views: 'nope' })), null);
+  assert.equal(parsePresentationManifest(enc({ version: 3, views: [] })), null);
+  const many = Array.from({ length: 33 }, (_, i) => ({ productId: 'p', view: `view-${i}`, image: `presentation/a${i}.png` }));
+  assert.equal(parsePresentationManifest(enc({ version: 3, views: many })), null);
+  const ok32 = Array.from({ length: 32 }, (_, i) => ({ productId: 'p', view: `view-${i}`, image: `presentation/a${i}.png` }));
+  assert.equal(parsePresentationManifest(enc({ version: 3, views: ok32 }))?.version, 3);
+  // v2 keeps the strict four-side check: flexible ids stay v3-only.
+  assert.equal(parsePresentationManifest(enc({ version: 2, views: [{ productId: 'p', view: 'view-1', image: 'presentation/a.png' }] })), null);
+  assert.equal(parsePresentationManifest(enc({ version: 2, views: [{ productId: 'p', view: 'up', image: 'presentation/a.png' }] })), null);
+});
+
+test('v3 variant scoping prefers the option entry without dropping siblings', () => {
+  const raw = {
+    version: 3,
+    views: [
+      { productId: 'p', view: 'view-1', image: 'presentation/wide.png', label: 'Wide' },
+      { productId: 'p', variantId: 'v2', view: 'view-1', image: 'presentation/specific.png', label: 'Specific' },
+      { productId: 'p', view: 'view-2', image: 'presentation/other.png' },
+    ],
+  };
+  const parsed = parsePresentationManifest(enc(raw));
+  const lookup = lookupOf({
+    'presentation/wide.png': PIXEL,
+    'presentation/specific.png': PIXEL,
+    'presentation/other.png': PIXEL,
+  });
+  const scoped = selectPresentationViews(parsed, true, 'p', 'v2', lookup);
+  assert.deepEqual(scoped.views.map((entry) => entry.imagePath), ['presentation/specific.png', 'presentation/other.png']);
+  const wide = selectPresentationViews(parsed, true, 'p', 'other', lookup);
+  assert.deepEqual(wide.views.map((entry) => entry.imagePath), ['presentation/wide.png', 'presentation/other.png']);
+});
+
+test('v3 models select and issue passthrough preserves the envelope version', () => {
+  const raw = {
+    version: 3,
+    views: [{ productId: 'p', view: 'view-1', image: 'presentation/a.png' }],
+    models: [{ productId: 'p', model: 'presentation/m.glb', label: 'M' }],
+  };
+  const parsed = parsePresentationManifest(enc(raw));
+  assert.equal(selectPresentationModel(parsed, true, 'p', 'v', lookupOf({ 'presentation/m.glb': MODEL })).modelPath, 'presentation/m.glb');
+  const assets = [
+    { path: PRESENTATION_MANIFEST_PATH, bytes: enc(raw), kind: 'additional' },
+    { path: 'presentation/a.png', bytes: PIXEL, kind: 'additional' },
+    { path: 'presentation/m.glb', bytes: MODEL, kind: 'additional' },
+  ];
+  const out = selectPresentationPackageAssets(assets, [{ productId: 'p', variantId: 'v' }]);
+  const rewritten = JSON.parse(new TextDecoder().decode(out[0]!.bytes));
+  assert.equal(rewritten.version, 3);
+  assert.deepEqual(rewritten.views, [{ productId: 'p', view: 'view-1', image: 'presentation/a.png' }]);
+  assert.deepEqual(rewritten.models, [{ productId: 'p', model: 'presentation/m.glb', label: 'M' }]);
+});

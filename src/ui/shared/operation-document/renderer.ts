@@ -152,7 +152,7 @@ function headerCostMm(
   job: OperationSheetView["job"],
   sheet: OperationSheetView["sheets"][number],
 ): number {
-  const title = `${sheet.productName ?? sheet.productId} / ${sheet.variantName ?? sheet.variantId}`;
+  const title = sheetDisplayTitle(sheet);
   let jobLines = 0;
   for (const field of [job.customer, job.reference, job.article]) {
     if (field) jobLines += costLines(field.length + 11, JOB_CPL);
@@ -652,8 +652,18 @@ function safeDataUrl(url: string | undefined): string | null {
   return SAFE_DATA_URL_PATTERN.test(url) ? url : null;
 }
 
+function sheetDisplayTitle(sheet: OperationSheetView["sheets"][number]): string {
+  const base = sheet.productName ?? sheet.productId;
+  // variantDisplay is the operator-facing variant label (human name,
+  // `Option N`, or null to omit a single unnamed option). Raw variant ids
+  // never reach operator surfaces; diagnostics keep the exact ids.
+  if (sheet.variantDisplay === null) return base;
+  if (sheet.variantDisplay !== undefined) return `${base} / ${sheet.variantDisplay}`;
+  return `${base} / ${sheet.variantName ?? sheet.variantId}`;
+}
+
 function sheetTitle(sheet: OperationSheetView["sheets"][number]): string {
-  return `${sheet.productName ?? sheet.productId} / ${sheet.variantName ?? sheet.variantId}`;
+  return sheetDisplayTitle(sheet);
 }
 
 function logoHeading(logo: OperationSheetLogo): string {

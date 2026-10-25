@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MAX_PREVIEW_BYTES } from "../src/assets/raster-header.js";
-import { planPhotoIntake } from "../src/core/photo-intake/index.js";
+import { planPhotoIntake, renameIntakeViewLabel } from "../src/core/photo-intake/index.js";
 import type { PhotoIntakeInput } from "../src/core/photo-intake/index.js";
 
 function pngBytes(width: number, height: number): Uint8Array {
@@ -401,5 +401,78 @@ describe("planPhotoIntake validation", () => {
     const first = planPhotoIntake(input);
     const second = planPhotoIntake(input);
     assert.deepEqual(first, second);
+  });
+});
+
+describe("renameIntakeViewLabel", () => {
+  const namedManifest: unknown = {
+    version: 3,
+    views: [
+      { productId: "jacket-01", variantId: "std", view: "view-1", image: "presentation/jacket-01/view-1.png", label: "Crown" },
+      { productId: "jacket-01", variantId: "std", view: "view-2", image: "presentation/jacket-01/view-2.png", label: "Sleeve" },
+      { productId: "jacket-01", view: "front", image: "presentation/jacket-01/front.png", label: "Front view" },
+    ],
+  };
+
+  it("renames by stable id: image and identity preserved, siblings untouched", () => {
+    const before = JSON.parse(JSON.stringify(namedManifest));
+    const result = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "std", view: "view-1", label: "Crown front" });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const views = (result.manifest as { views: Array<{ view: string; image: string; label?: string }> }).views;
+    // Canonical id sort (legacy 'front' first); identity, images and
+    // sibling labels survive verbatim — only the target label changes.
+    assert.deepEqual(views.map((entry) => entry.view), ["front", "view-1", "view-2"]);
+    assert.deepEqual(views.map((entry) => entry.image), [
+      "presentation/jacket-01/front.png",
+      "presentation/jacket-01/view-1.png",
+      "presentation/jacket-01/view-2.png",
+    ]);
+    const byId = new Map(views.map((entry) => [entry.view, entry.label]));
+    assert.equal(byId.get("view-1"), "Crown front");
+    assert.equal(byId.get("view-2"), "Sleeve");
+    assert.equal(byId.get("front"), "Front view");
+    assert.deepEqual(namedManifest, before, "rename must not mutate its input");
+  });
+
+  it("clears the label when omitted and keeps the legacy entry byte-shape", () => {
+    const result = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "std", view: "view-2" });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const views = (result.manifest as { views: Array<{ view: string; label?: string }> }).views;
+    const cleared = views.find((entry) => entry.view === "view-2")!;
+    assert.ok(!("label" in cleared), "cleared label is omitted, not blanked");
+  });
+
+  it("rejects unknown views, duplicate scope ambiguity and bad labels", () => {
+    const unknown = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "std", view: "view-9", label: "X" });
+    assert.equal(unknown.ok, false);
+    if (!unknown.ok) assert.equal(unknown.code, "unknown-view");
+    const wrongScope = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "other", view: "view-1", label: "X" });
+    assert.equal(wrongScope.ok, false);
+    // Whitespace-only text is within the 1..80-char contract (display layers
+    // trim and fall back); overlong text is refused.
+    const blank = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "std", view: "view-1", label: "   " });
+    assert.equal(blank.ok, true);
+    const long = renameIntakeViewLabel(namedManifest, { productId: "jacket-01", variantId: "std", view: "view-1", label: "x".repeat(81) });
+    assert.equal(long.ok, false);
+    const malformed = renameIntakeViewLabel({ version: 2, views: [] }, { productId: "jacket-01", view: "front", label: "X" });
+    assert.equal(malformed.ok, false);
+  });
+
+  it("is deterministic and variant-scoped", () => {
+    // The front entry is product-wide: the target carries no variantId.
+    // A variant-scoped target would address a different (absent) scope.
+    const target = { productId: "jacket-01", view: "front", label: "Front photo" } as const;
+    const first = renameIntakeViewLabel(namedManifest, { ...target });
+    const second = renameIntakeViewLabel(namedManifest, { ...target });
+    assert.deepEqual(first, second);
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    const views = (first.manifest as { views: Array<{ view: string; label?: string }> }).views;
+    const byId = new Map(views.map((entry) => [entry.view, entry.label]));
+    assert.equal(byId.get("front"), "Front photo");
+    assert.equal(byId.get("view-1"), "Crown");
+    assert.equal(byId.get("view-2"), "Sleeve");
   });
 });

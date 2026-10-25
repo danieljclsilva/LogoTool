@@ -70,7 +70,6 @@ test('malformed files are dropped to null, never thrown', () => {
   const badFiles: Uint8Array[] = [
     new TextEncoder().encode('not json'),
     new Uint8Array(64 * 1024 + 1),
-    enc({ version: 2, mappings: [good] }),
     enc({ mappings: [good] }),
     enc({ version: 1 }),
     enc({ version: 1, mappings: 'nope' }),
@@ -90,6 +89,10 @@ test('malformed files are dropped to null, never thrown', () => {
   for (const bytes of badFiles) {
     assert.equal(parsePhotoMappings(bytes), null);
   }
+  // Envelope version 2 with valid entries is well-formed (backward reader).
+  const v2good = parsePhotoMappings(enc({ version: 2, mappings: [good] }));
+  assert.equal(v2good?.version, 1);
+  assert.deepEqual(v2good?.mappings, [good]);
   assert.match(selectPhotoMapping(null, true, 'p', 'v', 'r1', 'front', 'presentation/front.png', lookupOf({})).warning ?? '', /invalid/);
 });
 

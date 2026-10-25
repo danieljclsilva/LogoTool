@@ -46,6 +46,35 @@ export interface RegionAxesFrame {
   lengthMm: number;
   mmPerModelUnit: number;
 }
+/** One named safe-area polygon on the model in wrapper-local model coords. */
+export interface SafeAreaOverlayItem {
+  id: string;
+  pointsModel: Array<{ x: number; y: number; z: number }>;
+}
+
+/** Pointer-down/up pair for click-vs-drag surface-pick gating. */
+export interface SurfaceClickSample {
+  downX: number;
+  downY: number;
+  upX: number;
+  upY: number;
+}
+
+/**
+ * Pure click-vs-drag gate for armed surface picking: only a primary-button
+ * press/release with pointer travel at or below `maxPx` counts as a surface
+ * pick (mirrors the calibration panel's 6px rule). Nonfinite input never
+ * counts. Pure; no DOM.
+ */
+export function isSurfaceClick(sample: SurfaceClickSample, maxPx = 6): boolean {
+  if (sample === null || typeof sample !== 'object') return false;
+  const { downX, downY, upX, upY } = sample;
+  if (!Number.isFinite(downX) || !Number.isFinite(downY)) return false;
+  if (!Number.isFinite(upX) || !Number.isFinite(upY)) return false;
+  if (!Number.isFinite(maxPx) || maxPx < 0) return false;
+  return Math.hypot(upX - downX, upY - downY) <= maxPx;
+}
+
 /** One logo-placement overlay quad in wrapper-local model coords. */
 export interface PlacementOverlayItem {
   id: string;
@@ -89,6 +118,7 @@ export class ModelViewer {
   private readonly markerMaterial: THREE.MeshBasicMaterial;
   private readonly axesGroup: THREE.Group;
   private readonly placementGroup: THREE.Group;
+  private readonly safeAreaGroup: THREE.Group;
   private readonly axesXMaterial: THREE.LineBasicMaterial;
   private readonly axesYMaterial: THREE.LineBasicMaterial;
   private readonly container: HTMLElement;
@@ -99,6 +129,13 @@ export class ModelViewer {
   /** Incremented per showModel/clear call; stale async parses bail out. */
   private generation = 0;
   private wireframe = false;
+  /**
+   * Product-geometry visibility (render-only): the parsed model subtree is
+   * shown/hidden without touching overlays, camera, framing bounds or
+   * staged data. Re-applied whenever a model (or proxy) is attached, so a
+   * replacement model cannot silently reset a hidden product.
+   */
+  private productVisible = true;
   private status: ViewerStatus = { kind: 'empty' };
   private onStatus: ((status: ViewerStatus) => void) | null = null;
 
@@ -131,6 +168,9 @@ export class ModelViewer {
     this.placementGroup = new THREE.Group();
     this.placementGroup.name = 'placement-overlays';
     this.wrapper.add(this.placementGroup);
+    this.safeAreaGroup = new THREE.Group();
+    this.safeAreaGroup.name = 'safe-area-overlays';
+    this.wrapper.add(this.safeAreaGroup);
     this.axesXMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     this.axesYMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
     this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
@@ -220,8 +260,9 @@ export class ModelViewer {
     this.clearModel();
     this.wrapper.add(parsed.scene);
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) this.applyWireframe(child, this.wireframe);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) this.applyWireframe(child, this.wireframe);
     }
+    this.applyProductVisibility();
     // A parsed-but-empty (or single-point-degenerate) scene paints a blank
     // canvas: surface it as a failure so the embedding UI never shows blank
     // success. Flat planes and lines keep a nonzero diagonal and still pass.
@@ -379,6 +420,7 @@ export class ModelViewer {
         return this.status;
       }
       this.wrapper.add(new THREE.Mesh(geometry, material));
+      this.applyProductVisibility();
       this.fitView();
       this.controls.enabled = true;
       return this.setStatus({ kind: 'ready' });
@@ -419,7 +461,7 @@ export class ModelViewer {
       raycaster.setFromCamera(ndc, this.camera);
       const targets: THREE.Object3D[] = [];
       for (const child of this.wrapper.children) {
-        if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) targets.push(child);
+        if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) targets.push(child);
       }
       if (targets.length === 0) return null;
       const hits = raycaster.intersectObjects(targets, true);
@@ -466,11 +508,173 @@ export class ModelViewer {
     }
   }
 
+  /**
+   * Raycast the asset model from a pointer/mouse event's client coords.
+   * Minimal convenience over {@link pickSurface}: extracts `clientX/clientY`
+   * and delegates, returning null on any miss or bad input. Never throws.
+   */
+  pickSurfaceFromEvent(event: { clientX: number; clientY: number }): { modelPosition: { x: number; y: number; z: number } } | null {
+    try {
+      if (event === null || typeof event !== 'object') return null;
+      return this.pickSurface(event.clientX, event.clientY);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Show or hide anchor markers without touching staged data. Visibility is
+   * render-only: markers stay registered and keep riding wrapper transforms.
+   * Never throws.
+   */
+  setAnchorsVisible(visible: boolean): void {
+    try {
+      if (!this.disposed) this.markerGroup.visible = visible === true;
+    } catch {
+      return;
+    }
+  }
+
+  /** Current anchor-marker visibility (false after dispose guard trips). */
+  getAnchorsVisible(): boolean {
+    try {
+      return this.markerGroup.visible === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Show or hide safe-area overlays (plus region axes and placement overlays,
+   * which share the same visual layer) without touching staged data. Never
+   * throws.
+   */
+  setSafeAreasVisible(visible: boolean): void {
+    try {
+      if (this.disposed) return;
+      const shown = visible === true;
+      this.safeAreaGroup.visible = shown;
+      this.axesGroup.visible = shown;
+      this.placementGroup.visible = shown;
+    } catch {
+      return;
+    }
+  }
+
+  /** Current safe-area overlay visibility. */
+  getSafeAreasVisible(): boolean {
+    try {
+      return this.safeAreaGroup.visible === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Show or hide the product geometry (parsed model/proxy subtree) without
+   * touching overlays, camera, framing bounds or staged data. Render-only:
+   * the subtree stays registered, markers/overlays keep riding wrapper
+   * transforms, and raycast entry points are unchanged (callers gate picks
+   * explicitly). Never throws.
+   */
+  setProductVisible(visible: boolean): void {
+    try {
+      if (this.disposed) return;
+      this.productVisible = visible === true;
+      this.applyProductVisibility();
+    } catch {
+      return;
+    }
+  }
+
+  /** Current product-geometry visibility (false after dispose guard trips). */
+  getProductVisible(): boolean {
+    try {
+      return this.productVisible === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Apply the product flag to the model subtree only; overlays untouched. */
+  private applyProductVisibility(): void {
+    for (const child of this.wrapper.children) {
+      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
+      child.visible = this.productVisible;
+    }
+  }
+
+  /**
+   * Replace the named safe-area polygon overlay set. Points are wrapper-local
+   * model coords (3D surface picks in asset coordinates); each polygon draws
+   * as an outline loop plus a translucent fill in its own group, so overlays
+   * never mutate the model subtree, never participate in raycasts or framing
+   * bounds, and never receive wireframe. Entries with fewer than 3 finite
+   * points are skipped. Empty array clears overlays. Never throws.
+   */
+  setSafeAreaOverlays(items: SafeAreaOverlayItem[]): void {
+    try {
+      this.clearSafeAreas();
+      if (this.disposed) return;
+      if (!Array.isArray(items) || items.length === 0) return;
+      for (const item of items) {
+        if (item === null || typeof item !== 'object') continue;
+        if (!('pointsModel' in item)) continue;
+        const raw: unknown = item.pointsModel;
+        if (!Array.isArray(raw) || raw.length < 3) continue;
+        const points: THREE.Vector3[] = [];
+        let valid = true;
+        for (const corner of raw) {
+          if (!isVec3(corner)) { valid = false; break; }
+          points.push(new THREE.Vector3(corner.x, corner.y, corner.z));
+        }
+        if (!valid || points.length < 3) continue;
+        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x0b6cab, depthTest: true });
+        this.safeAreaGroup.add(new THREE.LineLoop(outlineGeometry, outlineMaterial));
+        const fillGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const triangles: number[] = [];
+        for (let index = 1; index + 1 < points.length; index += 1) {
+          triangles.push(0, index, index + 1);
+        }
+        fillGeometry.setIndex(triangles);
+        fillGeometry.computeVertexNormals();
+        const fillMaterial = new THREE.MeshBasicMaterial({
+          color: 0x0b6cab,
+          transparent: true,
+          opacity: 0.18,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        this.safeAreaGroup.add(new THREE.Mesh(fillGeometry, fillMaterial));
+      }
+    } catch {
+      return;
+    }
+  }
+
+  /** Remove safe-area overlay lines/meshes and dispose their geometries/materials. */
+  private clearSafeAreas(): void {
+    for (let i = this.safeAreaGroup.children.length - 1; i >= 0; i--) {
+      const child = this.safeAreaGroup.children[i];
+      if (child === undefined) continue;
+      this.safeAreaGroup.remove(child);
+      if (child instanceof THREE.LineLoop || child instanceof THREE.Line || child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const material = child.material;
+        const materials = Array.isArray(material) ? material : [material];
+        for (const entry of materials) {
+          if (entry === undefined) continue;
+          entry.dispose();
+        }
+      }
+    }
+  }
   /** Toggle flat wireframe rendering on model materials; markers unaffected. */
   setWireframe(enabled: boolean): void {
     this.wireframe = enabled;
     for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup) this.applyWireframe(child, enabled);
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup) this.applyWireframe(child, enabled);
     }
   }
 
@@ -499,6 +703,8 @@ export class ModelViewer {
     this.axesYMaterial.dispose();
     if (this.placementGroup.parent !== null) this.placementGroup.parent.remove(this.placementGroup);
     this.clearPlacements();
+    if (this.safeAreaGroup.parent !== null) this.safeAreaGroup.parent.remove(this.safeAreaGroup);
+    this.clearSafeAreas();
     this.controls.dispose();
     this.renderer.dispose();
   }
@@ -506,13 +712,14 @@ export class ModelViewer {
   private clearModel(): void {
     for (let i = this.wrapper.children.length - 1; i >= 0; i--) {
       const child = this.wrapper.children[i];
-      if (child === undefined || child === this.markerGroup || child === this.axesGroup || child === this.placementGroup) continue;
+      if (child === undefined || child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
       this.wrapper.remove(child);
       disposeObject(child);
     }
     this.clearMarkers();
     this.clearAxes();
     this.clearPlacements();
+    this.clearSafeAreas();
     this.wrapper.position.set(0, 0, 0);
   }
 
@@ -521,7 +728,7 @@ export class ModelViewer {
     const box = new THREE.Box3();
     box.makeEmpty();
     for (const child of this.wrapper.children) {
-      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup) continue;
+      if (child === this.markerGroup || child === this.axesGroup || child === this.placementGroup || child === this.safeAreaGroup) continue;
       box.expandByObject(child);
     }
     return box;

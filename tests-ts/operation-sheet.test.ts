@@ -444,6 +444,7 @@ describe("renderOperationSheet", () => {
         variantId: "l",
         productName: "Polo shirt",
         variantName: "Large",
+        variantDisplay: "Large",
         sides: [],
         logos: [],
         instructions: [],
@@ -669,6 +670,7 @@ function makeDirectView(
       variantId: "m",
       productName: "Polo shirt",
       variantName: "Medium",
+      variantDisplay: "Medium",
       sides: Array.from({ length: sideCount }, (_, index) => ({
         view: ["front", "back", "left", "right"][index] ?? "front",
         imagePath: `presentation/side-${index}.png`,

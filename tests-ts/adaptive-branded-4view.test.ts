@@ -128,6 +128,7 @@ function makeFourView(): { view: OperationSheetView; lookup: OperationSheetAsset
       variantId: "m",
       productName: "Field Jacket",
       variantName: "M",
+      variantDisplay: "M",
       sides: [
         { view: "front", imagePath: "presentation/front.png", label: "Front" },
         { view: "back", imagePath: "presentation/back.png", label: "Back" },

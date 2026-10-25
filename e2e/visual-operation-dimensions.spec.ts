@@ -1,23 +1,26 @@
-// Tranche B acceptance (lead-owned): visual anchor→logo-edge dimensions.
-// Two-logo customer return (chest + back) → one anchor per region → FOUR
-// real pointer picks on region schematics (dx + dy per logo) → bindings in
-// the operator JSON → draft save/reopen keeps all four → actual A4 PDF.
-// Blank-garment far clicks never bind (edge-too-far), Escape cancels,
-// incompatible convention is refused with guidance. Synthetic fixtures only
-// (sheet-fixtures). Offline file://, zero console/page errors, zero HTTP(S).
-
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { release, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { release } from 'node:os';
 import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
 import type { Probe } from './helpers.js';
-import { countPdfPages, makePngs, makeReturnBytes, openCheckWithReturn, readMediaBox } from './sheet-fixtures.js';
+
+// Visual operation dimensions acceptance through the operator job shell:
+// one calibrated product with a named setup anchor, two placed logos, FOUR
+// real measurement rows through the placement measurement selects (dx + dy
+// per logo) → bindings in the operator JSON → an incompatible
+// direction/edge pair is refused with guidance → Save job/reopen keeps all
+// four rows → the review sheet lists all four. Synthetic fixtures only
+// (in-page canvas PNGs). Offline file://, zero console/page errors, zero
+// HTTP(S).
 
 function builder(page: Page, name: string) {
   return page.locator(`[data-builder-hook="${name}"]`);
+}
+
+function pw(page: Page, name: string) {
+  return page.locator(`[data-placement-hook="${name}"]`);
 }
 
 async function shown(page: Page, name: string) {
@@ -25,7 +28,7 @@ async function shown(page: Page, name: string) {
   return builder(page, name);
 }
 
-async function openBuilder(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
+async function openStation(browser: Browser): Promise<{ context: BrowserContext; page: Page; probe: Probe }> {
   await test.info().attach('visual-dimensions-environment', {
     contentType: 'application/json',
     body: JSON.stringify({
@@ -35,275 +38,198 @@ async function openBuilder(browser: Browser): Promise<{ context: BrowserContext;
     }, null, 2),
   });
   const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
-  // Bounded actions: a missing or never-stable locator must fail fast with
-  // the real step visible, never hang to the overall test timeout.
-  await context.setDefaultTimeout(15000);
   await gotoBuilder(page);
-  await expect(page.locator('[data-builder-mode-panel="prepare"]')).toBeVisible();
+  await expect(page.locator('[data-job-landing]')).toBeVisible();
+  await builder(page, 'job-landing-create').click();
+  await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   return { context, page, probe };
 }
 
-/** Create one named anchor on a mapped side/region via the anchor overlay. */
-async function createAnchor(page: Page, sideText: string, regionText: string, fx: number, fy: number): Promise<void> {
-  const disclosure = page.locator('[data-builder-hook="anchor-disclosure"]');
-  if (!await disclosure.evaluate((element) => (element as HTMLDetailsElement).open)) {
-    await disclosure.locator(':scope > summary').click();
-  }
-  const sideValue = await page.evaluate((want: string) => {
-    const sel = document.querySelector<HTMLSelectElement>('select[data-builder-hook="anchor-side"]');
-    return Array.from(sel?.options ?? []).find((o) => o.text.toLowerCase().includes(want) || o.value.toLowerCase().includes(want))?.value ?? '';
-  }, sideText);
-  assert.ok(sideValue, `setup offers the ${sideText} side`);
-  await page.locator('[data-builder-hook="anchor-side"]').selectOption(sideValue);
-  const regionValue = await page.evaluate((want: string) => {
-    const sel = document.querySelector<HTMLSelectElement>('select[data-builder-hook="anchor-region"]');
-    return Array.from(sel?.options ?? []).find((o) => o.text.includes(want) || o.value.includes(want))?.value ?? '';
-  }, regionText);
-  assert.ok(regionValue, `setup offers the ${regionText} region`);
-  await page.locator('[data-builder-hook="anchor-region"]').selectOption(regionValue);
-  const overlay = page.locator('[data-builder-hook="anchor-setup"] svg.anchor-setup-overlay');
-  await expect(overlay).toBeVisible({ timeout: 15000 });
-  await overlay.scrollIntoViewIfNeeded();
-  const box = (await overlay.boundingBox())!;
-  await overlay.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
-  await page.waitForTimeout(1500);
+function expectOfflineClean(probe: Probe): void {
+  expect(probe.pageErrors).toEqual([]);
+  expect(probe.consoleErrors).toEqual([]);
+  expect(probe.httpRequests).toEqual([]);
 }
 
-interface ScreenPoint { x: number; y: number; }
+/** Synthetic PNG bytes rendered in the page (exact original bytes). */
+async function syntheticPngBytes(page: Page, fill = '#1d6f3a', w = 400, h = 300): Promise<Uint8Array> {
+  const base64 = await page.evaluate(({ color, width, height }: { color: string; width: number; height: number }): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (context === null) throw new Error('2d canvas unavailable for synthetic PNG fixture.');
+    context.fillStyle = color;
+    context.fillRect(0, 0, width, height);
+    return canvas.toDataURL('image/png').split(',')[1] ?? '';
+  }, { color: fill, width: w, height: h });
+  return new Uint8Array(Buffer.from(base64, 'base64'));
+}
 
-/** Map viewBox-space schematic coords to screen pixels (meet letterboxing). */
-async function viewBoxToScreen(page: Page, svg: ReturnType<Page['locator']>, vx: number, vy: number): Promise<ScreenPoint> {
-  const mapped = await svg.evaluate((element, point: { vx: number; vy: number }) => {
-    const node = element as unknown as SVGSVGElement;
-    const rect = node.getBoundingClientRect();
-    const box = node.viewBox.baseVal;
-    const scale = Math.min(rect.width / box.width, rect.height / box.height);
-    const offX = rect.left + (rect.width - box.width * scale) / 2;
-    const offY = rect.top + (rect.height - box.height * scale) / 2;
-    return { x: offX + (point.vx - box.x) * scale, y: offY + (point.vy - box.y) * scale };
-  }, { vx, vy });
-  return mapped;
+async function downloadTo(page: Page, button: import('@playwright/test').Locator, outPath: string): Promise<string> {
+  const event = page.waitForEvent('download');
+  await button.click();
+  const download = await event;
+  await download.saveAs(outPath);
+  return outPath;
 }
 
 /**
- * Click a schematic point for the given artwork edge: parses the footprint
- * polygon (viewBox units, y-down), takes the extreme side midpoint for the
- * named edge, offsets outward by 3 viewBox units so the click lands outside
- * the artwork but inside the 10 mm edge gate.
+ * Headless-provable print contract: the sheet renders on screen, the
+ * station chrome hides under print media, and the one-page A4-landscape
+ * CSS rules plus the renderer's own page budget are present.
  */
-async function clickSchematicEdge(page: Page, panel: ReturnType<Page['locator']>, edge: 'minX' | 'maxX' | 'minY' | 'maxY'): Promise<void> {
-  const svg = panel.locator('svg[data-visual-pick-diagram]');
-  const target = await svg.evaluate((element, want: string) => {
-    const node = element as unknown as SVGSVGElement;
-    const polygon = node.querySelector('polygon[data-visual-footprint]');
-    if (!polygon) throw new Error('footprint polygon missing');
-    const nums = (polygon.getAttribute('points') ?? '').trim().split(/[\s,]+/).map(Number);
-    const corners: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i + 1 < nums.length; i += 2) corners.push({ x: nums[i]!, y: nums[i + 1]! });
-    let best = -1;
-    let bestScore = 0;
-    for (let i = 0; i < corners.length; i += 1) {
-      const a = corners[i]!;
-      const b = corners[(i + 1) % corners.length]!;
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      // ViewBox y runs down while millimetres run up: minY edge = max vy.
-      const score = want === 'minX' ? -mx : want === 'maxX' ? mx : want === 'minY' ? my : -my;
-      if (i === 0 || score > bestScore) {
-        bestScore = score;
-        best = i;
-      }
-    }
-    const a = corners[best]!;
-    const b = corners[(best + 1) % corners.length]!;
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-    const out = 3;
-    return {
-      vx: want === 'minX' ? mx - out : want === 'maxX' ? mx + out : mx,
-      vy: want === 'minY' ? my + out : want === 'maxY' ? my - out : my,
-    };
-  }, edge);
-  const screen = await viewBoxToScreen(page, svg, target.vx, target.vy);
-  await page.mouse.click(screen.x, screen.y);
-}
-
-async function clickAnchorDot(page: Page, panel: ReturnType<Page['locator']>): Promise<number> {
-  const dots = panel.locator('circle[data-visual-anchor]');
-  const count = await dots.count();
-  const box = await dots.first().boundingBox();
-  assert.ok(box, 'anchor dot has a box');
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  return count;
-}
-
-test('visual dimensions: four pointer picks across two logos print and export', async ({ browser }, info) => {
-  test.setTimeout(240_000);
-  const { context, page, probe } = await openBuilder(browser);
-  let directory = '';
+async function expectPrintContract(page: Page, reviewHost: ReturnType<typeof builder>): Promise<void> {
+  const preview = reviewHost.locator('[data-doc-review-preview]');
+  await expect(preview.locator('.opsheet').first()).toBeVisible();
+  await expect(preview).toContainText('1 printed page(s)');
+  const styleText = await page.evaluate(() => [...document.querySelectorAll('style')].map((node) => node.textContent ?? '').join('\n'));
+  expect(styleText).toContain('@page { size: A4 landscape;');
+  expect(styleText).toMatch(/\.opsheet\s*\{[^}]*break-after:\s*page/);
+  await page.emulateMedia({ media: 'print' });
   try {
-    const pngs = await makePngs(page);
-    const { baseline, returned } = await makeReturnBytes(pngs);
-    await openCheckWithReturn(page, baseline, returned);
+    await expect(page.locator('header.station-header')).toBeHidden();
+    await expect(page.locator('.job-steps')).toBeHidden();
+    await expect(page.locator('[data-job-step="prepare"]')).toBeHidden();
+    await expect(page.locator('[data-job-step="placements"]')).toBeHidden();
+    await expect(reviewHost.getByRole('button', { name: 'Print / save PDF' })).toBeHidden();
+  } finally {
+    await page.emulateMedia({ media: 'screen' });
+  }
+  await expect(preview.locator('.opsheet').first()).toBeVisible();
+}
 
-    // One anchor per logo region, on the mapped photos.
-    await createAnchor(page, 'front', 'Chest', 0.5, 0.35);
-    await expect(page.getByLabel('Measurement 1 anchor for logo 1')).toContainText('Anchor', { timeout: 15000 });
-    await createAnchor(page, 'back', 'Back', 0.5, 0.4);
-    await expect(page.getByLabel('Measurement 1 anchor for logo 2')).toContainText('Anchor', { timeout: 15000 });
+test('four select-based measurements across two logos print and export', async ({ browser }, info) => {
+  test.setTimeout(240_000);
+  const { context, page, probe } = await openStation(browser);
+  try {
+    await (await shown(page, 'customer-name')).fill('Acme Athletics');
+    await (await shown(page, 'job-ref')).fill('DIMS-01');
+    const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
+    await shown(page, 'product-view-add');
+    const rows = page.locator('[data-builder-hook="product-view-rows"] [data-view-row]');
+    await rows.first().locator('input[type="text"]').fill('Front');
+    await rows.first().locator('input[type="file"]').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: Buffer.from(jacketPng) });
+    await expect(rows.first().locator('.view-row-state')).toContainText('ready');
+    await (await shown(page, 'product-name')).fill('Team jacket');
+    await (await shown(page, 'product-add')).click();
+    await expect(await shown(page, 'product-status')).toContainText('Added');
 
-    const pickButton = (logo: number, measure: number) =>
-      page.getByRole('button', { name: `Pick on diagram for measurement ${measure} for logo ${logo}`, exact: true });
-    const panel = () => page.locator('div[data-visual-pick]');
-    const pickStatus = () => panel().locator('[data-visual-pick-status]');
-
-    // Marker scale + far-click + Escape probe on logo 1 row 1 before any
-    // real pick. Markers keep constant CSS-pixel sizes at every render
-    // scale (desktop stage, narrow viewport, native 2000 px photo); the hit
-    // ring exceeds the visible dot and selects directly; a valid proposal
-    // draws an arrow, then a blank-garment click retires the proposal
-    // (arrow gone, Add disabled) instead of committing a stale edge.
-    await pickButton(1, 1).click();
-    await expect(panel()).toBeVisible();
-    await expect(panel().locator('image[data-visual-photo]')).toBeVisible();
-    const artwork = panel().locator('image[data-visual-artwork]');
-    await expect(artwork).toBeVisible();
-    const artworkHref = await artwork.getAttribute('href');
-    assert.match(artworkHref ?? '', /^data:image\/(png|jpeg|webp);base64,/,
-      'the picker embeds original artwork bytes rather than a package-relative path');
-    assert.ok(await page.evaluate(async (href: string) => {
-      const image = new Image();
-      image.src = href;
-      await image.decode();
-      return image.naturalWidth > 0 && image.naturalHeight > 0;
-    }, artworkHref!), 'embedded artwork decodes in the offline browser');
-    const svg = panel().locator('svg[data-visual-pick-diagram]');
-    const dot = panel().locator('circle[data-visual-anchor]').first();
-    const codeEl = panel().locator('text[data-visual-anchor-code]').first();
-    const hit = panel().locator('circle[data-visual-anchor-hit]').first();
-    const sideHit = panel().locator('circle[data-visual-edge-hit]').first();
-    async function markerBoxes() {
-      const dotBox = await dot.boundingBox();
-      const codeBox = await codeEl.boundingBox();
-      const hitBox = await hit.boundingBox();
-      const sideBox = await sideHit.boundingBox();
-      assert.ok(dotBox && codeBox && hitBox && sideBox, 'markers have boxes');
-      return { dotBox, codeBox, hitBox, sideBox };
+    // One named anchor on the calibrated front view.
+    const workspace = builder(page, 'product-workspace');
+    await workspace.getByRole('button', { name: 'Set up scale' }).click();
+    const guided = builder(page, 'guided-scale');
+    await expect(guided).toBeVisible();
+    const overlay = guided.locator('.guided-scale-overlay[aria-label*="rectangle corners"]');
+    const overlayBox = (await overlay.boundingBox())!;
+    for (const [fx, fy] of [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]] as const) {
+      await overlay.click({ position: { x: Math.round(overlayBox.width * fx), y: Math.round(overlayBox.height * fy) } });
     }
-    async function expectMarkerMinimums() {
-      const boxes = await markerBoxes();
-      expect(boxes.dotBox.width).toBeGreaterThanOrEqual(12);
-      expect(boxes.dotBox.height).toBeGreaterThanOrEqual(12);
-      expect(boxes.codeBox.height).toBeGreaterThanOrEqual(8);
-      expect(boxes.hitBox.width).toBeGreaterThanOrEqual(20);
-      expect(boxes.hitBox.height).toBeGreaterThanOrEqual(20);
-      expect(boxes.sideBox.width).toBeGreaterThanOrEqual(20);
-      expect(boxes.sideBox.height).toBeGreaterThanOrEqual(20);
-      return boxes;
+    await guided.locator('[data-guided="width"]').fill('280');
+    await guided.locator('[data-guided="height"]').fill('200');
+    await guided.locator('[data-guided="create"]').click();
+    await expect(await shown(page, 'workspace-status')).toContainText('Measured the Front view: 280×200');
+    await workspace.getByRole('button', { name: 'Anchor', exact: true }).click();
+    const stage = workspace.locator('.product-setup-overlay').first();
+    const stageBox = (await stage.boundingBox())!;
+    await stage.click({ position: { x: Math.round(stageBox.width * 0.5), y: Math.round(stageBox.height * 0.5) } });
+    await expect(workspace.getByText('Created “Anchor 1”')).toBeVisible();
+    await workspace.getByRole('button', { name: 'Save product setup' }).click();
+    await expect(workspace.getByText(/Saved .* \(4 safe-area corners, 1 anchors\)/)).toBeVisible();
+
+    // Two logos through the Step 1 chooser.
+    const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);
+    const starPng = await syntheticPngBytes(page, '#b03030', 160, 160);
+    await (await shown(page, 'logo-file')).setInputFiles({ name: 'crest.png', mimeType: 'image/png', buffer: Buffer.from(crestPng) });
+    await expect(await shown(page, 'logo-status')).toContainText('Added crest.png');
+    await (await shown(page, 'logo-file')).setInputFiles({ name: 'star.png', mimeType: 'image/png', buffer: Buffer.from(starPng) });
+    await expect(await shown(page, 'logo-status')).toContainText('Added star.png');
+
+    await (await shown(page, 'job-to-placements')).click();
+    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    const host = builder(page, 'job-placement-host');
+
+    // Two placements of the two artworks.
+    for (const [logo, width, height] of [['crest', '90', '40'], ['star', '60', '30']] as const) {
+      await host.getByRole('button', { name: 'Add logo placement' }).click();
+      await pw(page, 'pw-add-logo').selectOption({ label: logo });
+      const addMethod = pw(page, 'pw-add-method');
+      if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+      await pw(page, 'pw-add-width').fill(width);
+      await pw(page, 'pw-add-height').fill(height);
+      await pw(page, 'pw-add-confirm').click();
+      await expect(host.locator('[data-placement-hook="pw-placement-list"]')).toContainText(logo);
     }
-    await expectMarkerMinimums();
-    await page.setViewportSize({ width: 480, height: 900 });
-    await page.waitForTimeout(300);
-    await expectMarkerMinimums();
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.waitForTimeout(300);
-    // Native 2000 px render: force the stage wide, wait for the resize
-    // handling, verify, then restore.
-    await svg.evaluate((element) => { (element as SVGSVGElement).style.width = '2000px'; });
-    await expect.poll(async () => (await dot.boundingBox())?.width ?? 0, { timeout: 5000 }).toBeGreaterThanOrEqual(12);
-    await expectMarkerMinimums();
-    await svg.evaluate((element) => { (element as SVGSVGElement).style.width = ''; });
-    await page.waitForTimeout(300);
-    // The hit ring exceeds the visible dot: 10 px right of center is outside
-    // the 7 px dot but inside the 12 px hit, and selects the anchor directly.
-    {
-      const boxes = await markerBoxes();
-      await page.mouse.click(boxes.dotBox.x + boxes.dotBox.width / 2 + 10, boxes.dotBox.y + boxes.dotBox.height / 2);
-    }
-    await expect(pickStatus()).toContainText('now click near a logo edge');
-    await clickSchematicEdge(page, panel(), 'minX');
-    await expect(pickStatus()).toContainText('Proposed:');
-    await expect(panel().locator('[data-visual-pick-arrow]')).toHaveCount(1);
-    await expect(panel().locator('[data-visual-pick-commit]')).toBeEnabled();
-    const farCorner = await svg.evaluate((element) => {
-      const node = element as unknown as SVGSVGElement;
-      const box = node.viewBox.baseVal;
-      return { vx: box.x + box.width * 0.02, vy: box.y + box.height * 0.02 };
-    });
-    const farScreen = await viewBoxToScreen(page, svg, farCorner.vx, farCorner.vy);
-    await page.mouse.click(farScreen.x, farScreen.y);
-    await expect(pickStatus()).toContainText('never binds a far edge');
-    await expect(panel().locator('[data-visual-pick-arrow]')).toHaveCount(0);
-    await expect(panel().locator('[data-visual-pick-commit]')).toBeDisabled();
-    await panel().press('Escape');
-    await expect(panel()).toHaveCount(0);
-    await expect(page.getByLabel('Measurement 1 result for logo 1')).toContainText('No anchor chosen');
 
-    // Logo 1, row 1: left edge, horizontal. Incompatible convention is
-    // refused with guidance before the explicit switch back.
-    await pickButton(1, 1).click();
-    await clickAnchorDot(page, panel());
-    await clickSchematicEdge(page, panel(), 'minX');
-    await expect(pickStatus()).toContainText('Proposed:');
-    await expect(pickStatus()).toContainText('mm');
-    await expect(panel().locator('input[data-visual-pick-convention="dx"]')).toBeChecked();
-    await panel().locator('input[data-visual-pick-convention="dy"]').check();
-    await expect(pickStatus()).toContainText('Switch Direction above');
-    await expect(panel().locator('[data-visual-pick-commit]')).toBeDisabled();
-    await panel().locator('input[data-visual-pick-convention="dx"]').check();
-    await expect(pickStatus()).toContainText('Proposed:');
-    if (info.project.name === 'chromium') {
-      await panel().scrollIntoViewIfNeeded();
-      await page.screenshot({ path: info.outputPath('visual-pick-panel.png') });
-    }
-    await panel().locator('[data-visual-pick-commit]').click();
-    await expect(page.getByLabel('Measurement 1 result for logo 1')).toContainText('mm');
-    await expect(page.getByLabel('Measurement 1 result for logo 1')).not.toContainText('setup needed');
-
-    // Logo 1, row 2: top edge, vertical (preselected), committed as Shortest.
-    await page.getByRole('button', { name: 'Add measurement for logo 1', exact: true }).click();
-    await pickButton(1, 2).click();
-    await clickAnchorDot(page, panel());
-    await clickSchematicEdge(page, panel(), 'maxY');
-    await expect(pickStatus()).toContainText('Proposed:');
-    await expect(panel().locator('input[data-visual-pick-convention="dy"]')).toBeChecked();
-    await panel().locator('input[data-visual-pick-convention="shortest-to-edge"]').check();
-    await expect(pickStatus()).toContainText('Proposed:');
-    await panel().locator('[data-visual-pick-commit]').click();
-    await expect(page.getByLabel('Measurement 2 result for logo 1')).toContainText('mm');
-
-    // Logo 2, row 1: right edge, horizontal.
-    await pickButton(2, 1).click();
-    await expect(panel().locator('image[data-visual-photo]')).toBeVisible();
-    expect(await clickAnchorDot(page, panel())).toBe(1);
-    await clickSchematicEdge(page, panel(), 'maxX');
-    await expect(pickStatus()).toContainText('Proposed:');
-    await expect(panel().locator('input[data-visual-pick-convention="dx"]')).toBeChecked();
-    await panel().locator('[data-visual-pick-commit]').click();
-    await expect(page.getByLabel('Measurement 1 result for logo 2')).toContainText('mm');
-    await expect(page.getByLabel('Measurement 1 result for logo 2')).not.toContainText('setup needed');
-
-    // Logo 2, row 2: bottom edge, vertical.
-    await page.getByRole('button', { name: 'Add measurement for logo 2', exact: true }).click();
-    await pickButton(2, 2).click();
-    await clickAnchorDot(page, panel());
-    await clickSchematicEdge(page, panel(), 'minY');
-    await expect(pickStatus()).toContainText('Proposed:');
-    await expect(panel().locator('input[data-visual-pick-convention="dy"]')).toBeChecked();
-    await panel().locator('[data-visual-pick-commit]').click();
-    await expect(page.getByLabel('Measurement 2 result for logo 2')).toContainText('mm');
+    // Four real measurement rows: dx + dy per logo, from the setup anchor.
+    const bind = async (logoLabel: string, edgeLabel: string, directionLabel: string): Promise<void> => {
+      await host.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: logoLabel }).click();
+      await host.getByRole('button', { name: 'Add measurement' }).click();
+      await pw(page, 'pw-measure-anchor').selectOption({ label: 'Anchor 1' });
+      await pw(page, 'pw-measure-edge').selectOption({ label: edgeLabel });
+      await pw(page, 'pw-measure-direction').selectOption({ label: directionLabel });
+      await pw(page, 'pw-measure-save').click();
+      await expect(host.locator('[data-placement-hook="pw-measurements"]')).toContainText(/mm/);
+    };
+    await bind('crest', 'left', 'Horizontal');
+    await bind('crest', 'top', 'Vertical');
+    await bind('star', 'right', 'Horizontal');
+    await bind('star', 'bottom', 'Vertical');
+    await host.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'crest' }).click();
+    const crestRows = await host.locator('[data-placement-hook="pw-measurements"]').innerText();
+    expect(crestRows).toMatch(/Anchor 1 to left edge, horizontal/);
+    expect(crestRows).toMatch(/\d+(\.\d)? mm/);
+    await host.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'star' }).click();
+    const starRows = await host.locator('[data-placement-hook="pw-measurements"]').innerText();
+    expect(starRows).toMatch(/Anchor 1 to right edge, horizontal/);
+    expect(starRows).toMatch(/Anchor 1 to bottom edge, vertical/);
     if (info.project.name === 'chromium') {
       await page.screenshot({ path: info.outputPath('visual-dimensions-four-rows.png'), fullPage: true });
     }
 
+    // Incompatible convention is refused with guidance, nothing is stored.
+    await host.getByRole('button', { name: 'Add measurement' }).click();
+    await pw(page, 'pw-measure-anchor').selectOption({ label: 'Anchor 1' });
+    await pw(page, 'pw-measure-edge').selectOption({ label: 'top' });
+    await pw(page, 'pw-measure-direction').selectOption({ label: 'Horizontal' });
+    await pw(page, 'pw-measure-save').click();
+    await expect(host.locator('[data-placement-hook="pw-measure-notice"]')).toContainText(/not compatible|Horizontal measures/i);
+    await host.locator('[data-placement-hook="pw-measure-cancel"]').click();
+    await expect(host.locator('[data-placement-hook="pw-measure-form"]')).toHaveCount(0);
+    await expect(host.locator('[data-placement-hook="pw-measurements"]')).not.toContainText('top edge, horizontal');
+
     // All four bindings export in the minimal operator JSON with numbers.
-    const download = page.waitForEvent('download');
-    await (await shown(page, 'operator-download')).click();
-    const file = await download;
-    expect(file.suggestedFilename()).toBe('operation-sheet-operator.json');
-    const downloadPath = await file.path();
-    assert.ok(downloadPath, 'operator download path is available');
-    const operatorView = JSON.parse(await readFile(downloadPath, 'utf8')) as {
+    // Save the job first so the reopen comparison below restores everything.
+    const jobEvent = page.waitForEvent('download');
+    await builder(page, 'job-save').click();
+    const job = await jobEvent;
+    const jobPath = info.outputPath('visual-dimensions.job.logo-project');
+    await job.saveAs(jobPath);
+
+    await host.getByRole('button', { name: 'Review document' }).click();
+    await expect(page.locator('[data-job-step="review"]')).toBeVisible();
+    const reviewHost = builder(page, 'job-review-host');
+    await reviewHost.locator('[data-doc-review-instructions]').fill('Press the chest emblem, then the star, checking all four edges.');
+    await reviewHost.locator('[data-doc-review-instructions]').press('Tab');
+    const preview = reviewHost.locator('[data-doc-review-preview]');
+    await expect(preview.locator('ul.opsheet-dims li')).toHaveCount(4);
+    const dimTexts = await preview.locator('ul.opsheet-dims li').evaluateAll((els) => els.map((e) => e.textContent ?? ''));
+    expect(dimTexts).toHaveLength(4);
+    expect(dimTexts.map((line) => line.trim().split(' ')[0])).toEqual(['1', '2', '3', '4']);
+    expect(dimTexts[0]).toMatch(/left edge, horizontal/);
+    expect(dimTexts[1]).toMatch(/top edge, vertical/);
+    expect(dimTexts[2]).toMatch(/right edge, horizontal/);
+    expect(dimTexts[3]).toMatch(/bottom edge, vertical/);
+    await expect(preview).toContainText('Press the chest emblem');
+    await expect(reviewHost.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled();
+    await expectPrintContract(page, reviewHost);
+    if (info.project.name === 'chromium') {
+      await page.screenshot({ path: info.outputPath('visual-dimensions-sheet.png'), fullPage: true });
+    }
+
+    await reviewHost.locator('summary', { hasText: 'More output options' }).click();
+    const operatorPath = await downloadTo(page, reviewHost.getByRole('button', { name: 'Save operator data' }), info.outputPath('visual-dimensions-operator-data.json'));
+    const operatorView = JSON.parse(await readFile(operatorPath, 'utf8')) as {
       format: string;
       products: Array<{ logos: Array<{ code: string; measurements: Array<{ anchor: string; logoEdge: string; distanceMm: number }> }> }>;
     };
@@ -320,53 +246,42 @@ test('visual dimensions: four pointer picks across two logos print and export', 
       }
     }
     const edges = logos.flatMap((logo) => logo.measurements.map((m) => m.logoEdge));
-    expect(edges.some((text) => text.includes('left artwork edge'))).toBe(true);
-    expect(edges.some((text) => text.includes('top edge'))).toBe(true);
-    expect(edges.some((text) => text.includes('right artwork edge'))).toBe(true);
-    expect(edges.some((text) => text.includes('bottom artwork edge'))).toBe(true);
+    expect(edges.some((text) => text.includes('left'))).toBe(true);
+    expect(edges.some((text) => text.includes('top'))).toBe(true);
+    expect(edges.some((text) => text.includes('right'))).toBe(true);
+    expect(edges.some((text) => text.includes('bottom'))).toBe(true);
+    const diagPath = await downloadTo(page, reviewHost.getByRole('button', { name: 'Save diagnostic data' }), info.outputPath('visual-dimensions-candidate.json'));
+    const candidateJson = JSON.parse(await readFile(diagPath, 'utf8')) as { digest?: string };
+    assert.ok(typeof candidateJson.digest === 'string' && candidateJson.digest.length === 64, 'candidate carries a digest');
 
-    // Draft save/reopen keeps all four visual rows byte-for-byte.
-    const draftEvent = page.waitForEvent('download');
-    await (await shown(page, 'draft-save')).click();
-    const draft = await draftEvent;
-    const draftPath = info.outputPath('visual-dimensions-draft.operation-draft.json');
-    await draft.saveAs(draftPath);
-    await (await shown(page, 'draft-file')).setInputFiles(draftPath);
-    await expect(await shown(page, 'draft-status')).toContainText('Reopened operation draft');
-    await expect(page.getByLabel('Measurement 1 result for logo 1')).toContainText('mm');
-    await expect(page.getByLabel('Measurement 2 result for logo 1')).toContainText('mm');
-    await expect(page.getByLabel('Measurement 1 result for logo 2')).toContainText('mm');
-    await expect(page.getByLabel('Measurement 2 result for logo 2')).toContainText('mm');
-
-    // The live sheet lists all four dimensions; the actual A4 PDF carries them.
-    await (await shown(page, 'preview-document')).click();
-    const operation = await shown(page, 'operation-container');
-    await expect(operation.locator('ul.opsheet-dims li')).toHaveCount(4);
-    const pdf = await page.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-    directory = await mkdtemp(join(tmpdir(), 'logotool-visual-dims-pdf-'));
-    const pdfPath = join(directory, 'operation-sheet.pdf');
-    await writeFile(pdfPath, pdf);
-    await info.attach('operation-sheet-pdf', { path: pdfPath, contentType: 'application/pdf' });
-    expect(countPdfPages(new Uint8Array(pdf))).toBeGreaterThanOrEqual(1);
-    const mediaBox = readMediaBox(new Uint8Array(pdf));
-    assert.ok(mediaBox, 'PDF carries a MediaBox');
-    expect(Math.abs(mediaBox[0] - 841.89)).toBeLessThan(1);
-    expect(Math.abs(mediaBox[1] - 595.28)).toBeLessThan(1);
-    // PDF text streams use subset-font glyph IDs, so content is verified
-    // structurally: the exact print DOM above lists all four dimensions with
-    // mm values, and this PDF is Chromium's real A4 print render of that DOM
-    // (non-trivial size proves rendered content, and the artifact is
-    // attached for independent inspection).
-    expect(pdf.length).toBeGreaterThan(20000);
-    if (info.project.name === 'chromium') {
-      await page.screenshot({ path: info.outputPath('visual-dimensions-sheet.png'), fullPage: true });
+    // Fresh station → Open job keeps all four rows byte-for-byte.
+    const freshContext = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
+    const fresh = await freshContext.newPage();
+    const freshProbe: Probe = { pageErrors: [], consoleErrors: [], httpRequests: [] };
+    fresh.on('pageerror', (error) => freshProbe.pageErrors.push(String(error)));
+    fresh.on('console', (message) => { if (message.type() === 'error') freshProbe.consoleErrors.push(message.text()); });
+    freshContext.on('request', (request) => { if (/^https?:/.test(request.url())) freshProbe.httpRequests.push(request.url()); });
+    try {
+      await gotoBuilder(fresh);
+      await fresh.locator('[data-builder-hook="job-landing-open"]').click();
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(jobPath);
+      await expect(fresh.locator('[data-job-step="prepare"]')).toBeVisible();
+      await fresh.locator('[data-builder-hook="job-to-placements"]').click();
+      const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
+      expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(2);
+      await freshHost.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'crest' }).click();
+      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText()).toBe(crestRows);
+      await freshHost.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'star' }).click();
+      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText()).toBe(starRows);
+      expect(freshProbe.pageErrors).toEqual([]);
+      expect(freshProbe.consoleErrors).toEqual([]);
+      expect(freshProbe.httpRequests).toEqual([]);
+    } finally {
+      await freshContext.close();
     }
 
-    expect(probe.pageErrors).toEqual([]);
-    expect(probe.consoleErrors).toEqual([]);
-    expect(probe.httpRequests).toEqual([]);
+    expectOfflineClean(probe);
   } finally {
     await context.close();
-    if (directory) await rm(directory, { recursive: true, force: true });
   }
 });

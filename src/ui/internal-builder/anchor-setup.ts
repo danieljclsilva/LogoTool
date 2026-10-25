@@ -34,7 +34,6 @@ import {
 } from '../customer-editor/presentation-photo-mapping.js';
 import type {
   PhotoMappingTransform,
-  PhotoMappingView,
 } from '../customer-editor/presentation-photo-mapping.js';
 import { bytesToDataUrl } from '../shared/operation-document/index.js';
 import type { AnchorDef } from '../../core/operation-measurements/types.js';
@@ -68,8 +67,8 @@ export interface AnchorSetupInput {
   /** Caller-evaluated mapping for this exact photo (region mm -> UV). */
   transform: PhotoMappingTransform;
   mappingStatus: 'provisional' | 'review';
-  /** Declared preview side of the photo. */
-  view: PhotoMappingView;
+  /** Declared preview view of the photo (stable identity, legacy or slug). */
+  view: string;
   /** Current region scope for new anchors + safe-area reference. */
   scope: AnchorSetupScope;
   /** Original region safe-area polygon, region-local millimetres. */
@@ -309,7 +308,9 @@ export function createAnchorSetup(
       productId: input.scope.productId,
       variantId: input.scope.variantId,
       regionId: input.scope.regionId,
-      view: input.view,
+      // Inert math bucket: the affine uses only the transform. Legacy views
+      // keep their side; flexible slugs resolve entirely by view id upstream.
+      view: input.view === 'front' || input.view === 'back' || input.view === 'left' || input.view === 'right' ? input.view : 'front',
       image: '',
       transform: { ...input.transform },
       calibrationId: input.scope.calibrationId,

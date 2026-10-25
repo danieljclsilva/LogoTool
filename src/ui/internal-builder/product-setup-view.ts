@@ -2,8 +2,9 @@
 /**
  * Visual product-setup workspace (one staff entry, operation-sheet first).
  *
- * Tabbed product views (Front/Back/Left/Right, only views present in the
- * input) around a large white photo stage with two explicit tools:
+ * Tabbed product views (flexible named views in caller order — legacy
+ * Front/Back/Left/Right plus any caller-named views — only views present in
+ * the input) around a large white photo stage with two explicit tools:
  * **Safe area** (draw a fresh polygon by clicks, close/finish, drag/insert/
  * remove vertices, keyboard throughout) and **Anchor** (click to place named
  * anchors, drag/rename/delete, keyboard throughout).
@@ -27,13 +28,34 @@
  * throughout.
  *
  * Scoped staging: edits are keyed by stable caller-provided identity
- * (photoId + sourceRev + full scope ids + frame/calibration versions +
- * transform coefficients), so switching tabs retains staged edits while ANY
- * asset/scope/mapping/source change re-initialises from caller state —
- * stale geometry is dropped, never reinterpreted. ONE atomic **Save product
- * setup** awaits the caller's explicit acknowledgement: while pending the
+ * (photoId + sourceRev + full scope ids + stable view id + frame/calibration
+ * versions + transform coefficients), so switching tabs retains staged edits
+ * while ANY asset/scope/mapping/source change re-initialises from caller
+ * state — stale geometry is dropped, never reinterpreted. Tab titles are
+ * human labels (display only); renames preserve buckets, calibration and
+ * anchors. ONE atomic **Save product setup** awaits the caller's explicit acknowledgement: while pending the
  * Save control is disabled against overlap, edits stay live, failure keeps
  * the draft dirty and intact, and success is announced only on `{ ok: true }`.
+ *
+ * Named safe areas: each view stages 0..N named safe polygons authored on
+ * the photo under the CURRENT calibration — never a single-area assumption,
+ * and never an invented default polygon when a fresh calibration carries no
+ * saved area (the list then starts empty). One area is active at a time;
+ * its polygon is the staged `safeArea` that Save commits. Select list,
+ * rename, delete, redraw and draw-new are all staged edits. Area names and
+ * non-active areas are session-staged alongside the bucket (the save payload
+ * carries them as an optional additive field for later persistence wiring);
+ * recalibration (a new identity key) restarts from the caller's saved setup
+ * only — staged extras are dropped, never reinterpreted — and the panel
+ * states this up front.
+ *
+ * Layer visibility (anchors layer, safe-areas layer) is toggled by
+ * data-preserving checkboxes: hiding never deletes staged geometry, and
+ * starting a drawing auto-shows its layer with a status note.
+ *
+ * Calibration honesty: millimetres come only from the caller-evaluated
+ * mapping, which stays pending review — this view never claims production
+ * approval.
  */
 
 import {
@@ -54,6 +76,10 @@ import type {
   AnchorSetupPhoto,
 } from './anchor-setup.js';
 import type { AnchorDef } from '../../core/operation-measurements/types.js';
+import type { ProjectDocument } from '../../core/types.js';
+import {
+  validateNamedSafeArea,
+} from '../../core/setup-calibration/index.js';
 import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
 import { applyRetirementEvents, parseDraftIdentityKey } from '../../core/workspace-drafts/index.js';
 
@@ -64,6 +90,13 @@ import { applyRetirementEvents, parseDraftIdentityKey } from '../../core/workspa
 export type ProductSetupSide = PhotoMappingView;
 
 export const PRODUCT_SETUP_SIDES: readonly ProductSetupSide[] = ['front', 'back', 'left', 'right'];
+
+/** Upper bound for named workspace views (flexible identity stays bounded). */
+export const MAX_PRODUCT_SETUP_VIEWS = 32;
+/** Stable view-id bound: explicit, deterministic, independent of labels. */
+export const MAX_PRODUCT_SETUP_VIEW_ID_LENGTH = 128;
+/** Display-only view-label bound (labels never affect identity or math). */
+export const MAX_PRODUCT_SETUP_VIEW_LABEL_LENGTH = 80;
 
 function sideLabel(side: ProductSetupSide): string {
   switch (side) {
@@ -84,13 +117,48 @@ export interface ProductSetupScope {
   calibrationVersion: string;
   regionName: string | null;
   side: ProductSetupSide;
+  /**
+   * Stable view identity, independent of the human label. Renaming the label
+   * preserves the staged bucket, calibration and identity. Defaults to `side`
+   * when absent (legacy 4-side projects); distinct named views sharing one
+   * legacy side bucket (e.g. a detail of the front photo) carry distinct ids.
+   */
+  viewId?: string;
+  /**
+   * Display-only human label for the view tab. Never validated, never part of
+   * the identity key, never compared across scopes. Defaults to the legacy
+   * side label when absent.
+   */
+  viewLabel?: string | null;
+}
+
+/**
+ * Stable identity of one view's scope: the explicit `viewId` when present
+ * and valid, else the legacy `side`. Pure. Renames never change this, so
+ * staged buckets, calibration and anchors survive relabelling.
+ */
+export function scopeViewId(scope: ProductSetupScope): string {
+  const id = scope.viewId?.trim() ?? '';
+  if (id.length > 0 && id.length <= MAX_PRODUCT_SETUP_VIEW_ID_LENGTH) return id;
+  return scope.side;
+}
+
+/** Human label for one view's scope: the explicit label, else the side label. Pure; display only. */
+export function scopeViewLabel(scope: ProductSetupScope): string {
+  const label = scope.viewLabel?.trim() ?? '';
+  if (label.length > 0) {
+    return label.length <= MAX_PRODUCT_SETUP_VIEW_LABEL_LENGTH
+      ? label
+      : label.slice(0, MAX_PRODUCT_SETUP_VIEW_LABEL_LENGTH);
+  }
+  return sideLabel(scope.side);
 }
 
 /** Short human label for headings/captions: never ids, never jargon. */
 export function shortScopeLabel(scope: ProductSetupScope): string {
-  const side = sideLabel(scope.side);
-  if (scope.regionName === null || scope.regionName.trim().length === 0) return `${side} view`;
-  return `${scope.regionName} · ${side}`;
+  const label = scopeViewLabel(scope);
+  if (scope.regionName === null || scope.regionName.trim().length === 0) return `${label} view`;
+  return `${scope.regionName} · ${label}`;
 }
 
 /** Caller-owned state for one side view, including its actual scope + identities. */
@@ -113,6 +181,15 @@ export interface ProductSetupPhotoView {
   safeArea: ReadonlyArray<AnchorSetupMm>;
   /** Anchors already authored for this scope (other scopes untouched). */
   anchors: readonly AnchorDef[];
+  /**
+   * Sibling named areas persisted for this scope (same calibration/frame,
+   * caller-owned sibling regions) — seeded verbatim into staging so renames
+   * and multiple polygons survive save/reopen. Absent means the legacy
+   * single-area shape: seed one entry from `safeArea` (or none when empty).
+   */
+  savedAreas?: ReadonlyArray<{ id: string; name: string; points: ReadonlyArray<AnchorSetupMm> }>;
+  /** Id of the active entry within `savedAreas`; null/undefined selects by rule. */
+  savedActiveAreaId?: string | null;
 }
 
 export type ProductSetupViewState = ProductSetupPhotoView | { error: string };
@@ -141,6 +218,133 @@ export interface ProductSetupWorkspaceInput {
 }
 
 /**
+ * One flexible named view for the V2 workspace input: a stable identity plus
+ * a display-only label plus the view state itself. The tab title is `label`;
+ * the identity key is `id` (never label text), so renaming preserves the
+ * staged bucket, calibration and anchors.
+ */
+export interface ProductSetupNamedInputView {
+  /** Stable view id (1..128 chars, explicit, deterministic). */
+  id: string;
+  /** Human tab label (display only; renames never invalidate). */
+  label: string;
+  /** The view state (photo view or error), as in the legacy input. */
+  state: ProductSetupViewState;
+}
+
+/**
+ * Flexible workspace input (V2) for the lead/Worker2 manifest mapping. Tabs
+ * are driven by `views` in array order (bounded, deduplicated, deterministic
+ * — see {@link listWorkspaceViews}); the legacy side-keyed input keeps
+ * working unchanged. Either shape reaches the view; the caller never imports
+ * UI types into core (this interface is plain data).
+ */
+export interface ProductSetupWorkspaceInputV2 {
+  /** First-tab hint by stable view id (used until the operator picks a tab). */
+  initialViewId?: string;
+  /** Named views present, in tab order. Absent ids render no tab. */
+  views: ProductSetupNamedInputView[];
+  /** Scoped-draft retirement events for this refresh (same as legacy). */
+  retirements?: readonly DraftRetirementEvent[];
+  /** Shared-region notice, rendered as an explicit warning line when present. */
+  sharedNotice?: string;
+}
+
+/** Either accepted workspace input shape (legacy side-keyed or V2 named). */
+export type ProductSetupWorkspaceInputAny =
+  | ProductSetupWorkspaceInput
+  | ProductSetupWorkspaceInputV2;
+
+/** One normalized tab: stable id, display label, and view state. Pure data. */
+export interface ProductSetupListedView {
+  id: string;
+  label: string;
+  state: ProductSetupViewState;
+}
+
+/**
+ * Normalize a caller view id: trimmed, 1..128 chars, else null (dropped,
+ * never invented). Pure.
+ */
+export function normalizeProductSetupViewId(id: unknown): string | null {
+  if (typeof id !== 'string') return null;
+  const trimmed = id.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_PRODUCT_SETUP_VIEW_ID_LENGTH) return null;
+  return trimmed;
+}
+
+/**
+ * Normalize a caller view label: trimmed display text capped at 80 chars,
+ * falling back to `fallback` when blank. Pure; display only.
+ */
+export function normalizeProductSetupViewLabel(label: unknown, fallback: string): string {
+  const text = typeof label === 'string' ? label.trim() : '';
+  if (text.length === 0) return fallback;
+  return text.length <= MAX_PRODUCT_SETUP_VIEW_LABEL_LENGTH
+    ? text
+    : text.slice(0, MAX_PRODUCT_SETUP_VIEW_LABEL_LENGTH);
+}
+
+/**
+ * Normalize either input shape into the ordered tab list: stable ids,
+ * display labels, first-wins dedupe by id, bounded to
+ * {@link MAX_PRODUCT_SETUP_VIEWS} (never drops below 5 valid views by
+ * itself — the bound is 32; excess entries are dropped deterministically
+ * from the tail). Legacy inputs list in `PRODUCT_SETUP_SIDES` order with
+ * scope-driven ids/labels; V2 inputs list in array order. Pure; no DOM.
+ */
+export function listWorkspaceViews(input: ProductSetupWorkspaceInputAny): ProductSetupListedView[] {
+  const listed: ProductSetupListedView[] = [];
+  const rawViews = (input as Partial<ProductSetupWorkspaceInputV2>).views;
+  if (Array.isArray(rawViews)) {
+    for (const entry of rawViews) {
+      if (entry === null || typeof entry !== 'object') continue;
+      const candidate = entry as Partial<ProductSetupNamedInputView>;
+      const id = normalizeProductSetupViewId(candidate.id);
+      if (id === null || candidate.state === undefined) continue;
+      if (listed.some((existing) => existing.id === id)) continue;
+      listed.push({
+        id,
+        label: normalizeProductSetupViewLabel(candidate.label, id),
+        state: candidate.state,
+      });
+      if (listed.length >= MAX_PRODUCT_SETUP_VIEWS) break;
+    }
+    return listed;
+  }
+  if (rawViews === null || typeof rawViews !== 'object') return [];
+  const v1 = input as ProductSetupWorkspaceInput;
+  for (const side of PRODUCT_SETUP_SIDES) {
+    const raw = v1.views[side];
+    if (raw === undefined) continue;
+    if (isProductSetupPhotoView(raw)) {
+      const id = scopeViewId(raw.scope);
+      if (listed.some((existing) => existing.id === id)) continue;
+      listed.push({ id, label: scopeViewLabel(raw.scope), state: raw });
+    } else {
+      if (listed.some((existing) => existing.id === side)) continue;
+      listed.push({ id: side, label: sideLabel(side), state: raw });
+    }
+    if (listed.length >= MAX_PRODUCT_SETUP_VIEWS) break;
+  }
+  return listed;
+}
+
+/**
+ * Resolve one tab's usable view by stable id, or an error when the id is
+ * absent or the view itself carries an error. Always feeds
+ * rendering/saving/anchor work — never a swapped top-level scope.
+ */
+export function selectWorkspaceViewById(
+  input: ProductSetupWorkspaceInputAny,
+  id: string,
+): ProductSetupPhotoView | { error: string } {
+  const found = listWorkspaceViews(input).find((entry) => entry.id === id);
+  if (!found) return { error: `The “${id}” view is unavailable for this product.` };
+  return found.state;
+}
+
+/**
  * Resolve one tab's usable view, or an error when the side is absent or the
  * view itself carries an error. Always feeds rendering/saving/anchor work —
  * never a swapped top-level scope.
@@ -155,14 +359,29 @@ export function selectWorkspaceView(
 }
 
 /** Pick the tab: keep the operator's choice when present, else the hint, else the first view. */
+export function resolveInitialView(
+  input: ProductSetupWorkspaceInputAny,
+  current: string | null,
+): string | null {
+  const present = listWorkspaceViews(input).map((entry) => entry.id);
+  if (current !== null && present.includes(current)) return current;
+  const hint = Array.isArray((input as ProductSetupWorkspaceInputV2).views)
+    ? (input as ProductSetupWorkspaceInputV2).initialViewId
+    : (input as ProductSetupWorkspaceInput).initialSide;
+  if (hint !== undefined && present.includes(hint)) return hint;
+  return present[0] ?? null;
+}
+
+/** Pick the tab: keep the operator's choice when present, else the hint, else the first view. */
 export function resolveInitialSide(
   input: ProductSetupWorkspaceInput,
   current: ProductSetupSide | null,
 ): ProductSetupSide | null {
-  const present = PRODUCT_SETUP_SIDES.filter((side) => input.views[side] !== undefined);
-  if (current !== null && present.includes(current)) return current;
-  if (input.initialSide !== undefined && present.includes(input.initialSide)) return input.initialSide;
-  return present[0] ?? null;
+  const resolved = resolveInitialView(input, current);
+  if (resolved === null) return null;
+  return PRODUCT_SETUP_SIDES.includes(resolved as ProductSetupSide)
+    ? (resolved as ProductSetupSide)
+    : null;
 }
 
 /** Stable transform fingerprint for draft-bucket identity (exact coefficients, or null). */
@@ -173,11 +392,17 @@ export function transformKeyOf(transform: PhotoMappingTransform | null): string 
 
 /**
  * Stable identity for one view's staged edits. Same photoId + sourceRev +
- * full scope (including the tab side) + transform → same key (drafts
- * retained, e.g. across tab switches). ANY change (photo swap, calibration
- * bump, new source project, re-evaluated mapping, side) → a different key,
- * so the view re-initialises from caller state and never reinterprets stale
- * geometry. Byte length is deliberately NOT part of the key.
+ * full scope (including the stable view id, which equals the tab side for
+ * legacy views) + transform → same key (drafts retained, e.g. across tab
+ * switches and label renames). ANY change (photo swap, calibration bump, new
+ * source project, re-evaluated mapping, view) → a different key, so the view
+ * re-initialises from caller state and never reinterprets stale geometry.
+ * Byte length is deliberately NOT part of the key.
+ *
+ * The key stays a 10-string JSON array (slot 8 is the stable view id) so the
+ * `workspace-drafts` retirement parser keeps matching: file replacement
+ * retires only the affected view's evidence, and labels never invalidate.
+ * Legacy views (no explicit `viewId`) produce byte-identical keys to before.
  */
 export function viewIdentityKey(view: ProductSetupPhotoView): string {
   return JSON.stringify([
@@ -189,7 +414,7 @@ export function viewIdentityKey(view: ProductSetupPhotoView): string {
     view.scope.frameId,
     view.scope.calibrationId,
     view.scope.calibrationVersion,
-    view.scope.side,
+    scopeViewId(view.scope),
     transformKeyOf(view.transform),
   ]);
 }
@@ -209,6 +434,47 @@ export interface StoredEdits {
   baseSafeArea: AnchorSetupMm[];
   /** True while the bucket is edited AND live moved underneath (see above). */
   conflicted: boolean;
+  /**
+   * Named safe areas staged for this calibration identity (0..N). The
+   * ACTIVE entry's polygon mirrors `safeArea` (see {@link syncActiveArea});
+   * selecting another entry swaps the staged polygon. Seeded from the
+   * caller's saved area only — a fresh calibration with no saved area
+   * starts with an empty list, never an invented polygon. Dropped with the
+   * bucket on recalibration, never reinterpreted.
+   *
+   * Optional so pre-existing caller/test literals without staged areas keep
+   * compiling: absent means no staged areas. View buckets always set it.
+   */
+  namedAreas?: NamedSafeArea[];
+  /** Id of the active named area; absent/null when the list is empty. */
+  activeAreaId?: string | null;
+  /**
+   * Deep copy of the named-area list as SEEDED (before any staged edit).
+   * The caller compares it against live siblings to refuse stale submitters
+   * that never saw another scope's save — the sibling analogue of
+   * `baseSafeArea`. Absent on older buckets means no baseline: only the
+   * session baseline guard applies.
+   */
+  baseNamedAreas?: NamedSafeArea[];
+  /**
+   * Data-preserving layer visibility (render-only; hiding never deletes).
+   * Absent means visible.
+   */
+  showAnchors?: boolean;
+  showAreas?: boolean;
+}
+
+/**
+ * One named safe area staged under the current calibration. Deliberately the
+ * same shape as the kernel's `NamedSafeArea` (`{ id, name, points }` in
+ * setup-frame millimetres under the front-on planar assumption), so staged
+ * entries pass straight into the W1 `validateNamedSafeArea` without
+ * conversion; structural typing keeps this view decoupled from kernel types.
+ */
+export interface NamedSafeArea {
+  id: string;
+  name: string;
+  points: AnchorSetupMm[];
 }
 
 function cloneSafeArea(area: ReadonlyArray<AnchorSetupMm>): AnchorSetupMm[] {
@@ -275,11 +541,32 @@ export interface ProductSetupResult {
    * guard against silent overwrites.
    */
   baseSafeArea: AnchorSetupMm[];
+  /**
+   * All named areas at save time (deep copy). The caller persists every
+   * entry as sibling domain regions (same frame/calibration) plus the
+   * scope-entry polygon into the scope region — renames and multiple
+   * polygons survive save/reopen. Entries whose polygon deep-equals
+   * `safeArea` identify the staged polygon; absence means legacy
+   * single-area staging.
+   */
+  namedAreas?: NamedSafeArea[];
+  /**
+   * Deep copy of the named-area list as SEEDED, for the caller's
+   * stale-submitter guard (refuse when live siblings contain entries this
+   * bucket never saw). Absent means legacy: only the session guard applies.
+   */
+  baseNamedAreas?: NamedSafeArea[];
+  /**
+   * Explicit id of the staged active area (Codex P1: never inferred by the
+   * caller). The caller uses it for status and active-area bookkeeping; the
+   * scope region always carries the scope-entry polygon, never the selection.
+   */
+  activeAreaId?: string | null;
 }
 
 /** Explicit save acknowledgement the view awaits (sync or async). */
 export type ProductSetupSaveResult =
-  | { ok: true }
+  | { ok: true; scopeSafeArea?: AnchorSetupMm[] }
   | { ok: false; error: string };
 
 export interface ProductSetupCallbacks {
@@ -344,6 +631,265 @@ export function validateAnchors(anchors: readonly AnchorDef[]): string | null {
   return null;
 }
 
+// NOTE (W1 kernel): named-area validation delegates to the provisional
+// `src/core/setup-calibration` kernel (`validateNamedSafeArea`), owned by W1.
+// Signature: `(area: { id, name, points }, existingIds: readonly string[])`
+// returns a human reason string, or null when valid. It enforces unique ids,
+// a non-blank name (≤80 chars) and a valid non-crossing non-zero-area ring,
+// but NOT name uniqueness across areas — the rename handler below checks
+// that locally (exact match, excluding the edited entry) before delegating.
+
+let areaCounter = 0;
+
+function newAreaId(): string {
+  areaCounter += 1;
+  let suffix = `${areaCounter}`;
+  try {
+    const bytes = new Uint8Array(2);
+    globalThis.crypto?.getRandomValues?.(bytes);
+    suffix = `${areaCounter}-${bytes[0]!.toString(16).padStart(2, '0')}${bytes[1]!.toString(16).padStart(2, '0')}`;
+  } catch {
+    suffix = `${areaCounter}-${Math.floor(Math.random() * 65536).toString(16)}`;
+  }
+  return `psetup-area-${suffix}`;
+}
+
+/** Next collision-free area name (`Area N`, skipping taken names). Pure. */
+export function nextAreaName(takenNames: ReadonlyArray<string>): string {
+  const taken = new Set(takenNames);
+  let serial = taken.size + 1;
+  while (taken.has(`Area ${serial}`)) serial += 1;
+  return `Area ${serial}`;
+}
+
+/**
+ * Seed the staged named-area list from caller state ONLY: the caller's saved
+ * sibling list verbatim when supplied (stable ids, renames and multiple
+ * polygons survive save/reopen), plus — when the saved scope polygon is
+ * non-empty — a leading scope entry mirroring it, so a previously drawn
+ * polygon is never duplicated into a sibling nor silently dropped. Without
+ * supplied siblings, one entry mirrors a non-empty saved polygon, otherwise
+ * an empty list — never an invented default polygon on a new calibration.
+ * The active id is honoured when it matches an entry, else the scope entry,
+ * else the first entry. Pure; no DOM.
+ */
+export function seedNamedAreas(
+  savedSafeArea: ReadonlyArray<AnchorSetupMm>,
+  regionName: string | null,
+  saved?: { areas: ReadonlyArray<{ id: string; name: string; points: ReadonlyArray<AnchorSetupMm> }>; activeAreaId: string | null | undefined },
+): { namedAreas: NamedSafeArea[]; activeAreaId: string | null } {
+  if (saved !== undefined) {
+    const areas = saved.areas.map((area) => ({
+      id: area.id,
+      name: area.name,
+      points: area.points.map((point) => ({ ...point })),
+    }));
+    if (savedSafeArea.length > 0) {
+      areas.unshift({
+        id: SCOPE_SAVED_AREA_ID,
+        name: regionName?.trim() ? regionName.trim() : 'Saved area',
+        points: savedSafeArea.map((point) => ({ ...point })),
+      });
+    }
+    const active = saved.activeAreaId ?? null;
+    return {
+      namedAreas: areas,
+      activeAreaId: active !== null && areas.some((entry) => entry.id === active)
+        ? active
+        : (areas[0]?.id ?? null),
+    };
+  }
+  if (savedSafeArea.length === 0) return { namedAreas: [], activeAreaId: null };
+  const entry: NamedSafeArea = {
+    id: newAreaId(),
+    name: regionName?.trim() ? regionName.trim() : 'Saved area',
+    points: savedSafeArea.map((point) => ({ ...point })),
+  };
+  return { namedAreas: [entry], activeAreaId: entry.id };
+}
+
+/**
+ * Stable staged id for the scope-polygon entry (see {@link seedNamedAreas}).
+ * Never a domain region id; the scope polygon always persists in its own
+ * region, never in a sibling.
+ */
+export const SCOPE_SAVED_AREA_ID = 'scope-saved-area';
+
+/** Sibling-region id separator: `<scope region id>--area-<safe area id>`. */
+export const SIBLING_REGION_SEPARATOR = '--area-';
+
+/** Deterministic sibling domain-region id for one staged area. Pure. */
+export function siblingRegionIdFor(scopeRegionId: string, areaId: string): string {
+  const safe = areaId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  return `${scopeRegionId}${SIBLING_REGION_SEPARATOR}${safe === '' ? 'area' : safe}`;
+}
+
+/** True when a domain region id is a sibling of the given scope region. Pure. */
+export function isSiblingRegionId(scopeRegionId: string, regionId: string): boolean {
+  return regionId.startsWith(`${scopeRegionId}${SIBLING_REGION_SEPARATOR}`);
+}
+
+/** Recover the staged area id from a sibling region id (lossless for view-generated ids). Pure. */
+export function areaIdFromSiblingRegionId(scopeRegionId: string, regionId: string): string | null {
+  const prefix = `${scopeRegionId}${SIBLING_REGION_SEPARATOR}`;
+  if (!regionId.startsWith(prefix)) return null;
+  const rest = regionId.slice(prefix.length);
+  return rest.length > 0 ? rest : null;
+}
+
+/**
+ * Live sibling region ids the submitter never saw: present live, absent from
+ * both the submission and the submitter's seed-time list. A non-empty result
+ * means another scope saved first — the submitter must re-open instead of
+ * silently reverting it. Empty base (legacy callers) disables the check and
+ * leaves the session baseline guard in charge. Pure.
+ */
+export function unseenSiblingIds(
+  liveIds: ReadonlyArray<string>,
+  submittedIds: ReadonlyArray<string>,
+  baseIds: ReadonlyArray<string> | undefined,
+): string[] {
+  if (baseIds === undefined) return [];
+  const base = new Set(baseIds);
+  const submitted = new Set(submittedIds);
+  return liveIds.filter((id) => !submitted.has(id) && !base.has(id));
+}
+
+/**
+ * Scope region owning a sibling region id: the longest known region id such
+ * that `<scope>--area-<rest>`. Null when the id is not a sibling of any
+ * known region. Pure; the lead uses it to route sibling-owned mappings back
+ * to their owning scope instead of mistaking a sibling for a scope.
+ */
+export function scopeOwnerOf(
+  regions: ReadonlyArray<{ id: string }>,
+  regionId: string,
+): string | null {
+  let best: string | null = null;
+  for (const region of regions) {
+    const prefix = `${region.id}${SIBLING_REGION_SEPARATOR}`;
+    if (regionId.startsWith(prefix) && regionId.length > prefix.length &&
+      (best === null || region.id.length > best.length)) {
+      best = region.id;
+    }
+  }
+  return best;
+}
+
+/** Region ids referenced by any placement of one product (must never dangle). Pure. */
+export function referencedRegionIds(project: ProjectDocument, productId: string): Set<string> {
+  const used = new Set<string>();
+  for (const config of project.configurations) {
+    if (config.productId !== productId) continue;
+    for (const placement of config.placements) used.add(placement.regionId);
+  }
+  return used;
+}
+
+/**
+ * Delete/retire regions whose areas left the setup (Codex deletion rule).
+ * Unreferenced regions are flagged for REMOVAL with their variant links
+ * (real delete); referenced ones are flagged for RETIREMENT in place
+ * (emptied polygon so nothing new fits, current calibration ref so the
+ * project stays valid, links kept so placed data stays resolvable and
+ * geometry gates mark it invalid). Pure mutation of the caller's draft
+ * product; returns names for status. Never relabels stale geometry as
+ * current calibration output: retired polygons are emptied, not kept.
+ */
+export function retireDeletedRegions(
+  nextProduct: ProjectDocument['products'][number],
+  orphans: ReadonlyArray<{ id: string; name: string }>,
+  calibrationId: string,
+  version: string,
+  referenced: ReadonlySet<string>,
+): { removed: Array<{ id: string; name: string }>; retired: Array<{ id: string; name: string }> } {
+  const removed: Array<{ id: string; name: string }> = [];
+  const retired: Array<{ id: string; name: string }> = [];
+  for (const orphan of orphans) {
+    const live = nextProduct.regions.find((entry) => entry.id === orphan.id);
+    if (!live) continue;
+    if (referenced.has(orphan.id)) {
+      live.safeArea = [];
+      live.calibrationRef = { calibrationId, version };
+      retired.push({ id: orphan.id, name: orphan.name });
+    } else {
+      nextProduct.regions = nextProduct.regions.filter((entry) => entry.id !== orphan.id);
+      for (const linked of nextProduct.variants) {
+        linked.regionIds = linked.regionIds.filter((id) => id !== orphan.id);
+      }
+      removed.push({ id: orphan.id, name: orphan.name });
+    }
+  }
+  return { removed, retired };
+}
+
+/** Version marker for the per-product explicit active-area hint file. */
+export const ACTIVE_AREAS_VERSION = 'active-areas/1';
+/** Bounds for the hint file (display hint only; never fails a save/load). */
+export const ACTIVE_AREAS_LIMITS = {
+  maxBytes: 8 * 1024,
+  maxScopes: 256,
+  maxIdLength: 256,
+} as const;
+
+/**
+ * Read an active-area hint file: scope-region id -> staged area id, or {}
+ * on any mismatch (version, shape, bounds). Never throws, never fails a
+ * save/load — seeding falls back deterministically without it. Pure.
+ */
+export function parseActiveAreasFile(bytes: Uint8Array | undefined): Record<string, string> {
+  if (!bytes || bytes.length === 0 || bytes.length > ACTIVE_AREAS_LIMITS.maxBytes) return {};
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    return {};
+  }
+  if (typeof raw !== 'object' || raw === null) return {};
+  const record = raw as Record<string, unknown>;
+  if (record['version'] !== ACTIVE_AREAS_VERSION) return {};
+  const scopes = record['scopes'];
+  if (typeof scopes !== 'object' || scopes === null || Array.isArray(scopes)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(scopes as Record<string, unknown>)) {
+    if (Object.keys(out).length >= ACTIVE_AREAS_LIMITS.maxScopes) break;
+    if (typeof key !== 'string' || key.length === 0 || key.length > ACTIVE_AREAS_LIMITS.maxIdLength) continue;
+    if (typeof value !== 'string' || value.length === 0 || value.length > ACTIVE_AREAS_LIMITS.maxIdLength) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** Deterministic serialization (sorted scope keys). Pure. */
+export function serializeActiveAreasFile(scopes: Record<string, string>): Uint8Array {
+  const ordered: Record<string, string> = {};
+  for (const key of Object.keys(scopes).sort()) ordered[key] = scopes[key]!;
+  return new TextEncoder().encode(JSON.stringify({ version: ACTIVE_AREAS_VERSION, scopes: ordered }));
+}
+
+/**
+ * Mirror the staged `safeArea` polygon back into the active named entry
+ * (deep copy). No-op when no area is active or no areas are staged (older
+ * caller/test buckets carry none). Pure; no DOM.
+ */
+export function syncActiveArea(bucket: StoredEdits): void {
+  const id = bucket.activeAreaId ?? null;
+  if (id === null) return;
+  const areas = bucket.namedAreas ?? [];
+  const active = areas.find((entry) => entry.id === id);
+  if (active) active.points = bucket.safeArea.map((corner) => ({ ...corner }));
+}
+
+/** Staged named areas (absent on older buckets means none). Pure. */
+export function namedAreasOf(bucket: StoredEdits): NamedSafeArea[] {
+  return bucket.namedAreas ?? [];
+}
+
+/** True unless the caller explicitly hid the layer. Pure. */
+export function layerVisible(bucket: StoredEdits, layer: 'showAnchors' | 'showAreas'): boolean {
+  return (bucket[layer] ?? true) !== false;
+}
+
 /**
  * Save state machine: serialises saves (no overlap), never rejects, and
  * reports malformed callback results as failure. Pure; no DOM — the view
@@ -366,7 +912,10 @@ export class ProductSetupSaver {
       if (!outcome || typeof outcome !== 'object' || typeof outcome.ok !== 'boolean') {
         return { ok: false, error: 'The save callback returned no usable result.' };
       }
-      if (outcome.ok) return { ok: true };
+      if (outcome.ok) {
+        const rebased = outcome.scopeSafeArea?.map((corner) => ({ ...corner }));
+        return rebased === undefined ? { ok: true } : { ok: true, scopeSafeArea: rebased };
+      }
       const reason = typeof outcome.error === 'string' && outcome.error.length > 0
         ? outcome.error
         : 'The save callback reported failure.';
@@ -384,6 +933,12 @@ export class ProductSetupSaver {
  * status text the view shows. Success clears the dirty flag ONLY when the
  * bucket still equals the click-time snapshot (mid-save edits stay staged,
  * never clobbered); failure always keeps the draft dirty and intact.
+ *
+ * Re-baselining tracks the SAVED SCOPE polygon (`outcome.scopeSafeArea`,
+ * falling back to the snapshot for legacy single-polygon callers), never
+ * the staged polygon: with named areas the staged selection legitimately
+ * differs from the scope region, and re-baselining to staged content would
+ * make the next render misread it as a live change and adopt-revert it.
  */
 export function applySaveOutcome(
   bucket: StoredEdits,
@@ -396,8 +951,19 @@ export function applySaveOutcome(
     const snapshotJson = JSON.stringify({ safeArea: snapshot.safeArea, anchors: snapshot.anchors });
     // The commit wrote exactly the snapshot: re-baseline shared geometry so
     // later cross-scope saves adopt cleanly instead of conflicting.
-    bucket.baseSafeArea = snapshot.safeArea.map((corner) => ({ ...corner }));
+    const rebased = outcome.scopeSafeArea ?? snapshot.safeArea;
+    bucket.baseSafeArea = rebased.map((corner) => ({ ...corner }));
     bucket.conflicted = false;
+    // Advance the named-area seed baseline to exactly what was submitted:
+    // without this, a second save from the same bucket would mistake its
+    // own previously saved siblings for another scope's work and refuse.
+    // Legacy snapshots without named areas leave the baseline untouched.
+    if (snapshot.namedAreas !== undefined) {
+      bucket.baseNamedAreas = snapshot.namedAreas.map((area) => ({
+        ...area,
+        points: area.points.map((corner) => ({ ...corner })),
+      }));
+    }
     if (liveJson === snapshotJson) {
       bucket.dirty = false;
       return `Saved ${scopeLabel} (${snapshot.safeArea.length} safe-area corners, ${snapshot.anchors.length} anchors).`;
@@ -551,12 +1117,12 @@ export function workspaceMmToPhoto(
  */
 export function createProductSetupView(
   container: HTMLElement,
-  getWorkspaceInput: () => ProductSetupWorkspaceInput | { error: string },
+  getWorkspaceInput: () => ProductSetupWorkspaceInput | ProductSetupWorkspaceInputV2 | { error: string },
   callbacks: ProductSetupCallbacks,
 ): ProductSetupViewHandle {
   let destroyed = false;
   let tool: ProductSetupTool | null = null;
-  let selectedSide: ProductSetupSide | null = null;
+  let selectedViewId: string | null = null;
   let tabProjectKey: string | null = null;
   const store = createWorkspaceEditStore();
   const saver = new ProductSetupSaver();
@@ -567,6 +1133,12 @@ export function createProductSetupView(
    * edit store on every refresh.
    */
   const redrawKeys = new Set<string>();
+  /**
+   * Pending drawing mode per view key: `new` stages a FRESH named area on
+   * finish (the staged polygon stays intact until then), `replace` overwrites
+   * the selected entry's polygon. Pruned everywhere `redrawKeys` is pruned.
+   */
+  const drawModes = new Map<string, { kind: 'new' } | { kind: 'replace'; targetId: string }>();
   /**
    * Every identity key ever staged in this session. Pruned ONLY on real
    * source-session replacement (sourceRev mismatch) or explicit caller
@@ -706,6 +1278,7 @@ export function createProductSetupView(
     if (current === null || store.draftFor(current) === undefined) return;
     store.dropDraft(current);
     redrawKeys.delete(current);
+    drawModes.delete(current);
     selectedCorner = null;
     if (paintRef !== null) paintRef('Drawing cancelled; nothing was committed.');
     refresh();
@@ -751,37 +1324,41 @@ export function createProductSetupView(
       return;
     }
     const input = resolved;
-    const presentSides = PRODUCT_SETUP_SIDES.filter((side) => input.views[side] !== undefined);
-    if (presentSides.length === 0) {
+    const listed = listWorkspaceViews(input);
+    const isNamedInput = Array.isArray((input as ProductSetupWorkspaceInputV2).views);
+    if (listed.length === 0) {
       const note = document.createElement('p');
       note.className = 'muted';
-      note.textContent = 'No product views are available yet.';
+      // Model-only products (named input, no view images) never request
+      // photos: a neutral note, never a photo-missing error.
+      note.textContent = isNamedInput
+        ? 'No view images are staged for this product, so there is nothing to calibrate here.'
+        : 'No product views are available yet.';
       root.append(note, statusBox);
       return;
     }
     // Identity set for every present view: seeds the session-known staged
     // edits below. Same-sourceRev keys are NEVER pruned for merely being
-    // absent from the current input — switching product/variant/side
+    // absent from the current input — switching product/variant/view
     // restores via the existing bucketFor identity. Only real
     // source-session replacement and explicit retirement events drop work.
-    const identityBySide = new Map<ProductSetupSide, string>();
+    // Identity is the stable view id (never label text): renames keep buckets.
+    const identityById = new Map<string, string>();
     const errorMarks: string[] = [];
-    for (const side of presentSides) {
-      const selected = selectWorkspaceView(input, side);
-      if (isProductSetupPhotoView(selected)) {
-        identityBySide.set(side, viewIdentityKey(selected));
+    for (const entry of listed) {
+      if (isProductSetupPhotoView(entry.state)) {
+        identityById.set(entry.id, viewIdentityKey(entry.state));
       } else {
-        errorMarks.push(`error:${side}:${selected.error}`);
+        errorMarks.push(`error:${entry.id}:${entry.state.error}`);
       }
     }
-    const identityKeys = new Set(identityBySide.values());
+    const identityKeys = new Set(identityById.values());
     for (const known of identityKeys) knownKeys.add(known);
     // First present view's sourceRev (skipped when no usable view is present).
     let currentRev: string | null = null;
-    for (const side of presentSides) {
-      const candidate = selectWorkspaceView(input, side);
-      if (isProductSetupPhotoView(candidate)) {
-        currentRev = candidate.sourceRev;
+    for (const entry of listed) {
+      if (isProductSetupPhotoView(entry.state)) {
+        currentRev = entry.state.sourceRev;
         break;
       }
     }
@@ -793,6 +1370,7 @@ export function createProductSetupView(
           store.dropBucket(known);
           store.dropDraft(known);
           redrawKeys.delete(known);
+          drawModes.delete(known);
         }
       }
     }
@@ -804,27 +1382,28 @@ export function createProductSetupView(
         store.dropBucket(key);
         store.dropDraft(key);
         redrawKeys.delete(key);
+        drawModes.delete(key);
       }
     }
     const projectKey = JSON.stringify([...identityKeys].sort().concat(errorMarks.sort()));
     if (tabProjectKey !== projectKey) {
       tabProjectKey = projectKey;
-      selectedSide = null;
+      selectedViewId = null;
       tool = null;
       selectedAnchorId = null;
       selectedCorner = null;
       selectionContext = null;
     }
-    const side = resolveInitialSide(input, selectedSide);
-    if (side === null) {
+    const viewId = resolveInitialView(input, selectedViewId);
+    if (viewId === null) {
       const note = document.createElement('p');
       note.className = 'muted';
       note.textContent = 'No product views are available yet.';
       root.append(note, statusBox);
       return;
     }
-    selectedSide = side;
-    const selected = selectWorkspaceView(input, side);
+    selectedViewId = viewId;
+    const selected = selectWorkspaceViewById(input, viewId);
     if (!isProductSetupPhotoView(selected)) {
       const note = document.createElement('p');
       note.className = 'muted';
@@ -835,23 +1414,47 @@ export function createProductSetupView(
     const view = selected;
     // THE active tab scope: every render/save/anchor below uses view.scope.
     const tabScope = view.scope;
+    // Legacy mapping-math bucket for the affine photo plumbing (stable side
+    // string); view identity rides the scope's stable view id, never this.
+    const side: ProductSetupSide = view.scope.side;
     const key = viewIdentityKey(view);
     activeKey = key;
-    const bucket = store.bucketFor(key, () => ({
-      safeArea: view.safeArea.map((point) => ({ ...point })),
-      anchors: view.anchors.map((anchor) => ({
-        ...anchor,
-        posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
-      })),
-      dirty: false,
-      baseSafeArea: view.safeArea.map((point) => ({ ...point })),
-      conflicted: false,
-    }));
+    const bucket = store.bucketFor(key, () => {
+      const seeded = seedNamedAreas(
+        view.safeArea,
+        view.scope.regionName,
+        view.savedAreas !== undefined
+          ? { areas: view.savedAreas, activeAreaId: view.savedActiveAreaId ?? null }
+          : undefined,
+      );
+      return {
+        safeArea: view.safeArea.map((point) => ({ ...point })),
+        anchors: view.anchors.map((anchor) => ({
+          ...anchor,
+          posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number],
+        })),
+        dirty: false,
+        baseSafeArea: view.safeArea.map((point) => ({ ...point })),
+        conflicted: false,
+        namedAreas: seeded.namedAreas,
+        activeAreaId: seeded.activeAreaId,
+        baseNamedAreas: seeded.namedAreas.map((area) => ({
+          ...area,
+          points: area.points.map((point) => ({ ...point })),
+        })),
+        showAnchors: true,
+        showAreas: true,
+      };
+    });
     // Baseline-aware shared geometry (Tranche C data-loss guard): the saved
     // region may have moved under another scope since this bucket staged.
     // Unedited buckets adopt live (keeping staged per-scope anchors);
     // edited buckets with moved live are a conflict, surfaced at the save
     // bar and enforced at commit — never silently overwritten or discarded.
+    // NOTE: adoption covers the scope polygon and anchors only; the staged
+    // named-area list is never merged with live siblings (that would silently
+    // resurrect deleted areas or drop new ones). Sibling divergence is
+    // refused at save time instead (stale-list guard).
     if (!sameSafeArea(bucket.safeArea, bucket.baseSafeArea)) {
       bucket.conflicted = !sameSafeArea(view.safeArea, bucket.baseSafeArea);
     } else if (!sameSafeArea(view.safeArea, bucket.baseSafeArea)) {
@@ -877,15 +1480,15 @@ export function createProductSetupView(
       selectedCorner = null;
     }
 
-    renderTabs(root, presentSides, side, (next) => {
-      selectedSide = next;
-      const upcoming = selectWorkspaceView(input, next);
+    renderTabs(root, listed, viewId, (next) => {
+      selectedViewId = next;
+      const upcoming = selectWorkspaceViewById(input, next);
       paintStatus(isProductSetupPhotoView(upcoming)
         ? `Viewing ${shortScopeLabel(upcoming.scope)}; staged edits are kept per view.`
         : upcoming.error);
       refresh();
     });
-    renderToolbar(root, activeTool, bucket, (next) => {
+    renderToolbar(root, activeTool, bucket, paintStatus, (next) => {
       tool = next;
       paintStatus(next === 'safe-area'
         ? 'Safe-area tool: click the photo to draw, drag corners to edit. Anchor clicks do nothing here.'
@@ -938,23 +1541,25 @@ export function createProductSetupView(
 
   function renderTabs(
     root: HTMLElement,
-    sides: readonly ProductSetupSide[],
-    selected: ProductSetupSide,
-    onSelect: (side: ProductSetupSide) => void,
+    listed: readonly ProductSetupListedView[],
+    selected: string,
+    onSelect: (id: string) => void,
   ): void {
     const tabs = document.createElement('div');
     tabs.className = 'product-setup-tabs';
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', 'Product views');
-    for (const side of sides) {
+    for (const entry of listed) {
       const tab = document.createElement('button');
       tab.type = 'button';
-      tab.className = side === selected ? 'product-setup-tab is-active' : 'product-setup-tab';
+      tab.className = entry.id === selected ? 'product-setup-tab is-active' : 'product-setup-tab';
       tab.setAttribute('role', 'tab');
-      tab.setAttribute('aria-selected', side === selected ? 'true' : 'false');
-      tab.setAttribute('data-fkey', `psv-tab-${side}`);
-      tab.textContent = sideLabel(side);
-      tab.addEventListener('click', () => onSelect(side));
+      tab.setAttribute('aria-selected', entry.id === selected ? 'true' : 'false');
+      // Stable identity key (the view id, never label text): renames keep
+      // every `psv-tab-*` hook stable, and legacy sides keep their old hooks.
+      tab.setAttribute('data-fkey', `psv-tab-${entry.id}`);
+      tab.textContent = entry.label;
+      tab.addEventListener('click', () => onSelect(entry.id));
       tabs.append(tab);
     }
     root.append(tabs);
@@ -964,6 +1569,7 @@ export function createProductSetupView(
     root: HTMLElement,
     activeTool: ProductSetupTool,
     bucket: StoredEdits,
+    paintStatus: (message: string) => void,
     onSelect: (next: ProductSetupTool) => void,
   ): void {
     const bar = document.createElement('div');
@@ -996,6 +1602,45 @@ export function createProductSetupView(
       ? 'Safe-area tool: draw a fresh polygon or drag corners. Photo clicks never place anchors here; Enter finishes a drawing, Escape cancels.'
       : 'Anchor tool: click the product to place a named anchor; drag, rename or delete it. Photo clicks never touch the safe area here.';
     root.append(hint);
+    // Data-preserving layer toggles: hiding a layer only skips its stage
+    // rendering — staged geometry is never deleted by a toggle.
+    const layers = document.createElement('div');
+    layers.className = 'product-setup-layers';
+    const layerToggle = (
+      label: string,
+      fkey: string,
+      checked: boolean,
+      onFlip: () => void,
+    ): void => {
+      const wrap = document.createElement('label');
+      wrap.className = 'product-setup-layer';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = checked;
+      box.setAttribute('data-fkey', fkey);
+      box.setAttribute('aria-label', label);
+      box.addEventListener('change', () => {
+        onFlip();
+        refresh();
+      });
+      const text = document.createElement('span');
+      text.textContent = label;
+      wrap.append(box, text);
+      layers.append(wrap);
+    };
+    layerToggle('Show anchors', 'psv-toggle-anchors', layerVisible(bucket, 'showAnchors'), () => {
+      bucket.showAnchors = !bucket.showAnchors;
+      paintStatus(bucket.showAnchors
+        ? 'Anchors layer shown; nothing was changed.'
+        : 'Anchors layer hidden; staged anchors are kept, only the display changed.');
+    });
+    layerToggle('Show safe areas', 'psv-toggle-areas', layerVisible(bucket, 'showAreas'), () => {
+      bucket.showAreas = !bucket.showAreas;
+      paintStatus(bucket.showAreas
+        ? 'Safe-areas layer shown; nothing was changed.'
+        : 'Safe-areas layer hidden; staged areas are kept, only the display changed.');
+    });
+    root.append(layers);
   }
 
   function eventPhotoPoint(svg: SVGSVGElement, event: PointerEvent | MouseEvent): { x: number; y: number } {
@@ -1023,7 +1668,7 @@ export function createProductSetupView(
     figure.className = 'product-setup-figure';
     const caption = document.createElement('figcaption');
     caption.className = 'muted';
-    caption.textContent = `${shortScopeLabel(scope)} — millimetres come from the evaluated mapping.`;
+    caption.textContent = `${shortScopeLabel(scope)} — millimetres come from the evaluated mapping, which stays pending review and is never production approval.`;
     figure.append(caption);
 
     const stage = document.createElement('div');
@@ -1039,7 +1684,7 @@ export function createProductSetupView(
     } else {
       const missing = document.createElement('p');
       missing.className = 'muted';
-      missing.textContent = 'Photo bytes are missing or undecodable; setup needs a readable product photo.';
+      missing.textContent = 'View-image bytes are missing or undecodable; setup needs a readable view image.';
       stage.append(missing);
       figure.append(stage);
       root.append(figure);
@@ -1072,6 +1717,7 @@ export function createProductSetupView(
         if (store.draftFor(key) !== undefined) {
           store.dropDraft(key);
           redrawKeys.delete(key);
+          drawModes.delete(key);
           selectedCorner = null;
           paintStatus('Drawing cancelled; nothing was committed.');
           refresh();
@@ -1107,7 +1753,9 @@ export function createProductSetupView(
 
     const safePolygon = document.createElementNS(svgNS, 'polygon');
     safePolygon.setAttribute('class', 'product-setup-safe');
-    svg.append(safePolygon);
+    // Layer visibility is render-only: a hidden layer stays staged, and its
+    // detached nodes are simply not painted (drag math below still works).
+    if (layerVisible(bucket, 'showAreas')) svg.append(safePolygon);
     const paintSafe = (points: ReadonlyArray<AnchorSetupMm>): void => {
       const mapped: string[] = [];
       for (const point of points) {
@@ -1124,7 +1772,7 @@ export function createProductSetupView(
     const markerById = new Map<string, { dot: SVGCircleElement; tag: SVGTextElement; marker: SVGGElement }>();
     const anchorsLayer = document.createElementNS(svgNS, 'g');
     anchorsLayer.setAttribute('class', 'product-setup-anchors');
-    svg.append(anchorsLayer);
+    if (layerVisible(bucket, 'showAnchors')) svg.append(anchorsLayer);
 
     bucket.anchors.forEach((anchor) => {
       const px = workspaceMmToPhoto(view, side, { x: anchor.posMm[0]!, y: anchor.posMm[1]! });
@@ -1213,7 +1861,7 @@ export function createProductSetupView(
       }
     });
 
-    if (activeTool === 'safe-area') {
+    if (activeTool === 'safe-area' && layerVisible(bucket, 'showAreas')) {
       renderSafeHandles(svgNS, svg, view, side, key, bucket, paintStatus);
       const draft = store.draftFor(key);
       if (draft !== undefined) {
@@ -1290,6 +1938,7 @@ export function createProductSetupView(
         const check = validateSafeAreaPolygon(vertexBase);
         if (check.ok) {
           bucket.safeArea = vertexBase;
+          syncActiveArea(bucket);
           bucket.dirty = true;
           selectedCorner = vertexIndex;
         } else {
@@ -1343,7 +1992,12 @@ export function createProductSetupView(
         bucket.anchors = [...bucket.anchors, created];
         bucket.dirty = true;
         selectedAnchorId = created.id;
-        paintStatus(`Created “${created.name}”. Rename it below if needed.`);
+        if (!layerVisible(bucket, 'showAnchors')) {
+          bucket.showAnchors = true;
+          paintStatus(`Created “${created.name}”. The anchors layer was hidden, so it is shown again; nothing was deleted. Rename it below if needed.`);
+        } else {
+          paintStatus(`Created “${created.name}”. Rename it below if needed.`);
+        }
         refresh();
         return;
       }
@@ -1490,6 +2144,7 @@ export function createProductSetupView(
             return;
           }
           bucket.safeArea = base;
+          syncActiveArea(bucket);
           bucket.dirty = true;
           selectedCorner = index + 1;
           paintStatus(`Inserted a corner on edge ${index + 1}.`);
@@ -1584,6 +2239,13 @@ export function createProductSetupView(
   }
 
   function emptyBucket(view: ProductSetupPhotoView): StoredEdits {
+    const seeded = seedNamedAreas(
+      view.safeArea,
+      view.scope.regionName,
+      view.savedAreas !== undefined
+        ? { areas: view.savedAreas, activeAreaId: view.savedActiveAreaId ?? null }
+        : undefined,
+    );
     return {
       safeArea: view.safeArea.map((point) => ({ ...point })),
       anchors: view.anchors.map((anchor) => ({
@@ -1593,6 +2255,14 @@ export function createProductSetupView(
       dirty: false,
       baseSafeArea: view.safeArea.map((point) => ({ ...point })),
       conflicted: false,
+      namedAreas: seeded.namedAreas,
+      activeAreaId: seeded.activeAreaId,
+      baseNamedAreas: seeded.namedAreas.map((area) => ({
+        ...area,
+        points: area.points.map((point) => ({ ...point })),
+      })),
+      showAnchors: true,
+      showAreas: true,
     };
   }
 
@@ -1612,10 +2282,42 @@ export function createProductSetupView(
       paintStatus(`Safe-area drawing refused: ${check.reason} Press Escape to cancel and redraw.`);
       return;
     }
-    bucket.safeArea = draft.map((corner) => ({ ...corner }));
+    const polygon = draft.map((corner) => ({ ...corner }));
+    const mode = drawModes.get(key) ?? { kind: 'new' as const };
+    if (mode.kind === 'replace') {
+      const target = namedAreasOf(bucket).find((entry) => entry.id === mode.targetId);
+      if (target) {
+        target.points = polygon.map((corner) => ({ ...corner }));
+        bucket.activeAreaId = target.id;
+        bucket.safeArea = polygon;
+        bucket.dirty = true;
+        store.dropDraft(key);
+        redrawKeys.delete(key);
+        drawModes.delete(key);
+        selectedCorner = null;
+        paintStatus(`Redrew area “${target.name}” with ${polygon.length} corners. Save product setup to commit it.`);
+        refresh();
+        return;
+      }
+    }
+    // First finished area on an unconfigured scope takes the stable
+    // scope-entry id: the scope region always carries exactly the
+    // scope-entry polygon, so selection can never relocate placements.
+    const takesScopeId =
+      !namedAreasOf(bucket).some((area) => area.id === SCOPE_SAVED_AREA_ID) &&
+      bucket.safeArea.length === 0;
+    const entry: NamedSafeArea = {
+      id: takesScopeId ? SCOPE_SAVED_AREA_ID : newAreaId(),
+      name: nextAreaName(namedAreasOf(bucket).map((area) => area.name)),
+      points: polygon.map((corner) => ({ ...corner })),
+    };
+    bucket.namedAreas = [...namedAreasOf(bucket), entry];
+    bucket.activeAreaId = entry.id;
+    bucket.safeArea = polygon;
     bucket.dirty = true;
     store.dropDraft(key);
     redrawKeys.delete(key);
+    drawModes.delete(key);
     selectedCorner = null;
     paintStatus(`Staged a drawn safe area with ${draft.length} corners. Save product setup to commit it.`);
     refresh();
@@ -1663,6 +2365,7 @@ export function createProductSetupView(
       return;
     }
     bucket.safeArea = base;
+    syncActiveArea(bucket);
     bucket.dirty = true;
     paintStatus(`Moved corner ${index + 1}.`);
     refresh();
@@ -1699,6 +2402,7 @@ export function createProductSetupView(
       return;
     }
     bucket.safeArea = base;
+    syncActiveArea(bucket);
     bucket.dirty = true;
     if (selectedCorner === index) selectedCorner = null;
     paintStatus(`Removed corner ${index + 1}.`);
@@ -1801,6 +2505,7 @@ export function createProductSetupView(
       cancel.addEventListener('click', () => {
         store.dropDraft(key);
         redrawKeys.delete(key);
+        drawModes.delete(key);
         selectedCorner = null;
         paintStatus('Drawing cancelled; nothing was committed.');
         refresh();
@@ -1810,17 +2515,156 @@ export function createProductSetupView(
       root.append(panel);
       return;
     }
-    heading.textContent = bucket.safeArea.length > 0
-      ? `Safe area (${bucket.safeArea.length} corners${bucket.dirty ? ', staged edits' : ''})`
-      : 'Safe area (none yet)';
+    const stagedAreas = namedAreasOf(bucket);
+    const stagedActiveId = bucket.activeAreaId ?? null;
+    const activeEntry = stagedActiveId !== null
+      ? stagedAreas.find((entry) => entry.id === stagedActiveId) ?? null
+      : null;
+    heading.textContent = stagedAreas.length > 0
+      ? `Safe areas (${stagedAreas.length}${bucket.dirty ? ', staged edits' : ''})`
+      : 'Safe areas (none yet)';
     panel.append(heading);
-    if (bucket.safeArea.length === 0) {
+    const bound = document.createElement('p');
+    bound.className = 'muted';
+    bound.textContent =
+      'Areas are stored in millimetres under this calibration (pending review — never production approval). ' +
+      'Recalibrating restarts from the saved setup only: staged extra areas are dropped, never reinterpreted. ' +
+      'Names and non-selected areas stay staged in this session; Save commits the selected area’s polygon plus anchors.';
+    panel.append(bound);
+    if (stagedAreas.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = `No safe area for ${shortScopeLabel(view.scope)} yet. Click the photo to start drawing one.`;
+      empty.textContent = `No safe areas for ${shortScopeLabel(view.scope)} yet. Click the view image to start drawing one — a fresh calibration never invents a polygon.`;
       panel.append(empty);
       root.append(panel);
       return;
+    }
+    const startDrawing = (mode: { kind: 'new' } | { kind: 'replace'; targetId: string }, message: string): void => {
+      redrawKeys.add(key);
+      drawModes.set(key, mode);
+      store.setDraft(key, []);
+      selectedCorner = null;
+      tool = 'safe-area';
+      if (!layerVisible(bucket, 'showAreas')) {
+        bucket.showAreas = true;
+        paintStatus(`${message} The safe-areas layer was hidden, so it is shown again; nothing was deleted.`);
+      } else {
+        paintStatus(message);
+      }
+      refresh();
+      container.querySelector<SVGSVGElement>('.product-setup-overlay')?.focus();
+    };
+    const areaList = document.createElement('div');
+    areaList.className = 'product-setup-list';
+    stagedAreas.forEach((area) => {
+      const row = document.createElement('div');
+      row.className = area.id === stagedActiveId ? 'product-setup-row is-selected' : 'product-setup-row';
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'btn-secondary product-setup-pick';
+      pick.textContent = area.name;
+      pick.setAttribute('aria-pressed', area.id === stagedActiveId ? 'true' : 'false');
+      pick.setAttribute('data-fkey', `psv-area-pick-${key}-${area.id}`);
+      pick.addEventListener('click', () => {
+        if (stagedActiveId !== area.id) {
+          bucket.activeAreaId = area.id;
+          if (!sameSafeArea(bucket.safeArea, area.points)) {
+            bucket.safeArea = area.points.map((corner) => ({ ...corner }));
+            bucket.dirty = true;
+          }
+          selectedCorner = null;
+          paintStatus(`Selected area “${area.name}” (${area.points.length} corners). Save commits this polygon.`);
+          refresh();
+          return;
+        }
+        paintStatus(`Area “${area.name}” is already selected.`);
+        refresh();
+      });
+      row.append(pick);
+      areaList.append(row);
+    });
+    panel.append(areaList);
+    if (activeEntry !== null) {
+      const current = document.createElement('div');
+      current.className = 'product-setup-current';
+      const nameLabel = document.createElement('label');
+      nameLabel.className = 'product-setup-field';
+      const nameCaption = document.createElement('span');
+      nameCaption.textContent = 'Area name';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = activeEntry.name;
+      nameInput.maxLength = 80;
+      nameInput.setAttribute('data-fkey', `psv-area-name-${key}-${activeEntry.id}`);
+      nameInput.setAttribute('aria-label', `Name for safe area with ${activeEntry.points.length} corners`);
+      nameInput.addEventListener('change', () => {
+        const wanted = nameInput.value.trim();
+        if (namedAreasOf(bucket).some((area) => area.id !== activeEntry.id && area.name === wanted)) {
+          paintStatus(`Area not renamed: another area is already called “${wanted}”.`);
+          nameInput.value = activeEntry.name;
+          return;
+        }
+        const reason = validateNamedSafeArea(
+          {
+            id: activeEntry.id,
+            name: wanted,
+            points: activeEntry.points.map((point) => ({ ...point })),
+          },
+          namedAreasOf(bucket)
+            .filter((area) => area.id !== activeEntry.id)
+            .map((area) => area.id),
+        );
+        if (reason !== null) {
+          paintStatus(`Area not renamed: ${reason}`);
+          nameInput.value = activeEntry.name;
+          return;
+        }
+        activeEntry.name = wanted;
+        bucket.dirty = true;
+        paintStatus(`Renamed area to “${wanted}”.`);
+        refresh();
+      });
+      nameLabel.append(nameCaption, nameInput);
+      current.append(nameLabel);
+      const redrawSelected = document.createElement('button');
+      redrawSelected.type = 'button';
+      redrawSelected.className = 'btn-secondary';
+      redrawSelected.textContent = 'Redraw selected';
+      redrawSelected.setAttribute('aria-label', `Redraw the polygon of area “${activeEntry.name}”`);
+      redrawSelected.setAttribute('data-fkey', `psv-area-redraw-${key}-${activeEntry.id}`);
+      redrawSelected.addEventListener('click', () => {
+        startDrawing(
+          { kind: 'replace', targetId: activeEntry.id },
+          `Redraw area “${activeEntry.name}”: click the photo to add corners. The current polygon stays staged until the new drawing finishes — Escape cancels and keeps it.`,
+        );
+      });
+      const removeArea = document.createElement('button');
+      removeArea.type = 'button';
+      removeArea.className = 'btn-secondary product-setup-remove';
+      removeArea.textContent = 'Delete area';
+      removeArea.setAttribute('aria-label', `Delete safe area “${activeEntry.name}”`);
+      removeArea.setAttribute('data-fkey', `psv-area-delete-${key}-${activeEntry.id}`);
+      removeArea.addEventListener('click', () => {
+        const removed = activeEntry.name;
+        bucket.namedAreas = namedAreasOf(bucket).filter((area) => area.id !== activeEntry.id);
+        const next = namedAreasOf(bucket)[0] ?? null;
+        if (next) {
+          bucket.activeAreaId = next.id;
+          bucket.safeArea = next.points.map((corner) => ({ ...corner }));
+          selectedCorner = null;
+          bucket.dirty = true;
+          paintStatus(`Deleted area “${removed}”. Selected “${next.name}” instead.`);
+        } else {
+          bucket.activeAreaId = null;
+          bucket.safeArea = [];
+          selectedCorner = null;
+          bucket.dirty = true;
+          paintStatus(`Deleted area “${removed}”. No areas remain — draw one to stage a polygon.`);
+        }
+        refresh();
+      });
+      current.append(redrawSelected, removeArea);
+      panel.append(current);
     }
     if (!redrawKeys.has(key)) {
       const redrawActions = document.createElement('div');
@@ -1831,13 +2675,10 @@ export function createProductSetupView(
       redraw.textContent = 'Draw new safe area';
       redraw.setAttribute('data-fkey', `psv-draw-new-${key}`);
       redraw.addEventListener('click', () => {
-        redrawKeys.add(key);
-        store.setDraft(key, []);
-        selectedCorner = null;
-        tool = 'safe-area';
-        paintStatus('Draw a new safe area: click the photo to add corners. The current polygon stays staged until the new drawing finishes — Escape cancels and keeps it.');
-        refresh();
-        container.querySelector<SVGSVGElement>('.product-setup-overlay')?.focus();
+        startDrawing(
+          { kind: 'new' },
+          'Draw a new safe area: click the photo to add corners. The current polygon stays staged until the new drawing finishes — Escape cancels and keeps it.',
+        );
       });
       redrawActions.append(redraw);
       panel.append(redrawActions);
@@ -1867,6 +2708,7 @@ export function createProductSetupView(
           return;
         }
         bucket.safeArea = base;
+        syncActiveArea(bucket);
         bucket.dirty = true;
         paintStatus(`Moved corner ${index + 1}.`);
         refresh();
@@ -1953,7 +2795,7 @@ export function createProductSetupView(
     if (bucket.anchors.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = `No anchors for ${shortScopeLabel(view.scope)} yet. Click the product photo to place the first one.`;
+      empty.textContent = `No anchors for ${shortScopeLabel(view.scope)} yet. Click the view image to place the first one.`;
       panel.append(empty);
       root.append(panel);
       return;
@@ -2135,6 +2977,21 @@ export function createProductSetupView(
       // Snapshot at click time: edits made while the save is in flight stay
       // live in the bucket and are never clobbered by this save's outcome.
       const snapshot = validated.result;
+      // Named areas ride along explicitly (stable ids + explicit active id —
+      // the caller persists siblings by id and the scope-entry polygon into
+      // the scope region, never inferring the active area by coordinates).
+      syncActiveArea(bucket);
+      snapshot.namedAreas = namedAreasOf(bucket).map((area) => ({
+        id: area.id,
+        name: area.name,
+        points: area.points.map((corner) => ({ ...corner })),
+      }));
+      snapshot.activeAreaId = bucket.activeAreaId ?? null;
+      snapshot.baseNamedAreas = (bucket.baseNamedAreas ?? []).map((area) => ({
+        id: area.id,
+        name: area.name,
+        points: area.points.map((corner) => ({ ...corner })),
+      }));
       const scopeSnapshot: ProductSetupScope = { ...tabScope };
       const scopeLabel = shortScopeLabel(scopeSnapshot);
       // Mark pending synchronously BEFORE any re-render, so the rebuilt Save
@@ -2158,6 +3015,7 @@ export function createProductSetupView(
       store.dropBucket(key);
       store.dropDraft(key);
       redrawKeys.delete(key);
+      drawModes.delete(key);
       selectedAnchorId = null;
       selectedCorner = null;
       paintStatus('Staged edits discarded; showing the saved setup.');
