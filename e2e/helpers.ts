@@ -84,18 +84,6 @@ export async function gotoBuilder(page: Page): Promise<void> {
 /** Navigate the operator job shell to the step/branch holding a control. */
 export async function revealBuilderControl(page: Page, name: string): Promise<void> {
   const selector = `[data-builder-hook="${name}"]`;
-  // Legacy wizard entry points map onto the operator job shell.
-  const entryRedirects: Record<string, string> = {
-    'start-create': 'job-landing-create',
-    'source-choose': 'job-open',
-  };
-  if (entryRedirects[name]) {
-    const target = page.locator(`[data-builder-hook="${entryRedirects[name]}"]`).first();
-    if (await target.isVisible()) {
-      await revealControl(page, `[data-builder-hook="${entryRedirects[name]}"]`);
-      return;
-    }
-  }
   const control = page.locator(selector).first();
   // Status assertions can inspect hidden context without changing the journey.
   // Interactive controls and disclosed review content use real step navigation.

@@ -461,7 +461,7 @@ test('images span setup: two-click reference + drawn area + atomic save creates 
       const fresh = await freshContext.newPage();
       try {
         await gotoBuilder(fresh);
-        await fresh.locator('[data-builder-hook="source-file"]').setInputFiles(masterPath);
+        await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
         await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
         const freshWorkspace = builder(fresh, 'product-workspace');
         await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
@@ -574,7 +574,7 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
       const fresh = await freshContext.newPage();
       try {
         await gotoBuilder(fresh);
-        await fresh.locator('[data-builder-hook="source-file"]').setInputFiles(masterPath);
+        await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
         await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
         const freshWorkspace = builder(fresh, 'product-workspace');
         await freshWorkspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
@@ -721,7 +721,11 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
         // Reopen the RETURN as a source project: both placements are office
         // state now. Deleting the referenced second area must retire its
         // region (not remove it, not keep stale geometry).
-        await page.locator('[data-builder-hook="source-file"]').setInputFiles(info.outputPath('two-areas-return.logo-project'));
+        await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(info.outputPath('two-areas-return.logo-project'));
+        // Retained replacement guard (Journey E): Discard reproduces the old
+        // silent replace before asserting the reopen.
+        await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
+        await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
         await expect(await shown(page, 'source-status')).toContainText('.logo-project');
         const returnWorkspace = builder(page, 'product-workspace');
         await returnWorkspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
@@ -1090,7 +1094,11 @@ test('images span recalibration from sibling-owned mapping resolves the owning s
     );
     const craftedPath = info.outputPath('recal-sibling-only.logo-project');
     await writeFile(craftedPath, craftedBytes);
-    await page.locator('[data-builder-hook="source-file"]').setInputFiles(craftedPath);
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(craftedPath);
+    // Retained replacement guard (Journey E): Discard reproduces the old
+    // silent replace before asserting the reopen.
+    await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
+    await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('.logo-project');
     // The scope view is honestly unmeasured (sibling mapping rejected as
     // scope) and routes back to setup — not confused into the sibling.
@@ -1219,7 +1227,7 @@ test('images shared scope: stale sibling submitter is refused, reset recovers', 
     }, { sha256 });
     const fixturePath = info.outputPath('shared-stale.logo-project');
     await writeFile(fixturePath, packageBytes);
-    await page.locator('[data-builder-hook="source-file"]').setInputFiles(fixturePath);
+    await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('.logo-project');
 
     const workspace = builder(page, 'product-workspace');
@@ -1343,7 +1351,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     const fresh = await freshContext.newPage();
     try {
       await gotoBuilder(fresh);
-      await fresh.locator('[data-builder-hook="source-file"]').setInputFiles(masterPath);
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
       await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
       await expect(builder(fresh, 'model-setup-status')).toContainText('Reopened saved 3D setup');
       await expect(builder(fresh, 'model-setup').locator('[data-model-setup-hook="area-list"]')).toContainText('Chest');
@@ -1801,7 +1809,7 @@ test('prepared-master save/reopen retains references, calibration and areas', as
     });
     try {
       await gotoBuilder(fresh);
-      await fresh.locator('[data-builder-hook="source-file"]').setInputFiles(masterPath);
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
       await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
       const freshWorkspace = builder(fresh, 'product-workspace');
       await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();

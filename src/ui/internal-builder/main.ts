@@ -41,56 +41,27 @@ import type {
   BuilderSourceSummary,
 } from '../../core/project-builder/index.js';
 import {
-  buildCandidateExport,
   canonicalize,
-  importCustomerReturn,
   newRevision,
-  recordInternalReview,
-  serializeExport,
-  validateLogos,
   validateProject,
 } from '../../core/index.js';
 import type {
-  Configuration,
-  ExportConfiguration,
-  ExportPlacement,
   Placement,
   ProjectDocument,
   ResultCandidate,
-  ReviewDecision,
 } from '../../core/index.js';
-import { assertProjectEditorLimits, evaluateProjectGeometry } from '../../core/project-editor/index.js';
-import { buildOperationSheetView, displayVariantName, matchLogoRef } from '../../core/operation-document/index.js';
-import type { OperationSheetJob, PhotoMappingState, ReferenceViewInput } from '../../core/operation-document/types.js';
-import type { SheetLogoExtras } from '../../core/operation-document/types.js';
-import type { BuildOperationSheetViewInput, OperationSheetView } from '../../core/operation-document/types.js';
+import { assertProjectEditorLimits } from '../../core/project-editor/index.js';
+import { displayVariantName } from '../../core/operation-document/index.js';
+import type { ReferenceViewInput } from '../../core/operation-document/types.js';
+import type { OperationSheetView } from '../../core/operation-document/types.js';
 import {
   bytesToDataUrl,
-  evaluateOperationPhotoStates,
-  operationSheetPageCount,
-  operationSheetStyles,
-  operationSheetSummary,
-  renderOperationSheet,
   selectOperationReferenceViews,
 } from '../shared/operation-document/index.js';
-import {
-  isOperationDraft,
-  isStaleDraft,
-  OPERATION_DRAFT_NUMBER,
-  OPERATION_DRAFT_VERSION,
-  measurePlacement,
-  rotatedFootprintCorners,
-} from '../../core/operation-measurements/index.js';
-import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import type {
   AnchorDef,
-  ArtworkEdge,
-  DimensionBinding,
-  MeasurementConvention,
-  OperationDraft,
-} from '../../core/operation-measurements/index.js';
-import { createAnchorSetup, validateSafeAreaPolygon } from './anchor-setup.js';
-import type { AnchorSetupHandle, AnchorSetupInput, AnchorSetupMm } from './anchor-setup.js';
+} from '../../core/operation-measurements/types.js';
+import { validateSafeAreaPolygon } from './anchor-setup.js';
 import { createProductSetupView, validateAnchors, isSiblingRegionId, areaIdFromSiblingRegionId, siblingRegionIdFor, scopeOwnerOf, referencedRegionIds, retireDeletedRegions, parseActiveAreasFile, serializeActiveAreasFile, unseenSiblingIds, scopeViewId, scopeViewLabel, SCOPE_SAVED_AREA_ID, SIBLING_REGION_SEPARATOR } from './product-setup-view.js';
 import type {
   ProductSetupCallbacks,
@@ -118,74 +89,66 @@ import {
   validateReferenceSpan,
 } from '../../core/setup-calibration/index.js';
 import type { ReferenceSpan, SetupCalibrationBundle } from '../../core/setup-calibration/index.js';
-import type {
-  OperationSheetAssetLookup,
-  SheetOverlayArtwork,
-  SheetOverlayMapping,
-} from '../shared/operation-document/index.js';
 import {
   createProjectPackage,
   PROJECT_PACKAGE_LIMITS,
   parseProjectPackage,
 } from '../../packaging/project-package/index.js';
-import type { ProjectPackageAsset, ProjectPackageAssetInput } from '../../packaging/project-package/index.js';
+import type { ProjectPackageAsset } from '../../packaging/project-package/index.js';
 import {
-  createSelfContainedHtml,
   decodeEmbeddedProjectBase64,
 } from '../../packaging/self-contained-html/index.js';
 import { MAX_PREVIEW_BYTES, readRasterHeader } from '../../assets/raster-header.js';
 import { parseGlb } from '../../assets/glb.js';
 import { validateSelfContained } from '../../assets/validate.js';
-import { createProjectFromDefinitions } from '../../core/project-builder/create-project.js';
-import { isPreviewOnlyProduct } from '../../core/project-builder/provisional-product.js';
-import { preparedEvidencePaths, selectPreparedSidecarAssets } from '../../core/project-builder/prepared-import.js';
 import { createProvisionalProduct } from '../../core/project-builder/provisional-product.js';
 import { planPhotoIntake, renameIntakeViewLabel } from '../../core/photo-intake/index.js';
 import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
-import { zipSync } from 'fflate';
 import { mountPlacementWorkspace } from './placement-workspace.js';
 import type {
   PlacementStageOverlay,
-  PlacementTechnique,
   PlacementWorkspaceHandle,
-  PlacementWorkspaceSelection,
 } from './placement-workspace.js';
 import {
-  buildReviewSheetLookup,
-  buildReviewSheetView,
   mountDocumentReview,
 } from './document-review.js';
 import type {
   DocumentReviewHandle,
   ReviewFixTarget,
-  ReviewTechniqueSettings,
   ReviewUnappliedEdit,
 } from './document-review.js';
 import { mountCustomerApproval } from './customer-approval.js';
 import type { CustomerApprovalHandle } from './customer-approval.js';
 import {
-  createEmptyJobMetadata,
   decodeJobSidecar,
   encodeJobSidecar,
-  markDependentMeasurementsUnresolved,
-  toSheetBindings,
   OPERATOR_JOB_SIDECAR_PATH,
 } from '../../core/operator-job/index.js';
 import type {
-  JobMeasurementBinding,
   OperatorJobMetadata,
 } from '../../core/operator-job/index.js';
+import {
+  applySessionAuthoring,
+  captureSaveSnapshot,
+  cleanSession,
+  createEmptySession,
+  emptyLogoTechnique,
+  emptyRecord,
+  emptySelection,
+  isSameSaveSession,
+  rebaseSessionAuthoring,
+  replaceSessionProject,
+  sessionAuthoringFromMetadata,
+  sessionDocumentInputs,
+  snapshotSessionMetadata,
+  touchSession,
+} from './job-session.js';
+import type { JobSession } from './job-session.js';
 import { createOperatorAuthoringContext } from '../../core/operator-authoring/index.js';
 
-interface SourceState {
-  fileName: string;
-  project: ProjectDocument;
-  assets: ProjectPackageAsset[];
-  summary: BuilderSourceSummary;
-  /** Verbatim source package bytes (for "Save prepared master"). */
-  packageBytes: Uint8Array;
-}
+/** Live logo import staging (the retained intake path); the issued/return
+ * snapshot shells are deleted with the legacy desk below. */
 interface ImportedLogo {
   id: string;
   name: string;
@@ -193,40 +156,6 @@ interface ImportedLogo {
   mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
   widthPx: number;
   heightPx: number;
-}
-
-interface GeneratedState {
-  format: 'self-contained' | 'hybrid';
-  jobPart: string;
-  packageBytes: Uint8Array;
-  htmlBytes: Uint8Array;
-  zipBytes: Uint8Array | null;
-  issuedProject: ProjectDocument;
-  issuedAssets: ProjectPackageAsset[];
-}
-
-interface BaselineState {
-  fileName: string;
-  jobPart: string;
-  packageBytes: Uint8Array;
-  issuedProject: ProjectDocument;
-  issuedAssets: ProjectPackageAsset[];
-}
-
-interface ReturnState {
-  imported: ProjectDocument;
-  candidate: ResultCandidate;
-  contentDigest: string;
-  serializedCandidate: string;
-  candidateFileName: string;
-  /** Human job handle for return-derived filenames (never a raw UUID). */
-  jobPart: string;
-  /** Return package assets (referenced + additional) for the reviewed-return save. */
-  packageAssets: ProjectPackageAsset[];
-  geometryOk: boolean;
-  returnFileName: string;
-  baselineFileName: string;
-  reviewTimestamp: string;
 }
 
 function required<T extends Element>(selector: string): T {
@@ -239,11 +168,7 @@ const hook = <T extends Element>(name: string): T =>
   required<T>(`[data-builder-hook="${name}"]`);
 
 
-const sourceFile = hook<HTMLInputElement>('source-file');
-const sourceChoose = hook<HTMLButtonElement>('source-choose');
-const sourceDrop = hook<HTMLElement>('source-drop');
 const sourceStatus = hook<HTMLElement>('source-status');
-const startCreate = hook<HTMLButtonElement>('start-create');
 const createStatus = hook<HTMLElement>('create-status');
 const logoAdd = hook<HTMLButtonElement>('logo-add');
 const logoFile = hook<HTMLInputElement>('logo-file');
@@ -283,26 +208,7 @@ const projectIdSuggestion = hook<HTMLElement>('project-id-suggestion');
 const projectIdUseSource = hook<HTMLButtonElement>('project-id-use-source');
 const formatSelf = hook<HTMLInputElement>('format-self');
 const formatHybrid = hook<HTMLInputElement>('format-hybrid');
-const generateButton = hook<HTMLButtonElement>('generate');
 const generateStatus = hook<HTMLElement>('generate-status');
-const previewOnlyAck = hook<HTMLInputElement>('preview-only-acknowledge');
-const sizeEstimate = hook<HTMLElement>('size-estimate');
-const downloadPackage = hook<HTMLButtonElement>('download-package');
-const downloadHtml = hook<HTMLButtonElement>('download-html');
-const downloadBaseline = hook<HTMLButtonElement>('download-baseline');
-const baselineStatus = hook<HTMLElement>('baseline-status');
-const baselineFile = hook<HTMLInputElement>('baseline-file');
-const baselineChoose = hook<HTMLButtonElement>('baseline-choose');
-const baselineLoadStatus = hook<HTMLElement>('baseline-load-status');
-const returnFile = hook<HTMLInputElement>('return-file');
-const returnStatus = hook<HTMLElement>('return-status');
-const handoffSummary = hook<HTMLElement>('handoff-summary');
-const reviewPanel = hook<HTMLElement>('review-panel');
-const ticketSummary = hook<HTMLElement>('ticket-summary');
-const candidateDownload = hook<HTMLButtonElement>('candidate-download');
-const operatorDownload = hook<HTMLButtonElement>('operator-download');
-const operationPrint = hook<HTMLButtonElement>('operation-print');
-const operationContainer = hook<HTMLElement>('operation-container');
 type JobStep = 'landing' | 'prepare' | 'placements' | 'review' | 'approval';
 /** Operator job shell step. Landing shows when no job is open; approval is a
  * branch subview of placements, never a fourth required top-level step. */
@@ -336,57 +242,10 @@ const jobApprovalHost = hook<HTMLElement>('job-approval-host');
 const projectIdNew = hook<HTMLButtonElement>('project-id-new');
 const selectionSummary = hook<HTMLElement>('selection-summary');
 const selectionError = hook<HTMLElement>('selection-error');
-const reviewFiles = hook<HTMLElement>('review-files');
-const reviewChanges = hook<HTMLElement>('review-changes');
-const fileDetails = hook<HTMLElement>('file-details');
 const builderAlert = hook<HTMLElement>('builder-alert');
-const readySummary = hook<HTMLElement>('ready-summary');
-const officeSummary = hook<HTMLElement>('office-summary');
 /* In-station review decision (check step): same rules as the full reviewer. */
-const decisionCurrent = hook<HTMLElement>('review-decision-current');
-const decisionReviewer = hook<HTMLInputElement>('review-decision-reviewer');
-const decisionChoice = hook<HTMLSelectElement>('review-decision-choice');
-const decisionNote = hook<HTMLTextAreaElement>('review-decision-note');
-const decisionRecord = hook<HTMLButtonElement>('review-decision-record');
-const decisionDownload = hook<HTMLButtonElement>('review-decision-download');
-const decisionStatus = hook<HTMLElement>('review-decision-status');
-const sendToReview = hook<HTMLButtonElement>('send-to-review');
 /* In-station revised proposal (check step): office corrections via newRevision. */
-const proposalCurrent = hook<HTMLElement>('proposal-current');
-const proposalConfig = hook<HTMLSelectElement>('proposal-config');
-const proposalPlacement = hook<HTMLSelectElement>('proposal-placement');
-const proposalX = hook<HTMLInputElement>('proposal-x');
-const proposalY = hook<HTMLInputElement>('proposal-y');
-const proposalWidth = hook<HTMLInputElement>('proposal-width');
-const proposalHeight = hook<HTMLInputElement>('proposal-height');
-const proposalRotation = hook<HTMLInputElement>('proposal-rotation');
-const proposalInstructions = hook<HTMLTextAreaElement>('proposal-instructions');
-const proposalApply = hook<HTMLButtonElement>('proposal-apply');
-const proposalDownload = hook<HTMLButtonElement>('proposal-download');
-const proposalStatus = hook<HTMLElement>('proposal-status');
 /* Operation-sheet authoring hooks (review/prepare flow, check step). */
-const sheetConfig = hook<HTMLSelectElement>('sheet-config');
-const sheetSummary = hook<HTMLElement>('sheet-summary');
-const sheetCustomerNotes = hook<HTMLElement>('sheet-customer-notes');
-const sheetCustomer = hook<HTMLInputElement>('sheet-customer');
-const sheetReference = hook<HTMLInputElement>('sheet-reference');
-const sheetArticle = hook<HTMLInputElement>('sheet-article');
-const sheetInstructions = hook<HTMLTextAreaElement>('sheet-instructions');
-const sheetTechTemperature = hook<HTMLInputElement>('sheet-tech-temperature');
-const sheetTechTime = hook<HTMLInputElement>('sheet-tech-time');
-const sheetTechPressure = hook<HTMLInputElement>('sheet-tech-pressure');
-const sheetTechColour = hook<HTMLInputElement>('sheet-tech-colour');
-const sheetTechThread = hook<HTMLInputElement>('sheet-tech-thread');
-const techSummary = hook<HTMLElement>('tech-summary');
-const sheetLogos = hook<HTMLElement>('sheet-logos');
-const anchorSide = hook<HTMLSelectElement>('anchor-side');
-const anchorRegion = hook<HTMLSelectElement>('anchor-region');
-const anchorStatus = hook<HTMLElement>('anchor-status');
-const anchorSetupBox = hook<HTMLElement>('anchor-setup');
-const draftSave = hook<HTMLButtonElement>('draft-save');
-const draftOpenButton = hook<HTMLButtonElement>('draft-open-button');
-const draftFile = hook<HTMLInputElement>('draft-file');
-const draftStatus = hook<HTMLElement>('draft-status');
 /* Visual product workspace mount (Choose items primary block). Declared here so
  * updateControls() — which runs during initial step paint — sees them. */
 const workspaceProduct = hook<HTMLSelectElement>('workspace-product');
@@ -403,37 +262,6 @@ const modelSetupBox = hook<HTMLElement>('model-setup');
 const modelSetupSave = hook<HTMLButtonElement>('model-setup-save');
 const modelSetupProductsToggle = hook<HTMLInputElement>('model-setup-products-toggle');
 const modelSetupStatus = hook<HTMLElement>('model-setup-status');
-/** One staff-chosen measurement for a logo (anchor + artwork edge + convention). */
-interface DimensionMeasurement {
-  anchorId: string;
-  edge: ArtworkEdge;
-  convention: MeasurementConvention;
-}
-/** Per-logo department authoring for one product sheet. */
-interface LogoAuthoring {
-  businessCode: string;
-  /** One row per measured dimension; normal positioning needs ≥2 (dx + dy). */
-  measurements: DimensionMeasurement[];
-}
-/** Per-sheet department authoring (job, instructions, technique, logos). */
-interface SheetAuthoring {
-  customer: string;
-  reference: string;
-  article: string;
-  instructions: string;
-  tech: { temperature: string; time: string; pressure: string; colour: string; thread: string };
-  logos: Map<string, LogoAuthoring>;
-}
-/** Department authoring by configuration id; reset on every return import. */
-const sheetAuthoring = new Map<string, SheetAuthoring>();
-/** Department-authored anchors across sheets (in-memory only, never browser storage). */
-let authorAnchors: AnchorDef[] = [];
-let activeSheetConfigId: string | null = null;
-/** Staged safe-area proposals by scope key (proposal only; product unchanged). */
-const safeAreaProposals = new Map<string, { staged: Array<{ x: number; y: number }>; note: string }>();
-let lastReturnAssets: Map<string, Uint8Array> | null = null;
-let lastReturnReferenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
-let anchorSetupHandle: AnchorSetupHandle | null = null;
 function alertBuilder(message = ''): void {
   builderAlert.textContent = message;
   builderAlert.hidden = !message;
@@ -482,47 +310,28 @@ function paintJobNav(): void {
   for (const branch of document.querySelectorAll<HTMLElement>('[data-job-branch]')) {
     branch.hidden = jobStep !== 'approval';
   }
-  // Legacy wizard sections: the prepare panel's setup content stays visible
-  // as the Step 1 subview; legacy open/send/office/return/check sections stay
-  // in the DOM for compatibility hooks but hidden from the normal path.
+  // The retained prepare mode-panel (identity inputs) and the choose setup
+  // subview live inside Step 1; everything else renders through the job shell.
   for (const panel of document.querySelectorAll<HTMLElement>('[data-builder-mode-panel]')) {
     panel.hidden = true;
   }
   const chooseSection = document.querySelector<HTMLElement>('[data-builder-step="choose"]');
   if (chooseSection) chooseSection.hidden = jobStep !== 'prepare';
-  document.body.classList.remove('show-operation-preview');
-  const previewToggle = document.querySelector('[data-builder-hook="preview-document"]');
-  if (previewToggle) previewToggle.setAttribute('aria-expanded', 'false');
-  operationContainer.hidden = true;
   updateControls();
 }
-/** Compatibility shim for legacy showStep call sites: routes old wizard
- * steps onto the operator job shell (never invents a return/baseline). */
-function showStep(mode: 'prepare' | 'review', step: string): void {
-  if (mode === 'prepare') {
-    if (step === 'open') { if (source === null) setJobStep('landing'); else setJobStep('prepare'); }
-    else if (step === 'choose' || step === 'details') setJobStep('prepare');
-    else setJobStep('approval');
-  } else {
-    if (step === 'check') setJobStep('review');
-    else setJobStep('approval');
-  }
-}
-function showMode(mode: 'prepare' | 'review'): void {
-  showStep(mode, mode === 'prepare' ? 'choose' : 'office');
-}
+/** Step 2 selection default (product/option). */
 function defaultPlacementSelection(): void {
-  if (placementSelection.productId !== '' || !source) return;
+  if (!source || source.selection.productId !== '') return;
   try {
     const configs = scopedConfigurationIds(readSelection());
     const first = configs.map((id) => source!.project.configurations.find((entry) => entry.id === id)).find((entry) => entry !== undefined);
     if (first) {
-      placementSelection = { ...placementSelection, productId: first.productId, variantId: first.variantId };
+      source.selection = { ...source.selection, productId: first.productId, variantId: first.variantId };
       return;
     }
   } catch { /* fall through to catalogue default */ }
   const product = source.project.products[0];
-  if (product) placementSelection = { ...placementSelection, productId: product.id, variantId: product.variants[0]?.id ?? '' };
+  if (product) source.selection = { ...source.selection, productId: product.id, variantId: product.variants[0]?.id ?? '' };
 }
 function setJobStep(next: JobStep): void {
   if (next !== 'landing' && next !== 'approval' && source === null) next = 'landing';
@@ -567,7 +376,7 @@ function canEnterPlacements(): boolean {
   return validateProject(source.project).ok;
 }
 function goNext(): void {
-  if (loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) return;
+  if (loading || creating || logoImporting || productImporting || photoAttaching) return;
   if (jobStep === 'prepare') {
     if (!canEnterPlacements()) {
       jobPrepareGate.textContent = jobPrepareGateMessage() || 'Resolve the highlighted product setup before continuing.';
@@ -584,7 +393,7 @@ function goNext(): void {
   }
 }
 function goBack(): void {
-  if (loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) return;
+  if (loading || creating || logoImporting || productImporting || photoAttaching) return;
   if (jobStep === 'placements' || jobStep === 'review') setJobStep('prepare');
   else if (jobStep === 'approval') setJobStep(jobReturnStep);
 }
@@ -611,114 +420,13 @@ function renderSelectionSummary(): void {
     selectionSummary.append(row);
   }
 }
-function renderFileDetails(identity: { customerLabel: string; jobReference: string; issuedBy: string; projectId: string }): void {
-  const body = fileDetails.querySelector('.body') ?? fileDetails;
-  let node = body.querySelector('[data-builder-dynamic="file-summary"]');
-  if (!node) {
-    node = document.createElement('p');
-    node.setAttribute('data-builder-dynamic', 'file-summary');
-    node.className = 'muted';
-    body.insertBefore(node, body.firstChild);
-  }
-  const size = generated !== null
-    ? (generated.format === 'hybrid' && generated.zipBytes !== null ? generated.zipBytes.length : generated.htmlBytes.length)
-    : 0;
-  node.textContent =
-    `Customer ${identity.customerLabel} / job ${identity.jobReference} by ${identity.issuedBy}; project ${identity.projectId}. ` +
-    `Office copy ${generated?.packageBytes.length ?? 0} bytes; customer file ${size} bytes.`;
-}
-function clearFileDetails(): void {
-  fileDetails.querySelector('[data-builder-dynamic="file-summary"]')?.remove();
-}
-function renderReviewFiles(): void {
-  reviewFiles.replaceChildren();
-  if (lastReturn === null) return;
-  for (const line of [`Office copy: ${lastReturn.baselineFileName}`, `Customer return: ${lastReturn.returnFileName}`]) {
-    const row = document.createElement('p');
-    row.textContent = line;
-    reviewFiles.append(row);
-  }
-}
-/** Display-only millimetre rounding for operator-facing before/after text
- * (e.g. 108.1 mm instead of 108.11145510835912 mm). Canonical values and the
- * technical appendix keep full precision; this never feeds geometry. */
-function displayMm(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  return (Math.round(value * 10) / 10).toFixed(1);
-}
-
-function renderReviewChanges(issued: ProjectDocument): void {
-  reviewChanges.replaceChildren();
-  if (lastReturn === null) return;
-  const back = lastReturn.imported;
-  function line(parent: HTMLElement, text: string, className = ''): HTMLElement {
-    const node = document.createElement('p'); node.textContent = text; node.className = className; parent.append(node); return node;
-  }
-  const current = back.confirmation?.revision === back.revision && back.confirmation?.digest === lastReturn.contentDigest;
-  line(reviewChanges, current ? `Customer confirmed this version · ${back.confirmation!.confirmedBy}` : 'Customer confirmation is missing or out of date. Ask for confirmation before approval.', current ? 'review-ok' : 'review-warning');
-  line(reviewChanges, lastReturn.geometryOk ? 'All logos fit the allowed areas.' : 'Some logos do not fit the allowed areas. Check the measurements before proceeding.', lastReturn.geometryOk ? 'review-ok' : 'review-warning');
-  const old = new Map(issued.configurations.map(item => [item.id, item]));
-  const fresh = new Map(back.configurations.map(item => [item.id, item]));
-  let changed = false;
-  for (const id of new Set([...old.keys(), ...fresh.keys()])) {
-    const before = old.get(id), after = fresh.get(id);
-    if (canonicalize(before ?? null) === canonicalize(after ?? null)) continue;
-    changed = true;
-    const config = after ?? before!;
-    const product = back.products.find(item => item.id === config.productId);
-    const variant = product?.variants.find(item => item.id === config.variantId);
-    const group = document.createElement('section'); group.className = 'change-group'; reviewChanges.append(group);
-    line(group, `${product?.name ?? config.productId} · ${variant?.name ?? config.variantId}`, 'change-title');
-    if (!before || !after) line(group, after ? 'Product option added.' : 'Product option removed.');
-    const oldLogos = new Map((before?.placements ?? []).map((item, index) => [item.id ?? `#${index}`, item]));
-    const newLogos = new Map((after?.placements ?? []).map((item, index) => [item.id ?? `#${index}`, item]));
-    let changedLogo = false;
-    for (const key of new Set([...oldLogos.keys(), ...newLogos.keys()])) {
-      const oldItem = oldLogos.get(key), newItem = newLogos.get(key);
-      if (canonicalize(oldItem ?? null) === canonicalize(newItem ?? null)) continue;
-      changedLogo = true;
-      const item = newItem ?? oldItem!;
-      const logo = back.logos.find(logo => logo.id === item.logoId);
-      line(group, logo?.name ?? item.logoId, 'change-title');
-      const grid = document.createElement('div'); grid.className = 'comparison'; group.append(grid);
-      function compare(label: string, previous: string, next: string): void {
-        line(grid, label, 'change-label'); line(grid, `Before: ${previous}`); line(grid, `After: ${next}`);
-      }
-      const names = (value: Placement | undefined) => product?.regions.find(region => region.id === value?.regionId)?.name ?? value?.regionId ?? '(not placed)';
-      compare('Logo size', oldItem ? `${displayMm(oldItem.widthMm)} × ${displayMm(oldItem.heightMm)} mm` : '(not placed)', newItem ? `${displayMm(newItem.widthMm)} × ${displayMm(newItem.heightMm)} mm` : '(removed)');
-      if (oldItem?.regionId !== newItem?.regionId) compare('Logo area', names(oldItem), names(newItem));
-      else line(group, `Logo area: ${names(item)}`);
-      if (oldItem?.method !== newItem?.method) compare('Method', oldItem?.method ?? '(none)', newItem?.method ?? '(none)');
-      else line(group, `Method: ${item.method}`);
-      if (oldItem?.logoId !== newItem?.logoId && oldItem && newItem) compare('Artwork', back.logos.find(logo => logo.id === oldItem.logoId)?.name ?? oldItem.logoId, logo?.name ?? newItem.logoId);
-      if (oldItem?.instructions !== newItem?.instructions) compare('Customer note', oldItem?.instructions || '(none)', newItem?.instructions || '(none)');
-      if (oldItem && newItem && (oldItem.pos.xMm !== newItem.pos.xMm || oldItem.pos.yMm !== newItem.pos.yMm)) compare('Position (mm)', `${displayMm(oldItem.pos.xMm)}, ${displayMm(oldItem.pos.yMm)}`, `${displayMm(newItem.pos.xMm)}, ${displayMm(newItem.pos.yMm)}`);
-      if (oldItem && newItem && oldItem.rotationDeg !== newItem.rotationDeg) compare('Clockwise rotation', `${displayMm(oldItem.rotationDeg)}°`, `${displayMm(newItem.rotationDeg)}°`);
-      const details = document.createElement('details'); details.className = 'disclosure';
-      const title = document.createElement('summary'); title.textContent = 'Position and rotation'; details.append(title); group.append(details);
-      for (const [label, value] of [['Before', oldItem], ['After', newItem]] as const) {
-        if (!value) continue;
-        const area = product?.regions.find(region => region.id === value.regionId);
-        line(details, `${label}: centre ${displayMm(value.pos.xMm)}, ${displayMm(value.pos.yMm)} mm · Clockwise ${displayMm(value.rotationDeg)}°`);
-        line(details, `Reference point: ${area?.frame.originDescription ?? 'unknown'}; +x ${area?.frame.axes.xPositive ?? 'unknown'}; +y ${area?.frame.axes.yPositive ?? 'unknown'}`);
-      }
-    }
-    if (!changedLogo) line(group, !after?.placements.length ? 'No logos placed.' : 'Product option or logo order changed.');
-  }
-  if (issued.instructions !== back.instructions) {
-    changed = true;
-    line(reviewChanges, `Project note before: ${issued.instructions || '(none)'}`);
-    line(reviewChanges, `Project note after: ${back.instructions || '(none)'}`);
-  }
-  if (!changed) line(reviewChanges, 'No changes to logo layouts or notes.');
-}
-
 const hasher = createWebCryptoProjectHasher();
 
-let source: SourceState | null = null;
-let generated: GeneratedState | null = null;
-let loadedBaseline: BaselineState | null = null;
-let lastReturn: ReturnState | null = null;
+/** Single live job session: the one authoritative editable project/assets plus
+ * operator authoring, selection and dirty state. Derived artefacts (persisted
+ * metadata, document inputs) rebuild from these fields; the decode result on
+ * open is a transfer object, never a second store. */
+let source: JobSession | null = null;
 let selectionValid = false;
 /**
  * Whether the operator deliberately narrowed "Choose specific setups" (a real
@@ -730,10 +438,7 @@ let selectionValid = false;
  */
 let configurationsTouched = false;
 /** Selected products with no regions/calibrations (uncalibrated preview-only). */
-let previewOnlyIds: string[] = [];
 let loading = false;
-let generating = false;
-let returnBusy = false;
 let creating = false;
 let createGeneration = 0;
 let logoImporting = false;
@@ -757,12 +462,7 @@ let draftRetirements: DraftRetirementEvent[] = [];
  * first sibling save (and by span commits, which own their scope region).
  */
 const areaManifestBaseline = new Map<string, string>();
-let baselineBusy = false;
-let loadGeneration = 0;
-let generateGeneration = 0;
-let returnGeneration = 0;
 let logoImports: ImportedLogo[] = [];
-let baselineGeneration = 0;
 interface PendingProductView { bytes: Uint8Array; mediaType: 'image/png' | 'image/jpeg' | 'image/webp'; extension: string; widthPx: number; heightPx: number; fileName: string; }
 interface PendingProductModel { bytes: Uint8Array; fileName: string; }
 /**
@@ -797,46 +497,15 @@ let productCounter = 0;
 interface AddedProductPresentation { views: Array<{ view: string; image: string; label?: string }>; models: Array<{ model: string; label?: string }>; assets: Array<{ path: string; bytes: Uint8Array }>; }
 let addedPresentations: AddedProductPresentation[] = [];
 
-function activeBaseline(): BaselineState | null {
-  if (generated !== null) {
-    return {
-      fileName: `${generated.jobPart}-issued-baseline.logo-project`,
-      jobPart: generated.jobPart,
-      packageBytes: generated.packageBytes,
-      issuedProject: generated.issuedProject,
-      issuedAssets: generated.issuedAssets,
-    };
-  }
-  return loadedBaseline;
-}
-
-/**
- * Stale-output invalidation: any selection, identity, or format edit clears
- * generated downloads and the return preview synchronously and cancels
- * outstanding async work by bumping generation + return tokens.
- */
 function invalidateOutputsForEdit(): void {
-  generateGeneration += 1;
-  generating = false;
-  returnGeneration += 1;
-  returnBusy = false;
-  generated = null;
-  lastReturn = null;
-  sizeEstimate.textContent = 'No issued package generated yet.';
-  baselineStatus.textContent = loadedBaseline !== null
-    ? `No generated delivery retained. A saved office copy (${loadedBaseline.fileName}) remains loaded for return review.`
-    : 'No office copy retained; generate a package first.';
-  clearFileDetails();
+  // Editing invalidates the approval branch context (the branch rebuilds
+  // from the live job on re-entry); navigation alone changes nothing.
   if (jobStep === 'approval') setJobStep(jobReturnStep);
-  clearReturnReview();
   updateControls();
 }
 
 function updateControls(): void {
-  const blocked = loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy;
-  sourceChoose.disabled = blocked;
-  sourceFile.disabled = blocked;
-  startCreate.disabled = blocked;
+  const blocked = loading || creating || logoImporting || productImporting || photoAttaching;
   logoAdd.disabled = blocked || source === null;
   logoFile.disabled = blocked || source === null;
   productAdd.disabled = blocked || !intakeActionable();
@@ -859,59 +528,17 @@ function updateControls(): void {
     (control as HTMLInputElement | HTMLButtonElement).disabled = photoBlocked;
   }
   jobOpenFile.disabled = blocked;
-  baselineChoose.disabled = blocked;
-  baselineFile.disabled = blocked;
   modelSetupSave.disabled = blocked || source === null;
   modelSetupProductsToggle.disabled = blocked;
-  generateButton.disabled = source === null || !selectionValid || blocked ||
-    (previewOnlyIds.length > 0 && !previewOnlyAck.checked);
   saveMaster.disabled = blocked || source === null;
-  const office = activeBaseline();
-  officeSummary.textContent = office ? `Office copy ready: ${office.fileName}` : 'Choose the office copy saved for this job.';
-  baselineChoose.textContent = office ? 'Choose a different office copy' : 'Choose office copy';
-  baselineChoose.className = office ? 'btn-secondary' : 'btn-primary';
-  hook<HTMLButtonElement>('office-download').hidden = office === null;
-  const officeNext = document.querySelector<HTMLButtonElement>('[data-builder-step="office"] [data-builder-hook="builder-next"]');
-  if (officeNext) { officeNext.hidden = office === null; officeNext.className = 'btn-primary'; }
-  baselineLoadStatus.hidden = office !== null && !baselineBusy && !baselineLoadStatus.textContent?.startsWith('Could not');
-  const hasOutput = generated !== null && !blocked;
-  downloadPackage.disabled = !hasOutput;
-  downloadHtml.disabled = !hasOutput;
-  downloadHtml.textContent = generated !== null && generated.format === 'hybrid'
-    ? 'Download configurator HTML only (advanced)'
-    : 'Download project file only (advanced)';
-  downloadBaseline.disabled = activeBaseline() === null || blocked;
-  hook<HTMLButtonElement>('office-download').disabled = activeBaseline() === null || blocked;
   projectIdUseSource.disabled = source === null || blocked;
   projectIdNew.disabled = blocked;
-  for (const input of [customerName, jobRef, issuedBy, projectIdInput, previewOnlyAck, formatSelf, formatHybrid]) input.disabled = blocked;
+  for (const input of [customerName, jobRef, issuedBy, projectIdInput, formatSelf, formatHybrid]) input.disabled = blocked;
   const prepOff = prepareBlocked();
   for (const input of [workspaceProduct, workspaceVariant]) input.disabled = prepOff || source === null;
-  const authoringOff = authoringBlocked();
-  for (const input of [sheetConfig, sheetCustomer, sheetReference, sheetArticle, sheetInstructions,
-    sheetTechTemperature, sheetTechTime, sheetTechPressure, sheetTechColour, sheetTechThread,
-    draftSave, draftOpenButton, draftFile, anchorSide, anchorRegion]) input.disabled = authoringOff;
-  for (const input of sheetLogos.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')) input.disabled = authoringOff;
   for (const input of document.querySelectorAll<HTMLInputElement>('.rows input')) input.disabled = blocked;
-  const hasReturn = lastReturn !== null && !blocked;
-  candidateDownload.disabled = !hasReturn;
-  operatorDownload.disabled = !hasReturn;
-  operationPrint.disabled = !hasReturn;
-  decisionReviewer.disabled = authoringOff;
-  decisionChoice.disabled = authoringOff;
-  decisionNote.disabled = authoringOff;
-  decisionRecord.disabled = authoringOff;
-  decisionDownload.disabled = authoringOff || !hasCurrentStationReview();
-  for (const input of [proposalConfig, proposalPlacement, proposalX, proposalY, proposalWidth, proposalHeight, proposalRotation, proposalInstructions]) input.disabled = authoringOff;
-  proposalApply.disabled = authoringOff;
-  proposalDownload.disabled = authoringOff;
-  returnFile.disabled = blocked || activeBaseline() === null;
-  const stepButtons = document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-next"], [data-builder-hook="builder-back"]');
-  for (const button of stepButtons) {
-    button.hidden = true;
-  }
   // Operator job shell: header/landing/step gating (exact spec labels).
-  const dirty = jobDirty;
+  const dirty = source?.dirty ?? false;
   jobPersistence.textContent = dirty
     ? 'Changes are held in this browser. Save job to keep them.'
     : (lastJobSaved
@@ -934,13 +561,6 @@ function updateControls(): void {
   jobLandingStatus.textContent = source === null ? '' : `Job open: ${source.fileName}.`;
   paintJobNavStateOnly();
 }
-function canAdvanceFromCurrentStep(): boolean {
-  if (jobStep === 'prepare') return canEnterPlacements();
-  if (jobStep === 'placements' || jobStep === 'review' || jobStep === 'approval') return source !== null;
-  return source !== null;
-}
-/** Active-class painting split out so updateControls never recurses into
- * full section visibility (paintJobNav owns visibility + calls this). */
 function paintJobNavStateOnly(): void {
   const steps: Array<[HTMLButtonElement, boolean]> = [
     [jobStep1, jobStep === 'prepare'],
@@ -959,10 +579,6 @@ function paintJobNavStateOnly(): void {
 /* placement/review/approval mounts (spec sections 2, 6, 7, 8).       */
 /* ------------------------------------------------------------------ */
 
-/** In-memory job metadata (persisted to the versioned sidecar on Save). */
-let jobMetadata: OperatorJobMetadata = createEmptyJobMetadata();
-/** Unsaved changes held in this browser (persistence line contract). */
-let jobDirty = false;
 /** Whether the operator deliberately typed the branch issue ID (manual
  * override). Auto-minted and untouched IDs are never manual: only a
  * deliberate retype under changed content triggers the More-options refusal;
@@ -972,27 +588,9 @@ let issueIdManual = false;
 let lastJobSaved = false;
 /** Suppress dirty-marking while installing/loading (programmatic churn). */
 let suppressJobDirty = false;
-/** Staff-authored operational instructions (shared with the output). */
-let jobInstructions = '';
-/** Job-wide technique settings for the reviewed scope. */
-let jobTechnique: ReviewTechniqueSettings = { temperature: '', time: '', pressure: '', colour: '', thread: '' };
-/** Staff-chosen measurement bindings per configuration id. */
-const jobPlacementBindings = new Map<string, DimensionBinding[]>();
-/** Per-logo production technique by configuration id then logoRef. */
-const jobLogoTechnique = new Map<string, Map<string, PlacementTechnique>>();
-/** Reserved techniqueSettings section for the job-wide technique panel. */
-const JOB_WIDE_TECHNIQUE_KEY = '__job__';
-/** Monotonic edit counter: save/open guards retain newer edits, never clear them. */
-let jobEditCounter = 0;
 /** Generation guards for async save/open so stale reads never swap live state. */
 let jobSaveGeneration = 0;
 let jobLoadGeneration = 0;
-/** Live prepare-context anchors: the single authoring source for the direct
- * path (placements, review, save). Product setup writes prepareAnchors on
- * every save; the anchors sidecar reloads them on open. */
-function jobAnchors(): AnchorDef[] {
-  return prepareAnchors;
-}
 /** Fire-and-forget digest preparation so the sync candidate export can read
  * the current job text. Called after every job mutation and before review.
  * Both the full job text (Save job) and the scoped inclusion text (Review
@@ -1006,101 +604,25 @@ function reprepareJobDigest(): void {
     if (scoped) void hasher.prepareProject(scoped).catch(() => {});
   } catch { /* scoping is best-effort; the snapshot reports */ }
 }
-/** Local logoRef matching (same convention as the sheet: recorded placement
- * id wins, else logoId first placement, else logoId#n occurrence). */
-function matchJobPlacement(placements: Placement[], logoRef: string): Placement | undefined {
-  const byId = placements.find((placement) => placement.id === logoRef);
-  if (byId !== undefined) return byId;
-  const hash = logoRef.lastIndexOf('#');
-  if (hash >= 0) {
-    const logoId = logoRef.slice(0, hash);
-    const occurrence = Number(logoRef.slice(hash + 1));
-    if (logoId.length === 0 || !Number.isInteger(occurrence) || occurrence < 0) return undefined;
-    return placements.filter((placement) => placement.logoId === logoId)[occurrence];
-  }
-  return placements.find((placement) => placement.logoId === logoRef);
-}
-interface ResolvedBindingScope {
-  configurationId: string;
-  productId: string;
-  variantId: string;
-  regionId: string;
-  frameId: string;
-  calibrationId: string;
-  calibrationVersion: string;
-}
-/** Exact scope resolution for one persisted binding. Anything that no longer
- * resolves (configuration, placement, anchor, region, frame, calibration)
- * reads unresolved with a reason — never fabricated, never silently rebound. */
-function resolveBindingScope(configurationId: string, binding: DimensionBinding): ResolvedBindingScope | { unresolved: string } {
-  if (!source) return { unresolved: 'no job is open' };
-  const config = source.project.configurations.find((entry) => entry.id === configurationId);
-  if (!config) return { unresolved: `configuration is no longer in the job` };
-  const product = source.project.products.find((entry) => entry.id === config.productId);
-  if (!product) return { unresolved: `product is no longer in the job` };
-  if (matchJobPlacement(config.placements, binding.logoRef) === undefined) {
-    return { unresolved: `no placement matches “${binding.logoRef}” anymore` };
-  }
-  const anchor = jobAnchors().find((entry) => entry.id === binding.anchorId);
-  if (!anchor) return { unresolved: `anchor is not set up (set it up on the product first)` };
-  if (anchor.productId !== config.productId || anchor.variantId !== config.variantId) {
-    return { unresolved: `anchor belongs to another product or option` };
-  }
-  const region = product.regions.find((entry) => entry.id === anchor.regionId);
-  if (!region) return { unresolved: `measured area is no longer on the product` };
-  return {
-    configurationId,
-    productId: config.productId,
-    variantId: config.variantId,
-    regionId: region.id,
-    frameId: region.frame.frameId,
-    calibrationId: region.calibrationRef.calibrationId,
-    calibrationVersion: region.calibrationRef.version,
-  };
-}
-/** Per-logo extras for the sheet renderer/export (method settings, colours,
- * business code). Caller-supplied only, never generated. */
-function techniqueExtras(technique: PlacementTechnique): SheetLogoExtras {
-  const out: SheetLogoExtras = {};
-  const code = technique.businessCode.trim();
-  if (code !== '') out.businessCode = code;
-  const methodParams: Record<string, string> = {};
-  if (technique.temperature.trim() !== '') methodParams['temperature'] = technique.temperature.trim();
-  if (technique.time.trim() !== '') methodParams['time'] = technique.time.trim();
-  if (technique.pressure.trim() !== '') methodParams['pressure'] = technique.pressure.trim();
-  if (technique.thread.trim() !== '') methodParams['thread'] = technique.thread.trim();
-  if (Object.keys(methodParams).length > 0) out.methodParams = methodParams;
-  if (technique.colour.trim() !== '') out.colours = [technique.colour.trim()];
-  return out;
-}
-function jobWideTechniqueExtras(): SheetLogoExtras {
-  return techniqueExtras({
-    businessCode: '', temperature: jobTechnique.temperature, time: jobTechnique.time,
-    pressure: jobTechnique.pressure, colour: jobTechnique.colour, thread: jobTechnique.thread,
-  });
-}
-/** Step 2 selection (product/option/view/placement). */
-let placementSelection: PlacementWorkspaceSelection = { productId: '', variantId: '', viewId: null, placementId: null };
 /** Guard UI state for unsaved-file replacement prompts. */
 let pendingReplaceAction: (() => void) | null = null;
 
 function markJobDirty(): void {
   if (suppressJobDirty || source === null) return;
-  jobDirty = true;
-  jobEditCounter += 1;
+  touchSession(source);
   lastJobSaved = false;
   if (approvalHandle) approvalHandle.notifyJobChanged();
   updateControls();
 }
 function clearJobDirtyState(saved: boolean): void {
-  jobDirty = false;
+  if (source) cleanSession(source);
   lastJobSaved = saved;
   pendingReplaceAction = null;
   updateControls();
 }
 /** Inline replacement guard: Save job / Discard changes / Keep editing. */
 function guardUnsavedReplace(action: () => void): void {
-  if (!jobDirty || source === null) { action(); return; }
+  if (source === null || !source.dirty) { action(); return; }
   pendingReplaceAction = action;
   alertBuilder('');
   builderAlert.replaceChildren();
@@ -1139,7 +661,7 @@ function guardUnsavedReplace(action: () => void): void {
   save.focus();
 }
 function requestNewJob(): void {
-  if (loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) return;
+  if (loading || creating || logoImporting || productImporting || photoAttaching) return;
   guardUnsavedReplace(() => void createEmptyProject());
 }
 function onJobOpenFileChange(): void {
@@ -1148,14 +670,10 @@ function onJobOpenFileChange(): void {
   if (!file) return;
   guardUnsavedReplace(() => void loadJobFile(file));
 }
-function resetJobAuthoringForSource(): void {
-  jobMetadata = createEmptyJobMetadata();
-  jobInstructions = '';
-  jobTechnique = { temperature: '', time: '', pressure: '', colour: '', thread: '' };
-  jobPlacementBindings.clear();
-  jobLogoTechnique.clear();
+/** Creating/opening/installing a session is the authoring reset: the fresh
+ * session carries empty authoring, selection and clean state. */
+function resetSessionForInstall(): void {
   issueIdManual = false;
-  placementSelection = { productId: '', variantId: '', viewId: null, placementId: null };
   pendingReplaceAction = null;
 }
 /** Mint a fresh unique issue ID (auto-identity): updates the Advanced issue
@@ -1175,82 +693,16 @@ function currentInclusion(): { includedProducts: string[]; includedConfiguration
     return { includedProducts: [...selection.productIds], includedConfigurations: scopedConfigurationIds(selection), logoIds: [...selection.logoIds] };
   } catch { return { includedProducts: [], includedConfigurations: [], logoIds: [] }; }
 }
-function snapshotJobMetadata(note?: string): OperatorJobMetadata {
-  const inclusion = currentInclusion();
-  const bindings: JobMeasurementBinding[] = [];
-  if (source) {
-    for (const [configurationId, list] of jobPlacementBindings) {
-      for (const binding of list) {
-        const scope = resolveBindingScope(configurationId, binding);
-        if ('unresolved' in scope) {
-          bindings.push({
-            configurationId,
-            productId: '',
-            variantId: '',
-            regionId: '',
-            frameId: '',
-            calibrationId: '',
-            calibrationVersion: '',
-            logoRef: binding.logoRef,
-            anchorId: binding.anchorId,
-            edge: binding.edge,
-            convention: binding.convention,
-            label: binding.label ?? '',
-            status: 'unresolved',
-            unresolvedReason: scope.unresolved,
-          });
-        } else {
-          bindings.push({
-            ...scope,
-            logoRef: binding.logoRef,
-            anchorId: binding.anchorId,
-            edge: binding.edge,
-            convention: binding.convention,
-            label: binding.label ?? '',
-            status: 'bound',
-          });
-        }
-      }
-    }
-  }
-  const techniqueSettings: Record<string, Record<string, SheetLogoExtras>> = {};
-  for (const [configurationId, perLogo] of jobLogoTechnique) {
-    const section: Record<string, SheetLogoExtras> = {};
-    for (const [logoRef, technique] of perLogo) {
-      const extras = techniqueExtras(technique);
-      if (Object.keys(extras).length > 0) section[logoRef] = extras;
-    }
-    if (Object.keys(section).length > 0) techniqueSettings[configurationId] = section;
-  }
-  const wide = jobWideTechniqueExtras();
-  if (Object.keys(wide).length > 0) techniqueSettings[JOB_WIDE_TECHNIQUE_KEY] = { '': wide };
-  return {
-    ...createEmptyJobMetadata(),
-    sourceRevision: source?.project.revision ?? 1,
-    sourceDigest: '',
-    identity: {
-      ...(customerName.value.trim() ? { customer: customerName.value.trim() } : {}),
-      ...(jobRef.value.trim() ? { jobReference: jobRef.value.trim() } : {}),
-      ...(issuedBy.value.trim() ? { preparedBy: issuedBy.value.trim() } : {}),
-    },
-    inclusion,
-    instructions: jobInstructions,
-    techniqueSettings,
-    anchors: [...jobAnchors()],
-    bindings,
-    ...(note ? { updatedNote: note } : {}),
-  };
-}
-/** Save the editable job: exact geometry + original assets + presentation /
- * calibration sidecars + selection + identity + operation-authoring metadata.
- * One .logo-project download; browser cannot verify the disk write.
- * Returns 'clean' when the download matches the live job, 'stale' when newer
- * edits arrived during the async save (download holds the snapshot, dirty
- * state retained), or null when nothing was saved. Pending Step 2 edits
- * never leak into the file silently: the operator applies, discards, or
- * keeps editing. */
+  /** Save the editable job: exact geometry + original assets + presentation /
+  * calibration sidecars + selection + identity + operation-authoring metadata.
+  * One .logo-project download; browser cannot verify the disk write.
+  * Returns 'clean' when the download matches the live job, 'stale' when newer
+  * edits arrived during the async save (download holds the snapshot, dirty
+  * state retained), or null when nothing was saved. Pending Step 2 edits
+  * never leak into the file silently: the operator applies, discards, or
+  * keeps editing. */
 async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) return null;
+  if (source === null || loading || creating || logoImporting || productImporting || photoAttaching) return null;
   if (placementHandle?.hasPendingEdits() === true) {
     offerPendingEditsGuard(() => void saveJobToFile());
     return null;
@@ -1261,11 +713,15 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
     return null;
   }
   alertBuilder();
-  const editBaseline = jobEditCounter;
+  // Freeze the save snapshot BEFORE the first await: the exact session
+  // identity, an exact project copy, the asset lists and the edit counter.
+  // A slower save overtaken by an open/install/commit packages only this
+  // snapshot and can never mix project A with assets from B or clear B's
+  // dirty state when counters coincide.
+  const snap = captureSaveSnapshot(source);
   const generation = ++jobSaveGeneration;
   try {
-    const base = source.project;
-    const project: ProjectDocument = JSON.parse(JSON.stringify(base)) as ProjectDocument;
+    const project = snap.project;
     // Logos are already materialized in the live job at import time (one
     // revision each): nothing is appended here, so save can never duplicate.
     const validation = validateProject(project);
@@ -1273,21 +729,31 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
       alertBuilder(`Job is not valid and was not saved: ${validation.errors.map((error) => error.message).join('; ')}`);
       return null;
     }
-    const metadata = snapshotJobMetadata();
+    // Persisted metadata derives from the canonical frozen fields: identity
+    // from the Step 1 inputs, inclusion from the checkboxes, everything else
+    // from the snapshot session. The digest binds to the exact packaged project below.
+    const metadata = snapshotSessionMetadata(
+      snap.session,
+      {
+        ...(customerName.value.trim() ? { customer: customerName.value.trim() } : {}),
+        ...(jobRef.value.trim() ? { jobReference: jobRef.value.trim() } : {}),
+        ...(issuedBy.value.trim() ? { preparedBy: issuedBy.value.trim() } : {}),
+      },
+      currentInclusion(),
+    );
     metadata.sourceDigest = await hasher.prepareProject(project);
-    if (generation !== jobSaveGeneration) return null;
+    if (!isSameSaveSession(source, snap) || generation !== jobSaveGeneration) return null;
     const sidecarBytes = encodeJobSidecar(metadata);
-    const referenced = source.assets.filter((asset) => asset.kind === 'referenced').map((asset) => ({ path: asset.path, bytes: asset.bytes }));
+    const referenced = snap.assets.filter((asset) => asset.kind === 'referenced').map((asset) => ({ path: asset.path, bytes: asset.bytes }));
     const additional = [
-      ...source.assets.filter((asset) => asset.kind === 'additional' && asset.path !== OPERATOR_JOB_SIDECAR_PATH).map((asset) => ({ path: asset.path, bytes: asset.bytes })),
+      ...snap.assets.filter((asset) => asset.kind === 'additional' && asset.path !== OPERATOR_JOB_SIDECAR_PATH).map((asset) => ({ path: asset.path, bytes: asset.bytes })),
       { path: OPERATOR_JOB_SIDECAR_PATH, bytes: sidecarBytes },
     ];
     const packageBytes = await createProjectPackage({ project, assets: referenced, additionalAssets: additional }, { sha256: hasher.sha256Bytes });
-    if (generation !== jobSaveGeneration) return null;
+    if (!isSameSaveSession(source, snap) || generation !== jobSaveGeneration) return null;
     const safeCustomer = (customerName.value.trim() || 'job').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 60) || 'job';
     downloadBytes(packageBytes, `${safeCustomer}-job.logo-project`, 'application/zip');
-    jobMetadata = metadata;
-    if (jobEditCounter === editBaseline) {
+    if (snap.session.editCounter === snap.editCounter) {
       // No newer edits arrived while saving: the file matches the live job.
       clearJobDirtyState(true);
       updateControls();
@@ -1352,16 +818,13 @@ async function loadJobFile(file: File): Promise<void> {
   const wasBusy = loading;
   loading = true;
   updateControls();
-  // Rollback snapshot: every live mutation below restores from this on failure.
+  // Rollback: the install below writes only to the new session object (and
+  // staging/DOM it owns after the swap), so holding the previous session
+  // reference restores the job and its outputs on failure.
   const rollback = source === null ? null : {
-    source, jobMetadata, jobInstructions, jobTechnique: { ...jobTechnique },
-    bindings: new Map([...jobPlacementBindings].map(([key, list]) => [key, [...list]] as [string, DimensionBinding[]])),
-    technique: new Map([...jobLogoTechnique].map(([key, inner]) => [key, new Map(inner)] as [string, Map<string, PlacementTechnique>])),
-    prepareAnchors: [...prepareAnchors],
-    authorAnchors: [...authorAnchors],
-    selection: { ...placementSelection },
+    session: source,
     customer: customerName.value, reference: jobRef.value, preparedBy: issuedBy.value,
-    dirty: jobDirty, saved: lastJobSaved,
+    saved: lastJobSaved,
   };
   try {
     if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) throw new Error('archive size exceeds limit; rejected before reading');
@@ -1374,7 +837,17 @@ async function loadJobFile(file: File): Promise<void> {
     // Validate the versioned job sidecar BEFORE touching live state.
     const sidecarBytes = parsed.assets.find((asset) => asset.path === OPERATOR_JOB_SIDECAR_PATH)?.bytes;
     const restored = sidecarBytes ? decodeJobSidecar(sidecarBytes) : null;
+    // Remaining async work happens offscreen: the anchors sidecar load only
+    // reports status text here (the versioned job sidecar is the anchor
+    // source on open; legacy files open with empty authoring), and the
+    // authoring decode is a pure transfer-object expansion.
+    const anchors = await loadAnchorsSidecar(parsed.assets, parsed.project);
+    const authoring = restored ? sessionAuthoringFromMetadata(parsed.project, restored) : null;
+    // Stale reads return here without touching the live session, staging or
+    // DOM: the whole next session was prepared offscreen.
     if (generation !== jobLoadGeneration) return;
+    // ONE synchronous install below; every failure path above leaves the
+    // previous job untouched (the catch restores the held reference).
     suppressJobDirty = true;
     sourceSession += 1;
     draftRetirements = [];
@@ -1385,95 +858,46 @@ async function loadJobFile(file: File): Promise<void> {
     resetIntakeStaging();
     addedPresentations = [];
     productName.value = '';
-    source = { fileName: file.name, project: parsed.project, assets: parsed.assets, summary, packageBytes: bytes.slice() };
+    source = createEmptySession(file.name, parsed.project, parsed.assets, bytes.slice());
     configurationsTouched = false;
-    renderSelectionLists(summary);
+    renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
     resetMappingSessionUI();
-    await loadAnchorsSidecar(parsed.assets, parsed.project);
-    if (generation !== jobLoadGeneration) return;
+    source.anchors = anchors;
     guidedScale.hide();
     refreshWorkspace();
     refreshAddProductDisclosure();
     refreshIntakeReadiness();
     projectIdSuggestion.textContent = `Source project ID “${summary.projectId}”. Enter a unique ID for this customer issue.`;
-    clearGeneratedOutputs();
-    previewOnlyAck.checked = false;
-    previewOnlyIds = [];
-    // Restore the versioned job sidecar (legacy files: empty metadata).
-    jobMetadata = restored ?? createEmptyJobMetadata();
-    customerName.value = jobMetadata.identity.customer ?? '';
-    jobRef.value = jobMetadata.identity.jobReference ?? '';
-    issuedBy.value = jobMetadata.identity.preparedBy ?? '';
-    jobInstructions = jobMetadata.instructions ?? '';
-    jobTechnique = { temperature: '', time: '', pressure: '', colour: '', thread: '' };
-    jobPlacementBindings.clear();
-    jobLogoTechnique.clear();
-    if (restored) {
-      const marked = markDependentMeasurementsUnresolved(restored, parsed.project);
-      jobMetadata = { ...restored, bindings: marked.metadata.bindings };
-      for (const [configurationId, list] of Object.entries(toSheetBindings(jobMetadata))) {
-        jobPlacementBindings.set(configurationId, [...list]);
-      }
-      // Technique round-trip: per-logo extras plus the reserved job-wide panel.
-      const wide = jobMetadata.techniqueSettings[JOB_WIDE_TECHNIQUE_KEY]?.[''];
-      if (wide) {
-        jobTechnique = {
-          temperature: wide.methodParams?.['temperature'] ?? '',
-          time: wide.methodParams?.['time'] ?? '',
-          pressure: wide.methodParams?.['pressure'] ?? '',
-          colour: wide.colours?.[0] ?? '',
-          thread: wide.methodParams?.['thread'] ?? '',
-        };
-      }
-      for (const [configurationId, perLogo] of Object.entries(jobMetadata.techniqueSettings)) {
-        if (configurationId === JOB_WIDE_TECHNIQUE_KEY) continue;
-        const inner = new Map<string, PlacementTechnique>();
-        for (const [logoRef, extras] of Object.entries(perLogo)) {
-          inner.set(logoRef, {
-            businessCode: extras.businessCode ?? '',
-            temperature: extras.methodParams?.['temperature'] ?? '',
-            time: extras.methodParams?.['time'] ?? '',
-            pressure: extras.methodParams?.['pressure'] ?? '',
-            colour: extras.colours?.[0] ?? '',
-            thread: extras.methodParams?.['thread'] ?? '',
-          });
-        }
-        if (inner.size > 0) jobLogoTechnique.set(configurationId, inner);
-      }
-      prepareAnchors = [...(jobMetadata.anchors ?? [])];
-      authorAnchors = [...(jobMetadata.anchors ?? [])];
-      restoreJobInclusion(jobMetadata);
+    // Restore the versioned job sidecar (legacy files: empty authoring and
+    // blank identity — never silently inherit the previous job's identity).
+    // The decode result is a transfer object: expand it into the session,
+    // never a second store.
+    if (restored && authoring) {
+      applySessionAuthoring(source, authoring);
+      customerName.value = restored.identity.customer ?? '';
+      jobRef.value = restored.identity.jobReference ?? '';
+      issuedBy.value = restored.identity.preparedBy ?? '';
+      restoreJobInclusion(restored);
     } else {
-      prepareAnchors = [];
-      authorAnchors = [];
+      customerName.value = '';
+      jobRef.value = '';
+      issuedBy.value = '';
     }
     ensureAutoProjectId();
     refreshSelectionValidation();
-    if (generation !== jobLoadGeneration) return;
     reprepareJobDigest();
     jobLandingStatus.textContent = '';
     sourceStatus.textContent = `Loaded ${file.name} (revision ${summary.revision}): ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} setups, ${summary.assetPaths.length} artwork files.`;
     setJobStep('prepare');
     clearJobDirtyState(false);
   } catch (error) {
-    // Atomic failure: restore the previous live job and its outputs.
+    // Atomic failure: restore the previous live session and its outputs.
     if (rollback !== null && generation === jobLoadGeneration) {
-      source = rollback.source;
-      jobMetadata = rollback.jobMetadata;
-      jobInstructions = rollback.jobInstructions;
-      jobTechnique = rollback.jobTechnique;
-      jobPlacementBindings.clear();
-      for (const [key, list] of rollback.bindings) jobPlacementBindings.set(key, list);
-      jobLogoTechnique.clear();
-      for (const [key, inner] of rollback.technique) jobLogoTechnique.set(key, inner);
-      prepareAnchors = rollback.prepareAnchors;
-      authorAnchors = rollback.authorAnchors;
-      placementSelection = rollback.selection;
+      source = rollback.session;
       customerName.value = rollback.customer;
       jobRef.value = rollback.reference;
       issuedBy.value = rollback.preparedBy;
-      jobDirty = rollback.dirty;
       lastJobSaved = rollback.saved;
       refreshWorkspace();
       updateControls();
@@ -1560,6 +984,20 @@ function currentChecks(): { products: string[]; logos: string[]; configurations:
   }
   const configurations = Array.from(configurationList.querySelectorAll<HTMLInputElement>('input[type=checkbox]')).filter(box => box.checked).map(box => box.value);
   return { products, logos, configurations };
+}
+
+/** Raster bytes to a data URI (session-local schematic use only). */
+function visualPickPhotoHref(bytes: Uint8Array, mediaType: string): string | null {  if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) return null;
+  const step = 8192;
+  let binary = '';
+  for (let at = 0; at < bytes.length; at += step) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + step));
+  }
+  try {
+    return `data:${mediaType};base64,${btoa(binary)}`;
+  } catch {
+    return null;
+  }
 }
 
 function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = false): void {
@@ -1772,40 +1210,6 @@ function scopedConfigurationIds(selection: BuilderSelection): string[] {
   return applicableConfigurationIds(selection);
 }
 
-function selectedPreviewOnlyIds(): string[] {
-  if (source === null) return [];
-  const selected = new Set(readSelection().productIds);
-  return source.project.products
-    .filter((product) => selected.has(product.id) && isPreviewOnlyProduct(product))
-    .map((product) => product.id);
-}
-
-/**
- * Preview-only issue gate: selected products without measurement data stay
- * preview-only and block issue until the operator either sets measurements
- * visually under “Set up product” in Choose items or explicitly
- * ticks "Issue preview-only (uncalibrated)". Valid zero-placement
- * selections of measured products are never blocked by this gate.
- */
-function previewOnlyLabels(): string[] {
-  if (source === null) return [];
-  return source.project.products
-    .filter((product) => previewOnlyIds.includes(product.id))
-    .map((product) => product.name ?? product.id);
-}
-
-function refreshPreviewOnlyGate(): void {
-  previewOnlyIds = selectedPreviewOnlyIds();
-  if (previewOnlyIds.length === 0 || previewOnlyAck.checked) return;
-  const labels = previewOnlyLabels();
-  const names = labels.length > 0 ? labels.join(', ') : `${previewOnlyIds.length} selected products`;
-  generateStatus.hidden = false;
-  generateStatus.textContent =
-    `Cannot issue yet: ${names} ${labels.length === 1 ? 'has' : 'have'} no measurements. ` +
-    'Set measurements visually under “Set up product” in Choose items — ' +
-    'or tick “Issue preview-only (uncalibrated)” below to send an unmeasured preview.';
-}
-
 function refreshSelectionValidation(): void {
   if (source === null) {
     selectionValid = false;
@@ -1830,15 +1234,9 @@ function refreshSelectionValidation(): void {
     const readable = `Selection valid: ${selection.productIds.length} products, ${selection.logoIds.length} logos, ${configurationCount.length} ${setupsNote}. Selected variants without defaults start empty in automatic mode.`;
     generateStatus.textContent = readable;
     generateStatus.hidden = true;
-    if (previewOnlyAck.checked && selectedPreviewOnlyIds().length > 0) {
-      generateStatus.textContent =
-        `${readable} Preview-only issue acknowledged: uncalibrated products ship preview-only, without measurements or placements.`;
-      generateStatus.hidden = false;
-    }
     selectionError.textContent = '';
     renderSelectionSummary();
     syncSetupCheckboxes(selection);
-    refreshPreviewOnlyGate();
     // Actionable exclusion notice: artwork used by placements but unticked
     // stays placed and resolvable (never silently deleted), but no NEW
     // placement can use it until it is re-selected in Step 1.
@@ -1861,7 +1259,6 @@ function refreshSelectionValidation(): void {
     } catch { /* notice is best-effort; selection state stays authoritative */ }
   } else {
     selectionValid = false;
-    previewOnlyIds = [];
     const readable = `Selection invalid: ${outcome.errors.map((error) => error.message).join('; ')}`;
     generateStatus.textContent = readable;
     selectionError.textContent = 'Choose at least one product and an option for each selected product. Check any specific setups you selected.';
@@ -1890,115 +1287,6 @@ function syncSetupCheckboxes(selection: BuilderSelection): void {
   }
 }
 
-function clearGeneratedOutputs(): void {
-  generateGeneration += 1;
-  generating = false;
-  generated = null;
-  sizeEstimate.textContent = 'No issued package generated yet.';
-  baselineStatus.textContent = loadedBaseline !== null
-    ? `No generated delivery retained. A saved office copy (${loadedBaseline.fileName}) remains loaded for return review.`
-    : 'No office copy retained; generate a package first.';
-  clearFileDetails();
-  clearReturnReview();
-  updateControls();
-}
-
-function clearReturnReview(): void {
-  returnBusy = false;
-  lastReturn = null;
-  returnGeneration += 1;
-  resetSheetAuthoring();
-  reviewPanel.hidden = true;
-  ticketSummary.textContent = 'No return imported.';
-  handoffSummary.textContent = 'No return imported.';
-  reviewFiles.replaceChildren();
-  reviewChanges.replaceChildren();
-  decisionChoice.value = 'pending';
-  decisionNote.value = '';
-  decisionStatus.textContent = '';
-  proposalStatus.textContent = '';
-  renderStationDecision();
-  renderProposalEditor();
-  paintTechSummary();
-  for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
-  operationContainer.replaceChildren();
-  operationContainer.hidden = true;
-  document.getElementById('internal-builder-operation-styles')?.remove();
-  returnStatus.textContent = activeBaseline() === null
-    ? 'Load an issued baseline (generate a package or choose a saved baseline), then load a returned .logo-project file to review it.'
-    : 'Load a returned .logo-project file to review it.';
-  updateControls();
-}
-
-async function loadSourceFile(file: File): Promise<void> {
-  alertBuilder();
-  const generation = ++loadGeneration;
-  creating = false;
-  logoGeneration += 1;
-  logoImporting = false;
-  productGeneration += 1;
-  productImporting = false;
-  generateGeneration += 1;
-  generating = false;
-  returnGeneration += 1;
-  returnBusy = false;
-  loading = true;
-  updateControls();
-  sourceStatus.textContent = `Reading ${file.name}…`;
-  try {
-    if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) throw new Error('archive size exceeds limit; rejected before reading');
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (generation !== loadGeneration) return;
-    const parsed = await parseProjectPackage(bytes, { sha256: hasher.sha256Bytes });
-    if (generation !== loadGeneration) return;
-    assertProjectEditorLimits(parsed.project);
-    const summary = summarizeSourceProject(parsed.project);
-    sourceSession += 1;
-    draftRetirements = [];
-    logoImports = [];
-    staffModelSnapshots.clear();
-    areaManifestBaseline.clear();
-    logoStatus.textContent = '';
-    resetIntakeStaging();
-    addedPresentations = [];
-    productName.value = '';
-    source = { fileName: file.name, project: parsed.project, assets: parsed.assets, summary, packageBytes: bytes.slice() };
-    configurationsTouched = false;
-    renderSelectionLists(summary);
-    stagedPhotoMappings = [];
-    resetMappingSessionUI();
-    await loadAnchorsSidecar(parsed.assets, parsed.project);
-    if (generation !== loadGeneration) return;
-    guidedScale.hide();
-    refreshWorkspace();
-    refreshAddProductDisclosure();
-    refreshIntakeReadiness();
-    projectIdSuggestion.textContent = `Source project ID “${summary.projectId}”. Enter a unique ID for this customer issue.`;
-    clearGeneratedOutputs();
-    previewOnlyAck.checked = false;
-    previewOnlyIds = [];
-    sourceStatus.textContent = `Loaded ${file.name} (revision ${summary.revision}): ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} setups, ${summary.assetPaths.length} artwork files.`;
-    refreshSelectionValidation();
-    ensureAutoProjectId();
-    resetJobAuthoringForSource();
-    setJobStep('prepare');
-    clearJobDirtyState(false);
-  } catch (error) {
-    if (generation === loadGeneration) {
-      sourceStatus.textContent = `Could not load ${file.name}: invalid source: ${error instanceof Error ? error.message : String(error)}. The previous source remains unchanged.`;
-      alertBuilder(`Could not open ${file.name}. Choose a valid project file. Your previous project is still available.`);
-    }
-  } finally {
-    if (generation === loadGeneration) { loading = false; updateControls(); }
-  }
-}
-
-function onSourceFileChange(): void {
-  const file = sourceFile.files?.[0];
-  if (file) void loadSourceFile(file);
-  sourceFile.value = '';
-}
-
 function embeddedEditorBytes(): Uint8Array {
   const nodes = document.querySelectorAll('#__logoCustomerEditorHtml');
   if (nodes.length !== 1) {
@@ -2009,227 +1297,6 @@ function embeddedEditorBytes(): Uint8Array {
     throw new Error('Embedded customer configurator block has an unexpected element shape.');
   }
   return decodeEmbeddedProjectBase64(node.textContent ?? '');
-}
-
-async function generateIssued(): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || baselineBusy || returnBusy) return;
-  alertBuilder();
-  generateStatus.hidden = false;
-  const missing = [[customerName, 'customer name'], [jobRef, 'job reference'], [issuedBy, 'prepared by']] as const;
-  const empty = missing.filter(([input]) => !input.value.trim());
-  if (empty.length) {
-    alertBuilder(`Enter ${empty.map(([, label]) => label).join(', ')} to create the customer file.`);
-    empty[0]![0].focus();
-    return;
-  }
-  const snapshot = source;
-  clearGeneratedOutputs();
-  const generation = ++generateGeneration;
-  generating = true;
-  updateControls();
-  generateStatus.textContent = 'Generating issued package…';
-  try {
-    const selection = readSelection();
-    const validation = validateBuilderSelection(snapshot.project, selection);
-    if (!validation.ok) {
-      generateStatus.textContent = `Selection invalid: ${validation.errors.map((error) => error.message).join('; ')}`;
-      return;
-    }
-    // Preview-only gate (defense in depth; the button is already disabled):
-    // uncalibrated selections issue only with the explicit escape checked.
-    const uncalibrated = snapshot.project.products
-      .filter((product) => selection.productIds.includes(product.id) && isPreviewOnlyProduct(product));
-    if (uncalibrated.length > 0 && !previewOnlyAck.checked) {
-      generateStatus.hidden = false;
-      const names = uncalibrated.map((product) => product.name ?? product.id).join(', ');
-      generateStatus.textContent =
-        `Issue rejected: ${names} ${uncalibrated.length === 1 ? 'has' : 'have'} no measurements. ` +
-        'Set measurements visually under “Set up product” in Choose items — or tick “Issue preview-only (uncalibrated)” below to send an unmeasured preview.';
-      return;
-    }
-    // UI trims before calling core; core validates the trimmed value
-    // (1..256 chars) and rejects surrounding whitespace.
-    const identity = {
-      customerLabel: customerName.value.trim(),
-      jobReference: jobRef.value.trim(),
-      issuedBy: issuedBy.value.trim(),
-      projectId: projectIdInput.value.trim(),
-    };
-    const issued = buildIssuedProject(snapshot.project, selection, identity);
-    if (!issued.ok) {
-      if (generation === generateGeneration) {
-        generated = null;
-        generateStatus.textContent = `Issue rejected: ${issued.errors.map((error) => error.message).join('; ')}`;
-        alertBuilder('Check the project ID in More options. Enter a unique reference using 1–256 characters.');
-        const options = projectIdInput.closest('details'); if (options) options.open = true;
-        projectIdInput.focus();
-      }
-      return;
-    }
-    if (generation !== generateGeneration) return;
-    const unchecked: string[] = [];
-    for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
-      if (!box.checked) unchecked.push(box.value);
-    }
-    const snapshotImports = logoImports.filter((entry) => !unchecked.includes(entry.id));
-    if (issued.project.logos.length + snapshotImports.length > 64) {
-      generateStatus.textContent = 'Issue rejected: at most 64 logos';
-      return;
-    }
-    for (const imported of snapshotImports) {
-      issued.project.logos.push({
-        schemaVersion: issued.project.schemaVersion,
-        id: imported.id,
-        name: imported.name,
-        role: 'original',
-        assets: [{
-          uri: importedLogoPath(imported),
-          role: 'original',
-          mediaType: imported.mediaType,
-          widthPx: imported.widthPx,
-          heightPx: imported.heightPx,
-        }],
-      });
-    }
-    const mergedValidation = validateLogos(issued.project.logos);
-    if (!mergedValidation.ok) {
-      generateStatus.textContent = `Issue rejected: ${mergedValidation.errors.map((error) => error.message).join('; ')}`;
-      return;
-    }
-    for (const imported of snapshotImports) {
-      const digest = await hasher.sha256Bytes(imported.bytes);
-      if (generation !== generateGeneration) return;
-      issued.project.logos.find((entry) => entry.id === imported.id)!.assets[0]!.sha256Hex = digest;
-    }
-    const importedAssets = snapshotImports.map((imported) => ({ path: importedLogoPath(imported), bytes: imported.bytes }));
-    const issuedAssets = selectIssuedAssets(
-      [...snapshot.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes })), ...importedAssets],
-      issued.project,
-    );
-    // Presentation-only passthrough: optional presentation/ reference assets
-    // travel as additional entries. Validated at render; never production.
-    // Multiview additions made in this session merge with (never replace)
-    // any package-present presentation assets, including the session manifest.
-    const sessionManifest = addedPresentations.length > 0
-      ? source.assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH)?.bytes
-      : undefined;
-    // Session visual-trial mappings (Choose-items mapping setup): staged
-    // operator entries merge over any package-present photo-mappings file by
-    // exact key, then travel through the existing
-    // selectPresentationPackageAssets filter below into the issued package as
-    // additional presentation/photo-mappings.json. An empty staged set leaves
-    // the inputs untouched.
-    const stagedMappingBytes = stagedPhotoMappings.length > 0
-      ? serializePhotoMappings(mergeSessionPhotoMappings(
-        parsePhotoMappings(snapshot.assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes),
-        stagedPhotoMappings,
-      ))
-      : null;
-    const mergedPresentationInputs = [
-      ...snapshot.assets.filter((asset) => stagedMappingBytes === null || asset.path !== PHOTO_MAPPINGS_PATH),
-      ...(sessionManifest ? [{ path: PRESENTATION_MANIFEST_PATH, bytes: sessionManifest, kind: 'additional' as const }] : []),
-      ...addedPresentations.flatMap((entry) => entry.assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: 'additional' as const }))),
-      ...(stagedMappingBytes !== null ? [{ path: PHOTO_MAPPINGS_PATH, bytes: stagedMappingBytes, kind: 'additional' as const }] : []),
-    ];
-    const presentationAssets = selectPresentationPackageAssets(mergedPresentationInputs, issued.project.configurations);
-    // Prepared-product evidence passthrough: bridge sidecars for issued
-    // products travel as additional entries, plus the original area-bundle
-    // exports paired at import time (derived evidence paths per issued
-    // product). Evidence only, never geometry; sidecars are additionally
-    // bound by their embedded product binding, never the filename.
-    const preparedPaths = new Set<string>();
-    for (const config of issued.project.configurations) {
-      for (const evidencePath of Object.values(preparedEvidencePaths(config.productId))) preparedPaths.add(evidencePath);
-    }
-    const sidecarTexts: Array<{ path: string; text: string }> = [];
-    for (const asset of snapshot.assets) {
-      if (asset.kind !== 'additional') continue;
-      if (!preparedPaths.has(asset.path)) continue;
-      if (!asset.path.endsWith('.bridge-sidecar.json')) continue;
-      try {
-        sidecarTexts.push({ path: asset.path, text: new TextDecoder().decode(asset.bytes) });
-      } catch {
-        continue;
-      }
-    }
-    const sidecarPaths = new Set(selectPreparedSidecarAssets(sidecarTexts, issued.project.configurations).map((entry) => entry.path));
-    const evidenceAssets = snapshot.assets
-      .filter((asset) => sidecarPaths.has(asset.path) || (preparedPaths.has(asset.path) && asset.path.endsWith('.area-bundle.json')))
-      .map((asset) => ({ path: asset.path, bytes: asset.bytes }));
-    const packageBytes = await createProjectPackage(
-      { project: issued.project, assets: issuedAssets, additionalAssets: [...presentationAssets, ...evidenceAssets] },
-      { sha256: hasher.sha256Bytes },
-    );
-    if (generation !== generateGeneration) return;
-    const editorBytes = embeddedEditorBytes();
-    if (generation !== generateGeneration) return;
-    const jobPart = safeJobPart(identity.jobReference);
-    const hybrid = formatHybrid.checked;
-    let htmlBytes: Uint8Array;
-    let zipBytes: Uint8Array | null = null;
-    if (hybrid) {
-      const names = ['OPEN_LOGO_CONFIGURATOR.html', `${jobPart}.logo-project`].sort();
-      const entries: Record<string, Uint8Array> = {};
-      for (const name of names) {
-        entries[name] = name === 'OPEN_LOGO_CONFIGURATOR.html' ? editorBytes : packageBytes;
-      }
-      zipBytes = zipSync(entries, { level: 6, mtime: new Date(2000, 0, 1, 0, 0, 0) });
-      htmlBytes = editorBytes;
-    } else {
-      htmlBytes = new Uint8Array(await createSelfContainedHtml({ html: editorBytes, projectPackage: packageBytes }));
-    }
-    if (generation !== generateGeneration) return;
-    const retainedAssets: ProjectPackageAsset[] = [
-      ...issuedAssets.map((asset) => ({
-        path: asset.path,
-        bytes: asset.bytes,
-        kind: 'referenced' as const,
-      })),
-      ...presentationAssets.map((asset) => ({
-        path: asset.path,
-        bytes: asset.bytes,
-        kind: 'additional' as const,
-      })),
-    ];
-    generated = {
-      format: hybrid ? 'hybrid' : 'self-contained',
-      jobPart,
-      packageBytes,
-      htmlBytes,
-      zipBytes,
-      issuedProject: issued.project,
-      issuedAssets: retainedAssets,
-    };
-    clearReturnReview();
-    if (hybrid) {
-      sizeEstimate.textContent =
-        `Format: hybrid ZIP (${zipBytes!.length} bytes) with the configurator plus ${jobPart}.logo-project. The customer unzips it, then opens the configurator and loads the project file.`;
-    } else {
-      sizeEstimate.textContent =
-        `Format: one file (${htmlBytes.length} bytes). The customer opens OPEN_LOGO_CONFIGURATOR.html directly, nothing to unzip.`;
-    }
-    baselineStatus.textContent =
-      `Office copy retained: revision 1 (${packageBytes.length} bytes). Save this exact file before closing the page; memory is lost on reload.`;
-    generateStatus.textContent =
-      `Customer file ready (revision 1) for ${identity.customerLabel} / ${identity.jobReference} by ${identity.issuedBy}. Earlier confirmations and office reviews stay in the office copy; this file starts unconfirmed.`;
-    readySummary.textContent = `${identity.customerLabel} · ${identity.jobReference} · Prepared by ${identity.issuedBy}`;
-    renderFileDetails(identity);
-    sizeEstimate.textContent = `${hybrid ? 'ZIP package' : 'Ready-to-open customer file'} · ${((hybrid ? zipBytes!.length : htmlBytes.length) / 1024 / 1024).toFixed(1)} MB. ${hybrid ? 'Ask the customer to unzip it first.' : 'The customer opens it directly.'}`;
-    showStep('prepare', 'send');
-  } catch (error) {
-    if (generation === generateGeneration) {
-      generated = null;
-      sizeEstimate.textContent = 'No issued package generated yet.';
-      baselineStatus.textContent = 'No office copy retained; generate a package first.';
-      generateStatus.textContent = `Generation failed: ${error instanceof Error ? error.message : String(error)}`;
-      alertBuilder('The customer file could not be created. Please try again. Your source project is unchanged.');
-    }
-  } finally {
-    if (generation === generateGeneration) {
-      generating = false;
-      updateControls();
-    }
-  }
 }
 
 function downloadBytes(bytes: Uint8Array, fileName: string, mime: string): void {
@@ -2246,7 +1313,7 @@ function downloadBytes(bytes: Uint8Array, fileName: string, mime: string): void 
 }
 
 async function downloadMasterFile(): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
+  if (source === null || loading || creating || logoImporting || productImporting ) return;
   const snapshot = source;
   if (snapshot.project.products.length === 0) {
     masterStatus.textContent = 'Nothing to save yet: add a real product first. Empty drafts carry no package.';
@@ -2263,7 +1330,7 @@ async function downloadMasterFile(): Promise<void> {
   // setup, so issuing needs no re-entry. Authored prepare anchors travel the
   // same way as a versioned digest-bound sidecar, reloaded on open.
   const packagedSidecar = snapshot.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH && asset.kind === 'additional');
-  if (stagedPhotoMappings.length === 0 && prepareAnchors.length === 0 && packagedSidecar === undefined) {
+  if (stagedPhotoMappings.length === 0 && snapshot.anchors.length === 0 && packagedSidecar === undefined) {
     downloadBytes(snapshot.packageBytes, fileName, 'application/zip');
     masterStatus.textContent =
       `Saved prepared master (${snapshot.packageBytes.length} bytes): the current source package, byte-identical. Reopen it with “Open an existing project” to continue.`;
@@ -2289,10 +1356,10 @@ async function downloadMasterFile(): Promise<void> {
       ...(mergedBytes !== null ? [{ path: PHOTO_MAPPINGS_PATH, bytes: mergedBytes }] : []),
     ];
     let sidecarNote = '';
-    if (prepareAnchors.length > 0) {
+    if (snapshot.anchors.length > 0) {
       const digest = await hasher.prepareProject(snapshot.project);
-      additionalAssets.push({ path: OPERATION_ANCHORS_PATH, bytes: buildAnchorsSidecarBytes(snapshot.project, digest, prepareAnchors) });
-      sidecarNote = ` with ${prepareAnchors.length} prepared anchor(s)`;
+      additionalAssets.push({ path: OPERATION_ANCHORS_PATH, bytes: buildAnchorsSidecarBytes(snapshot.project, digest, snapshot.anchors) });
+      sidecarNote = ` with ${snapshot.anchors.length} prepared anchor(s)`;
     } else if (packagedSidecar !== undefined) {
       additionalAssets.push({ path: packagedSidecar.path, bytes: packagedSidecar.bytes });
       sidecarNote = ' with the packaged anchors sidecar';
@@ -2314,7 +1381,7 @@ async function downloadMasterFile(): Promise<void> {
     if (merged.mappings.length > 0 && (!backMappings || backMappings.mappings.length !== merged.mappings.length)) {
       throw new Error('reparse lost staged mappings');
     }
-    if (prepareAnchors.length > 0 && back.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH) === undefined) {
+    if (snapshot.anchors.length > 0 && back.assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH) === undefined) {
       throw new Error('reparse lost the anchors sidecar');
     }
     downloadBytes(rebuilt, fileName, 'application/zip');
@@ -2324,144 +1391,6 @@ async function downloadMasterFile(): Promise<void> {
     masterStatus.textContent =
       `Prepared master was not saved: ${error instanceof Error ? error.message : String(error)}. The previous source and staged mappings are unchanged.`;
   }
-}
-
-function downloadPackageFile(): void {
-  if (generated === null || loading || generating || returnBusy || baselineBusy) return;
-  if (generated.format === 'hybrid' && generated.zipBytes !== null) {
-    downloadBytes(generated.zipBytes, `${generated.jobPart}.zip`, 'application/zip');
-    generateStatus.textContent = `Download started: ${generated.jobPart}.zip (${generated.zipBytes.length} bytes). Attach it to your normal handoff yourself.`;
-  } else {
-    downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
-    generateStatus.textContent = `Download started: OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes). The customer opens this file directly, nothing to unzip.`;
-  }
-}
-
-function downloadHtmlFile(): void {
-  if (generated === null || loading || generating || returnBusy || baselineBusy) return;
-  if (generated.format === 'hybrid') {
-    downloadBytes(generated.htmlBytes, 'OPEN_LOGO_CONFIGURATOR.html', 'text/html');
-    generateStatus.textContent = `Download started: OPEN_LOGO_CONFIGURATOR.html (${generated.htmlBytes.length} bytes) on its own.`;
-  } else {
-    downloadBytes(generated.packageBytes, `${generated.jobPart}.logo-project`, 'application/zip');
-    generateStatus.textContent = `Download started: ${generated.jobPart}.logo-project (${generated.packageBytes.length} bytes) on its own.`;
-  }
-}
-
-function downloadBaselineFile(): void {
-  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
-  const baseline = activeBaseline();
-  if (baseline === null) return;
-  downloadBytes(baseline.packageBytes, `${baseline.jobPart}-issued-baseline.logo-project`, 'application/zip');
-  baselineStatus.textContent =
-    `Download started: office copy (${baseline.packageBytes.length} bytes). Save it before closing the page; memory is lost on reload.`;
-}
-
-function compareAssetBytes(issued: readonly ProjectPackageAsset[], back: readonly ProjectPackageAsset[]): string[] {
-  // Map lookups (never `{}` indexing): punctuated or hostile ids such as
-  // `__proto__`/`constructor` must compare as data, not prototype members.
-  const issuedByPath = new Map(issued.map((asset) => [asset.path, asset] as const));
-  const returnedByPath = new Map(back.map((asset) => [asset.path, asset] as const));
-  const paths = new Set([...issuedByPath.keys(), ...returnedByPath.keys()]);
-  const errors: string[] = [];
-  for (const path of [...paths].sort()) {
-    const original = issuedByPath.get(path);
-    const candidate = returnedByPath.get(path);
-    if (original === undefined || candidate === undefined) {
-      errors.push(`${path}: asset is missing from ${original !== undefined ? 'the return' : 'the issued baseline'}`);
-      continue;
-    }
-    if (original.bytes.length !== candidate.bytes.length) {
-      errors.push(`${path}: asset kind or bytes differ from the issued baseline`);
-      continue;
-    }
-    let equal = true;
-    for (let index = 0; index < original.bytes.length; index += 1) {
-      if (original.bytes[index] !== candidate.bytes[index]) {
-        equal = false;
-        break;
-      }
-    }
-    if (original.kind !== candidate.kind || !equal) {
-      errors.push(`${path}: asset kind or bytes differ from the issued baseline`);
-    }
-  }
-  return errors;
-}
-function placementLabel(placement: Placement, index: number): string {
-  const instruction = placement.instructions ? `; instructions: ${placement.instructions}` : '';
-  return `${index + 1}. logo ${placement.logoId}, region ${placement.regionId}, ${placement.method}; centre (${displayMm(placement.pos.xMm)}, ${displayMm(placement.pos.yMm)}) mm; ${displayMm(placement.widthMm)} × ${displayMm(placement.heightMm)} mm; clockwise ${displayMm(placement.rotationDeg)}°${instruction}`;
-}
-
-function configurationDescription(configuration: Configuration | undefined): string {
-  if (!configuration) return 'Configuration absent';
-  if (configuration.placements.length === 0) return `${configuration.productId}/${configuration.variantId}: 0 placements`;
-  return `${configuration.productId}/${configuration.variantId}\n${configuration.placements.map(placementLabel).join('\n')}`;
-}
-
-
-function differenceLines(issued: ProjectDocument, back: ProjectDocument): string[] {
-  // Map lookups (never `{}` indexing): `__proto__`/punctuation config IDs
-  // must compare as data, not prototype members.
-  const issuedById = new Map(issued.configurations.map((configuration) => [configuration.id, configuration] as const));
-  const returnedById = new Map(back.configurations.map((configuration) => [configuration.id, configuration] as const));
-  const ids = new Set([...issuedById.keys(), ...returnedById.keys()]);
-  const rows: string[] = [];
-  for (const id of [...ids].sort()) {
-    const original = issuedById.get(id);
-    const candidate = returnedById.get(id);
-    if (canonicalize(original ?? null) !== canonicalize(candidate ?? null)) {
-      rows.push(`${id}\nISSUED\n${configurationDescription(original)}\nRETURNED\n${configurationDescription(candidate)}`);
-    }
-  }
-  if (issued.instructions !== back.instructions) {
-    rows.push(`PROJECT INSTRUCTIONS\nISSUED\n${issued.instructions ?? '(none)'}\nRETURNED\n${back.instructions ?? '(none)'}`);
-  }
-  return rows.length > 0 ? rows : ['No configuration or instruction differences from the issued baseline.'];
-}
-
-/** Office-perspective one-line return summary (diagnostics keep exact internals). */
-function ticketSummaryText(imported: ProjectDocument, candidateDigest: string): string {
-  const decision = imported.review !== undefined ? imported.review.decision : 'pending (no current internal review)';
-  return (
-    `Project ${imported.projectId}; revision ${imported.revision}; candidate digest ${candidateDigest}; confirmation ${imported.confirmation === undefined ? 'none' : `rev ${imported.confirmation.revision} by ${imported.confirmation.confirmedBy}`} (timestamp source: returned confirmation envelope); decision ${decision}.`
-  );
-}
-
-function confirmationLine(imported: ProjectDocument, digest: string): string {
-  if (imported.confirmation === undefined) return 'Customer confirmation: none; draft only.';
-  // The confirmation timestamp is customer-supplied evidence carried in the
-  // returned project (`confirmation.confirmedAt`); its source is stated here.
-  const at = ` at ${imported.confirmation.confirmedAt} (timestamp from the returned confirmation envelope)`;
-  if (imported.confirmation.revision === imported.revision && imported.confirmation.digest === digest) {
-    return `Customer confirmation: current for revision ${imported.confirmation.revision}; confirmed by ${imported.confirmation.confirmedBy}${at} (unverified identity).`;
-  }
-  return `Customer confirmation: stale or mismatched confirmation for revision ${imported.confirmation.revision}; not trusted. Confirmed by ${imported.confirmation.confirmedBy}${at} (unverified identity).`;
-}
-
-function geometryLine(imported: ProjectDocument): { text: string; ok: boolean } {
-  const verdict = evaluateProjectGeometry(imported);
-  if (verdict.placements.length === 0) {
-    return { text: 'Geometry: valid; no placements, so no geometric restrictions apply.', ok: verdict.ok };
-  }
-  const failures = verdict.placements.filter((item) => !item.ok);
-  if (failures.length === 0) {
-    return {
-      text: `Geometry: valid; ${verdict.placements.length} measured footprint(s) fit their safe regions and avoid exclusions.`,
-      ok: true,
-    };
-  }
-  return {
-    text: `Geometry: invalid; ${failures.map((item) => `${item.configurationId}/${item.placementId ?? `Placement ${item.placementIndex + 1}`}: ${item.reason}`).join('; ')}`,
-    ok: false,
-  };
-}
-
-function ensureOperationStyles(): void {
-  const id = 'internal-builder-operation-styles';
-  let style = document.getElementById(id) as HTMLStyleElement | null;
-  if (!style) { style = document.createElement('style'); style.id = id; document.head.append(style); }
-  style.textContent = operationSheetStyles();
 }
 
 function safeJobPart(value: string): string {
@@ -2480,622 +1409,6 @@ function looksLikeUuid(value: string): boolean {
  * stem first (it survives reloads and carries the staff's own naming), then
  * the baseline job part, then a safe generic fallback. UUID-shaped values
  * are skipped at every step so no raw UUID lands in primary filenames.
- */
-function stationJobPart(baselineFileName: string, jobPartFallback: string): string {
-  const stem = baselineFileName.replace(/\.(logo-project|zip)$/i, '').replace(/-issued-baseline$/i, '');
-  for (const value of [stem, jobPartFallback]) {
-    const safe = safeJobPart(value);
-    if (safe !== 'project' && !looksLikeUuid(safe)) return safe;
-  }
-  return 'station-return';
-}
-
-async function loadBaselineFile(file: File): Promise<void> {
-  alertBuilder();
-  const generation = ++baselineGeneration;
-  generateGeneration += 1;
-  generating = false;
-  returnGeneration += 1;
-  returnBusy = false;
-  baselineBusy = true;
-  updateControls();
-  baselineLoadStatus.textContent = `Reading saved baseline ${file.name}…`;
-  try {
-    if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) throw new Error('archive size exceeds limit; rejected before reading');
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (generation !== baselineGeneration) return;
-    const parsed = await parseProjectPackage(bytes, { sha256: hasher.sha256Bytes });
-    if (generation !== baselineGeneration) return;
-    assertProjectEditorLimits(parsed.project);
-    loadedBaseline = { fileName: file.name, jobPart: safeJobPart(parsed.project.projectId), packageBytes: bytes.slice(), issuedProject: parsed.project, issuedAssets: parsed.assets };
-    // Selecting a saved baseline explicitly switches review context away from any generated delivery.
-    clearGeneratedOutputs();
-    baselineLoadStatus.textContent = `Loaded office copy ${file.name} (revision ${parsed.project.revision}, ${bytes.length} bytes). Return review is now available.`;
-    showStep('review', 'return');
-  } catch (error) {
-    if (generation === baselineGeneration) {
-      baselineLoadStatus.textContent = `Could not load baseline ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous baseline remains unchanged.`;
-      alertBuilder(`Could not open office copy ${file.name}. Choose the original file saved for this job. Your previous copy is unchanged.`);
-    }
-  } finally {
-    if (generation === baselineGeneration) { baselineBusy = false; updateControls(); }
-  }
-}
-
-function onBaselineFileChange(): void {
-  const file = baselineFile.files?.[0];
-  if (file) void loadBaselineFile(file);
-  baselineFile.value = '';
-}
-
-/**
- * Shared refresh after the in-memory return project is (re)placed: rebuilds
- * the digest, candidate export, diffs, operation views, sheet authoring and
- * the proposal editor from `lastReturn.imported`. Used both for fresh return
- * imports and in-station revised proposals, so office corrections share the
- * exact validated state as the import path. Returns false when superseded.
- */
-async function finalizeReturnState(input: {
-  /** Validated return project to display (fresh import or revised proposal). */
-  imported: ProjectDocument;
-  baselineIssued: ProjectDocument;
-  jobPart: string;
-  baselineFileName: string;
-  returnFileName: string;
-  /** Return package assets (referenced + additional) for rebuilds/downloads. */
-  packageAssets: ProjectPackageAsset[];
-  reviewTimestamp: string;
-  statusMessage: string;
-  generation: number;
-}): Promise<boolean> {
-  const geometry = geometryLine(input.imported);
-  if (input.generation !== returnGeneration) return false;
-  const digest = await hasher.prepareProject(input.imported);
-  if (input.generation !== returnGeneration) return false;
-  const candidate: ResultCandidate = buildCandidateExport(input.imported, hasher.sha256Hex);
-  const serialized = serializeExport(candidate);
-  if (input.generation !== returnGeneration) return false;
-  const snapshot: ReturnState = {
-    imported: input.imported,
-    candidate,
-    contentDigest: digest,
-    serializedCandidate: serialized,
-    candidateFileName: '',
-    jobPart: stationJobPart(input.baselineFileName, input.jobPart),
-    packageAssets: input.packageAssets,
-    geometryOk: geometry.ok,
-    returnFileName: input.returnFileName,
-    baselineFileName: input.baselineFileName,
-    reviewTimestamp: input.reviewTimestamp,
-  };
-  lastReturn = snapshot;
-  snapshot.candidateFileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-candidate.json`;
-  const imported = snapshot.imported;
-  reviewPanel.hidden = false;
-  for (const node of reviewPanel.querySelectorAll('[data-builder-dynamic]')) node.remove();
-  const anchor = ticketSummary;
-  const confirmation = document.createElement('p');
-  confirmation.setAttribute('data-builder-dynamic', 'true');
-  confirmation.textContent = confirmationLine(imported, digest);
-  const geometrySummary = document.createElement('p');
-  geometrySummary.setAttribute('data-builder-dynamic', 'true');
-  geometrySummary.textContent = geometry.text;
-  const differenceText = differenceLines(input.baselineIssued, imported);
-  const differences = document.createElement('pre');
-  differences.setAttribute('data-builder-dynamic', 'true');
-  differences.textContent = differenceText.join('\n\n');
-  reviewPanel.insertBefore(confirmation, anchor);
-  reviewPanel.insertBefore(geometrySummary, anchor);
-  reviewPanel.insertBefore(differences, anchor);
-  renderReviewFiles();
-  renderReviewChanges(input.baselineIssued);
-  decisionChoice.value = 'pending';
-  decisionNote.value = '';
-  decisionStatus.textContent = '';
-  renderStationDecision();
-  ticketSummary.textContent = ticketSummaryText(imported, candidate.digest);
-  // Handoff summary: real filenames, exact candidate name, operator
-  // Print/Save-as-PDF instructions; customer delivery (ZIP/HTML) vs
-  // production attachments (candidate JSON + printed PDF); no Odoo.
-  handoffSummary.textContent =
-    `Return file: ${input.returnFileName}. Baseline file: ${input.baselineFileName}. Candidate file: ${snapshot.candidateFileName}. ` +
-    `Press “Print operation document”, then choose Print / Save as PDF in the browser dialog; attach the candidate JSON plus the printed PDF to the production ticket/BoM. ` +
-    `Customer delivery files (${generated !== null ? (generated.format === 'hybrid' ? `${generated.jobPart}.zip + OPEN_LOGO_CONFIGURATOR.html` : `OPEN_LOGO_CONFIGURATOR.html (self-contained, embeds ${generated.jobPart}.logo-project)`) : 'none generated this session'}) are separate from these production attachments. ` +
-    `Reviewed ${input.reviewTimestamp} (local browser clock). No Odoo calls were made; manual attachment is the only handoff.`;
-  operationContainer.replaceChildren();
-  const returnAssetBytes = new Map(snapshot.packageAssets.map((asset) => [asset.path, asset.bytes]));
-  const returnManifestBytes = returnAssetBytes.get('presentation/preview.json');
-  const returnSelections = selectOperationReferenceViews(
-    candidate.configurations,
-    returnManifestBytes,
-    returnManifestBytes !== undefined,
-    { getBytes: (path) => returnAssetBytes.get(path) },
-  );
-  const returnReferenceViews: Record<string, readonly ReferenceViewInput[]> = Object.create(null);
-  for (const [id, selection] of Object.entries(returnSelections)) {
-    returnReferenceViews[id] = selection.views;
-  }
-  lastReturnAssets = returnAssetBytes;
-  lastReturnReferenceViews = returnReferenceViews;
-  initSheetAuthoring(candidate);
-  renderSheetPreview();
-  renderProposalEditor();
-  operationContainer.hidden = false;
-  returnStatus.textContent = input.statusMessage;
-  showStep('review', 'check');
-  return true;
-}
-
-async function loadReturnFile(file: File): Promise<void> {
-  alertBuilder();
-  const generation = ++returnGeneration;
-  if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
-    returnBusy = false;
-    updateControls();
-    returnStatus.textContent = `Could not import return ${file.name}: archive size exceeds limit; rejected before reading.`;
-    alertBuilder('This return file is too large. Choose a valid project return.');
-    return;
-  }
-  returnBusy = true;
-  updateControls();
-  returnStatus.textContent = `Reading return ${file.name}…`;
-  let bytes: Uint8Array;
-  try {
-    bytes = new Uint8Array(await file.arrayBuffer());
-  } catch (error) {
-    if (generation !== returnGeneration) return;
-    returnBusy = false;
-    updateControls();
-    const detail = error instanceof Error ? error.message : String(error);
-    returnStatus.textContent = `Could not import return ${file.name}: file read failed: ${detail}.`;
-    alertBuilder('This return file could not be read. Please choose it again.');
-    return;
-  }
-  if (generation !== returnGeneration) return;
-  try {
-    const baseline = activeBaseline();
-    if (baseline === null) {
-      returnStatus.textContent = 'No issued baseline available; generate a package or choose a saved baseline first.';
-      return;
-    }
-    if (bytes.length > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
-      throw new Error(`archive size ${bytes.length} exceeds ${PROJECT_PACKAGE_LIMITS.maxArchiveBytes} bytes; rejected before parsing`);
-    }
-    const parsed = await parseProjectPackage(bytes, { sha256: hasher.sha256Bytes });
-    if (generation !== returnGeneration) return;
-    assertProjectEditorLimits(parsed.project);
-    if (generation !== returnGeneration) return;
-    const assetErrors = compareAssetBytes(baseline.issuedAssets, parsed.assets);
-    if (assetErrors.length > 0) {
-      throw new Error(`asset comparison differs from the issued baseline: ${assetErrors.join('; ')}`);
-    }
-    await hasher.prepareProject(baseline.issuedProject);
-    const digest = await hasher.prepareProject(parsed.project);
-    if (generation !== returnGeneration) return;
-    const outcome = importCustomerReturn(parsed.project, baseline.issuedProject, hasher.sha256Hex);
-    if (!outcome.ok) {
-      throw new Error(outcome.errors.map((error) => `${error.code}: ${error.message}`).join('; '));
-    }
-    const imported = outcome.project;
-    const reviewTimestamp = new Date().toISOString();
-    if (generation !== returnGeneration) return;
-    await finalizeReturnState({
-      imported,
-      baselineIssued: baseline.issuedProject,
-      jobPart: baseline.jobPart,
-      baselineFileName: baseline.fileName,
-      returnFileName: file.name,
-      packageAssets: parsed.assets.slice(),
-      reviewTimestamp,
-      statusMessage: 'Return imported against the active issued baseline. Internal review is pending.',
-      generation,
-    });
-  } catch (error) {
-    if (generation !== returnGeneration) return;
-    returnStatus.textContent = `Could not import return ${file.name}: ${error instanceof Error ? error.message : String(error)}. The previous valid review remains unchanged.`;
-    alertBuilder(`Could not check ${file.name}. Make sure the office copy and customer return belong to the same job. The previous valid check is unchanged.`);
-  } finally {
-    if (generation === returnGeneration) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-function onReturnFileChange(): void {
-  const file = returnFile.files?.[0];
-  if (file) void loadReturnFile(file);
-  returnFile.value = '';
-}
-
-/** True when the customer confirmation matches this exact update. */
-function stationConfirmationCurrent(snapshot: ReturnState): boolean {
-  const confirmation = snapshot.imported.confirmation;
-  return confirmation !== undefined &&
-    confirmation.revision === snapshot.imported.revision &&
-    confirmation.digest === snapshot.contentDigest;
-}
-
-/** True when a recorded office decision covers this exact update. */
-function hasCurrentStationReview(): boolean {
-  if (lastReturn === null || lastReturn.imported.review === undefined) return false;
-  const review = lastReturn.imported.review;
-  return review.revision === lastReturn.imported.revision && review.digest === lastReturn.contentDigest;
-}
-
-/** Human-readable office decision for the current update (no digests/IDs). */
-function renderStationDecision(): void {
-  if (lastReturn === null) {
-    decisionCurrent.textContent = 'No return imported.';
-    return;
-  }
-  const review = lastReturn.imported.review;
-  if (review === undefined) {
-    decisionCurrent.textContent = `No office decision recorded yet for update ${lastReturn.imported.revision}.`;
-    return;
-  }
-  const current = review.revision === lastReturn.imported.revision && review.digest === lastReturn.contentDigest;
-  decisionCurrent.textContent =
-    `${current ? 'Current' : 'Outdated'} office decision: ${review.decision} for update ${review.revision}, by ${review.reviewer} at ${review.at}.${review.note === undefined ? '' : ` Note: ${review.note}`}`;
-}
-
-async function recordStationReview(): Promise<void> {
-  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
-  const snapshot = lastReturn;
-  const reviewer = decisionReviewer.value.trim();
-  const decision = decisionChoice.value as ReviewDecision;
-  const note = decisionNote.value;
-  if (reviewer === '') {
-    decisionStatus.textContent = 'Type your reviewer name before recording a decision.';
-    return;
-  }
-  if (decision === 'approved' && (!snapshot.geometryOk || !stationConfirmationCurrent(snapshot))) {
-    decisionStatus.textContent = 'Approval is blocked: the customer confirmation must match this exact update, and every logo must fit its allowed area.';
-    return;
-  }
-  returnBusy = true;
-  updateControls();
-  try {
-    const digest = await hasher.prepareProject(snapshot.imported);
-    if (lastReturn !== snapshot) return;
-    if (digest !== snapshot.contentDigest || !validateProject(snapshot.imported).ok ||
-      (decision === 'approved' && !evaluateProjectGeometry(snapshot.imported).ok)) {
-      decisionStatus.textContent = 'Decision blocked: the update changed while you were reviewing. Check the latest values and try again.';
-      return;
-    }
-    const outcome = recordInternalReview(snapshot.imported, {
-      decision,
-      reviewer,
-      digestOf: digest,
-      ...(note === '' ? {} : { note }),
-    }, hasher.sha256Hex);
-    if (lastReturn !== snapshot) return;
-    if (!outcome.ok) {
-      decisionStatus.textContent = `Decision was not recorded: ${outcome.errors.map((error) => error.message).join('; ')}`;
-      return;
-    }
-    renderStationDecision();
-    ticketSummary.textContent = ticketSummaryText(snapshot.imported, snapshot.candidate.digest);
-    decisionStatus.textContent = `Recorded ${decision} for update ${snapshot.imported.revision}. This is internal workflow bookkeeping, not a production release.`;
-  } catch (error) {
-    if (lastReturn === snapshot) {
-      decisionStatus.textContent = `Decision failed: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  } finally {
-    if (lastReturn === snapshot) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-async function downloadReviewedReturn(): Promise<void> {
-  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
-  const snapshot = lastReturn;
-  if (!hasCurrentStationReview()) {
-    decisionStatus.textContent = 'Record a current office decision before saving the reviewed return.';
-    return;
-  }
-  returnBusy = true;
-  updateControls();
-  try {
-    const referenced: ProjectPackageAssetInput[] = [];
-    const additional: ProjectPackageAssetInput[] = [];
-    for (const asset of snapshot.packageAssets) {
-      (asset.kind === 'referenced' ? referenced : additional).push({ path: asset.path, bytes: asset.bytes });
-    }
-    const bytes = await createProjectPackage({
-      project: snapshot.imported,
-      assets: referenced,
-      additionalAssets: additional,
-    }, { sha256: hasher.sha256Bytes });
-    if (lastReturn !== snapshot) {
-      decisionStatus.textContent = 'Save discarded because the reviewed update changed while its file was being prepared.';
-      return;
-    }
-    const fileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-reviewed.logo-project`;
-    downloadBytes(bytes, fileName, 'application/zip');
-    decisionStatus.textContent = `Saved ${fileName} (${bytes.length} bytes). Keep it with the office copy.`;
-  } catch (error) {
-    if (lastReturn === snapshot) {
-      decisionStatus.textContent = `Reviewed return could not be saved: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  } finally {
-    if (lastReturn === snapshot) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-/** Human label for a placement row: position, artwork and area names. */
-function proposalPlacementLabel(configId: string, index: number): string {
-  const imported = lastReturn?.imported;
-  const configuration = imported?.configurations.find((entry) => entry.id === configId);
-  const placement = configuration?.placements[index];
-  if (placement === undefined) return `Placement ${index + 1}`;
-  const product = imported?.products.find((entry) => entry.id === configuration?.productId);
-  const region = product?.regions.find((entry) => entry.id === placement.regionId);
-  const logo = imported?.logos.find((entry) => entry.id === placement.logoId);
-  return `${index + 1}. ${logo?.name ?? placement.logoId} — ${region?.name ?? placement.regionId}`;
-}
-
-function refillProposalInputs(): void {
-  const imported = lastReturn?.imported;
-  const configuration = imported?.configurations.find((entry) => entry.id === proposalConfig.value);
-  const placement = configuration?.placements[Number(proposalPlacement.value)];
-  const set = (input: HTMLInputElement, value: string): void => {
-    if (document.activeElement !== input) input.value = value;
-  };
-  set(proposalX, placement === undefined ? '' : String(placement.pos.xMm));
-  set(proposalY, placement === undefined ? '' : String(placement.pos.yMm));
-  set(proposalWidth, placement === undefined ? '' : String(placement.widthMm));
-  set(proposalHeight, placement === undefined ? '' : String(placement.heightMm));
-  set(proposalRotation, placement === undefined ? '' : String(placement.rotationDeg));
-  if (document.activeElement !== proposalInstructions) proposalInstructions.value = imported?.instructions ?? '';
-}
-
-function refillProposalPlacements(keep?: string): void {
-  const selected = keep ?? proposalPlacement.value;
-  proposalPlacement.replaceChildren();
-  const imported = lastReturn?.imported;
-  const configuration = imported?.configurations.find((entry) => entry.id === proposalConfig.value);
-  for (const [index] of (configuration?.placements ?? []).entries()) {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = proposalPlacementLabel(configuration!.id, index);
-    proposalPlacement.append(option);
-  }
-  if ([...proposalPlacement.options].some((option) => option.value === selected)) proposalPlacement.value = selected;
-  refillProposalInputs();
-}
-
-function renderProposalEditor(): void {
-  const keepConfig = proposalConfig.value;
-  const keepPlacement = proposalPlacement.value;
-  proposalConfig.replaceChildren();
-  proposalPlacement.replaceChildren();
-  if (lastReturn === null) {
-    proposalCurrent.textContent = 'No return imported.';
-    for (const input of [proposalX, proposalY, proposalWidth, proposalHeight, proposalRotation]) input.value = '';
-    proposalInstructions.value = '';
-    return;
-  }
-  const imported = lastReturn.imported;
-  for (const config of lastReturn.candidate.configurations) {
-    const option = document.createElement('option');
-    option.value = config.id;
-    option.textContent = configDisplayName(config);
-    proposalConfig.append(option);
-  }
-  if (lastReturn.candidate.configurations.some((config) => config.id === keepConfig)) proposalConfig.value = keepConfig;
-  refillProposalPlacements(keepPlacement);
-  proposalCurrent.textContent =
-    `Update ${imported.revision}: ${imported.configurations.length} product option(s). Applying creates update ${imported.revision + 1}.`;
-}
-
-/**
- * Human-readable geometry refusal for the proposal status line: product /
- * option / logo names plus the domain reason. Technical config/placement IDs
- * stay in the "File and measurement details" diagnostics, never here.
- */
-function proposalFitFailures(
-  snapshot: ReturnState,
-  fit: { placements: Array<{ ok: boolean; configurationId: string; placementIndex: number; reason: string }> },
-): string {
-  return fit.placements.filter((item) => !item.ok).map((item) => {
-    const configuration = snapshot.imported.configurations.find((entry) => entry.id === item.configurationId);
-    const product = snapshot.imported.products.find((entry) => entry.id === configuration?.productId);
-    const variant = product?.variants.find((entry) => entry.id === configuration?.variantId);
-    const placement = configuration?.placements[item.placementIndex];
-    const logo = snapshot.imported.logos.find((entry) => entry.id === placement?.logoId);
-    return `${product?.name ?? 'Unnamed product'} / ${variant?.name ?? 'unnamed option'} — ${logo?.name ?? 'unnamed logo'}: ${item.reason}`;
-  }).join('; ');
-}
-
-/** Read one proposal number with the reviewer's finite-number wording. */
-function readProposalNumber(input: HTMLInputElement, label: string): number | null {
-  if (input.value.trim() === '') {
-    proposalStatus.textContent = `Revised proposal blocked: ${label} must be a finite number.`;
-    return null;
-  }
-  const value = Number(input.value);
-  if (!Number.isFinite(value)) {
-    proposalStatus.textContent = `Revised proposal blocked: ${label} must be a finite number.`;
-    return null;
-  }
-  return value;
-}
-
-/**
- * In-station revised proposal: office corrections to one placement's
- * geometry plus the customer-facing project note, applied as a new revision
- * through domain `newRevision` (confirmation/review history preserved,
- * current confirmation and review cleared). Geometry is gated exactly like
- * the reviewer: every logo must fit its allowed area.
- */
-async function applyStationProposal(): Promise<void> {
-  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
-  const snapshot = lastReturn;
-  const generation = returnGeneration;
-  const configuration = snapshot.imported.configurations.find((entry) => entry.id === proposalConfig.value);
-  if (configuration === undefined) {
-    proposalStatus.textContent = 'Choose a product option before applying.';
-    return;
-  }
-  const placementIndex = Number(proposalPlacement.value);
-  const placement = configuration.placements[placementIndex];
-  let numbers: { xMm: number; yMm: number; widthMm: number; heightMm: number; rotationDeg: number } | null = null;
-  if (placement !== undefined) {
-    const xMm = readProposalNumber(proposalX, 'X centre (mm)');
-    const yMm = readProposalNumber(proposalY, 'Y centre (mm)');
-    const widthMm = readProposalNumber(proposalWidth, 'Width (mm)');
-    const heightMm = readProposalNumber(proposalHeight, 'Height (mm)');
-    const rotationDeg = readProposalNumber(proposalRotation, 'Clockwise rotation (°)');
-    if (xMm === null || yMm === null || widthMm === null || heightMm === null || rotationDeg === null) return;
-    numbers = { xMm, yMm, widthMm, heightMm, rotationDeg };
-  }
-  const instructions = proposalInstructions.value;
-  const placementChanged = placement !== undefined && numbers !== null && (
-    placement.pos.xMm !== numbers.xMm || placement.pos.yMm !== numbers.yMm ||
-    placement.widthMm !== numbers.widthMm || placement.heightMm !== numbers.heightMm ||
-    placement.rotationDeg !== numbers.rotationDeg
-  );
-  const instructionsChanged = (snapshot.imported.instructions ?? '') !== instructions;
-  if (!placementChanged && !instructionsChanged) {
-    proposalStatus.textContent = 'No changes to apply: the numbers and note already match this update.';
-    return;
-  }
-  let next: ProjectDocument;
-  try {
-    next = newRevision(snapshot.imported, (draft) => {
-      const draftConfiguration = draft.configurations.find((entry) => entry.id === configuration.id);
-      if (draftConfiguration === undefined) throw new Error('Selected product option disappeared.');
-      if (placement !== undefined && numbers !== null) {
-        const current = draftConfiguration.placements[placementIndex];
-        if (current === undefined) throw new Error('Selected logo placement disappeared.');
-        draftConfiguration.placements[placementIndex] = {
-          ...current,
-          pos: { xMm: numbers.xMm, yMm: numbers.yMm },
-          widthMm: numbers.widthMm,
-          heightMm: numbers.heightMm,
-          rotationDeg: numbers.rotationDeg,
-        };
-      }
-      if (instructions === '') delete draft.instructions;
-      else draft.instructions = instructions;
-    });
-  } catch (error) {
-    proposalStatus.textContent = `Revised proposal was not created: ${error instanceof Error ? error.message : String(error)}`;
-    return;
-  }
-  const fit = evaluateProjectGeometry(next);
-  if (!fit.ok) {
-    proposalStatus.textContent = `Revised proposal blocked: ${proposalFitFailures(snapshot, fit)}. Every logo must fit its allowed area and avoid exclusion zones.`;
-    return;
-  }
-  returnBusy = true;
-  updateControls();
-  try {
-    if (lastReturn !== snapshot || generation !== returnGeneration) return;
-    const baseline = activeBaseline();
-    if (baseline === null) {
-      proposalStatus.textContent = 'Office copy is no longer available; choose it again before applying.';
-      return;
-    }
-    const applied = await finalizeReturnState({
-      imported: next,
-      baselineIssued: baseline.issuedProject,
-      jobPart: baseline.jobPart,
-      baselineFileName: baseline.fileName,
-      returnFileName: snapshot.returnFileName,
-      packageAssets: snapshot.packageAssets,
-      reviewTimestamp: new Date().toISOString(),
-      statusMessage: `Applied revised proposal as update ${next.revision}. Earlier confirmations and reviews stay in history; the new update needs customer confirmation before approval.`,
-      generation,
-    });
-    if (!applied) return;
-    proposalStatus.textContent =
-      `Applied revised proposal as update ${next.revision}. Earlier confirmations and reviews stay in history; the new update needs customer confirmation before approval. Sheet drafts for the earlier update were cleared.`;
-  } catch (error) {
-    if (generation === returnGeneration) {
-      proposalStatus.textContent = `Revised proposal failed: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  } finally {
-    // finalizeReturnState replaces lastReturn, so ownership here is the
-    // generation token (a newer load bumps it first and owns the flag).
-    if (generation === returnGeneration) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-async function downloadStationProposal(): Promise<void> {
-  if (lastReturn === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
-  const snapshot = lastReturn;
-  const generation = returnGeneration;
-  returnBusy = true;
-  updateControls();
-  try {
-    if (generation !== returnGeneration || lastReturn !== snapshot) return;
-    const referenced: ProjectPackageAssetInput[] = [];
-    const additional: ProjectPackageAssetInput[] = [];
-    for (const asset of snapshot.packageAssets) {
-      (asset.kind === 'referenced' ? referenced : additional).push({ path: asset.path, bytes: asset.bytes });
-    }
-    const bytes = await createProjectPackage({
-      project: snapshot.imported,
-      assets: referenced,
-      additionalAssets: additional,
-    }, { sha256: hasher.sha256Bytes });
-    if (generation !== returnGeneration || lastReturn !== snapshot) {
-      proposalStatus.textContent = 'Save discarded because the update changed while its file was being prepared.';
-      return;
-    }
-    const fileName = `${snapshot.jobPart}-r${snapshot.imported.revision}-proposal.logo-project`;
-    downloadBytes(bytes, fileName, 'application/zip');
-    proposalStatus.textContent = `Saved ${fileName} (${bytes.length} bytes). Send it to the customer as the new update; the customer must confirm it before approval.`;
-  } catch (error) {
-    if (generation === returnGeneration && lastReturn === snapshot) {
-      proposalStatus.textContent = `Revised proposal could not be saved: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  } finally {
-    if (generation === returnGeneration) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-async function downloadCandidateFile(): Promise<void> {
-  if (lastReturn === null || loading || generating || baselineBusy || returnBusy) return;
-  const snapshot = lastReturn;
-  const generation = returnGeneration;
-  returnBusy = true;
-  updateControls();
-  try {
-    if (generation !== returnGeneration || lastReturn !== snapshot) return;
-    downloadBytes(new TextEncoder().encode(snapshot.serializedCandidate), snapshot.candidateFileName, 'application/json');
-    returnStatus.textContent = `Download started: ${snapshot.candidateFileName}.`;
-  } catch (error) {
-    if (generation === returnGeneration && lastReturn === snapshot) {
-      returnStatus.textContent = `Candidate download failed: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  } finally {
-    if (generation === returnGeneration) {
-      returnBusy = false;
-      updateControls();
-    }
-  }
-}
-
-/**
- * Minimal focused operator handoff: business data only, no ids. Pure
- * mapping off the operation-sheet view (no core contract changes): ids,
- * digests, sides/paths, sourceNotes, positionText, unfinished, valueMm1,
- * touchesArtwork/artworkPoint and version strings are all omitted. Raw
- * candidate JSON stays available separately as the advanced diagnostic.
  */
 interface OperatorExportMeasurement {
   anchor: string;
@@ -3156,34 +1469,13 @@ function buildOperatorExport(view: OperationSheetView): OperatorExport {
   };
 }
 
-function downloadOperatorFile(): void {
-  if (lastReturn === null || loading || generating || baselineBusy || returnBusy) return;
-  const view = buildCurrentSheetView();
-  if (view === null) return;
-  const reference = view.job.reference?.trim() ?? '';
-  const fileName = reference !== '' ? `${safeJobPart(reference)}-operator.json` : 'operation-sheet-operator.json';
-  downloadBytes(new TextEncoder().encode(JSON.stringify(buildOperatorExport(view), null, 2)), fileName, 'application/json');
-  returnStatus.textContent = `Download started: ${fileName}.`;
-}
-
-/**
- * Create a clean draft: no products, no logos, no example content. The draft
- * lives in memory only (no package exists yet — packaging requires at least
- * one product) until the operator adds a real product or imports one, which
- * repackages with the real content. Nothing is selected, generation stays
- * disabled until a real selection exists, and the master download refuses
- * while there is nothing to save.
- */
 async function createEmptyProject(): Promise<void> {
-  if (loading || generating || creating || baselineBusy || returnBusy) return;
+  if (loading || creating) return;
   alertBuilder();
   const generation = ++createGeneration;
   // Starting a new job deliberately supersedes any unfinished artwork import.
   logoGeneration += 1; logoImporting = false;
   productGeneration += 1; productImporting = false;
-  loadGeneration += 1;
-  generateGeneration += 1;
-  generating = false;
   creating = true;
   updateControls();
   createStatus.textContent = 'Creating a new empty draft…';
@@ -3212,9 +1504,9 @@ async function createEmptyProject(): Promise<void> {
     resetIntakeStaging();
     addedPresentations = [];
     productName.value = '';
-    source = { fileName: 'empty-draft', project: draft, assets: [], summary, packageBytes: new Uint8Array(0) };
+    source = createEmptySession('empty-draft', draft, [], new Uint8Array(0));
     configurationsTouched = false;
-    renderSelectionLists(summary);
+    renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
     resetMappingSessionUI();
     guidedScale.hide();
@@ -3222,9 +1514,6 @@ async function createEmptyProject(): Promise<void> {
     refreshAddProductDisclosure();
     refreshIntakeReadiness();
     projectIdSuggestion.textContent = 'A fresh project ID was generated for this new draft. Enter a unique ID for this customer issue.';
-    clearGeneratedOutputs();
-    previewOnlyAck.checked = false;
-    previewOnlyIds = [];
     customerName.value = '';
     jobRef.value = '';
     issuedBy.value = '';
@@ -3234,7 +1523,7 @@ async function createEmptyProject(): Promise<void> {
     masterStatus.textContent = 'Empty draft ready. Name the product, choose Images or 3D model below, then “Add product and set up” — nothing is pre-selected, nothing is synthetic.';
     createStatus.textContent = 'Created a new empty draft with no products. Name the product and add views or a model below, or open an existing project file.';
     refreshSelectionValidation();
-    resetJobAuthoringForSource();
+    resetSessionForInstall();
     setJobStep('prepare');
     clearJobDirtyState(false);
   } catch (error) {
@@ -3255,7 +1544,7 @@ function readableLogoName(fileName: string): string {
   return trimmed === '' ? 'Customer logo' : trimmed.slice(0, 80);
 }
 async function importLogoFile(file: File): Promise<void> {
-  if (!source || loading || generating || creating || returnBusy || baselineBusy) return;
+  if (!source || loading || creating ) return;
   alertBuilder();
   const generation = ++logoGeneration;
   logoImporting = true;
@@ -3287,12 +1576,7 @@ async function importLogoFile(file: File): Promise<void> {
         assets: [{ uri: assetPath, role: 'original', mediaType: header.mediaType, widthPx: header.width, heightPx: header.height }],
       });
     });
-    source = {
-      ...source,
-      project: next,
-      assets: [...source.assets, { path: assetPath, bytes: bytes.slice(), kind: 'referenced' as const }],
-      summary: summarizeSourceProject(next),
-    };
+    source = replaceSessionProject(source, next, [...source.assets, { path: assetPath, bytes: bytes.slice(), kind: 'referenced' as const }]);
     logoStatus.textContent = `Added ${file.name}. It is selected automatically; place it in Set logo placements.`;
     renderSelectionLists(source.summary, true);
     refreshSelectionValidation();
@@ -3596,7 +1880,7 @@ function validateModelBytes(bytes: Uint8Array): string | null {
 }
 
 async function stageIntakeModelFile(file: File): Promise<void> {
-  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  if (loading || creating || logoImporting ) return;
   alertBuilder();
   const generation = ++productGeneration;
   const slot = ++intakeModelToken;
@@ -3634,7 +1918,7 @@ async function stageIntakeModelFile(file: File): Promise<void> {
 }
 
 async function stageIntakeViewFile(rowId: string, file: File): Promise<void> {
-  if (loading || generating || creating || logoImporting || returnBusy || baselineBusy) return;
+  if (loading || creating || logoImporting ) return;
   alertBuilder();
   const generation = ++productGeneration;
   const slot = (intakeViewTokens.get(rowId) ?? 0) + 1;
@@ -3674,7 +1958,7 @@ async function stageIntakeViewFile(rowId: string, file: File): Promise<void> {
 
 
 async function addProductFromStaged(): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) {
+  if (source === null || loading || creating || logoImporting || productImporting ) {
     if (source === null) {
       productStatus.textContent = 'Create or open a project before adding a product.';
       alertBuilder('Create or open a project before adding a product.');
@@ -3821,7 +2105,8 @@ async function addProductFromStaged(): Promise<void> {
     const reparsed = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
     if (generation !== productGeneration) return;
     const summary = summarizeSourceProject(reparsed.project);
-    source = { fileName: snapshot.fileName, project: reparsed.project, assets: reparsed.assets, summary, packageBytes: packageBytes.slice() };
+    if (snapshot === null) throw new Error('no job open');
+    source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
     addedPresentations.push({ views, models, assets: assets.filter((asset) => asset.path !== PRESENTATION_MANIFEST_PATH) });
     if (generation !== productGeneration) return;
     // End the busy phase before post-commit UI: the workspace focus helper
@@ -4051,7 +2336,7 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
     await attachSlugViewImage(file, viewKey);
     return;
   }
-  if (source === null || loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) {
+  if (source === null || loading || creating || logoImporting || productImporting || photoAttaching) {
     if (source === null) {
       productPhotoStatus.textContent = 'Create or open a project before adding a view image.';
       alertBuilder('Create or open a project before adding a view image.');
@@ -4302,13 +2587,7 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
       }
       if (!fresh() || source !== snapshot) return;
       stagedPhotoMappings = stagedKept;
-      source = {
-        fileName: snapshot.fileName,
-        project: reparsed.project,
-        assets: reparsed.assets,
-        summary: summarizeSourceProject(reparsed.project),
-        packageBytes: packageBytes.slice(),
-      };
+      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       if (plan.replacedAssetPath !== undefined) {
         // Retire staged drafts bound to the superseded photo/scope — but
         // only when no other manifest entry still references that path:
@@ -4363,7 +2642,7 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
  * repackage-and-reparse commit tail. Same atomicity as the legacy path.
  */
 async function attachSlugViewImage(file: File, viewKey: string): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) {
+  if (source === null || loading || creating || logoImporting || productImporting || photoAttaching) {
     if (source === null) {
       productPhotoStatus.textContent = 'Create or open a project before adding a view image.';
       alertBuilder('Create or open a project before adding a view image.');
@@ -4627,13 +2906,7 @@ async function attachSlugViewImage(file: File, viewKey: string): Promise<void> {
       }
       if (!fresh() || source !== snapshot) return;
       stagedPhotoMappings = stagedKept;
-      source = {
-        fileName: snapshot.fileName,
-        project: reparsed.project,
-        assets: reparsed.assets,
-        summary: summarizeSourceProject(reparsed.project),
-        packageBytes: packageBytes.slice(),
-      };
+      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       if (replacedAssetPath !== undefined) {
         // Retire staged drafts bound to the superseded photo/scope — but
         // only when no other manifest entry still references that path.
@@ -4721,7 +2994,7 @@ function onProductPhotoAddFileChange(): void {
  * rename only marks generated deliveries stale so they regenerate.
  */
 async function renameExistingView(viewKey: string, rawLabel: string): Promise<void> {
-  if (source === null || loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy) {
+  if (source === null || loading || creating || logoImporting || productImporting || photoAttaching) {
     if (source === null) {
       productPhotoStatus.textContent = 'Create or open a project before renaming a view image.';
       alertBuilder('Create or open a project first. The previous project is unchanged.');
@@ -4841,13 +3114,7 @@ async function renameExistingView(viewKey: string, rawLabel: string): Promise<vo
         throw new Error('The reparse lost the renamed view image; the previous project is unchanged.');
       }
       if (!fresh() || source !== snapshot) return;
-      source = {
-        fileName: snapshot.fileName,
-        project: reparsed.project,
-        assets: reparsed.assets,
-        summary: summarizeSourceProject(reparsed.project),
-        packageBytes: packageBytes.slice(),
-      };
+      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       // Identity is unchanged, so no draft or mapping retires. Release the
       // busy guard BEFORE repainting so the rows, tabs and status refresh.
       photoAttaching = false;
@@ -4875,15 +3142,6 @@ async function renameExistingView(viewKey: string, rawLabel: string): Promise<vo
     updateControls();
   }
 }
-sourceChoose.addEventListener('click', () => sourceFile.click());
-sourceFile.addEventListener('change', onSourceFileChange);
-startCreate.addEventListener('click', () => void createEmptyProject());
-previewOnlyAck.addEventListener('change', () => {
-  // Toggling the escape changes what may issue: drop any generated delivery
-  // and refresh the gate message before the operator continues.
-  invalidateOutputsForEdit();
-  refreshSelectionValidation();
-});
 saveMaster.addEventListener('click', () => void downloadMasterFile());
 logoAdd.addEventListener('click', () => logoFile.click());
 logoFile.addEventListener('change', onLogoFileChange);
@@ -4924,53 +3182,6 @@ jobStep3.addEventListener('click', () => {
   setJobStep('review');
 });
 jobToPlacements.addEventListener('click', () => goNext());
-sourceDrop.addEventListener('click', () => sourceFile.click());
-sourceDrop.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault();
-    sourceFile.click();
-  }
-});
-sourceDrop.addEventListener('dragover', (event) => {
-  event.preventDefault();
-  sourceDrop.classList.add('is-dragging');
-});
-sourceDrop.addEventListener('dragleave', () => sourceDrop.classList.remove('is-dragging'));
-sourceDrop.addEventListener('drop', (event) => {
-  event.preventDefault();
-  sourceDrop.classList.remove('is-dragging');
-  const file = event.dataTransfer?.files?.[0];
-  if (file) void loadSourceFile(file);
-});
-generateButton.addEventListener('click', () => void generateIssued());
-downloadPackage.addEventListener('click', downloadPackageFile);
-downloadHtml.addEventListener('click', downloadHtmlFile);
-downloadBaseline.addEventListener('click', downloadBaselineFile);
-hook<HTMLButtonElement>('office-download').addEventListener('click', downloadBaselineFile);
-hook<HTMLButtonElement>('preview-document').addEventListener('click', () => {
-  const open = document.body.classList.toggle('show-operation-preview');
-  hook('preview-document').setAttribute('aria-expanded', String(open));
-  if (open) operationContainer.scrollIntoView({ block: 'start' });
-});
-baselineChoose.addEventListener('click', () => baselineFile.click());
-baselineFile.addEventListener('change', onBaselineFileChange);
-returnFile.addEventListener('change', onReturnFileChange);
-candidateDownload.addEventListener('click', () => void downloadCandidateFile());
-decisionRecord.addEventListener('click', () => void recordStationReview());
-decisionDownload.addEventListener('click', () => void downloadReviewedReturn());
-proposalConfig.addEventListener('change', () => refillProposalPlacements());
-proposalPlacement.addEventListener('change', () => refillProposalInputs());
-proposalApply.addEventListener('click', () => void applyStationProposal());
-proposalDownload.addEventListener('click', () => void downloadStationProposal());
-sendToReview.addEventListener('click', () => {
-  if (loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy) return;
-  setJobStep('approval');
-});
-operatorDownload.addEventListener('click', downloadOperatorFile);
-operationPrint.addEventListener('click', () => {
-  if (lastReturn === null || loading || generating || baselineBusy || returnBusy) return;
-  globalThis.print();
-});
 projectIdUseSource.addEventListener('click', () => {
   if (source !== null) projectIdInput.value = source.summary.projectId;
   refreshSelectionValidation();
@@ -4988,12 +3199,6 @@ issuedBy.addEventListener('input', () => refreshSelectionValidation());
 projectIdInput.addEventListener('input', () => refreshSelectionValidation());
 formatSelf.addEventListener('change', () => refreshSelectionValidation());
 formatHybrid.addEventListener('change', () => refreshSelectionValidation());
-for (const button of document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-next"]')) {
-  button.addEventListener('click', goNext);
-}
-for (const button of document.querySelectorAll<HTMLButtonElement>('[data-builder-hook="builder-back"]')) {
-  button.addEventListener('click', goBack);
-}
 /* ------------------------------------------------------------------ */
 /* Operator module mounts: placement workspace, document review,        */
 /* customer approval branch (shared renderer/export context).          */
@@ -5166,7 +3371,7 @@ function commitPlacementProject(label: string, next: ProjectDocument): { ok: tru
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-  source = { ...source, project: next, summary: summarizeSourceProject(next) };
+  source = replaceSessionProject(source, next);
   markJobDirty();
   reprepareJobDigest();
   // Editing/drag/apply invalidates generated files, confirmations and review
@@ -5214,8 +3419,8 @@ function mountJobModules(): void {
   try {
     placementHandle = mountPlacementWorkspace(jobPlacementHost, {
       getProject: () => source?.project ?? placementEmptyProject(),
-      getSelection: () => ({ ...placementSelection }),
-      setSelection: (patch) => { placementSelection = { ...placementSelection, ...patch }; },
+      getSelection: () => ({ ...(source?.selection ?? emptySelection()) }),
+      setSelection: (patch) => { if (source) source.selection = { ...source.selection, ...patch }; },
       commit: (label, next) => commitPlacementProject(label, next),
       newPlacementId: () => newLocalId(),
       getProductViews: (productId) => jobProductViews(productId),
@@ -5223,19 +3428,21 @@ function mountJobModules(): void {
       getStageOverlay: (productId, variantId, regionId, viewId) => jobStageOverlay(productId, variantId, regionId, viewId),
       getLogoImage: (logoId) => jobLogoDataUrl(logoId),
       getAnchors: (productId, variantId, regionId) =>
-        jobAnchors().filter((anchor) => anchor.productId === productId && anchor.variantId === variantId && anchor.regionId === regionId),
-      getBindings: (configurationId) => [...(jobPlacementBindings.get(configurationId) ?? [])],
+        (source?.anchors ?? []).filter((anchor) => anchor.productId === productId && anchor.variantId === variantId && anchor.regionId === regionId),
+      getBindings: (configurationId) => [...(source?.bindings[configurationId] ?? [])],
       setBindings: (configurationId, bindings) => {
-        jobPlacementBindings.set(configurationId, [...bindings]);
+        if (!source) return;
+        source.bindings[configurationId] = [...bindings];
         markJobDirty();
         reprepareJobDigest();
         if (reviewHandle) reviewHandle.update();
       },
-      getTechnique: (configurationId, logoRef) => jobLogoTechnique.get(configurationId)?.get(logoRef) ?? null,
+      getTechnique: (configurationId, logoRef) => ({ ...(source?.logoTechnique[configurationId]?.[logoRef] ?? emptyLogoTechnique()) }),
       setTechnique: (configurationId, logoRef, technique) => {
-        let perLogo = jobLogoTechnique.get(configurationId);
-        if (!perLogo) { perLogo = new Map(); jobLogoTechnique.set(configurationId, perLogo); }
-        perLogo.set(logoRef, { ...technique });
+        if (!source) return;
+        const perLogo = source.logoTechnique[configurationId] ?? emptyRecord();
+        perLogo[logoRef] = { ...technique };
+        source.logoTechnique[configurationId] = perLogo;
         markJobDirty();
         if (reviewHandle) reviewHandle.update();
       },
@@ -5278,16 +3485,17 @@ function mountJobModules(): void {
       goBackToPlacements: () => setJobStep('placements'),
       fixItem: (target) => fixReviewItem(target),
       commitInstructions: (text) => {
-        if (jobInstructions !== text) {
-          jobInstructions = text;
+        if (source && source.instructions !== text) {
+          source.instructions = text;
           markJobDirty();
           if (reviewHandle && jobStep === 'review') reviewHandle.update();
         }
       },
       commitTechnique: (patch) => {
-        const next = { ...jobTechnique, ...patch };
-        if (JSON.stringify(next) !== JSON.stringify(jobTechnique)) {
-          jobTechnique = next;
+        if (!source) return;
+        const next = { ...source.technique, ...patch };
+        if (JSON.stringify(next) !== JSON.stringify(source.technique)) {
+          source.technique = next;
           markJobDirty();
           if (reviewHandle && jobStep === 'review') reviewHandle.update();
         }
@@ -5361,24 +3569,14 @@ function readReviewSnapshot(): import('./document-review.js').DocumentReviewSnap
   }
   const bytes = jobAssetBytes();
   const manifestBytes = bytes.get(PRESENTATION_MANIFEST_PATH);
-  let referenceViews: Record<string, readonly import('../../core/operation-document/types.js').ReferenceViewInput[]> = {};
+  let referenceViews: Record<string, readonly import('../../core/operation-document/types.js').ReferenceViewInput[]> = emptyRecord();
   try {
     const selections = selectOperationReferenceViews(project.configurations, manifestBytes, manifestBytes !== undefined, { getBytes: (path) => bytes.get(path) });
-    const mapped: Record<string, readonly import('../../core/operation-document/types.js').ReferenceViewInput[]> = {};
+    const mapped: Record<string, readonly import('../../core/operation-document/types.js').ReferenceViewInput[]> = emptyRecord();
     for (const [id, selection] of Object.entries(selections)) mapped[id] = selection.views;
     referenceViews = mapped;
-  } catch { referenceViews = {}; }
-  const bindings: Record<string, readonly DimensionBinding[]> = {};
-  for (const [configurationId, list] of jobPlacementBindings) bindings[configurationId] = [...list];
-  const extras: Record<string, Record<string, SheetLogoExtras>> = {};
-  for (const [configurationId, perLogo] of jobLogoTechnique) {
-    const section: Record<string, SheetLogoExtras> = {};
-    for (const [logoRef, technique] of perLogo) {
-      const entry = techniqueExtras(technique);
-      if (Object.keys(entry).length > 0) section[logoRef] = entry;
-    }
-    if (Object.keys(section).length > 0) extras[configurationId] = section;
-  }
+  } catch { referenceViews = emptyRecord(); }
+  const { bindings, extras } = sessionDocumentInputs(source);
   const unapplied: ReviewUnappliedEdit[] = (placementHandle?.pendingEdits() ?? []).map((pending) => ({
     label: pending.label,
     target: { kind: 'placement', productId: pending.productId, variantId: pending.variantId, configId: pending.configId, placementIndex: pending.placementIndex, ...(pending.placementId !== undefined ? { placementId: pending.placementId } : {}) },
@@ -5389,15 +3587,15 @@ function readReviewSnapshot(): import('./document-review.js').DocumentReviewSnap
     candidateError,
     assetBytes: bytes,
     referenceViews,
-    anchors: [...jobAnchors()],
+    anchors: [...source.anchors],
     bindings,
     extras,
     job: {
       ...(customerName.value.trim() ? { customer: customerName.value.trim() } : {}),
       ...(jobRef.value.trim() ? { reference: jobRef.value.trim() } : {}),
     },
-    instructionsText: jobInstructions,
-    technique: { ...jobTechnique },
+    instructionsText: source.instructions,
+    technique: { ...source.technique },
     techniqueScopeLabel: null,
     unapplied,
   };
@@ -5415,11 +3613,13 @@ function fixReviewItem(target: ReviewFixTarget): void {
     return;
   }
   if (target.kind === 'option') {
-    placementSelection = { productId: target.productId, variantId: target.variantId, viewId: null, placementId: null };
+    if (!source) { setJobStep('prepare'); return; }
+    source.selection = { productId: target.productId, variantId: target.variantId, viewId: null, placementId: null };
     focusProductSetup(target.productId, target.variantId);
     return;
   }
-  placementSelection = { productId: target.productId, variantId: target.variantId, viewId: null, placementId: target.placementId ?? null };
+  if (!source) { setJobStep('prepare'); return; }
+  source.selection = { productId: target.productId, variantId: target.variantId, viewId: null, placementId: target.placementId ?? null };
   if (placementHandle) placementHandle.update();
   setJobStep('placements');
 }
@@ -5482,7 +3682,16 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
   suppressJobDirty = true;
   try {
     assertProjectEditorLimits(project);
-    const summary = summarizeSourceProject(project);
+    // Preserve office-authored definitions that still resolve in the
+    // validated response (decision 14): carry the live authoring across the
+    // project swap, then prune dead scope. Identity inputs reset below.
+    const carried = source === null ? null : {
+      instructions: source.instructions,
+      technique: { ...source.technique },
+      bindings: source.bindings,
+      logoTechnique: source.logoTechnique,
+      anchors: source.anchors,
+    };
     sourceSession += 1;
     draftRetirements = [];
     logoImports = [];
@@ -5492,26 +3701,26 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
     resetIntakeStaging();
     addedPresentations = [];
     productName.value = '';
-    source = { fileName: 'customer-response', project, assets: assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: asset.kind })), summary, packageBytes: new Uint8Array(0) };
+    source = createEmptySession('customer-response', project, assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: asset.kind })), new Uint8Array(0));
+    if (carried !== null) {
+      source.instructions = carried.instructions;
+      source.technique = carried.technique;
+      source.bindings = carried.bindings;
+      source.logoTechnique = carried.logoTechnique;
+      source.anchors = carried.anchors;
+    }
     configurationsTouched = false;
-    renderSelectionLists(summary);
+    renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
     resetMappingSessionUI();
     guidedScale.hide();
     refreshWorkspace();
     refreshAddProductDisclosure();
     refreshIntakeReadiness();
-    clearGeneratedOutputs();
-    previewOnlyAck.checked = false;
-    previewOnlyIds = [];
-    // Preserve office-authored definitions that still resolve in the
-    // validated response (decision 14); reset job identity otherwise.
-    jobMetadata = createEmptyJobMetadata();
-    placementSelection = { productId: '', variantId: '', viewId: null, placementId: null };
     pendingReplaceAction = null;
     issueIdManual = false;
     rebaseAuthoringOntoResponse(project);
-    sourceStatus.textContent = `Customer response installed (revision ${summary.revision}): ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} setups.`;
+    sourceStatus.textContent = `Customer response installed (revision ${source.summary.revision}): ${source.summary.productIds.length} products, ${source.summary.logoIds.length} logos, ${source.summary.configurationIds.length} setups.`;
     refreshSelectionValidation();
     ensureAutoProjectId();
     jobIssueProjectId.value = projectIdInput.value;
@@ -5525,40 +3734,14 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
 /** Rebase office-authored inputs onto a validated response project (decision
  * 14): keep binding definitions, anchors, technique and instructions whose
  * exact product/config/placement/frame/calibration identities still resolve
- * in the response; changed or missing scopes become unresolved (never
- * silently rebound, never fabricated). Distances recompute at render from
- * the preserved definitions under the response geometry. */
+ * in the response; changed or missing scopes are dropped (never silently
+ * rebound, never fabricated). Distances recompute at render from
+ * the preserved definitions under the response geometry. The legacy
+ * return-review mirror is refreshed from the session for its surviving
+ * readers. */
 function rebaseAuthoringOntoResponse(response: ProjectDocument): void {
-  // Anchors survive only when their exact scope still exists in the response.
-  const responseProducts = new Map(response.products.map((entry) => [entry.id, entry]));
-  prepareAnchors = prepareAnchors.filter((anchor) => {
-    const product = responseProducts.get(anchor.productId);
-    if (!product) return false;
-    if (!product.variants.some((entry) => entry.id === anchor.variantId)) return false;
-    const region = product.regions.find((entry) => entry.id === anchor.regionId);
-    return region !== undefined &&
-      region.frame.frameId === anchor.frameId &&
-      region.calibrationRef.calibrationId === anchor.calibrationId &&
-      region.calibrationRef.version === anchor.calibrationVersion;
-  });
-  authorAnchors = [...prepareAnchors];
-  // Bindings are definitions (logoRef/anchor/edge/convention); the snapshot
-  // resolver marks changed/missing scopes unresolved with reasons.
-  const responseConfigs = new Set(response.configurations.map((entry) => entry.id));
-  for (const [configurationId, list] of [...jobPlacementBindings]) {
-    if (!responseConfigs.has(configurationId)) jobPlacementBindings.delete(configurationId);
-    else jobPlacementBindings.set(configurationId, [...list]);
-  }
-  // Technique survives per configuration/logoRef still present; the job-wide
-  // panel and staff instructions are office-authored context and persist.
-  for (const [configurationId, perLogo] of [...jobLogoTechnique]) {
-    const config = response.configurations.find((entry) => entry.id === configurationId);
-    if (!config) { jobLogoTechnique.delete(configurationId); continue; }
-    for (const logoRef of [...perLogo.keys()]) {
-      if (matchJobPlacement(config.placements, logoRef) === undefined) perLogo.delete(logoRef);
-    }
-    if (perLogo.size === 0) jobLogoTechnique.delete(configurationId);
-  }
+  if (!source) return;
+  rebaseSessionAuthoring(source, response);
 }
 function openApprovalResponseEntry(): void {
   if (!source) {
@@ -5607,9 +3790,6 @@ const mappingSaved = hook<HTMLElement>('mapping-saved');
 /* geometry — proposals stay proposals there.                         */
 /* ------------------------------------------------------------------ */
 
-/** Anchors authored against the source product (prepare context only). */
-let prepareAnchors: AnchorDef[] = [];
-
 /** Versioned anchors sidecar travelling with the prepared master. */
 const OPERATION_ANCHORS_PATH = 'presentation/operation-anchors.json';
 const OPERATION_ANCHORS_VERSION = 'operation-anchors/1';
@@ -5646,12 +3826,7 @@ function isOperationAnchorsSidecar(raw: unknown): raw is OperationAnchorsSidecar
 }
 
 function prepareBlocked(): boolean {
-  return loading || generating || creating || logoImporting || productImporting || photoAttaching || returnBusy || baselineBusy || source === null;
-}
-
-/** True once an issued baseline exists anywhere: Apply stays out of review. */
-function reviewContextActive(): boolean {
-  return generated !== null || loadedBaseline !== null || lastReturn !== null;
+  return loading || creating || logoImporting || productImporting || photoAttaching || source === null;
 }
 
 function buildAnchorsSidecarBytes(project: ProjectDocument, digest: string, anchors: AnchorDef[]): Uint8Array {
@@ -5669,44 +3844,44 @@ function buildAnchorsSidecarBytes(project: ProjectDocument, digest: string, anch
   return new TextEncoder().encode(JSON.stringify(sidecar));
 }
 
-async function loadAnchorsSidecar(assets: SourceState['assets'], project: ProjectDocument): Promise<void> {
-  prepareAnchors = [];
+async function loadAnchorsSidecar(assets: ProjectPackageAsset[], project: ProjectDocument): Promise<AnchorDef[]> {
   const raw = assets.find((asset) => asset.path === OPERATION_ANCHORS_PATH)?.bytes;
-  if (!raw) return;
+  if (!raw) return [];
   if (raw.length > OPERATION_ANCHORS_MAX_BYTES) {
     masterStatus.textContent = `Anchors sidecar ignored: exceeds the 256 KiB sidecar bound. The source product is unchanged.`;
-    return;
+    return [];
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw));
   } catch {
     masterStatus.textContent = `Anchors sidecar ignored: not valid JSON. The source product is unchanged.`;
-    return;
+    return [];
   }
   if (!isOperationAnchorsSidecar(parsed)) {
     masterStatus.textContent = `Anchors sidecar ignored: not an operation-anchors/1 sidecar. The source product is unchanged.`;
-    return;
+    return [];
   }
   if (parsed.projectId !== project.projectId) {
     masterStatus.textContent = `Anchors sidecar ignored: saved for project “${parsed.projectId}”. The source product is unchanged.`;
-    return;
+    return [];
   }
   const digest = await hasher.prepareProject(project);
   if (parsed.sourceDigest !== digest) {
     masterStatus.textContent =
       `Anchors sidecar refused as stale (master changed since the anchors were saved): re-author anchors in the setup below. The source product is unchanged.`;
-    return;
+    return [];
   }
-  prepareAnchors = parsed.anchors
+  const anchors = parsed.anchors
     .filter((entry) => project.products.some((product) =>
       product.id === entry.productId &&
       product.variants.some((variant) => variant.id === entry.variantId) &&
       product.regions.some((region) => region.id === entry.regionId)))
     .map((entry) => ({ ...entry }));
-  if (prepareAnchors.length > 0) {
-    masterStatus.textContent = `Loaded ${prepareAnchors.length} prepared anchor(s) from the master sidecar.`;
+  if (anchors.length > 0) {
+    masterStatus.textContent = `Loaded ${anchors.length} prepared anchor(s) from the master sidecar.`;
   }
+  return anchors;
 }
 
 let stagedPhotoMappings: PhotoMappingEntry[] = [];
@@ -6065,7 +4240,7 @@ function workspaceViewFor(
     transform: { ...mapping.transform },
     mappingStatus: mapping.status,
     safeArea: safePoints,
-    anchors: prepareAnchors
+    anchors: (source?.anchors ?? [])
       .filter((anchor) =>
         anchor.productId === scopeProductId && anchor.variantId === scopeVariantId && anchor.regionId === region.id)
       .map((anchor) => ({ ...anchor, posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number] })),
@@ -6190,7 +4365,7 @@ function enqueueWorkspaceCommit<T>(task: () => Promise<T>, staleResult: () => T)
 /**
  * Atomic workspace save: the region safe area + the scope's anchors persist
  * together through one repackage-and-reparse commit, or neither does. Only
- * the commit assigns `source`/`prepareAnchors`; every failure path leaves
+ * the commit assigns the session project/anchors; every failure path leaves
  * the previous session state untouched and reports `{ ok: false }` so the
  * view keeps the draft dirty and intact.
  *
@@ -6503,16 +4678,10 @@ async function saveWorkspaceSetup(
       }
     }
     if (stale()) return fail('The project changed while saving (new file opened or product added); re-open the view and save again.');
-    prepareAnchors = nextAnchors;
+    snapshot.anchors = nextAnchors;
     stagedPhotoMappings = [...stagedKeptMappings, ...scopeMappings, ...twinEntries];
     areaManifestBaseline.set(scope.regionId, submittedSiblingCanonical);
-    source = {
-      fileName: snapshot.fileName,
-      project: back.project,
-      assets: back.assets,
-      summary: summarizeSourceProject(back.project),
-      packageBytes: packageBytes.slice(),
-    };
+    source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only — every
     // `fail` return above leaves prior outputs intact.
@@ -6553,13 +4722,13 @@ async function saveWorkspaceSetup(
  * region/frame/calibration. Pure; no DOM.
  */
 function liveAnchorsForSave(
-  snapshot: SourceState,
+  snapshot: JobSession,
   scope: ProductSetupScope,
   result: ProductSetupResult,
   bind: { regionId: string; frameId: string; calibrationId: string; calibrationVersion: string },
 ): AnchorDef[] {
   if (!snapshot.project.products.some((entry) => entry.id === scope.productId)) return [];
-  return prepareAnchors
+  return snapshot.anchors
     .filter((anchor) => !(anchor.productId === scope.productId && anchor.variantId === scope.variantId && anchor.regionId === scope.regionId))
     .map((anchor) => ({ ...anchor, posMm: [anchor.posMm[0]!, anchor.posMm[1]!] as [number, number] }))
     .concat(result.anchors.map((anchor) => ({
@@ -7404,13 +5573,7 @@ async function commitModelSetup(): Promise<void> {
         modelSetupStatus.textContent = 'The reparse lost a projected region; the previous project is unchanged.';
         return;
       }
-      source = {
-        fileName: snap.fileName,
-        project: back.project,
-        assets: back.assets,
-        summary: summarizeSourceProject(back.project),
-        packageBytes: packageBytes.slice(),
-      };
+      source = replaceSessionProject(snap, back.project, back.assets, packageBytes.slice());
       // The package changed under any generated delivery: mark outputs stale
       // so a regen is required before download. Success path only — every
       // early return above leaves prior outputs intact.
@@ -7637,13 +5800,7 @@ async function commitGuidedScale(
     }
     if (stale()) return fail('The project changed while measuring (new file opened or product added); measure again.');
     stagedPhotoMappings = [...stagedPhotoMappings.filter((candidate) => !isReplacedMapping(candidate)), entry];
-    source = {
-      fileName: snapshot.fileName,
-      project: back.project,
-      assets: back.assets,
-      summary: summarizeSourceProject(back.project),
-      packageBytes: packageBytes.slice(),
-    };
+    source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only.
     invalidateOutputsForEdit();
@@ -8124,13 +6281,7 @@ async function commitGuidedSpan(
     stagedPhotoMappings = [...stagedKept, entry, ...rewrittenSiblings];
     // The scope region restarts with no named siblings either way.
     areaManifestBaseline.set(regionId, '[]');
-    source = {
-      fileName: snapshot.fileName,
-      project: back.project,
-      assets: back.assets,
-      summary: summarizeSourceProject(back.project),
-      packageBytes: packageBytes.slice(),
-    };
+    source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only.
     invalidateOutputsForEdit();
@@ -8489,7 +6640,7 @@ function formatFitNumber(value: number): string {
 }
 
 function mappingBusy(): boolean {
-  return loading || generating || creating || logoImporting || productImporting || returnBusy || baselineBusy;
+  return loading || creating || logoImporting || productImporting ;
 }
 
 function onMappingCheck(): void {
@@ -8614,1727 +6765,3 @@ mappingCheck.addEventListener('click', onMappingCheck);
 mappingSave.addEventListener('click', onMappingSave);
 for (let i = 0; i < 3; i += 1) addMappingRow();
 renderSavedMappings();
-
-
-/* ------------------------------------------------------------------ */
-/* Operation-sheet authoring (review/prepare flow, check step).        */
-/* Department-authored operational text, logo dimensions, business      */
-/* codes, technique settings, visual anchor setup, and the versioned    */
-/* operation-draft sidecar. Customer notes stay read-only context;      */
-/* staff wording never forges approval and never rewrites canonical     */
-/* customer instructions. No browser-storage persistence: drafts move   */
-/* only through explicit save/reopen files, bound to source revision +  */
-/* digest (stale reopens are refused, never silently applied).           */
-/* ------------------------------------------------------------------ */
-
-function authoringBlocked(): boolean {
-  return loading || generating || creating || logoImporting || productImporting ||
-    returnBusy || baselineBusy || lastReturn === null;
-}
-
-function resetSheetAuthoring(): void {
-  sheetAuthoring.clear();
-  authorAnchors = [];
-  activeSheetConfigId = null;
-  safeAreaProposals.clear();
-  lastReturnAssets = null;
-  lastReturnReferenceViews = Object.create(null);
-  if (anchorSetupHandle !== null) {
-    anchorSetupHandle.destroy();
-    anchorSetupHandle = null;
-  }
-  sheetConfig.replaceChildren();
-  sheetLogos.replaceChildren();
-  sheetCustomerNotes.replaceChildren();
-  sheetSummary.textContent = '';
-  draftStatus.textContent = '';
-  anchorStatus.textContent = '';
-  anchorSide.replaceChildren();
-  anchorRegion.replaceChildren();
-  anchorSetupBox.replaceChildren();
-  draftFile.value = '';
-}
-
-function logoRefForPlacement(placement: ExportPlacement, placements: readonly ExportPlacement[]): string {
-  if (placement.id !== undefined) return placement.id;
-  const same = placements.filter((entry) => entry.logoId === placement.logoId);
-  const occurrence = same.indexOf(placement);
-  return occurrence <= 0 ? placement.logoId : `${placement.logoId}#${occurrence}`;
-}
-
-function defaultSheetAuthoring(): SheetAuthoring {
-  return {
-    customer: '',
-    reference: '',
-    article: '',
-    instructions: '',
-    tech: { temperature: '', time: '', pressure: '', colour: '', thread: '' },
-    logos: new Map<string, LogoAuthoring>(),
-  };
-}
-
-function defaultLogoAuthoring(): LogoAuthoring {
-  return { businessCode: '', measurements: [{ anchorId: '', edge: 'minX', convention: 'dx' }] };
-}
-
-function edgeWord(edge: ArtworkEdge): string {
-  return edge === 'minX' ? 'left' : edge === 'maxX' ? 'right' : edge === 'minY' ? 'bottom' : 'top';
-}
-
-function conventionWord(convention: MeasurementConvention): string {
-  return convention === 'dx' ? 'horizontal' : convention === 'dy' ? 'vertical' : 'shortest';
-}
-
-function bindingLabelFor(anchorName: string, edge: ArtworkEdge, convention: MeasurementConvention): string {
-  return `Anchor “${anchorName}” to ${edgeWord(edge)} edge, ${conventionWord(convention)}`;
-}
-
-function activeReturn(): ReturnState | null {
-  return lastReturn;
-}
-
-function activeCandidateConfig(): ExportConfiguration | null {
-  const current = activeReturn();
-  if (current === null || activeSheetConfigId === null) return null;
-  return current.candidate.configurations.find((entry) => entry.id === activeSheetConfigId) ?? null;
-}
-
-function configDisplayName(config: ExportConfiguration): string {
-  const product = activeReturn()?.candidate.products.find((entry) => entry.id === config.productId);
-  const productLabel = config.productName ?? product?.name ?? config.productId;
-  const variant = product?.variants.find((entry) => entry.id === config.variantId);
-  const variantLabel = config.variantName ?? variant?.name ?? config.variantId;
-  return `${productLabel} / ${variantLabel}`;
-}
-
-/** One binding per measurement row (same logoRef repeated across rows). */
-function bindingsForConfig(configId: string): DimensionBinding[] {
-  const authoring = sheetAuthoring.get(configId);
-  const config = activeReturn()?.candidate.configurations.find((entry) => entry.id === configId);
-  if (!authoring || !config) return [];
-  const out: DimensionBinding[] = [];
-  for (const placement of config.placements) {
-    const logoRef = logoRefForPlacement(placement, config.placements);
-    const row = authoring.logos.get(logoRef) ?? authoring.logos.get(placement.logoId);
-    if (!row) continue;
-    for (const measurement of row.measurements) {
-      if (measurement.anchorId === '') continue;
-      const anchor = authorAnchors.find((entry) => entry.id === measurement.anchorId);
-      if (!anchor) continue;
-      out.push({
-        logoRef,
-        anchorId: measurement.anchorId,
-        edge: measurement.edge,
-        convention: measurement.convention,
-        label: bindingLabelFor(anchor.name, measurement.edge, measurement.convention),
-      });
-    }
-  }
-  return out;
-}
-
-function extrasForConfig(configId: string): Record<string, { businessCode?: string; methodParams?: Record<string, string>; colours?: string[] }> {
-  const authoring = sheetAuthoring.get(configId);
-  if (!authoring) return {};
-  const methodParams: Record<string, string> = {};
-  if (authoring.tech.temperature.trim() !== '') methodParams['temperature'] = authoring.tech.temperature.trim();
-  if (authoring.tech.time.trim() !== '') methodParams['time'] = authoring.tech.time.trim();
-  if (authoring.tech.pressure.trim() !== '') methodParams['pressure'] = authoring.tech.pressure.trim();
-  if (authoring.tech.thread.trim() !== '') methodParams['thread'] = authoring.tech.thread.trim();
-  const colour = authoring.tech.colour.trim();
-  const out: Record<string, { businessCode?: string; methodParams?: Record<string, string>; colours?: string[] }> = {};
-  for (const [logoRef, row] of authoring.logos) {
-    const code = row.businessCode.trim();
-    const entry: { businessCode?: string; methodParams?: Record<string, string>; colours?: string[] } = {};
-    if (code !== '') entry.businessCode = code;
-    if (Object.keys(methodParams).length > 0) entry.methodParams = { ...methodParams };
-    if (colour !== '') entry.colours = [colour];
-    if (Object.keys(entry).length > 0) out[logoRef] = entry;
-  }
-  return out;
-}
-
-function jobForActiveSheet(): OperationSheetJob {
-  const authoring = activeSheetConfigId !== null ? sheetAuthoring.get(activeSheetConfigId) : undefined;
-  const job: OperationSheetJob = {};
-  if (authoring) {
-    if (authoring.customer.trim() !== '') job.customer = authoring.customer.trim();
-    if (authoring.reference.trim() !== '') job.reference = authoring.reference.trim();
-    if (authoring.article.trim() !== '') job.article = authoring.article.trim();
-  }
-  return job;
-}
-
-function instructionsForActiveSheet(): string[] {
-  const authoring = activeSheetConfigId !== null ? sheetAuthoring.get(activeSheetConfigId) : undefined;
-  if (!authoring) return [];
-  return authoring.instructions.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
-}
-
-function bindingsByConfig(): Record<string, DimensionBinding[]> {
-  const current = activeReturn();
-  const out: Record<string, DimensionBinding[]> = Object.create(null);
-  if (!current) return out;
-  for (const config of current.candidate.configurations) {
-    out[config.id] = bindingsForConfig(config.id);
-  }
-  return out;
-}
-
-function extrasByConfig(): Record<string, Record<string, { businessCode?: string; methodParams?: Record<string, string>; colours?: string[] }>> {
-  const current = activeReturn();
-  const out: Record<string, Record<string, { businessCode?: string; methodParams?: Record<string, string>; colours?: string[] }>> = Object.create(null);
-  if (!current) return out;
-  for (const config of current.candidate.configurations) {
-    const extras = extrasForConfig(config.id);
-    if (Object.keys(extras).length > 0) out[config.id] = extras;
-  }
-  return out;
-}
-
-/** Prefer a raster-previewable original; geometry still carries without one. */
-function sheetArtworkUri(assets: ReadonlyArray<{ uri: string }>): string | undefined {
-  if (assets.length === 0) return undefined;
-  return assets.find((asset) => /\.(png|jpe?g|webp)$/i.test(asset.uri))?.uri ?? assets[0]?.uri;
-}
-
-function sheetOverlayLookup(
-  assetBytes: Map<string, Uint8Array>,
-  candidate: ResultCandidate,
-  anchors: readonly AnchorDef[],
-  bindings: Record<string, readonly DimensionBinding[]>,
-): OperationSheetAssetLookup {
-  const states = evaluateOperationPhotoStates(candidate, assetBytes);
-  return {
-    getBytes: (path) => assetBytes.get(path),
-    getSheetOverlay: (sheetIndex) => {
-      const config = candidate.configurations[sheetIndex];
-      if (!config) return undefined;
-      const configStates: readonly PhotoMappingState[] = states[config.id] ?? [];
-      const sides = lastReturnReferenceViews[config.id] ?? [];
-      const mappings: Array<SheetOverlayMapping | undefined> = sides.map((side) => {
-        const bound = configStates.find((entry) => entry.imagePath === side.imagePath);
-        if (!bound || bound.regionId === undefined || bound.view === undefined || bound.transform === undefined) {
-          return undefined;
-        }
-        return {
-          regionId: bound.regionId,
-          view: bound.view,
-          transform: { ...bound.transform },
-          status: bound.status,
-        };
-      });
-      const configBindings = bindings[config.id] ?? [];
-      const artworks: Array<SheetOverlayArtwork | undefined> = config.placements.map((placement) => {
-        const relevant = configBindings.filter((binding) => matchLogoRef(config.placements, binding.logoRef) === placement);
-        const measured = measurePlacement(candidate, placement, anchors, relevant);
-        const arrows = measured.dimensions.map((dimension) => ({
-          p0: { x: dimension.endpoints[0]!.x, y: dimension.endpoints[0]!.y },
-          p1: { x: dimension.endpoints[1]!.x, y: dimension.endpoints[1]!.y },
-          ...(dimension.artworkPoint !== undefined
-            ? { artworkPoint: { x: dimension.artworkPoint.x, y: dimension.artworkPoint.y } }
-            : {}),
-        }));
-        const uri = sheetArtworkUri(placement.artwork.assets);
-        return {
-          regionId: placement.regionId,
-          ...(uri !== undefined ? { imagePath: uri } : {}),
-          xMm: placement.pos.xMm,
-          yMm: placement.pos.yMm,
-          widthMm: placement.widthMm,
-          heightMm: placement.heightMm,
-          rotationDeg: placement.rotationDeg,
-          arrows,
-        };
-      });
-      return { mappings, artworks };
-    },
-  };
-}
-
-/** Station brand mark the build script inlines as a data URL on
- *  `img[data-station-brand]`. Only `data:image/(png|jpeg|webp);base64,…`
- *  passes through to the sheet; anything else (missing img, external URL)
- *  yields `undefined` so the renderer falls back to its wordmark. */
-const STATION_MARK_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-function stationBrand(): { markDataUrl: string } | undefined {
-  const src = document.querySelector<HTMLImageElement>('img[data-station-brand]')?.getAttribute('src');
-  if (typeof src === 'string' && STATION_MARK_PATTERN.test(src)) return { markDataUrl: src };
-  return undefined;
-}
-
-/** Rebuild the operation-sheet view from the SAME authoring state the
- *  preview renders (bindings, business codes, operational instructions,
- *  extras). Shared by the preview and the minimal operator JSON export. */
-function buildCurrentSheetView(): OperationSheetView | null {
-  const current = activeReturn();
-  if (current === null) return null;
-  const viewInput: BuildOperationSheetViewInput = {
-    candidate: current.candidate,
-    anchors: authorAnchors,
-    bindings: bindingsByConfig(),
-    job: jobForActiveSheet(),
-    sides: lastReturnReferenceViews,
-    extras: extrasByConfig(),
-    operationalInstructions: instructionsForActiveSheet(),
-  };
-  return buildOperationSheetView(viewInput);
-}
-
-/** Rebuild the one-sheet preview from the current return + department authoring. */
-function renderSheetPreview(): void {
-  paintTechSummary();
-  const current = activeReturn();
-  if (current === null || lastReturnAssets === null) return;
-  const view = buildCurrentSheetView();
-  if (view === null) return;
-  const lookup = sheetOverlayLookup(lastReturnAssets, current.candidate, authorAnchors, bindingsByConfig());
-  ensureOperationStyles();
-  operationContainer.replaceChildren();
-  operationContainer.append(renderOperationSheet(view, document, lookup, stationBrand()));
-  sheetSummary.textContent =
-    `${operationSheetSummary(view)} · ${operationSheetPageCount(view, lookup)} printed page(s). ` +
-    `Customer notes stay read-only source context above and never print; only department text prints as operational instructions.`;
-}
-
-/** Live count of filled technique settings on the disclosure summary. */
-function paintTechSummary(): void {
-  const authoring = activeSheetConfigId !== null ? sheetAuthoring.get(activeSheetConfigId) : undefined;
-  const count = authoring === undefined ? 0 : [authoring.tech.temperature, authoring.tech.time, authoring.tech.pressure, authoring.tech.colour, authoring.tech.thread]
-    .filter((value) => value.trim() !== '').length;
-  techSummary.textContent = count === 0 ? '' : ` · ${count} set`;
-}
-
-function displayNameForLogo(candidate: ResultCandidate, placement: ExportPlacement, index: number, businessCode: string): string {
-  const name = candidate.logos.find((entry) => entry.id === placement.logoId)?.name;
-  return name ?? (businessCode !== '' ? businessCode : `Logo ${index + 1}`);
-}
-
-function anchorsForPlacement(placement: ExportPlacement): AnchorDef[] {
-  return authorAnchors.filter((anchor) =>
-    anchor.productId === placement.productId &&
-    anchor.variantId === placement.variantId &&
-    anchor.regionId === placement.regionId,
-  );
-}
-
-function describeLogoMeasurement(
-  candidate: ResultCandidate,
-  placement: ExportPlacement,
-  placements: readonly ExportPlacement[],
-  measurement: DimensionMeasurement,
-): { text: string; ok: boolean; primary: string | null } {
-  if (measurement.anchorId === '') return { text: 'No anchor chosen — pick one from the Anchor list above.', ok: false, primary: null };
-  const anchor = authorAnchors.find((entry) => entry.id === measurement.anchorId);
-  if (!anchor) return { text: 'The chosen anchor is gone — pick another from the Anchor list above or set one up below.', ok: false, primary: null };
-  const logoRef = logoRefForPlacement(placement, placements);
-  const measured = measurePlacement(candidate, placement, authorAnchors, [{
-    logoRef,
-    anchorId: measurement.anchorId,
-    edge: measurement.edge,
-    convention: measurement.convention,
-    label: bindingLabelFor(anchor.name, measurement.edge, measurement.convention),
-  }]);
-  const first = measured.dimensions[0];
-  if (first) {
-    const value = `${(Math.round(first.valueMm * 10) / 10).toFixed(1)}`;
-    const honesty = first.touchesArtwork
-      ? 'The dimension line touches the artwork.'
-      : 'The dimension line starts off-artwork: the photo draws a dashed extension linking the artwork corner.';
-    const primary =
-      `${value} mm · ${anchor.name} → ${edgeWord(measurement.edge)} edge · ${conventionWord(measurement.convention)}${first.touchesArtwork ? '' : ' · extended'}`;
-    return { text: `${value} mm — ${first.label}; from ${first.fromAnchor} to ${first.toEdge}. ${honesty}`, ok: true, primary };
-  }
-  return { text: `${measured.unfinished[0] ?? 'No measurement — setup needed.'}`, ok: false, primary: null };
-}
-
-/* ---------------- Visual dimension picker (Tranche B) ---------------- */
-/* Pointer-first measurement authoring on a region-frame schematic: the    */
-/* operator clicks a named anchor dot, then a logo edge, confirms the      */
-/* convention explicitly, and commits. Click coordinates only select       */
-/* identities (which anchor, which edge); every value comes from the pure  */
-/* visual-dimension kernel wrapping the exact core edge-to-anchor          */
-/* arithmetic — the same numbers the sheet prints and the operator JSON   */
-/* exports. The manual lists in each row stay as the keyboard fallback    */
-/* under Advanced. A partial pick lives in the panel DOM only and is    */
-/* never written into authoring state, drafts, or exports before Commit.   */
-
-const VISUAL_PICK_ANCHOR_SNAP_MM = 6;
-const VISUAL_PICK_EDGE_SNAP_MM = 10;
-const VISUAL_PICK_SVG_NS = 'http://www.w3.org/2000/svg';
-const visualPickTeardowns = new Set<() => void>();
-
-function visualPickSvgPoint(svg: SVGSVGElement, event: MouseEvent): { x: number; y: number } | null {
-  // Raw viewBox coordinates (letterbox-corrected); the surface maps them to
-  // millimetres, so this stays exact at any rendered size.
-  const rect = svg.getBoundingClientRect();
-  const box = svg.viewBox.baseVal;
-  if (!(rect.width > 0) || !(rect.height > 0) || !(box.width > 0) || !(box.height > 0)) return null;
-  const scale = Math.min(rect.width / box.width, rect.height / box.height);
-  if (!(scale > 0) || !Number.isFinite(scale)) return null;
-  const offX = rect.left + (rect.width - box.width * scale) / 2;
-  const offY = rect.top + (rect.height - box.height * scale) / 2;
-  const x = box.x + (event.clientX - offX) / scale;
-  const y = box.y + (event.clientY - offY) / scale;
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return { x, y };
-}
-
-/** Marker sizes in constant rendered CSS pixels: usability must not depend
- *  on photo resolution or stage size, so viewBox units derive per render. */
-const VISUAL_PICK_CSS = {
-  anchorR: 7,
-  anchorHitR: 12,
-  codeFont: 12,
-  anchorStroke: 1.5,
-  anchorSelectedStroke: 3,
-  sideR: 4,
-  sideHitR: 12,
-  footprintStroke: 2,
-  arrowStroke: 2.5,
-  safeStroke: 1.5,
-} as const;
-
-/** CSS pixels per viewBox unit under meet letterboxing, or null pre-layout. */
-function visualPickCssScale(svg: SVGSVGElement): number | null {
-  const rect = svg.getBoundingClientRect();
-  const box = svg.viewBox.baseVal;
-  if (!(rect.width > 0) || !(rect.height > 0) || !(box.width > 0) || !(box.height > 0)) return null;
-  const scale = Math.min(rect.width / box.width, rect.height / box.height);
-  return scale > 0 && Number.isFinite(scale) ? scale : null;
-}
-
-function visualPickFrame(points: Array<{ x: number; y: number }>): { minX: number; minY: number; w: number; h: number } | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  }
-  if (!Number.isFinite(minX)) return null;
-  if (!(maxX > minX) || !(maxY > minY)) {
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    return { minX: cx - 10, minY: cy - 10, w: 20, h: 20 };
-  }
-  const pad = Math.max(5, Math.max(maxX - minX, maxY - minY) * 0.1);
-  return { minX: minX - pad, minY: minY - pad, w: (maxX - minX) + pad * 2, h: (maxY - minY) + pad * 2 };
-}
-
-interface VisualPickPanelContext {
-  candidate: ResultCandidate;
-  configId: string;
-  placement: ExportPlacement;
-  scoped: AnchorDef[];
-  safeArea: Array<readonly [number, number]> | null;
-  regionName: string;
-  measurement: DimensionMeasurement;
-  logoRef: string;
-  logoIndex: number;
-  measureIndex: number;
-  blocked: boolean;
-}
-
-/** Evaluated photo surface for visual picking: the actual product photo with
- *  the actual artwork composite, both positioned by the exact evaluated
- *  mapping math. Null when no evaluated mapping (with bytes) binds the
- *  placement's region — the caller then falls back to the labelled mm
- *  schematic and never fabricates a photo scale. */
-interface VisualPickPhoto {
-  sideLabel: string;
-  /** Product photo as a data URI for the schematic image element. */
-  photoHref: string;
-  artHref: string | null;
-  artMatrix: { a: number; b: number; c: number; d: number; e: number; f: number };
-  photoW: number;
-  photoH: number;
-  toPx: (xMm: number, yMm: number) => { x: number; y: number };
-  toMm: (px: number, py: number) => { xMm: number; yMm: number } | null;
-  artCornersPx: Array<{ x: number; y: number }>;
-}
-
-/** Raster bytes to a data URI (session-local schematic use only). */
-function visualPickPhotoHref(bytes: Uint8Array, mediaType: string): string | null {  if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) return null;
-  const step = 8192;
-  let binary = '';
-  for (let at = 0; at < bytes.length; at += step) {
-    binary += String.fromCharCode(...bytes.subarray(at, at + step));
-  }
-  try {
-    return `data:${mediaType};base64,${btoa(binary)}`;
-  } catch {
-    return null;
-  }
-}
-
-/** Human view name for one packaged photo path, or null when undeclared. */
-function returnManifestViewLabel(imagePath: string): string | null {
-  if (lastReturnAssets === null) return null;
-  const manifest = parseFlexiblePresentationManifest(parseJsonBytes(lastReturnAssets.get(PRESENTATION_MANIFEST_PATH)));
-  if (manifest === null) return null;
-  const entry = manifest.views.find((candidate) => candidate.image === imagePath);
-  if (!entry) return null;
-  const label = entry.label?.trim() ?? '';
-  if (label.length > 0) return label;
-  const view = entry.view;
-  return view === 'front' || view === 'back' || view === 'left' || view === 'right'
-    ? `${view[0]!.toUpperCase()}${view.slice(1)}`
-    : view;
-}
-
-function resolveVisualPickPhoto(
-  candidate: ResultCandidate,
-  configId: string,
-  placement: ExportPlacement,
-): VisualPickPhoto | null {
-  if (lastReturnAssets === null) return null;
-  const states = evaluateOperationPhotoStates(candidate, lastReturnAssets)[configId] ?? [];
-  const options = states
-    .filter((entry) => entry.regionId === placement.regionId && entry.transform !== undefined && entry.imagePath !== undefined)
-    .sort((a, b) => (a.view ?? '') < (b.view ?? '') ? -1 : (a.view ?? '') > (b.view ?? '') ? 1 : 0);
-  const picked = options[0];
-  const transform = picked?.transform;
-  const imagePath = picked?.imagePath;
-  if (!transform || !imagePath) return null;
-  const bytes = lastReturnAssets.get(imagePath);
-  if (!bytes) return null;
-  const header = readRasterHeader(bytes);
-  if (!header) return null;
-  const matrix = artworkPhotoMatrix(transform, header.width, header.height, {
-    xMm: placement.pos.xMm,
-    yMm: placement.pos.yMm,
-    widthMm: placement.widthMm,
-    heightMm: placement.heightMm,
-    rotationDeg: placement.rotationDeg,
-  });
-  if (!matrix) return null;
-  const photoHref = visualPickPhotoHref(bytes, header.mediaType);
-  if (photoHref === null) return null;
-  const artworkPath = sheetArtworkUri(placement.artwork.assets);
-  const artworkBytes = artworkPath ? lastReturnAssets.get(artworkPath) : undefined;
-  const artworkHeader = artworkBytes ? readRasterHeader(artworkBytes) : null;
-  const artHref = artworkBytes && artworkHeader
-    ? visualPickPhotoHref(artworkBytes, artworkHeader.mediaType)
-    : null;
-  const det = transform.a * transform.e - transform.b * transform.d;
-  if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) return null;
-  const view = picked.view ?? '';
-  // Human view name where the package declares one (slug labels included);
-  // legacy sides keep their capitalized form; otherwise a neutral word.
-  const viewLabel = returnManifestViewLabel(imagePath);
-  const sideLabel = viewLabel ?? (view === 'front' || view === 'back' || view === 'left' || view === 'right'
-    ? workspaceSideLabel(view)
-    : 'Mapped');
-  return {
-    sideLabel,
-    photoHref,
-    artHref,
-    artMatrix: { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e, f: matrix.f },
-    photoW: header.width,
-    photoH: header.height,
-    toPx: (xMm, yMm) => ({
-      x: (transform.a * xMm + transform.b * yMm + transform.c) * header.width,
-      y: (transform.d * xMm + transform.e * yMm + transform.f) * header.height,
-    }),
-    toMm: (px, py) => {
-      const du = px / header.width - transform.c;
-      const dv = py / header.height - transform.f;
-      const xMm = (transform.e * du - transform.b * dv) / det;
-      const yMm = (-transform.d * du + transform.a * dv) / det;
-      if (!Number.isFinite(xMm) || !Number.isFinite(yMm)) return null;
-      return { xMm, yMm };
-    },
-    artCornersPx: ( [[0, 0], [1, 0], [1, 1], [0, 1]] as Array<[number, number]>).map(([s, t]) => ({
-      x: matrix.a * s + matrix.c * t + matrix.e,
-      y: matrix.b * s + matrix.d * t + matrix.f,
-    })),
-  };
-}
-
-function openVisualPickPanel(rowBox: HTMLElement, pickButton: HTMLButtonElement, context: VisualPickPanelContext): void {
-  const { candidate, configId, placement, scoped, safeArea, regionName, measurement, logoRef, logoIndex, measureIndex, blocked } = context;
-  const panel = document.createElement('div');
-  panel.className = 'visual-pick';
-  panel.setAttribute('data-visual-pick', '');
-  panel.setAttribute('data-logo-ref', logoRef);
-  panel.setAttribute('data-measure-index', String(measureIndex));
-  const intro = document.createElement('p');
-  intro.className = 'muted';
-  panel.append(intro);
-  const status = document.createElement('p');
-  status.setAttribute('role', 'status');
-  status.setAttribute('data-visual-pick-status', '');
-  interface SurfacePoint { x: number; y: number }
-  // Drawing surface: the evaluated product photo with the real artwork
-  // overlay when mapped, else an explicitly labelled mm schematic. Clicks
-  // always resolve back to region millimetres before the kernel sees them.
-  const photo = resolveVisualPickPhoto(candidate, configId, placement);
-  let viewBox: string;
-  let schematic: boolean;
-  let anchorXY: (anchor: AnchorDef) => SurfacePoint;
-  let footprintXY: SurfacePoint[];
-  let mmXY: (xMm: number, yMm: number) => SurfacePoint;
-  let xyToMm: (x: number, y: number) => { xMm: number; yMm: number } | null;
-  let unit: number;
-  if (photo !== null) {
-    schematic = false;
-    viewBox = `0 0 ${photo.photoW} ${photo.photoH}`;
-    anchorXY = (anchor) => photo.toPx(anchor.posMm[0], anchor.posMm[1]);
-    footprintXY = photo.artCornersPx;
-    mmXY = (xMm, yMm) => photo.toPx(xMm, yMm);
-    xyToMm = (x, y) => photo.toMm(x, y);
-    unit = Math.max(photo.photoW, photo.photoH) / 250;
-    intro.textContent =
-      `Pick on the ${photo.sideLabel} photo: click a named anchor, then a logo edge, choose Direction, then Save measurement. ` +
-      'Keyboard: use Advanced in this row. Escape cancels without changing the row.';
-  } else {
-    schematic = true;
-    const corners = rotatedFootprintCorners(
-      placement.pos.xMm, placement.pos.yMm, placement.widthMm, placement.heightMm, placement.rotationDeg,
-    );
-    const framePoints: Array<{ x: number; y: number }> = [];
-    for (const point of safeArea ?? []) framePoints.push({ x: point[0], y: point[1] });
-    for (const corner of corners) framePoints.push({ x: corner.x, y: corner.y });
-    for (const anchor of scoped) framePoints.push({ x: anchor.posMm[0], y: anchor.posMm[1] });
-    const frame = visualPickFrame(framePoints);
-    if (frame === null || corners.length < 3) {
-      status.textContent = 'The visual pick cannot be drawn: the region or logo geometry is missing or non-finite. Use Advanced in this row instead.';
-      panel.append(status);
-      const close = document.createElement('button');
-      close.type = 'button';
-      close.className = 'btn-secondary';
-      close.textContent = 'Close';
-      close.addEventListener('click', () => { panel.remove(); pickButton.disabled = false; pickButton.focus(); });
-      panel.append(close);
-      rowBox.append(panel);
-      return;
-    }
-    viewBox = `${frame.minX} ${-frame.minY - frame.h} ${frame.w} ${frame.h}`;
-    anchorXY = (anchor) => ({ x: anchor.posMm[0], y: -anchor.posMm[1] });
-    footprintXY = corners.map((corner) => ({ x: corner.x, y: -corner.y }));
-    mmXY = (xMm, yMm) => ({ x: xMm, y: -yMm });
-    xyToMm = (x, y) => ({ xMm: x, yMm: -y });
-    unit = Math.max(frame.w, frame.h) / 80;
-    intro.textContent =
-      `No mapped photo for ${regionName} — region schematic (millimetre positions, not a photograph): ` +
-      'click a named anchor dot, then a logo edge, choose Direction, then Save measurement. ' +
-      'Keyboard: use Advanced in this row. Escape cancels without changing the row.';
-  }
-  const svg = document.createElementNS(VISUAL_PICK_SVG_NS, 'svg') as SVGSVGElement;
-  svg.setAttribute('viewBox', viewBox);
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('tabindex', '0');
-  svg.setAttribute('data-visual-pick-diagram', '');
-  svg.setAttribute('aria-label', schematic
-    ? `Region schematic, no photo mapped, for logo ${logoIndex + 1}: click an anchor dot, then a logo edge.`
-    : `Mapped product photo for logo ${logoIndex + 1}: click an anchor, then a logo edge.`);
-  if (photo !== null) {
-    const image = document.createElementNS(VISUAL_PICK_SVG_NS, 'image');
-    image.setAttribute('x', '0');
-    image.setAttribute('y', '0');
-    image.setAttribute('width', String(photo.photoW));
-    image.setAttribute('height', String(photo.photoH));
-    image.setAttribute('href', photo.photoHref);
-    image.setAttribute('data-visual-photo', '');
-    svg.append(image);
-    if (photo.artHref !== null) {
-      const art = document.createElementNS(VISUAL_PICK_SVG_NS, 'image');
-      art.setAttribute('x', '0');
-      art.setAttribute('y', '0');
-      art.setAttribute('width', '1');
-      art.setAttribute('height', '1');
-      art.setAttribute('href', photo.artHref);
-      art.setAttribute('transform', `matrix(${photo.artMatrix.a} ${photo.artMatrix.b} ${photo.artMatrix.c} ${photo.artMatrix.d} ${photo.artMatrix.e} ${photo.artMatrix.f})`);
-      art.setAttribute('data-visual-artwork', '');
-      svg.append(art);
-    }
-  } else if (safeArea !== null && safeArea.length >= 3) {
-    const polygon = document.createElementNS(VISUAL_PICK_SVG_NS, 'polygon');
-    polygon.setAttribute('points', safeArea.map((point) => `${point[0]},${-point[1]}`).join(' '));
-    polygon.setAttribute('fill', '#f2f5f7');
-    polygon.setAttribute('stroke', '#607080');
-    polygon.setAttribute('stroke-width', String(unit));
-    svg.append(polygon);
-  }
-  const footprint = document.createElementNS(VISUAL_PICK_SVG_NS, 'polygon');
-  footprint.setAttribute('points', footprintXY.map((point) => `${point.x},${point.y}`).join(' '));
-  footprint.setAttribute('fill', photo !== null ? 'none' : '#fdecec');
-  footprint.setAttribute('stroke', '#c0392b');
-  footprint.setAttribute('stroke-width', '2');
-  footprint.setAttribute('data-visual-footprint', '');
-  footprint.setAttribute('pointer-events', 'none');
-  svg.append(footprint);
-  // Comfortable edge targets with exact physical identity: each side-midpoint
-  // hit circle feeds its own position to the same probe, so the kernel (not
-  // the pixels) still resolves which named edge a click selected.
-  interface SideMark { hit: SVGElement; dot: SVGElement; mx: number; my: number }
-  const sideMarks: SideMark[] = [];
-  for (let side = 0; side < footprintXY.length; side += 1) {
-    const start = footprintXY[side]!;
-    const end = footprintXY[(side + 1) % footprintXY.length]!;
-    const mx = (start.x + end.x) / 2;
-    const my = (start.y + end.y) / 2;
-    const hit = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
-    hit.setAttribute('cx', String(mx));
-    hit.setAttribute('cy', String(my));
-    hit.setAttribute('fill', '#000');
-    hit.setAttribute('fill-opacity', '0');
-    hit.setAttribute('pointer-events', 'all');
-    hit.setAttribute('data-visual-edge-hit', String(side));
-    const dot = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
-    dot.setAttribute('cx', String(mx));
-    dot.setAttribute('cy', String(my));
-    dot.setAttribute('fill', '#c0392b');
-    dot.setAttribute('pointer-events', 'none');
-    svg.append(hit, dot);
-    sideMarks.push({ hit, dot, mx, my });
-  }
-  const anchorCode = (index: number): string =>
-    String.fromCharCode(65 + (index % 26)) + (index >= 26 ? String(Math.floor(index / 26) + 1) : '');
-  interface AnchorMark { id: string; hit: SVGElement; dot: SVGElement }
-  const anchorMarks: AnchorMark[] = [];
-  const anchorById = new Map<string, AnchorDef>();
-  // A marker click selects its validated anchor ID directly: the visible
-  // target never fails the millimetre snap gate. Blank-surface clicks below
-  // stay strictly gated.
-  const selectAnchor = (id: string): void => {
-    const picked = anchorById.get(id);
-    if (!picked) return;
-    anchorId = id;
-    layoutPickMarkers();
-    status.textContent = `Anchor “${picked.name}” selected — now click near a logo edge (within ${VISUAL_PICK_EDGE_SNAP_MM} mm).`;
-    svg.focus();
-  };
-  scoped.forEach((anchor, index) => {
-    anchorById.set(anchor.id, anchor);
-    const at = anchorXY(anchor);
-    const hit = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
-    hit.setAttribute('cx', String(at.x));
-    hit.setAttribute('cy', String(at.y));
-    hit.setAttribute('fill', '#000');
-    hit.setAttribute('fill-opacity', '0');
-    hit.setAttribute('pointer-events', 'all');
-    hit.setAttribute('data-visual-anchor-hit', anchor.id);
-    hit.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (blocked) return;
-      selectAnchor(anchor.id);
-    });
-    const dot = document.createElementNS(VISUAL_PICK_SVG_NS, 'circle');
-    dot.setAttribute('cx', String(at.x));
-    dot.setAttribute('cy', String(at.y));
-    dot.setAttribute('fill', '#fff');
-    dot.setAttribute('stroke', '#111');
-    dot.setAttribute('data-visual-anchor', anchor.id);
-    dot.setAttribute('pointer-events', 'none');
-    const code = document.createElementNS(VISUAL_PICK_SVG_NS, 'text');
-    code.setAttribute('x', String(at.x));
-    code.setAttribute('y', String(at.y));
-    code.setAttribute('text-anchor', 'middle');
-    code.setAttribute('dominant-baseline', 'central');
-    code.setAttribute('font-weight', '700');
-    code.setAttribute('fill', '#111');
-    code.setAttribute('pointer-events', 'none');
-    code.setAttribute('data-visual-anchor-code', anchor.id);
-    code.textContent = anchorCode(index);
-    const tip = document.createElementNS(VISUAL_PICK_SVG_NS, 'title');
-    tip.textContent = anchor.name;
-    dot.append(tip);
-    svg.append(hit, dot, code);
-    anchorMarks.push({ id: anchor.id, hit, dot });
-  });
-  for (const mark of sideMarks) {
-    mark.hit.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (blocked) return;
-      edgeClickAt(mark.mx, mark.my);
-    });
-  }
-  let arrowEl: SVGElement | null = null;
-  /** Constant-CSS-pixel marker sizing; re-runs on every resize. */
-  function layoutPickMarkers(): void {
-    const scale = visualPickCssScale(svg);
-    if (scale === null) return;
-    const units = (cssPx: number): number => cssPx / scale;
-    footprint.setAttribute('stroke-width', String(units(VISUAL_PICK_CSS.footprintStroke)));
-    for (const mark of sideMarks) {
-      mark.hit.setAttribute('r', String(units(VISUAL_PICK_CSS.sideHitR)));
-      mark.dot.setAttribute('r', String(units(VISUAL_PICK_CSS.sideR)));
-    }
-    for (const mark of anchorMarks) {
-      const selected = mark.id === anchorId;
-      mark.hit.setAttribute('r', String(units(VISUAL_PICK_CSS.anchorHitR)));
-      mark.dot.setAttribute('r', String(units(VISUAL_PICK_CSS.anchorR)));
-      mark.dot.setAttribute('stroke', selected ? '#c0392b' : '#111');
-      mark.dot.setAttribute('stroke-width', String(units(selected ? VISUAL_PICK_CSS.anchorSelectedStroke : VISUAL_PICK_CSS.anchorStroke)));
-    }
-    for (const code of svg.querySelectorAll('[data-visual-anchor-code]')) {
-      code.setAttribute('font-size', String(units(VISUAL_PICK_CSS.codeFont)));
-    }
-    if (arrowEl !== null) arrowEl.setAttribute('stroke-width', String(units(VISUAL_PICK_CSS.arrowStroke)));
-  }
-  const pickResize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutPickMarkers()) : null;
-  pickResize?.observe(svg);
-  function disconnectPickResize(): void {
-    visualPickTeardowns.delete(disconnectPickResize);
-    try {
-      pickResize?.disconnect();
-    } catch {
-      /* best-effort teardown */
-    }
-  }
-  visualPickTeardowns.add(disconnectPickResize);
-  panel.append(svg);
-  const key = document.createElement('p');
-  key.className = 'muted';
-  key.setAttribute('data-visual-pick-legend', '');
-  key.textContent = scoped.map((anchor, index) => `${anchorCode(index)} · ${anchor.name}`).join('      ');
-  panel.append(key);
-  panel.append(status);
-  const conventionField = document.createElement('fieldset');
-  const legend = document.createElement('legend');
-  legend.textContent = 'Direction';
-  conventionField.append(legend);
-  const radioName = `visual-pick-convention-${logoRef}-${measureIndex}`;
-  const radios = new Map<MeasurementConvention, HTMLInputElement>();
-  for (const [value, label] of [['dx', 'Horizontal'], ['dy', 'Vertical'], ['shortest-to-edge', 'Shortest']] as const) {
-    const wrap = document.createElement('label');
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = radioName;
-    radio.disabled = blocked;
-    radio.setAttribute('data-visual-pick-convention', value);
-    const text = document.createElement('span');
-    text.textContent = label;
-    wrap.append(radio, text);
-    conventionField.append(wrap);
-    radios.set(value, radio);
-    radio.addEventListener('change', () => resolve());
-  }
-  panel.append(conventionField);
-  const tech = document.createElement('details');
-  tech.className = 'disclosure';
-  const techTitle = document.createElement('summary');
-  techTitle.textContent = 'Details';
-  const techBody = document.createElement('p');
-  techBody.className = 'muted';
-  techBody.textContent = 'No proposal yet.';
-  tech.append(techTitle, techBody);
-  panel.append(tech);
-  const actions = document.createElement('div');
-  actions.className = 'actions';
-  const commit = document.createElement('button');
-  commit.type = 'button';
-  commit.className = 'btn-primary';
-  commit.textContent = 'Save measurement';
-  commit.setAttribute('aria-label', `Save diagram measurement for logo ${logoIndex + 1}`);
-  commit.setAttribute('data-visual-pick-commit', '');
-  commit.disabled = true;
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'btn-secondary';
-  cancel.textContent = 'Cancel';
-  cancel.setAttribute('data-visual-pick-cancel', '');
-  actions.append(commit, cancel);
-  panel.append(actions);
-
-  let anchorId: string | null = null;
-  let edgeClickMm: { xMm: number; yMm: number } | null = null;
-  let lastOk: { anchorId: string; edge: ArtworkEdge; convention: MeasurementConvention; valueMm: number; edgeDistanceMm: number } | null = null;
-
-  function checkedConvention(): MeasurementConvention | null {
-    for (const [value, radio] of radios) {
-      if (radio.checked) return value;
-    }
-    return null;
-  }
-
-  function clearArrow(): void {
-    svg.querySelector('[data-visual-pick-arrow]')?.remove();
-    arrowEl = null;
-  }
-
-  function resolve(): void {
-    clearArrow();
-    lastOk = null;
-    commit.disabled = true;
-    const convention = checkedConvention();
-    if (anchorId === null || edgeClickMm === null || convention === null) return;
-    const anchor = anchorById.get(anchorId);
-    if (!anchor) {
-      status.textContent = 'The chosen anchor is gone — click another anchor marker.';
-      return;
-    }
-    const result = resolveVisualDimension({
-      anchors: scoped.map((entry) => ({ id: entry.id, posMm: [entry.posMm[0], entry.posMm[1]] as [number, number] })),
-      footprint: {
-        centerMm: [placement.pos.xMm, placement.pos.yMm],
-        widthMm: placement.widthMm,
-        heightMm: placement.heightMm,
-        rotationDeg: placement.rotationDeg,
-      },
-      anchorClickMm: [anchor.posMm[0], anchor.posMm[1]],
-      edgeClickMm: [edgeClickMm.xMm, edgeClickMm.yMm],
-      convention,
-      snapTolMm: VISUAL_PICK_ANCHOR_SNAP_MM,
-      maxEdgeDistMm: VISUAL_PICK_EDGE_SNAP_MM,
-    });
-    if (!result.ok) {
-      if (result.code === 'edge-too-far') {
-        status.textContent = `${result.message} Click closer to a logo edge — a click on the blank garment never binds a far edge.`;
-      } else if (result.code === 'incompatible-edge-or-convention') {
-        status.textContent = `${result.message} Switch Direction above.`;
-      } else {
-        status.textContent = result.message;
-      }
-      return;
-    }
-    lastOk = {
-      anchorId: result.binding.anchorId,
-      edge: result.binding.edge,
-      convention: result.binding.convention,
-      valueMm: result.valueMm,
-      edgeDistanceMm: result.edgeDistanceMm,
-    };
-    const from = mmXY(result.endpoints[0].x, result.endpoints[0].y);
-    const to = mmXY(result.endpoints[1].x, result.endpoints[1].y);
-    const line = document.createElementNS(VISUAL_PICK_SVG_NS, 'line');
-    line.setAttribute('x1', String(from.x));
-    line.setAttribute('y1', String(from.y));
-    line.setAttribute('x2', String(to.x));
-    line.setAttribute('y2', String(to.y));
-    line.setAttribute('stroke', '#111');
-    line.setAttribute('data-visual-pick-arrow', '');
-    svg.append(line);
-    arrowEl = line;
-    layoutPickMarkers();
-    const value = `${(Math.round(result.valueMm * 10) / 10).toFixed(1)}`;
-    let note =
-      `Proposed: ${value} mm · ${anchor.name} → ${edgeWord(result.binding.edge)} edge · ${conventionWord(convention)}. ` +
-      'Review and Save measurement to write this row.';
-    if (placement.rotationDeg !== 0 && convention !== 'shortest-to-edge') {
-      note += ' Rotated artwork: measured as horizontal/vertical extent (supporting line), not along the rotated edge.';
-    }
-    status.textContent = note;
-    techBody.textContent =
-      `Clicked ${result.edgeDistanceMm.toFixed(1)} mm from the edge (gate ${VISUAL_PICK_EDGE_SNAP_MM} mm, ` +
-      `anchor snap ${VISUAL_PICK_ANCHOR_SNAP_MM} mm); exact kernel value ${result.valueMm} mm.`;
-    commit.disabled = blocked;
-  }
-
-  svg.addEventListener('click', (event) => {
-    if (blocked) return;
-    const raw = visualPickSvgPoint(svg, event);
-    if (!raw) return;
-    if (anchorId === null) {
-      const point = xyToMm(raw.x, raw.y);
-      if (!point) return;
-      let best: AnchorDef | null = null;
-      let bestDist = Infinity;
-      for (const anchor of scoped) {
-        const dist = Math.hypot(anchor.posMm[0] - point.xMm, anchor.posMm[1] - point.yMm);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = anchor;
-        }
-      }
-      if (best === null || !(bestDist <= VISUAL_PICK_ANCHOR_SNAP_MM)) {
-        status.textContent =
-          `No named anchor within ${VISUAL_PICK_ANCHOR_SNAP_MM} mm of that click — click an anchor marker. ` +
-          'Advanced in this row stays available for keyboard entry.';
-        return;
-      }
-      selectAnchor(best.id);
-      return;
-    }
-    edgeClickAt(raw.x, raw.y);
-  });
-
-  /** Edge click at viewBox coordinates (side targets and blank surface
-   *  share this path, so the probe gates both identically). */
-  function edgeClickAt(vx: number, vy: number): void {
-    if (anchorId === null) return;
-    const point = xyToMm(vx, vy);
-    if (!point) return;
-    // Every new edge click retires the previous proposal FIRST: a refused
-    // click must never leave a stale arrow and an enabled action behind.
-    clearArrow();
-    lastOk = null;
-    commit.disabled = true;
-    edgeClickMm = point;
-    // Identify the clicked edge with the convention-neutral probe first, so
-    // the preselected convention follows the actual edge instead of assuming
-    // an axis. The operator still confirms or changes it before Commit.
-    const pickedAnchor = anchorById.get(anchorId);
-    if (!pickedAnchor) {
-      status.textContent = 'The chosen anchor is gone — click another anchor marker.';
-      anchorId = null;
-      layoutPickMarkers();
-      return;
-    }
-    const probe = resolveVisualDimension({
-      anchors: scoped.map((entry) => ({ id: entry.id, posMm: [entry.posMm[0], entry.posMm[1]] as [number, number] })),
-      footprint: {
-        centerMm: [placement.pos.xMm, placement.pos.yMm],
-        widthMm: placement.widthMm,
-        heightMm: placement.heightMm,
-        rotationDeg: placement.rotationDeg,
-      },
-      anchorClickMm: [pickedAnchor.posMm[0], pickedAnchor.posMm[1]],
-      edgeClickMm: [point.xMm, point.yMm],
-      convention: 'shortest-to-edge',
-      snapTolMm: VISUAL_PICK_ANCHOR_SNAP_MM,
-      maxEdgeDistMm: VISUAL_PICK_EDGE_SNAP_MM,
-    });
-    if (!probe.ok) {
-      if (probe.code === 'edge-too-far') {
-        status.textContent = `${probe.message} Click closer to a logo edge — a click on the blank garment never binds a far edge.`;
-      } else {
-        status.textContent = probe.message;
-      }
-      return;
-    }
-    if (checkedConvention() === null) {
-      const auto = probe.binding.edge === 'minX' || probe.binding.edge === 'maxX' ? 'dx' : 'dy';
-      radios.get(auto)!.checked = true;
-    }
-    resolve();
-  }
-
-  commit.addEventListener('click', () => {
-    const convention = checkedConvention();
-    if (blocked || anchorId === null || lastOk === null || convention === null || lastOk.convention !== convention) return;
-    measurement.anchorId = lastOk.anchorId;
-    measurement.edge = lastOk.edge;
-    measurement.convention = lastOk.convention;
-    disconnectPickResize();
-    renderLogoRows();
-    renderSheetPreview();
-  });
-
-  function close(): void {
-    disconnectPickResize();
-    panel.remove();
-    pickButton.disabled = false;
-    pickButton.focus();
-  }
-  cancel.addEventListener('click', close);
-  panel.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      close();
-    }
-  });
-
-  status.textContent = `Click an anchor marker (${scoped.length} named anchor${scoped.length === 1 ? '' : 's'} on ${regionName}).`;
-  rowBox.append(panel);
-  layoutPickMarkers();
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => {
-      if (svg.isConnected) layoutPickMarkers();
-    });
-  }
-  svg.focus();
-  svg.scrollIntoView({ block: 'nearest' });
-}
-
-function renderLogoRows(): void {
-  // Any rebuild discards open visual-pick panels with it: a partial pick is
-  // DOM-local only and never reaches authoring state, so config changes,
-  // return reloads, draft opens, anchor edits and add/remove all cancel an
-  // uncommitted pick instead of rebinding it elsewhere.
-  for (const teardown of visualPickTeardowns) teardown();
-  sheetLogos.replaceChildren();
-  const current = activeReturn();
-  const config = activeCandidateConfig();
-  if (!current || !config) return;
-  const authoring = sheetAuthoring.get(config.id);
-  if (!authoring) return;
-  if (config.placements.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'No logos configured on this sheet — 0 logos, nothing to place, measure, or produce.';
-    sheetLogos.append(empty);
-    return;
-  }
-  const blocked = authoringBlocked();
-  config.placements.forEach((placement, index) => {
-    const logoRef = logoRefForPlacement(placement, config.placements);
-    let row = authoring.logos.get(logoRef);
-    if (!row) {
-      row = defaultLogoAuthoring();
-      authoring.logos.set(logoRef, row);
-    }
-    const card = document.createElement('section');
-    card.className = 'sheet-logo-card';
-    const heading = document.createElement('h4');
-    heading.textContent = `${index + 1}. ${displayNameForLogo(current.candidate, placement, index, row.businessCode.trim())}`;
-    card.append(heading);
-    const region = current.candidate.products
-      .find((entry) => entry.id === placement.productId)?.regions
-      .find((entry) => entry.id === placement.regionId);
-    const meta = document.createElement('p');
-    meta.className = 'muted';
-    meta.textContent =
-      `Artwork ${displayMm(placement.widthMm)} × ${displayMm(placement.heightMm)} mm` +
-      (placement.rotationDeg !== 0 ? `, rotated ${displayMm(placement.rotationDeg)}°` : '') +
-      ` · area “${region?.name ?? placement.regionId}” · method ${placement.method}`;
-    card.append(meta);
-    const codeLabel = document.createElement('label');
-    codeLabel.className = 'field';
-    codeLabel.textContent = 'Business code';
-    const codeInput = document.createElement('input');
-    codeInput.type = 'text';
-    codeInput.value = row.businessCode;
-    codeInput.maxLength = 80;
-    codeInput.placeholder = 'e.g. EMB-7';
-    codeInput.disabled = blocked;
-    codeInput.setAttribute('aria-label', `Business code for logo ${index + 1}`);
-    codeInput.addEventListener('input', () => {
-      row!.businessCode = codeInput.value;
-      heading.textContent = `${index + 1}. ${displayNameForLogo(current.candidate, placement, index, codeInput.value.trim())}`;
-      renderSheetPreview();
-    });
-    codeLabel.append(codeInput);
-    card.append(codeLabel);
-    const scoped = anchorsForPlacement(placement);
-    const list = document.createElement('div');
-    list.setAttribute('data-measurement-list', '');
-    list.setAttribute('aria-label', `Measurements for logo ${index + 1}`);
-    const EDGE_OPTIONS = [['minX', 'left'], ['maxX', 'right'], ['minY', 'bottom'], ['maxY', 'top']] as const;
-    const CONVENTION_OPTIONS = [['dx', 'Horizontal'], ['dy', 'Vertical'], ['shortest-to-edge', 'Shortest']] as const;
-    row.measurements.forEach((measurement, measureIndex) => {
-      const rowBox = document.createElement('div');
-      rowBox.className = 'sheet-measurement-row';
-      rowBox.setAttribute('data-measurement-row', String(measureIndex));
-      const title = document.createElement('p');
-      title.className = 'muted';
-      title.textContent = `Measurement ${measureIndex + 1}`;
-      rowBox.append(title);
-      const grid = document.createElement('div');
-      grid.className = 'sheet-logo-grid';
-      const anchorLabel = document.createElement('label');
-      anchorLabel.textContent = 'Anchor';
-      const anchorSelect = document.createElement('select');
-      anchorSelect.disabled = blocked;
-      anchorSelect.setAttribute('aria-label', `Measurement ${measureIndex + 1} anchor for logo ${index + 1}`);
-      const none = document.createElement('option');
-      none.value = '';
-      none.textContent = scoped.length === 0 ? 'No anchors — setup needed' : 'Choose an anchor';
-      anchorSelect.append(none);
-      for (const anchor of scoped) {
-        const option = document.createElement('option');
-        option.value = anchor.id;
-        option.textContent = anchor.name;
-        anchorSelect.append(option);
-      }
-      anchorSelect.value = measurement.anchorId;
-      if (measurement.anchorId !== '' && !scoped.some((entry) => entry.id === measurement.anchorId)) {
-        const stale = document.createElement('option');
-        stale.value = measurement.anchorId;
-        stale.textContent = '(previously chosen anchor is gone — pick another)';
-        anchorSelect.append(stale);
-        anchorSelect.value = measurement.anchorId;
-      }
-      anchorSelect.addEventListener('change', () => {
-        measurement.anchorId = anchorSelect.value;
-        paintMeasurementResult();
-        renderSheetPreview();
-      });
-      anchorLabel.append(anchorSelect);
-      const edgeLabel = document.createElement('label');
-      edgeLabel.textContent = 'Artwork edge';
-      const edgeSelect = document.createElement('select');
-      edgeSelect.disabled = blocked;
-      edgeSelect.setAttribute('aria-label', `Measurement ${measureIndex + 1} edge for logo ${index + 1}`);
-      for (const [value, label] of EDGE_OPTIONS) {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        edgeSelect.append(option);
-      }
-      edgeSelect.value = measurement.edge;
-      edgeSelect.addEventListener('change', () => {
-        measurement.edge = edgeSelect.value as ArtworkEdge;
-        paintMeasurementResult();
-        renderSheetPreview();
-      });
-      edgeLabel.append(edgeSelect);
-      const conventionLabel = document.createElement('label');
-      conventionLabel.textContent = 'Direction';
-      const conventionSelect = document.createElement('select');
-      conventionSelect.disabled = blocked;
-      conventionSelect.setAttribute('aria-label', `Measurement ${measureIndex + 1} direction for logo ${index + 1}`);
-      for (const [value, label] of CONVENTION_OPTIONS) {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        conventionSelect.append(option);
-      }
-      conventionSelect.value = measurement.convention;
-      conventionSelect.addEventListener('change', () => {
-        measurement.convention = conventionSelect.value as MeasurementConvention;
-        paintMeasurementResult();
-        renderSheetPreview();
-      });
-      conventionLabel.append(conventionSelect);
-      grid.append(anchorLabel, edgeLabel, conventionLabel);
-      // Manual lists stay as the keyboard fallback, one disclosure behind
-      // the visual flow instead of three prominent dropdowns beside it.
-      const advanced = document.createElement('details');
-      advanced.className = 'disclosure';
-      advanced.setAttribute('data-measurement-advanced', '');
-      const advancedTitle = document.createElement('summary');
-      advancedTitle.textContent = 'Advanced';
-      advanced.append(advancedTitle, grid);
-      rowBox.append(advanced);
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'btn-secondary';
-      remove.textContent = 'Remove measurement';
-      remove.setAttribute('aria-label', `Remove measurement ${measureIndex + 1} for logo ${index + 1}`);
-      remove.disabled = blocked || row.measurements.length <= 1;
-      remove.addEventListener('click', () => {
-        const at = row.measurements.indexOf(measurement);
-        if (at >= 0 && row.measurements.length > 1) row.measurements.splice(at, 1);
-        renderLogoRows();
-        renderSheetPreview();
-      });
-      rowBox.append(remove);
-      const pick = document.createElement('button');
-      pick.type = 'button';
-      pick.className = 'btn-secondary';
-      pick.textContent = 'Pick on diagram';
-      pick.setAttribute('aria-label', `Pick on diagram for measurement ${measureIndex + 1} for logo ${index + 1}`);
-      const pickRegion = current.candidate.products
-        .find((entry) => entry.id === placement.productId)?.regions
-        .find((entry) => entry.id === placement.regionId);
-      if (blocked || scoped.length === 0 || !pickRegion) {
-        pick.disabled = true;
-        pick.title = scoped.length === 0
-          ? 'No anchors on this area yet — set one up first'
-          : 'Unavailable while authoring is locked or the area is missing';
-      }
-      pick.addEventListener('click', () => {
-        if (pick.disabled) return;
-        const liveRegion = current.candidate.products
-          .find((entry) => entry.id === placement.productId)?.regions
-          .find((entry) => entry.id === placement.regionId);
-        if (!liveRegion) return;
-        pick.disabled = true;
-        openVisualPickPanel(rowBox, pick, {
-          candidate: current.candidate,
-          configId: config.id,
-          placement,
-          scoped: anchorsForPlacement(placement),
-          safeArea: liveRegion.safeArea.map((point) => [point[0], point[1]] as const),
-          regionName: liveRegion.name ?? placement.regionId,
-          measurement,
-          logoRef,
-          logoIndex: index,
-          measureIndex,
-          blocked,
-        });
-      });
-      rowBox.append(pick);
-      const result = document.createElement('p');
-      result.setAttribute('role', 'status');
-      result.setAttribute('aria-label', `Measurement ${measureIndex + 1} result for logo ${index + 1}`);
-      rowBox.append(result);
-      const detailWrap = document.createElement('details');
-      detailWrap.className = 'disclosure';
-      const detailTitle = document.createElement('summary');
-      detailTitle.textContent = 'Details';
-      const detailBody = document.createElement('p');
-      detailBody.className = 'muted';
-      detailWrap.append(detailTitle, detailBody);
-      rowBox.append(detailWrap);
-      function paintMeasurementResult(): void {
-        const described = describeLogoMeasurement(current!.candidate, placement, config!.placements, measurement);
-        if (described.ok && described.primary !== null) {
-          result.textContent = described.primary;
-          result.className = 'sheet-logo-result';
-          detailBody.textContent = described.text;
-          detailWrap.hidden = false;
-        } else {
-          result.textContent = described.text;
-          result.className = 'sheet-logo-unfinished';
-          detailWrap.hidden = true;
-        }
-      }
-      paintMeasurementResult();
-      list.append(rowBox);
-    });
-    card.append(list);
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'btn-secondary';
-    add.textContent = 'Add another';
-    add.setAttribute('aria-label', `Add measurement for logo ${index + 1}`);
-    add.disabled = blocked;
-    add.addEventListener('click', () => {
-      row!.measurements.push({ anchorId: '', edge: 'minX', convention: 'dx' });
-      renderLogoRows();
-      renderSheetPreview();
-    });
-    card.append(add);
-    sheetLogos.append(card);
-  });
-}
-
-function renderCustomerNotes(): void {
-  sheetCustomerNotes.replaceChildren();
-  const current = activeReturn();
-  const config = activeCandidateConfig();
-  if (!current || !config) return;
-  const title = document.createElement('p');
-  title.textContent = 'Customer notes — source context, not operational instructions (read-only):';
-  title.style.fontWeight = '650';
-  sheetCustomerNotes.append(title);
-  const source = current.imported.configurations.find((entry) => entry.id === config.id);
-  const placementNotes = (source?.placements ?? []).flatMap((placement) =>
-    placement.instructions !== undefined ? [placement.instructions] : [],
-  );
-  const lines = [...placementNotes];
-  if (current.imported.instructions !== undefined) lines.push(current.imported.instructions);
-  if (lines.length === 0) {
-    const none = document.createElement('p');
-    none.className = 'muted';
-    none.textContent = 'No customer notes on this sheet.';
-    sheetCustomerNotes.append(none);
-    return;
-  }
-  for (const line of lines) {
-    const row = document.createElement('p');
-    row.textContent = line;
-    sheetCustomerNotes.append(row);
-  }
-}
-
-function syncJobInputs(): void {
-  const authoring = activeSheetConfigId !== null ? sheetAuthoring.get(activeSheetConfigId) : undefined;
-  if (!authoring) return;
-  const active = document.activeElement;
-  const set = (input: HTMLInputElement | HTMLTextAreaElement, value: string): void => {
-    if (input !== active) input.value = value;
-  };
-  set(sheetCustomer, authoring.customer);
-  set(sheetReference, authoring.reference);
-  set(sheetArticle, authoring.article);
-  set(sheetInstructions, authoring.instructions);
-  set(sheetTechTemperature, authoring.tech.temperature);
-  set(sheetTechTime, authoring.tech.time);
-  set(sheetTechPressure, authoring.tech.pressure);
-  set(sheetTechColour, authoring.tech.colour);
-  set(sheetTechThread, authoring.tech.thread);
-}
-
-function initSheetAuthoring(candidate: ResultCandidate): void {
-  sheetAuthoring.clear();
-  safeAreaProposals.clear();
-  authorAnchors = [];
-  for (const config of candidate.configurations) {
-    const authoring = defaultSheetAuthoring();
-    for (const placement of config.placements) {
-      authoring.logos.set(logoRefForPlacement(placement, config.placements), defaultLogoAuthoring());
-    }
-    sheetAuthoring.set(config.id, authoring);
-  }
-  activeSheetConfigId = candidate.configurations[0]?.id ?? null;
-  renderAuthoringPanel();
-}
-
-function renderAuthoringPanel(): void {
-  const current = activeReturn();
-  sheetConfig.replaceChildren();
-  if (!current) return;
-  for (const config of current.candidate.configurations) {
-    const option = document.createElement('option');
-    option.value = config.id;
-    option.textContent = configDisplayName(config);
-    sheetConfig.append(option);
-  }
-  if (activeSheetConfigId === null || !current.candidate.configurations.some((entry) => entry.id === activeSheetConfigId)) {
-    activeSheetConfigId = current.candidate.configurations[0]?.id ?? null;
-  }
-  if (activeSheetConfigId !== null) sheetConfig.value = activeSheetConfigId;
-  renderCustomerNotes();
-  syncJobInputs();
-  renderLogoRows();
-  refreshAnchorSetup();
-  renderSheetPreview();
-  updateControls();
-}
-
-/* ---------------- Anchor + safe-area setup wiring ---------------- */
-
-function anchorScopeKey(scope: { productId: string; variantId: string; regionId: string }): string {
-  return `${scope.productId} ${scope.variantId} ${scope.regionId}`;
-}
-
-function setupInputForActive(): AnchorSetupInput | { error: string } {
-  const current = activeReturn();
-  const config = activeCandidateConfig();
-  if (!current || !config || lastReturnAssets === null) return { error: 'Load a return first.' };
-  const sides = lastReturnReferenceViews[config.id] ?? [];
-  const side = sides[Number(anchorSide.value)];
-  if (!side) return { error: 'Choose a view image for the setup.' };
-  const photoBytes = lastReturnAssets.get(side.imagePath);
-  const header = photoBytes ? readRasterHeader(photoBytes) : null;
-  if (!photoBytes || !header) {
-    return { error: `Photo “${side.imagePath}” is missing or undecodable; anchors can still be entered numerically, but photo clicks need the mapped photo.` };
-  }
-  const viewDisplay = side.label ?? side.view ?? side.imagePath;
-  const states = evaluateOperationPhotoStates(current.candidate, lastReturnAssets);
-  const bound = (states[config.id] ?? []).find((entry) => entry.imagePath === side.imagePath);
-  if (!bound || bound.regionId === undefined || bound.view === undefined || bound.transform === undefined) {
-    return { error: `Setup needed: save a photo mapping for the ${viewDisplay} view first (Choose items → Map artwork photos). Nothing is guessed from photo bounds.` };
-  }
-  if (typeof bound.view !== 'string' || bound.view.length === 0) {
-    return { error: `Setup needed: the saved mapping declares an unknown view (“${bound.view}”).` };
-  }
-  const product = current.candidate.products.find((entry) => entry.id === config.productId);
-  const region = product?.regions.find((entry) => entry.id === anchorRegion.value);
-  if (!product || !region) return { error: 'Choose a region for the setup.' };
-  const key = anchorScopeKey({ productId: config.productId, variantId: config.variantId, regionId: region.id });
-  const proposal = safeAreaProposals.get(key);
-  const safeArea = region.safeArea
-    .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
-    .map((point) => ({ x: point[0]!, y: point[1]! }));
-  return {
-    photo: { bytes: photoBytes, widthPx: header.width, heightPx: header.height, label: side.label ?? side.view ?? side.imagePath },
-    transform: { ...bound.transform },
-    mappingStatus: bound.status,
-    view: bound.view,
-    scope: {
-      productId: config.productId,
-      variantId: config.variantId,
-      regionId: region.id,
-      frameId: region.frame.frameId,
-      calibrationId: region.calibrationRef.calibrationId,
-      calibrationVersion: region.calibrationRef.version,
-      regionName: region.name ?? null,
-    },
-    safeArea,
-    anchors: authorAnchors.filter((entry) =>
-      entry.productId === config.productId && entry.variantId === config.variantId && entry.regionId === region.id),
-    stagedSafeArea: proposal ? [...proposal.staged] : null,
-  };
-}
-
-function refreshAnchorSetup(): void {
-  const current = activeReturn();
-  const config = activeCandidateConfig();
-  anchorSide.replaceChildren();
-  anchorRegion.replaceChildren();
-  anchorSetupBox.replaceChildren();
-  if (anchorSetupHandle !== null) {
-    anchorSetupHandle.destroy();
-    anchorSetupHandle = null;
-  }
-  if (!current || !config) {
-    anchorStatus.textContent = 'Load a return to set up anchors.';
-    return;
-  }
-  const sides = lastReturnReferenceViews[config.id] ?? [];
-  sides.forEach((side, index) => {
-    const option = document.createElement('option');
-    option.value = String(index);
-    option.textContent = side.label ?? side.view ?? side.imagePath;
-    anchorSide.append(option);
-  });
-  const product = current.candidate.products.find((entry) => entry.id === config.productId);
-  for (const region of product?.regions ?? []) {
-    const option = document.createElement('option');
-    option.value = region.id;
-    option.textContent = region.name ?? region.id;
-    anchorRegion.append(option);
-  }
-  anchorStatus.textContent = sides.length === 0
-    ? 'No product photo supplied for this sheet — setup needed before anchors can be placed on a photo.'
-    : '';
-  anchorSetupHandle = createAnchorSetup(anchorSetupBox, () => setupInputForActive(), {
-    onAnchorsChange: (next) => {
-      const scope = next[0];
-      const key = scope ? anchorScopeKey(scope) : null;
-      if (key === null) return;
-      authorAnchors = authorAnchors.filter((entry) => anchorScopeKey(entry) !== key).concat(next);
-      renderLogoRows();
-      renderSheetPreview();
-    },
-    onSafeAreaProposal: (staged, note) => {
-      const configNow = activeCandidateConfig();
-      const regionId = anchorRegion.value;
-      if (!configNow) return;
-      const key = anchorScopeKey({ productId: configNow.productId, variantId: configNow.variantId, regionId });
-      if (staged === null || note === null) {
-        safeAreaProposals.delete(key);
-      } else {
-        safeAreaProposals.set(key, { staged, note });
-      }
-    },
-    onStatus: (message) => {
-      anchorStatus.textContent = message;
-    },
-  });
-  anchorSetupHandle.refresh();
-}
-
-/* ---------------- Operation-draft sidecar ---------------- */
-
-const DRAFT_FILE_BYTES = 256 * 1024;
-
-function buildDraftForActiveSheet(): { draft: OperationDraft; businessCodes: Record<string, string> } | { error: string } {
-  const current = activeReturn();
-  const config = activeCandidateConfig();
-  if (!current || !config) return { error: 'Load a return before saving a draft.' };
-  const authoring = sheetAuthoring.get(config.id);
-  if (!authoring) return { error: 'No authoring state for this sheet.' };
-  for (const anchor of authorAnchors) {
-    if (typeof anchor.id !== 'string' || anchor.id.length === 0 ||
-      typeof anchor.name !== 'string' || anchor.name.trim().length === 0) {
-      return { error: `Draft not saved: an anchor has an empty id or name. Rename it in the setup below.` };
-    }
-    if (!Array.isArray(anchor.posMm) || !Number.isFinite(anchor.posMm[0]) || !Number.isFinite(anchor.posMm[1])) {
-      return { error: `Draft not saved: anchor “${anchor.name}” has a non-finite position.` };
-    }
-  }
-  const methodParams: Record<string, string> = {};
-  if (authoring.tech.temperature.trim() !== '') methodParams['temperature'] = authoring.tech.temperature.trim();
-  if (authoring.tech.time.trim() !== '') methodParams['time'] = authoring.tech.time.trim();
-  if (authoring.tech.pressure.trim() !== '') methodParams['pressure'] = authoring.tech.pressure.trim();
-  if (authoring.tech.thread.trim() !== '') methodParams['thread'] = authoring.tech.thread.trim();
-  if (authoring.tech.colour.trim() !== '') methodParams['colour'] = authoring.tech.colour.trim();
-  const job: OperationDraft['job'] = {};
-  if (authoring.customer.trim() !== '') job.customer = authoring.customer.trim();
-  if (authoring.reference.trim() !== '') job.reference = authoring.reference.trim();
-  if (authoring.article.trim() !== '') job.article = authoring.article.trim();
-  const businessCodes: Record<string, string> = Object.create(null);
-  for (const [logoRef, row] of authoring.logos) {
-    if (row.businessCode.trim() !== '') businessCodes[logoRef] = row.businessCode.trim();
-  }
-  const key = activeSheetConfigId !== null
-    ? anchorScopeKey({ productId: config.productId, variantId: config.variantId, regionId: anchorRegion.value })
-    : null;
-  const proposal = key !== null ? safeAreaProposals.get(key) : undefined;
-  const draft: OperationDraft = {
-    version: OPERATION_DRAFT_VERSION,
-    draftVersion: OPERATION_DRAFT_NUMBER,
-    sourceRevision: current.imported.revision,
-    sourceDigest: current.candidate.digest,
-    job,
-    operationalInstructions: authoring.instructions,
-    anchors: authorAnchors.map((entry) => ({ ...entry, posMm: [entry.posMm[0]!, entry.posMm[1]!] as [number, number] })),
-    dimensions: bindingsForConfig(config.id),
-    ...(current.candidate.configurations.length === 1 ? {} : { configurationId: config.id }),
-    ...(Object.keys(methodParams).length === 0 ? {} : { methodParams }),
-    ...(proposal === undefined ? {} : { updatedNote: proposal.note }),
-  };
-  return { draft, businessCodes };
-}
-
-function draftFileName(draft: OperationDraft): string {
-  const reference = draft.job.reference?.trim() ?? '';
-  const base = reference !== '' ? safeJobPart(reference) : 'operation-sheet';
-  return `${base}-r${draft.sourceRevision}-operation-draft.json`;
-}
-
-function saveOperationDraft(): void {
-  if (authoringBlocked()) return;
-  const current = activeReturn();
-  if (!current) {
-    draftStatus.textContent = 'Load a return before saving a draft.';
-    return;
-  }
-  const built = buildDraftForActiveSheet();
-  if ('error' in built) {
-    draftStatus.textContent = built.error;
-    return;
-  }
-  const record = built.draft as unknown as Record<string, unknown>;
-  const file: Record<string, unknown> = { ...record };
-  if (Object.keys(built.businessCodes).length > 0) file['_sheetUi'] = { businessCodes: built.businessCodes };
-  downloadBytes(
-    new TextEncoder().encode(JSON.stringify(file)),
-    draftFileName(built.draft),
-    'application/json',
-  );
-  draftStatus.textContent =
-    `Saved operation draft for revision ${built.draft.sourceRevision}. ` +
-    `Reopen it with “Reopen operation draft” — a changed return is refused as stale, never silently applied.`;
-}
-
-async function openOperationDraftFile(file: File): Promise<void> {
-  const current = activeReturn();
-  if (!current) {
-    draftStatus.textContent = 'Load a return before reopening a draft.';
-    return;
-  }
-  if (file.size > DRAFT_FILE_BYTES) {
-    draftStatus.textContent = `Draft not opened: ${file.name} exceeds the 256 KiB draft bound; choose the saved operation draft JSON.`;
-    return;
-  }
-  let raw: unknown;
-  try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch {
-    draftStatus.textContent = `Draft not opened: ${file.name} is not valid JSON. The current authoring is unchanged.`;
-    return;
-  }
-  if (!isOperationDraft(raw)) {
-    draftStatus.textContent = `Draft not opened: ${file.name} is not an operation-draft/1 sidecar. The current authoring is unchanged.`;
-    return;
-  }
-  if (isStaleDraft(raw, current.candidate.digest, current.imported.revision)) {
-    draftStatus.textContent =
-      `Draft is stale (saved for revision ${raw.sourceRevision}; this return is revision ${current.imported.revision} ` +
-      `with a different digest): review the return again before applying — nothing was changed.`;
-    return;
-  }
-  const targetId = raw.configurationId
-    ?? (current.candidate.configurations.length === 1 ? current.candidate.configurations[0]?.id : undefined);
-  const target = current.candidate.configurations.find((entry) => entry.id === targetId);
-  if (!target) {
-    draftStatus.textContent =
-      `Draft not opened: it targets a configuration (“${raw.configurationId ?? '(sole sheet)'}”) absent from this return. The current authoring is unchanged.`;
-    return;
-  }
-  const validAnchors = raw.anchors.filter((entry): entry is AnchorDef =>
-    typeof entry === 'object' && entry !== null &&
-    typeof (entry as AnchorDef).id === 'string' && (entry as AnchorDef).id.length > 0 &&
-    typeof (entry as AnchorDef).name === 'string' && (entry as AnchorDef).name.trim().length > 0 &&
-    Array.isArray((entry as AnchorDef).posMm) &&
-    Number.isFinite((entry as AnchorDef).posMm[0]) && Number.isFinite((entry as AnchorDef).posMm[1]));
-  const droppedAnchors = raw.anchors.length - validAnchors.length;
-  authorAnchors = validAnchors.map((entry) => ({
-    id: entry.id,
-    name: entry.name.trim(),
-    productId: entry.productId,
-    variantId: entry.variantId,
-    regionId: entry.regionId,
-    frameId: entry.frameId,
-    calibrationId: entry.calibrationId,
-    calibrationVersion: entry.calibrationVersion,
-    posMm: [entry.posMm[0]!, entry.posMm[1]!] as [number, number],
-  }));
-  const authoring = defaultSheetAuthoring();
-  authoring.customer = raw.job.customer ?? '';
-  authoring.reference = raw.job.reference ?? '';
-  authoring.article = raw.job.article ?? '';
-  authoring.instructions = raw.operationalInstructions;
-  authoring.tech.temperature = raw.methodParams?.['temperature'] ?? '';
-  authoring.tech.time = raw.methodParams?.['time'] ?? '';
-  authoring.tech.pressure = raw.methodParams?.['pressure'] ?? '';
-  authoring.tech.thread = raw.methodParams?.['thread'] ?? '';
-  authoring.tech.colour = raw.methodParams?.['colour'] ?? '';
-  for (const placement of target.placements) {
-    authoring.logos.set(logoRefForPlacement(placement, target.placements), defaultLogoAuthoring());
-  }
-  const extrasByLogo = new Map<string, DimensionBinding[]>();
-  let restoredRows = 0;
-  for (const binding of raw.dimensions) {
-    if (typeof binding !== 'object' || binding === null) continue;
-    const candidate = binding as DimensionBinding;
-    if (matchLogoRef(target.placements, candidate.logoRef) === undefined) continue;
-    if (candidate.edge !== 'minX' && candidate.edge !== 'maxX' && candidate.edge !== 'minY' && candidate.edge !== 'maxY') continue;
-    if (candidate.convention !== 'dx' && candidate.convention !== 'dy' && candidate.convention !== 'shortest-to-edge') continue;
-    if (typeof candidate.anchorId !== 'string') continue;
-    const row = authoring.logos.get(candidate.logoRef);
-    if (!row) continue;
-    const list = extrasByLogo.get(candidate.logoRef) ?? [];
-    list.push({
-      logoRef: candidate.logoRef,
-      anchorId: candidate.anchorId,
-      edge: candidate.edge,
-      convention: candidate.convention,
-      label: typeof candidate.label === 'string' && candidate.label.length > 0
-        ? candidate.label
-        : candidate.logoRef,
-    });
-    extrasByLogo.set(candidate.logoRef, list);
-  }
-  for (const [logoRef, row] of authoring.logos) {
-    const rows = extrasByLogo.get(logoRef) ?? [];
-    row.measurements = rows.map((entry) => ({
-      anchorId: entry.anchorId,
-      edge: entry.edge,
-      convention: entry.convention,
-    }));
-    if (row.measurements.length === 0) row.measurements = [{ anchorId: '', edge: 'minX', convention: 'dx' }];
-    restoredRows += rows.length;
-  }
-  const companion = (raw as unknown as { _sheetUi?: unknown })._sheetUi;
-  if (typeof companion === 'object' && companion !== null) {
-    const codes = (companion as { businessCodes?: unknown }).businessCodes;
-    if (typeof codes === 'object' && codes !== null) {
-      for (const [logoRef, code] of Object.entries(codes as Record<string, unknown>)) {
-        if (typeof code !== 'string') continue;
-        const row = authoring.logos.get(logoRef);
-        if (row) row.businessCode = code;
-      }
-    }
-  }
-  sheetAuthoring.set(target.id, authoring);
-  activeSheetConfigId = target.id;
-  renderAuthoringPanel();
-  draftStatus.textContent =
-    `Reopened operation draft for revision ${raw.sourceRevision}` +
-    (droppedAnchors > 0 ? ` (${droppedAnchors} invalid anchor(s) dropped)` : '') +
-    (restoredRows > 0 ? ` (${restoredRows} dimension row(s) restored)` : '') +
-    `. Review the values before printing — stale returns are refused, never merged.`;
-}
-
-function onDraftFileChange(): void {
-  const file = draftFile.files?.[0];
-  if (file) void openOperationDraftFile(file);
-  draftFile.value = '';
-}
-
-/* ---------------- Authoring event wiring ---------------- */
-
-sheetConfig.addEventListener('change', () => {
-  if (authoringBlocked()) return;
-  activeSheetConfigId = sheetConfig.value;
-  renderCustomerNotes();
-  syncJobInputs();
-  renderLogoRows();
-  refreshAnchorSetup();
-  renderSheetPreview();
-  updateControls();
-});
-
-for (const [input, apply] of [
-  [sheetCustomer, (value: string, authoring: SheetAuthoring) => { authoring.customer = value; }],
-  [sheetReference, (value: string, authoring: SheetAuthoring) => { authoring.reference = value; }],
-  [sheetArticle, (value: string, authoring: SheetAuthoring) => { authoring.article = value; }],
-  [sheetInstructions, (value: string, authoring: SheetAuthoring) => { authoring.instructions = value; }],
-  [sheetTechTemperature, (value: string, authoring: SheetAuthoring) => { authoring.tech.temperature = value; }],
-  [sheetTechTime, (value: string, authoring: SheetAuthoring) => { authoring.tech.time = value; }],
-  [sheetTechPressure, (value: string, authoring: SheetAuthoring) => { authoring.tech.pressure = value; }],
-  [sheetTechColour, (value: string, authoring: SheetAuthoring) => { authoring.tech.colour = value; }],
-  [sheetTechThread, (value: string, authoring: SheetAuthoring) => { authoring.tech.thread = value; }],
-] as const) {
-  input.addEventListener('input', () => {
-    if (authoringBlocked() || activeSheetConfigId === null) return;
-    const authoring = sheetAuthoring.get(activeSheetConfigId);
-    if (!authoring) return;
-    apply((input as HTMLInputElement | HTMLTextAreaElement).value, authoring);
-    renderSheetPreview();
-  });
-}
-
-anchorSide.addEventListener('change', () => {
-  if (!authoringBlocked()) anchorSetupHandle?.refresh();
-});
-anchorRegion.addEventListener('change', () => {
-  if (!authoringBlocked()) anchorSetupHandle?.refresh();
-});
-draftSave.addEventListener('click', saveOperationDraft);
-draftOpenButton.addEventListener('click', () => draftFile.click());
-draftFile.addEventListener('change', onDraftFileChange);

@@ -630,7 +630,13 @@ export function applyInstructionsUpdate(
 export function toSheetBindings(
   metadata: OperatorJobMetadata,
 ): Record<string, readonly DimensionBinding[]> {
-  const out: Record<string, DimensionBinding[]> = {};
+  // Null-prototype container: configuration ids are file controlled and may
+  // validly be `__proto__`/`constructor`/`toString` (same rule as the
+  // session records that consume this output).
+  const out: Record<string, DimensionBinding[]> = Object.create(null) as Record<
+    string,
+    DimensionBinding[]
+  >;
   for (const binding of metadata.bindings) {
     if (binding.status !== "bound") continue;
     const entry: DimensionBinding = {

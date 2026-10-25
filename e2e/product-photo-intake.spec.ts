@@ -395,7 +395,7 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
     const frontPng = await syntheticPngBytes(page, '#1d6f3a');
     const frontDigest = digestOf(frontPng);
     const legacy = await legacyFrontPackage(frontPng);
-    await (await shown(page, 'source-file')).setInputFiles({ name: 'legacy-front.logo-project', mimeType: 'application/zip', buffer: Buffer.from(legacy.bytes) });
+    await (await shown(page, 'job-open-file')).setInputFiles({ name: 'legacy-front.logo-project', mimeType: 'application/zip', buffer: Buffer.from(legacy.bytes) });
     await expect(await shown(page, 'source-status')).toContainText('Loaded legacy-front.logo-project');
     await expect(page.locator('[data-in-place-view="front"] .view-row-name')).toHaveValue('Front view');
     await expect(await shown(page, 'product-photo-context')).toContainText('Legacy Jacket');
@@ -546,7 +546,11 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
     assert.ok(masterSidecarRaw, 'master must carry the saved anchors sidecar through the replace');
     const masterSidecar = JSON.parse(Buffer.from(masterSidecarRaw.bytes).toString('utf8')) as { anchors: Array<{ name: string }> };
     expect(masterSidecar.anchors.map((anchor) => anchor.name)).toEqual(['Anchor 1']);
-    await (await shown(page, 'source-file')).setInputFiles(masterPath);
+    await (await shown(page, 'job-open-file')).setInputFiles(masterPath);
+    // Unsaved edits are held by the retained replacement guard (Journey E):
+    // Discard reproduces the old silent replace before asserting the reopen.
+    await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
+    await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('Loaded photo-intake-master.logo-project');
     await expect(page.locator('[data-in-place-view="front"] .view-row-name')).toHaveValue('Front view');
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
@@ -744,7 +748,7 @@ test('five named views calibrate, save, reopen, issue, customer places, review a
     const fresh = await context.newPage();
     try {
       await gotoBuilder(fresh);
-      await fresh.locator('[data-builder-hook="source-file"]').setInputFiles(masterPath);
+      await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
       await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('.logo-project');
       const freshWorkspace = builder(fresh, 'product-workspace');
       for (const label of renamedLabels) {

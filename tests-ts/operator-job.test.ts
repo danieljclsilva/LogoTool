@@ -243,10 +243,22 @@ describe("markDependentMeasurementsUnresolved", () => {
     const scopeRemoved = JSON.parse(JSON.stringify(makeProject())) as ProjectDocument;
     scopeRemoved.products[0]!.regions = [];
     const { metadata: marked } = markDependentMeasurementsUnresolved(metadata, scopeRemoved);
-    assert.deepEqual(toSheetBindings(marked), {});
+    assert.deepEqual(Object.keys(toSheetBindings(marked)), []);
     const sheetBindings = toSheetBindings(metadata);
     assert.deepEqual(Object.keys(sheetBindings), ["cfg-m"]);
     assert.equal(sheetBindings["cfg-m"]![0]!.logoRef, "place-1");
+  });
+
+  it("keeps hostile configuration ids as own sheet inputs", () => {
+    const metadata = filledMetadata();
+    metadata.bindings = ["__proto__", "constructor", "toString"].map((configurationId) => ({
+      ...boundBinding(),
+      configurationId,
+    }));
+    const sheetBindings = toSheetBindings(metadata);
+    assert.deepEqual(Object.keys(sheetBindings).sort(), ["__proto__", "constructor", "toString"]);
+    assert.equal(sheetBindings["__proto__"]![0]!.logoRef, "place-1");
+    assert.equal(sheetBindings["constructor"]![0]!.logoRef, "place-1");
   });
 });
 

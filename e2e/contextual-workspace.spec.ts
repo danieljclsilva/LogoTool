@@ -221,7 +221,7 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
       await syntheticPngBytes(page, '#274a68', 2000, 1600),
     )));
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-big.logo-project');
     const workspace = builder(page, 'product-workspace');
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
@@ -388,7 +388,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
       await syntheticPngBytes(page, '#6f1d3a'),
     )));
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-two-products.logo-project');
     const workspace = builder(page, 'product-workspace');
     const productSelect = builder(page, 'workspace-product');
@@ -491,7 +491,11 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
     const fresh = (await stage.boundingBox())!;
     await stage.click({ position: { x: Math.round(fresh.width * 0.65), y: Math.round(fresh.height * 0.6) } });
     await expect(workspace.getByText(/Created “Anchor \d+”/)).toBeVisible();
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
+    // Retained replacement guard (Journey E): the staged anchor keeps the
+    // job dirty, so Discard reproduces the old silent replace here.
+    await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
+    await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-two-products.logo-project');
     await expect(workspace.getByText('Matches the saved setup.')).toBeVisible();
     await expect(workspace.getByText('Anchors (0)')).toBeVisible();
@@ -513,7 +517,7 @@ test('contextual workspace: variant switches restore drafts, shared effect state
       await syntheticPngBytes(page, '#1d3a6f', 400, 300),
     )));
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
-    await (await shown(page, 'source-file')).setInputFiles(fixturePath);
+    await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-shared.logo-project');
     const workspace = builder(page, 'product-workspace');
     const variantSelect = builder(page, 'workspace-variant');

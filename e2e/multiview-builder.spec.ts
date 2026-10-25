@@ -97,14 +97,6 @@ async function selectOnlyProduct(page: Page, productId: string): Promise<void> {
     await setChecked(box, label.includes(productId));
   }
   await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
-  // The preview-only escape lives in the hidden legacy details section: set it
-  // directly (same real change event a human tick produces) instead of
-  // clicking an invisible box.
-  await page.locator('[data-builder-hook="preview-only-acknowledge"]').evaluate((element) => {
-    const input = element as HTMLInputElement;
-    input.checked = true;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
 }
 
 async function syntheticPng(page: Page, color: string, width: number, height: number): Promise<Uint8Array> {
@@ -560,14 +552,8 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
     await (await shown(page, 'product-add')).click();
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     // Issue with every setup selected, then confirm the merged manifest
-    // keeps the v1 reference VERBATIM alongside the new v2 view. The newcomer
-    // is preview-only, so the explicit escape is ticked deliberately.
+    // keeps the v1 reference VERBATIM alongside the new v2 view.
     await selectAllLists(page);
-    await page.locator('[data-builder-hook="preview-only-acknowledge"]').evaluate((element) => {
-      const input = element as HTMLInputElement;
-      input.checked = true;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    });
     await fillIdentity(page, 'Acme Athletics', 'MV-V1-01', 'Internal operator');
     await createCustomerFile(page);
     const baseline = await readOfficeCopy(page, 'v1preserve.logo-project');
