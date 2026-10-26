@@ -1055,7 +1055,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
       const box = (await canvas.boundingBox())!;
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
-    const ms = (name: string) => setupHost.locator(`[data-model-setup-hook="${name}"]`);
+    const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await expect(ms('reference-readout')).toContainText('A (');
@@ -1065,7 +1065,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await ms('ref-fit').click();
     await expect(ms('reference-scale')).toContainText('scale 1 unit =');
     await ms('area-name').fill('Chest');
-    await ms('area-start').click();
+    await ms('tool-freehand').click();
     await surfaceClick(0.44, 0.44);
     await surfaceClick(0.56, 0.44);
     await surfaceClick(0.56, 0.52);

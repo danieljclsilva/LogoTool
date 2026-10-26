@@ -186,6 +186,10 @@
     .product-setup-chooser[data-count="1"] { display: none; }
     /* 3D model setup (lead-owned mount for model-setup-view.ts). */
     .model-setup-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    .model-setup-author-tools { flex-basis: 100%; min-width: 0; }
+    .model-setup-author-tools p { margin: 6px 0; }
+    .model-setup-author-tools input { max-width: 100%; box-sizing: border-box; }
+    .model-setup-author-tools .btn-secondary { width: auto; }
     .model-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
     .model-setup-actions .btn-secondary { width: auto; }
     .model-setup-field { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; }
@@ -432,7 +436,7 @@
             <p class="task-sub">Tick only the products and logos the customer needs. Use Open setup to prepare a product.</p>
 
             <h3 class="group-title">Set up product</h3>
-            <p class="muted">Work directly on the product photo: draw the safe area, click to place anchors, then save once. The photo is only a reference — all positions are stored in millimetres.</p>
+            <p class="muted">Set a reference measurement and named safe areas directly on your product, then save the setup.</p>
             <div class="product-setup-chooser">
               <label class="field" data-workspace-when="multi-product">Product<select data-builder-hook="workspace-product" aria-label="Workspace product"></select></label>
               <label class="field" data-workspace-when="multi-variant">Option<select data-builder-hook="workspace-variant" aria-label="Workspace option"></select></label>
@@ -441,7 +445,6 @@
             <div data-builder-hook="product-workspace" tabindex="-1"></div>
             <div data-builder-hook="guided-scale" hidden></div>
             <div data-builder-hook="product-model" hidden>
-              <p class="muted">Drag to rotate the model. Two-click reference setup happens on the 3D surface below — no photos needed, and photos cannot be attached to a 3D-model product.</p>
               <div data-model-setup-hook="viewbar" role="toolbar" aria-label="3D preview view controls"></div>
               <div class="product-model-stage" data-builder-hook="product-model-stage"><canvas data-builder-hook="product-model-canvas"></canvas></div>
               <p class="muted" data-builder-hook="product-model-status" role="status"></p>

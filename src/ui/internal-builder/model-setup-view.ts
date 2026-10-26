@@ -625,7 +625,7 @@ export interface ModelSetupViewHandle {
 type ArmTarget = 'refA' | 'refB' | 'areaPoint' | null;
 
 /** Safe-area authoring tool: freehand trace/corners or drag-a-rectangle. */
-type AreaTool = 'freehand' | 'rectangle';
+type AreaTool = 'rotate' | 'freehand' | 'rectangle';
 
 interface DraftArea {
   id: string;
@@ -663,7 +663,7 @@ function newDraft(): ProductDraft {
     selectedAreaId: null,
     drawing: null,
     drawingName: '',
-    areaTool: 'freehand',
+    areaTool: 'rotate',
     handleArm: null,
     anchorsVisible: true,
     safeAreasVisible: true,
@@ -750,7 +750,7 @@ export function createModelSetupView(
   let advancedOpen = false;
   let lastStatus = '';
   const drafts = new Map<string, ProductDraft>();
-  let downAt: { x: number; y: number; button: number } | null = null;
+  let downAt: { x: number; y: number; button: number; pointerId: number } | null = null;
   /**
    * Live drag/edit preview in native coords (render-only): folded into the
    * safe-area overlays by paintViewer, discarded on release/cancel. Stored
@@ -1113,6 +1113,10 @@ export function createModelSetupView(
 
   /** Roll back any active canvas gesture without touching staged data. */
   const cancelGestureSilent = (): void => {
+    if (downAt !== null) {
+      try { canvasOf()?.releasePointerCapture(downAt.pointerId); } catch { /* already released */ }
+    }
+    downAt = null;
     gesture = null;
     pendingHandle = null;
     livePreview = null;
@@ -1278,7 +1282,12 @@ export function createModelSetupView(
     corners: SetupVec3[],
     source: 'rectangle drag' | 'trace',
   ): string => {
-    const name = draft.drawingName.trim();
+    let name = draft.drawingName.trim();
+    if (name === '') {
+      let number = draft.areas.length + 1;
+      while (draft.areas.some((area) => area.name === `Safe area ${number}`)) number += 1;
+      name = `Safe area ${number}`;
+    }
     if (name !== '' && !draft.areas.some((area) => area.name.toLowerCase() === name.toLowerCase())) {
       const savedId = newAreaId();
       const reason = checkModelSafeArea(
@@ -1292,9 +1301,15 @@ export function createModelSetupView(
         draft.areas.push({ id: savedId, name, points: corners.map((point) => ({ ...point })), status: draft.fitted && !draft.fitStale ? 'current' : 'stale' });
         draft.selectedAreaId = savedId;
         draft.handleArm = null;
+        draft.drawing = null;
+        draft.drawingName = '';
+        // A completed area can be edited immediately. Choose a tool again
+        // for another outline; ordinary drags return to model navigation.
+        draft.areaTool = 'rotate';
+        armed = null;
         emit(entry, draft);
         return draft.fitted && !draft.fitStale
-          ? `Safe area “${name}” saved from the ${source} (4 corners, planar patch verified). Pending review.`
+          ? `Safe area “${name}” added (${corners.length} points). Staged — save the setup to keep it. Pending review.`
           : `Safe area “${name}” saved from the ${source} but the reference is uncalibrated — fit the scale, then recompute.`;
       }
       if (draft.drawing === null || draft.drawing.length === 0) draft.drawing = corners.map((point) => ({ ...point }));
@@ -1362,7 +1377,10 @@ export function createModelSetupView(
     renderReference(root, entry, draft, paintStatus);
     renderAreas(root, entry, draft, paintStatus);
     renderAdvanced(root, entry, draft, paintStatus);
-    root.append(statusBox);
+    const controls = document.querySelector('[data-model-setup-hook="author-tools"]');
+    // Keep action feedback beside the surface, rather than below long lists.
+    if (controls) controls.append(statusBox);
+    else root.append(statusBox);
     paintViewer(draft);
     wireHandleFrame();
     syncHandleLayer();
@@ -1594,8 +1612,7 @@ export function createModelSetupView(
     title.textContent = 'Named safe areas on the model';
     section.append(title);
     const intro = el('p', 'areas-intro', 'muted');
-    intro.textContent =
-      'Each area is a polygon of surface picks; its polygon establishes the region plane. No default polygon is invented. Editing or recalibrating the reference marks areas stale — recompute them explicitly.';
+    intro.textContent = 'Name areas for different logo positions. Select an area to edit it; save the setup when you are done.';
     section.append(intro);
 
     // Authoring tool (freehand trace/corners, or press-drag rectangle). The
@@ -1604,30 +1621,28 @@ export function createModelSetupView(
     const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
     toolRow.setAttribute('role', 'group');
     toolRow.setAttribute('aria-label', 'Safe-area authoring tool');
-    for (const tool of ['freehand', 'rectangle'] as const) {
+    for (const tool of ['rotate', 'rectangle', 'freehand'] as const) {
       const button = el('button', `tool-${tool}`, 'btn-secondary');
       button.type = 'button';
-      button.textContent = tool === 'freehand' ? 'Freehand' : 'Rectangle';
+      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'freehand' ? 'Freehand' : 'Rectangle';
       button.setAttribute('data-ps-tool', tool);
       button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
       if (draft.areaTool === tool) button.classList.add('is-selected');
       button.addEventListener('click', () => {
-        if (draft.areaTool !== tool) {
-          draft.areaTool = tool;
-          draft.handleArm = null;
-          armed = null;
-          cancelGestureSilent();
-          paintStatus(
-            tool === 'freehand'
-              ? 'Freehand tool: press and drag on the surface to trace (release closes the trace), or click corners then Finish area.'
-              : 'Rectangle tool: name the area, then press at one corner on the surface and drag to the opposite corner. Release creates one four-corner area.',
-          );
-        }
+        cancelGestureSilent();
+        draft.areaTool = tool;
+        draft.handleArm = null;
+        draft.drawing = tool === 'freehand' ? [] : null;
+        armed = tool === 'freehand' ? 'areaPoint' : null;
+        // The persistent mode hint explains this action once. Status is for
+        // results/errors, rather than a second copy of the same instruction.
+        paintStatus('');
         refresh();
       });
       toolRow.append(button);
     }
-    section.append(toolRow);
+    const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
+    (authorTools ?? section).append(toolRow);
     if (draft.areaTool === 'rectangle') {
       const rectHint = el('p', 'areas-rect-hint', 'model-setup-hint muted');
       rectHint.textContent =
@@ -1638,12 +1653,12 @@ export function createModelSetupView(
     const form = el('div', 'areas-form', 'model-setup-row');
     const nameLabel = document.createElement('label');
     nameLabel.className = 'model-setup-field';
-    nameLabel.textContent = 'Area name';
+    nameLabel.textContent = 'Area name (optional)';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.placeholder = 'e.g. Left chest';
     nameInput.autocomplete = 'off';
-    nameInput.value = draft.drawing ? draft.drawingName : '';
+    nameInput.value = draft.drawingName;
     nameInput.setAttribute(HOOK, 'area-name');
     nameInput.setAttribute('aria-label', 'Safe-area name');
     nameInput.addEventListener('input', () => {
@@ -1651,27 +1666,9 @@ export function createModelSetupView(
     });
     nameLabel.append(nameInput);
     form.append(nameLabel);
-    section.append(form);
+    (authorTools ?? section).append(form);
 
     const actions = el('div', 'areas-actions', 'model-setup-actions');
-    const start = el('button', 'area-start', 'btn-secondary');
-    start.type = 'button';
-    if (draft.areaTool === 'rectangle') {
-      start.textContent = 'Rectangle: drag on the model (name it first)';
-      start.disabled = true;
-      start.title = 'Press at one corner on the model surface, drag to the opposite corner, release.';
-    } else {
-      start.textContent = draft.drawing ? `Adding points… (${draft.drawing.length} picked, Esc cancels)` : 'Start area (click surface points)';
-      start.disabled = draft.drawing !== null;
-    }
-    start.addEventListener('click', () => {
-      if (draft.areaTool !== 'freehand') return;
-      draft.drawing = [];
-      draft.drawingName = nameInput.value;
-      armed = 'areaPoint';
-      paintStatus('Drawing: click at least 3 surface points on the model, or press-drag to trace, then Finish area.');
-      refresh();
-    });
     const finish = el('button', 'area-finish', 'btn-primary');
     finish.type = 'button';
     finish.textContent = 'Finish area';
@@ -1713,6 +1710,7 @@ export function createModelSetupView(
       draft.drawing = null;
       draft.drawingName = '';
       armed = null;
+      draft.areaTool = 'rotate';
       paintStatus(
         draft.fitted && !draft.fitStale
           ? `Safe area “${name.trim()}” saved (${points.length} points, plane established). Pending review.`
@@ -1728,11 +1726,12 @@ export function createModelSetupView(
     cancel.addEventListener('click', () => {
       draft.drawing = null;
       armed = null;
+      draft.areaTool = 'rotate';
       paintStatus('Drawing cancelled; nothing was committed.');
       refresh();
     });
-    actions.append(start, finish, cancel);
-    section.append(actions);
+    actions.append(finish, cancel);
+    if (draft.areaTool === 'freehand') (authorTools ?? section).append(actions);
 
     const list = el('div', 'area-list', 'model-setup-list');
     if (draft.areas.length === 0) {
@@ -1892,7 +1891,7 @@ export function createModelSetupView(
       bar.setAttribute(HOOK, 'viewbar');
       bar.setAttribute('role', 'toolbar');
       bar.setAttribute('aria-label', '3D preview view controls');
-      stage.insertBefore(bar, canvas);
+      stage.parentElement?.insertBefore(bar, stage);
       ownedViewbar = bar;
       mount = bar;
     } else if (ownedViewbar !== null && mount !== ownedViewbar) {
@@ -1902,6 +1901,14 @@ export function createModelSetupView(
       ownedViewbar = null;
     }
     mount.replaceChildren();
+    const tools = el('div', 'author-tools', 'model-setup-author-tools');
+    mount.append(tools);
+    const modeHint = el('p', 'mode-hint', 'muted');
+    const tool = scope?.draft.areaTool ?? 'rotate';
+    modeHint.textContent = tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Freehand to draw.'
+      : tool === 'rectangle' ? 'Rectangle: drag diagonally on a flat part of the model; release to add.'
+      : 'Freehand: drag around the area; release to close. Click corners for a precise outline.';
+    tools.append(modeHint);
     const viewer = viewerOf();
     const zoomOf = (): number => {
       try {
@@ -2466,7 +2473,7 @@ export function createModelSetupView(
       };
     } else if (armed === 'areaPoint' && draft.areaTool === 'freehand') {
       if (draft.drawing === null) draft.drawing = [];
-      gesture = { kind: 'trace', entry, draft, points: [], misses: 0 };
+      gesture = { kind: 'trace', entry, draft, points: [start], misses: 0 };
     } else {
       return;
     }
@@ -2640,11 +2647,20 @@ export function createModelSetupView(
   }
 
   function onCanvasDown(event: PointerEvent): void {
-    if (destroyed || event.button !== 0) return;
+    if (destroyed || event.button !== 0 || !event.isPrimary) return;
     // Gate on the LIVE canvas (the lead replaces the canvas per viewer
     // attach, so a captured element would go stale).
     if (event.target !== canvasOf()) return;
-    downAt = { x: event.clientX, y: event.clientY, button: event.button };
+    downAt = { x: event.clientX, y: event.clientY, button: event.button, pointerId: event.pointerId };
+    const resolved = currentDraft();
+    if ('error' in resolved) return;
+    const draft = resolved.draft;
+    if (draft.productVisible && (armed !== null || draft.handleArm !== null || draft.areaTool === 'rectangle')) {
+      // Capture phase runs BEFORE OrbitControls receives pointerdown, so it
+      // cannot rotate the surface under the first drawing movement.
+      suspendOrbit();
+      try { canvasOf()?.setPointerCapture(event.pointerId); } catch { /* no capture */ }
+    }
   }
 
   function onCanvasMove(event: PointerEvent): void {
@@ -2679,10 +2695,11 @@ export function createModelSetupView(
   }
 
   function onPointerCancel(event: PointerEvent): void {
-    if (destroyed || (gesture === null && pendingHandle === null)) return;
+    if (destroyed || (gesture === null && pendingHandle === null && downAt === null)) return;
     void event;
     gesture = null;
     pendingHandle = null;
+    downAt = null;
     livePreview = null;
     restoreOrbit();
     lastStatus = 'Edit cancelled (pointer interrupted) — staged data unchanged.';
@@ -2691,6 +2708,10 @@ export function createModelSetupView(
 
   function onCanvasUp(event: PointerEvent): void {
     if (destroyed) return;
+    if (gesture === null && pendingHandle === null) {
+      restoreOrbit();
+      try { canvasOf()?.releasePointerCapture(event.pointerId); } catch { /* no capture */ }
+    }
     // A pressed direct handle released without a drag arms it for
     // click-to-move (the existing button-fallback path takes it over).
     if (pendingHandle !== null) {
@@ -2821,11 +2842,11 @@ export function createModelSetupView(
     }
     // Escape/pointercancel rolls back any draw/edit gesture: staged data is
     // untouched because commits happen only on release.
-    if (gesture !== null || pendingHandle !== null) {
-      gesture = null;
-      pendingHandle = null;
-      livePreview = null;
+    if (gesture !== null || pendingHandle !== null || downAt !== null) {
+      cancelGestureSilent();
       armed = null;
+      const current = currentDraft();
+      if (!('error' in current)) current.draft.areaTool = 'rotate';
       restoreOrbit();
       lastStatus = 'Edit cancelled — staged data unchanged.';
       refresh();
@@ -2833,6 +2854,8 @@ export function createModelSetupView(
     }
     if (armed !== null) {
       armed = null;
+      const current = currentDraft();
+      if (!('error' in current)) current.draft.areaTool = 'rotate';
       lastStatus = 'Pick cancelled — staged data unchanged.';
       refresh();
       return;
@@ -2847,7 +2870,7 @@ export function createModelSetupView(
 
   // Document-level pointer gating (see onCanvasDown): survives the lead's
   // per-attach canvas replacement, unlike element-bound listeners.
-  document.addEventListener('pointerdown', onCanvasDown);
+  document.addEventListener('pointerdown', onCanvasDown, true);
   document.addEventListener('pointermove', onCanvasMove);
   document.addEventListener('pointerup', onCanvasUp);
   document.addEventListener('pointercancel', onPointerCancel);
@@ -2885,7 +2908,7 @@ export function createModelSetupView(
       handleDots = [];
       handleModelsCache = [];
       document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onCanvasDown);
+      document.removeEventListener('pointerdown', onCanvasDown, true);
       document.removeEventListener('pointermove', onCanvasMove);
       document.removeEventListener('pointerup', onCanvasUp);
       document.removeEventListener('pointercancel', onPointerCancel);

@@ -122,6 +122,24 @@ window.__setupHarness = {
   safeAreaOverlays(): number {
     return viewer !== null ? viewer.safeAreaOverlayCount() : -1;
   },
+  projectProbe(): { x: number; y: number } | null {
+    const point = viewer?.projectToClient({ x: 0.2, y: 0.1, z: 0.5 });
+    const rect = canvas.getBoundingClientRect();
+    return point ? { x: point.x - rect.x, y: point.y - rect.y } : null;
+  },
+  restore(text: string): boolean {
+    return handle.hydrateFromJson(text).ok;
+  },
+  front(): void { viewer?.setViewSide('front'); },
+  back(): void { viewer?.setViewSide('back'); },
+  centerPixel(): number[] {
+    const probe = document.createElement('canvas');
+    probe.width = canvas.width; probe.height = canvas.height;
+    const context = probe.getContext('2d');
+    if (!context) return [];
+    context.drawImage(canvas, 0, 0);
+    return Array.from(context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data);
+  },
   canvasBox(): { x: number; y: number; width: number; height: number } | null {
     const rect = canvas.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };

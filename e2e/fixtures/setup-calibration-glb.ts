@@ -3,7 +3,7 @@
 // no browser/Three.js needed. Used by e2e/setup-calibration.spec.ts.
 
 /** Minimal synthetic self-contained cube GLB (unit cube, double-sided). */
-export function cubeGlb(): Uint8Array {
+export function cubeGlb(raisedFront = false): Uint8Array {
   const h = 0.5;
   type V = [number, number, number];
   const faces: Array<{ n: V; v: [V, V, V, V] }> = [
@@ -18,9 +18,23 @@ export function cubeGlb(): Uint8Array {
   const nrm: number[] = [];
   for (const face of faces) {
     const [a, b, c, d] = face.v;
-    for (const p of [a, b, c, a, c, d]) {
+    const vertices = raisedFront && face.n[2] === 1
+      ? [a, b, [0, 0, 0.65] as V, b, c, [0, 0, 0.65] as V, c, d, [0, 0, 0.65] as V, d, a, [0, 0, 0.65] as V]
+      : [a, b, c, a, c, d];
+    for (let index = 0; index < vertices.length; index += 1) {
+      const p = vertices[index]!;
       pos.push(p[0], p[1], p[2]);
-      nrm.push(face.n[0], face.n[1], face.n[2]);
+      let normal: V = face.n;
+      if (raisedFront && face.n[2] === 1) {
+        const at = index - (index % 3);
+        const a = vertices[at]!, b = vertices[at + 1]!, c = vertices[at + 2]!;
+        const u = b.map((value, i) => value - a[i]!);
+        const v = c.map((value, i) => value - a[i]!);
+        const n: V = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
+        const scale = (n[2] < 0 ? -1 : 1) / Math.hypot(...n);
+        normal = n.map((value) => value * scale) as V;
+      }
+      nrm.push(...normal);
     }
   }
   const posArray = new Float32Array(pos);
@@ -39,7 +53,7 @@ export function cubeGlb(): Uint8Array {
     }],
     materials: [{ name: 'syn-cube-mat', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [0.2, 0.4, 0.8, 1.0], metallicFactor: 0, roughnessFactor: 0.8 } }],
     accessors: [
-      { bufferView: 0, componentType: 5126, count: pos.length / 3, type: 'VEC3', min: [-h, -h, -h], max: [h, h, h] },
+      { bufferView: 0, componentType: 5126, count: pos.length / 3, type: 'VEC3', min: [-h, -h, -h], max: [h, h, raisedFront ? 0.65 : h] },
       { bufferView: 1, componentType: 5126, count: nrm.length / 3, type: 'VEC3' },
     ],
     bufferViews: [

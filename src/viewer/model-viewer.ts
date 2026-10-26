@@ -22,6 +22,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 
 /** Failure modes surfaced to the embedding UI. Never throws raw. */
 export type ViewerStatus =
@@ -151,6 +152,7 @@ export class ModelViewer {
   private readonly axesGroup: THREE.Group;
   private readonly placementGroup: THREE.Group;
   private readonly safeAreaGroup: THREE.Group;
+  private safeAreaSignature = '';
   private readonly referenceGroup: THREE.Group;
   /** Midpoint label sprite for the reference overlay (null when cleared). */
   private referenceLabel: THREE.Sprite | null = null;
@@ -929,9 +931,19 @@ export class ModelViewer {
    */
   setSafeAreaOverlays(items: SafeAreaOverlayItem[]): void {
     try {
+      const signature = JSON.stringify(items);
+      if (signature === this.safeAreaSignature) return;
       this.clearSafeAreas();
       if (this.disposed) return;
       if (!Array.isArray(items) || items.length === 0) return;
+      this.scene.updateMatrixWorld(true);
+      const meshes: THREE.Mesh[] = [];
+      for (const child of this.wrapper.children) {
+        if ([this.markerGroup, this.axesGroup, this.placementGroup, this.safeAreaGroup, this.referenceGroup].includes(child as THREE.Group)) continue;
+        child.traverse((object) => {
+          if (object instanceof THREE.Mesh && object.geometry.getAttribute('position')) meshes.push(object);
+        });
+      }
       for (const item of items) {
         if (item === null || typeof item !== 'object') continue;
         if (!('pointsModel' in item)) continue;
@@ -944,36 +956,115 @@ export class ModelViewer {
           points.push(new THREE.Vector3(corner.x, corner.y, corner.z));
         }
         if (!valid || points.length < 3) continue;
-        // Selected areas stay distinguishable; both fills remain translucent
-        // so the product shows through (≈15–25% opacity band).
-        const selected = 'selected' in item && item.selected === true;
-        const tint = selected ? 0xe67e00 : 0x0b6cab;
-        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const outlineMaterial = new THREE.LineBasicMaterial({ color: tint, depthTest: true });
-        this.safeAreaGroup.add(new THREE.LineLoop(outlineGeometry, outlineMaterial));
-        const fillGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const triangles: number[] = [];
-        for (let index = 1; index + 1 < points.length; index += 1) {
-          triangles.push(0, index, index + 1);
-        }
-        fillGeometry.setIndex(triangles);
-        fillGeometry.computeVertexNormals();
-        const fillMaterial = new THREE.MeshBasicMaterial({
-          color: tint,
-          transparent: true,
-          opacity: selected ? 0.25 : 0.18,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        });
-        this.safeAreaGroup.add(new THREE.Mesh(fillGeometry, fillMaterial));
+        this.addSurfaceArea(points, item.selected === true, meshes);
       }
+      this.safeAreaSignature = signature;
     } catch {
       return;
     }
   }
 
+  /**
+   * Visual skin only: clip actual asset triangles to a polygon mask. A flat
+   * triangle fan cuts through garment folds; a decal follows those triangles
+   * instead. This never edits picked points, region planes or millimetres.
+   */
+  private addSurfaceArea(native: THREE.Vector3[], selected: boolean, meshes: THREE.Mesh[]): void {
+    const points = native.map((point) => point.clone().applyMatrix4(this.wrapper.matrixWorld));
+    const origin = points[0]!;
+    const u = points[1]!.clone().sub(origin).normalize();
+    const normal = new THREE.Vector3();
+    for (let i = 1; i + 1 < points.length; i += 1) {
+      normal.add(new THREE.Vector3().crossVectors(points[i]!.clone().sub(origin), points[i + 1]!.clone().sub(origin)));
+    }
+    if (normal.lengthSq() < 1e-16) return;
+    normal.normalize();
+    const reach = new THREE.Box3().setFromPoints(points).getSize(new THREE.Vector3()).length();
+    if (!(reach > 0)) return;
+    // Orient toward the mesh's own outward face, not the camera or polygon
+    // winding. Search both directions so saved back-side areas stay back-side.
+    const ray = new THREE.Raycaster();
+    let nearest = Infinity;
+    let outward: THREE.Vector3 | null = null;
+    for (const sign of [1, -1]) {
+      ray.set(origin.clone().addScaledVector(normal, reach * sign), normal.clone().multiplyScalar(-sign));
+      for (const hit of ray.intersectObjects(meshes, false)) {
+        const distance = hit.point.distanceToSquared(origin);
+        if (hit.face && distance < nearest) {
+          nearest = distance;
+          const attribute = (hit.object as THREE.Mesh).geometry.getAttribute('normal');
+          outward = (attribute
+            ? new THREE.Vector3().fromBufferAttribute(attribute, hit.face.a)
+                .add(new THREE.Vector3().fromBufferAttribute(attribute, hit.face.b))
+                .add(new THREE.Vector3().fromBufferAttribute(attribute, hit.face.c))
+            : hit.face.normal.clone()).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+        }
+      }
+    }
+    if (outward === null || nearest > (reach * 0.02) ** 2) return;
+    if (normal.dot(outward) < 0) normal.negate();
+    // Keep the first edge as x, but make the basis exactly orthonormal.
+    u.addScaledVector(normal, -u.dot(normal)).normalize();
+    const v = new THREE.Vector3().crossVectors(normal, u).normalize();
+    const local = points.map((point) => {
+      const delta = point.clone().sub(origin);
+      return new THREE.Vector3(delta.dot(u), delta.dot(v), delta.dot(normal));
+    });
+    const bounds = new THREE.Box3().setFromPoints(local);
+    const size = bounds.getSize(new THREE.Vector3());
+    if (!(size.x > 0 && size.y > 0)) return;
+    size.x *= 1.02; size.y *= 1.02;
+    size.z = Math.max(size.x, size.y, size.z * 2);
+    const center = bounds.getCenter(new THREE.Vector3());
+    const position = origin.clone().addScaledVector(u, center.x).addScaledVector(v, center.y).addScaledVector(normal, center.z);
+    const orientation = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, normal));
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.beginPath();
+    local.forEach((point, index) => {
+      const x = ((point.x - center.x) / size.x + 0.5) * canvas.width;
+      const y = (0.5 - (point.y - center.y) / size.y) * canvas.height;
+      if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    });
+    context.closePath();
+    context.fillStyle = selected ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.18)';
+    context.fill();
+    context.strokeStyle = '#ffffff'; context.lineWidth = selected ? 4 : 3; context.stroke();
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({
+      color: selected ? 0x0072ce : 0x0b6cab, map: texture,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    });
+    const inverse = this.wrapper.matrixWorld.clone().invert();
+    let used = false;
+    for (const mesh of meshes) {
+      const geometry = new DecalGeometry(mesh, position, orientation, size);
+      const positions = geometry.getAttribute('position');
+      const normals = geometry.getAttribute('normal');
+      const kept: number[] = [];
+      // Don't paint the opposite side of thin garments in the projector box.
+      for (let i = 0; i + 2 < positions.count; i += 3) {
+        const facing = normals ? new THREE.Vector3().fromBufferAttribute(normals, i) :
+          new THREE.Vector3().subVectors(new THREE.Vector3().fromBufferAttribute(positions, i + 1), new THREE.Vector3().fromBufferAttribute(positions, i))
+            .cross(new THREE.Vector3().subVectors(new THREE.Vector3().fromBufferAttribute(positions, i + 2), new THREE.Vector3().fromBufferAttribute(positions, i)));
+        if (facing.dot(normal) > 0) kept.push(i, i + 1, i + 2);
+      }
+      if (kept.length === 0) { geometry.dispose(); continue; }
+      geometry.setIndex(kept);
+      geometry.applyMatrix4(inverse);
+      this.safeAreaGroup.add(new THREE.Mesh(geometry, material));
+      used = true;
+    }
+    if (!used) { texture.dispose(); material.dispose(); }
+  }
+
   /** Remove safe-area overlay lines/meshes and dispose their geometries/materials. */
   private clearSafeAreas(): void {
+    this.safeAreaSignature = '';
+    const disposed = new Set<THREE.Material>();
     for (let i = this.safeAreaGroup.children.length - 1; i >= 0; i--) {
       const child = this.safeAreaGroup.children[i];
       if (child === undefined) continue;
@@ -984,6 +1075,9 @@ export class ModelViewer {
         const materials = Array.isArray(material) ? material : [material];
         for (const entry of materials) {
           if (entry === undefined) continue;
+          if (disposed.has(entry)) continue;
+          disposed.add(entry);
+          if (entry instanceof THREE.MeshBasicMaterial) entry.map?.dispose();
           entry.dispose();
         }
       }

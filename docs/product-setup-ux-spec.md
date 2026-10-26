@@ -61,6 +61,19 @@ names readable and keep selection independent of overlapping fills.
 Inside the Safe area tool provide two choices: `Freehand` and `Rectangle`.
 Reuse the existing named-area list, rename/select/delete and Save setup.
 
+For the 3D preview, place `Rotate model`, `Rectangle` and `Freehand` beside
+the stage. Selecting a drawing tool enables it immediately, without a second
+Start action. Suspend orbit at pointer-down before OrbitControls handles it;
+release, cancellation and Escape restore navigation. Keep one mode hint and
+action feedback beside the stage. Area names are optional while drawing;
+generate a distinct default name when none was supplied. Completing an area
+returns to Rotate mode with the selected area's handles available.
+
+Visual safe-area fills must follow the asset triangles rather than a flat
+fan cutting through garment folds. A polygon-masked surface decal is display
+only: keep the picked points, calibrated region plane and mm data unchanged.
+Do not paint the reverse side of a thin product or bypass depth occlusion.
+
 - **Freehand:** press, drag to trace, release to close one area. Also retain
   clicking corners plus the existing Finish action for precision/keyboard
   use, in the same mode. Do not treat a tap as a completed freehand stroke.

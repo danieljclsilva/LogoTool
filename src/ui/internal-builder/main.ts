@@ -4324,7 +4324,8 @@ function getWorkspaceInput(): ProductSetupWorkspaceInputV2 | { error: string } {
     const hasModel = models.some((entry) => entry.productId === product.id);
     if (hasModel) {
       const message = 'This product uses a 3D model — set it up on the model below (no photos needed). Staged 3D references and areas save to the master with “Save 3D setup”.';
-      setWorkspaceNotice(message);
+      // The workspace renders this notice itself; do not echo it in status.
+      setWorkspaceNotice('');
       return { error: message };
     }
     const message = 'To set measurements and anchors, add a product with a view image.';

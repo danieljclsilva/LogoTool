@@ -338,7 +338,7 @@ test('model-only 3D calibration: A/B surface picks + mm + named area + toggles (
 
       // Named safe area from surface picks; plane established, current fit.
       await modelSetup(page, 'area-name').fill('Left chest');
-      await modelSetup(page, 'area-start').click();
+      await modelSetup(page, 'tool-freehand').click();
       await harnessClick(page, 0.42, 0.42);
       await harnessClick(page, 0.58, 0.42);
       await harnessClick(page, 0.58, 0.58);
@@ -1282,6 +1282,10 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     // The model pane mounts the 3D setup view: no images anywhere.
     const modelPane = builder(page, 'product-model');
     await expect(modelPane).toBeVisible();
+    await expect(page.getByText('This product uses a 3D model — set it up on the model below (no photos needed). Staged 3D references and areas save to the master with “Save 3D setup”.', { exact: true })).toHaveCount(1);
+    const rectangleButton = (await modelPane.locator('[data-model-setup-hook="tool-rectangle"]').boundingBox())!;
+    const freehandButton = (await modelPane.locator('[data-model-setup-hook="tool-freehand"]').boundingBox())!;
+    expect(Math.abs(rectangleButton.y - freehandButton.y)).toBeLessThan(1);
     await expect(builder(page, 'product-model-status')).toContainText('for reference');
     const setupHost = builder(page, 'model-setup');
     await expect(setupHost.locator('[data-model-setup-hook="pending-banner"]')).toContainText('pending review');
@@ -1295,7 +1299,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
       const box = (await canvas.boundingBox())!;
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
-    const ms = (name: string) => setupHost.locator(`[data-model-setup-hook="${name}"]`);
+    const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await expect(ms('reference-readout')).toContainText('A (');
@@ -1309,7 +1313,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
 
     // One named area from surface picks, then explicit save to the master.
     await ms('area-name').fill('Chest');
-    await ms('area-start').click();
+    await ms('tool-freehand').click();
     await surfaceClick(0.44, 0.44);
     await surfaceClick(0.56, 0.44);
     await surfaceClick(0.56, 0.52);
@@ -1496,7 +1500,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
       const box = (await canvas.boundingBox())!;
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
-    const ms = (name: string) => setupHost.locator(`[data-model-setup-hook="${name}"]`);
+    const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await surfaceClick(0.6, 0.5);
@@ -1506,7 +1510,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
 
     const drawArea = async (name: string, quad: ReadonlyArray<readonly [number, number]>) => {
       await ms('area-name').fill(name);
-      await ms('area-start').click();
+      await ms('tool-freehand').click();
       for (const [fx, fy] of quad) await surfaceClick(fx, fy);
       await ms('area-finish').click();
       await expect(ms('area-list')).toContainText(name);
@@ -1620,7 +1624,7 @@ test('model setup save/reopen roundtrip retains references, calibration and area
     await modelSetup(first.page, 'ref-fit').click();
     await expect(modelSetup(first.page, 'reference-scale')).toContainText('scale 1 unit =');
     await modelSetup(first.page, 'area-name').fill('Front panel');
-    await modelSetup(first.page, 'area-start').click();
+    await modelSetup(first.page, 'tool-freehand').click();
     await harnessClick(first.page, 0.42, 0.42);
     await harnessClick(first.page, 0.58, 0.42);
     await harnessClick(first.page, 0.58, 0.58);
@@ -1717,7 +1721,7 @@ test('model product visibility: hide/show mesh keeps reference, areas and fit', 
     await modelSetup(page, 'ref-fit').click();
     await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
     await modelSetup(page, 'area-name').fill('Front panel');
-    await modelSetup(page, 'area-start').click();
+    await modelSetup(page, 'tool-freehand').click();
     await harnessClick(page, 0.42, 0.42);
     await harnessClick(page, 0.58, 0.42);
     await harnessClick(page, 0.58, 0.58);
@@ -2084,7 +2088,10 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     // face spans roughly x 0.30–0.50: stay left of the vertical edge.)
     await modelSetup(page, 'area-name').fill('Rect1');
     await modelSetup(page, 'tool-rectangle').click();
+    const cameraBefore = await hCall<{ x: number; y: number }>(page, 'projectProbe');
     await dragCanvas(0.36, 0.38, 0.46, 0.52);
+    const cameraAfter = await hCall<{ x: number; y: number }>(page, 'projectProbe');
+    expect(Math.hypot(cameraAfter.x - cameraBefore.x, cameraAfter.y - cameraBefore.y)).toBeLessThan(0.01);
     await expect(modelSetup(page, 'area-list')).toContainText('Rect1');
     const afterRect = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
     assert.ok(afterRect, 'snapshot after rectangle drag');
@@ -2185,7 +2192,6 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     // stroke and retains the previous draft (gap 2 proof on real canvas).
     await modelSetup(page, 'tool-freehand').click();
     await modelSetup(page, 'area-name').fill('Trace1');
-    await modelSetup(page, 'area-start').click();
     const traceBox = await canvasBox();
     await page.mouse.move(traceBox.x + traceBox.width * 0.45, traceBox.y + traceBox.height * 0.45);
     await page.mouse.down();
@@ -2206,7 +2212,7 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     // stages one closed named valid area on release — the requested
     // drag-trace success proof on the real WebGL canvas.
     await modelSetup(page, 'area-name').fill('DragTrace');
-    await modelSetup(page, 'area-start').click();
+    await modelSetup(page, 'tool-freehand').click();
     {
       const box = await canvasBox();
       const pt = (fx: number, fy: number): { x: number; y: number } => ({
@@ -2230,11 +2236,9 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     assert.ok(dragArea, 'drag trace stages DragTrace');
     expect(dragArea.points.length).toBeGreaterThanOrEqual(3);
     expect(dragArea.status).toBe('current');
-    // The successful trace stages the area but leaves its drawing session
-    // open under the existing session model (area-start stays armed);
-    // cancel it via the existing control so the click-based zoom proof below
-    // can start a fresh drawing. Staged areas are untouched.
-    await modelSetup(page, 'area-cancel').click();
+    // Release completes the trace: no extra Finish/Cancel step is required.
+    await expect(modelSetup(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
+    await expect(modelSetup(page, 'area-cancel')).toHaveCount(0);
     await expect(modelSetup(page, 'area-list')).toContainText('DragTrace');
 
     // Zoom is display-only: scale identical, label intact, picks still work.
@@ -2244,10 +2248,13 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.mmPerUnit).toBe(fittedScale);
     expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
     await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
+    // Escape leaves drawing mode; selecting Freehand again is sufficient.
+    await modelSetup(page, 'tool-freehand').click();
+    await page.keyboard.press('Escape');
+    await expect(modelSetup(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
     // Fresh surface picks at 200%: three magnified clicks still validate.
     await modelSetup(page, 'tool-freehand').click();
     await modelSetup(page, 'area-name').fill('Zoomface');
-    await modelSetup(page, 'area-start').click();
     await harnessClick(page, 0.5, 0.48);
     await harnessClick(page, 0.54, 0.48);
     await harnessClick(page, 0.52, 0.54);
@@ -2370,4 +2377,45 @@ test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ 
   } finally {
     await context.close();
   }
+});
+
+test('model safe-area fill follows a raised fold without changing saved coordinates or painting the back', async ({ browser }, info) => {
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openHarness(browser, viewport, 'raised-fold.html');
+  try {
+    await attachEnv(info, browser, viewport, 'raised mesh surface overlay');
+    expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb(true)).toString('base64'))).toBe('ready');
+    await hCall(page, 'front');
+    await expect.poll(() => hCall<number>(page, 'nonBackgroundPixels')).toBeGreaterThan(500);
+    const bareFront = await hCall<number[]>(page, 'centerPixel');
+    await hCall(page, 'back');
+    // Wait for the renderer after changing views, not a fixed-duration sleep.
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+    const bareBack = await hCall<number[]>(page, 'centerPixel');
+    await hCall(page, 'front');
+    const corners = [
+      { x: -0.45, y: -0.45, z: 0.5 }, { x: 0.45, y: -0.45, z: 0.5 },
+      { x: 0.45, y: 0.45, z: 0.5 }, { x: -0.45, y: 0.45, z: 0.5 },
+    ];
+    const setup = { version: '0.1.0-provisional-model-setup', productId: 'SYN-BOX', variantId: null, assetKey: 'harness-asset-1',
+      reference: { id: 'reference', a: corners[0], b: corners[1], lengthMm: 1300 },
+      areas: [{ id: 'fold-area', name: 'Fold panel', points: corners }],
+    };
+    expect(await hCall<boolean>(page, 'restore', JSON.stringify(setup))).toBe(true);
+    // The centre is 0.15 model units ABOVE the old flat fan. It must still
+    // carry the blue area tint because the new skin uses the asset triangles.
+    await expect.poll(async () => {
+      const pixel = await hCall<number[]>(page, 'centerPixel');
+      return pixel.slice(0, 3).reduce((sum, v, i) => sum + Math.abs(v - bareFront[i]!), 0);
+    }).toBeGreaterThan(15);
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(corners);
+    const screenshot = info.outputPath('model-raised-fold.png');
+    await page.locator('[data-model-setup-hook="viewbar"]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot });
+    await info.attach('raised-fold-overlay', { path: screenshot, contentType: 'image/png' });
+    await hCall(page, 'back');
+    await expect.poll(() => hCall<number[]>(page, 'centerPixel')).toEqual(bareBack);
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(corners);
+    expectOfflineClean(probe);
+  } finally { await context.close(); }
 });
