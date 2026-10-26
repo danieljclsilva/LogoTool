@@ -2419,3 +2419,99 @@ test('model safe-area fill follows a raised fold without changing saved coordina
     expectOfflineClean(probe);
   } finally { await context.close(); }
 });
+
+test('model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)', async ({ browser }, info) => {
+  test.setTimeout(180_000);
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openHarness(browser, viewport, 'setup-harness-curved-rectangle.html');
+  try {
+    await attachEnv(info, browser, viewport, 'model curved-surface rectangle fallback');
+    await assertHarness(page);
+    expect(await hCall<string>(page, 'attachKind')).toBe('empty');
+    // Non-planar synthetic surface: the front face is a raised pyramid, so a
+    // flat 4-corner rectangle cannot sit on it (press/release face normals
+    // diverge). The drag must fall back to a surface-following perimeter ring
+    // of real raycast picks and still stage a visible named area.
+    expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb(true)).toString('base64'))).toBe('ready');
+
+    await modelSetup(page, 'ref-pick-a').click();
+    await harnessClick(page, 0.5, 0.5);
+    await expect(modelSetup(page, 'reference-readout')).toContainText('A (');
+    // Recording A auto-arms B: click the surface directly (clicking Pick B
+    // now would disarm it).
+    await harnessClick(page, 0.58, 0.5);
+    await expect(modelSetup(page, 'reference-readout')).toContainText('B (');
+    await modelSetup(page, 'ref-mm').fill('250');
+    await modelSetup(page, 'ref-fit').click();
+    await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
+
+    const canvasBox = async (): Promise<{ x: number; y: number; width: number; height: number }> => {
+      await page.locator('#gl').scrollIntoViewIfNeeded();
+      return page.evaluate((): { x: number; y: number; width: number; height: number } => {
+        const api = (window as unknown as { __setupHarness: { canvasBox(): { x: number; y: number; width: number; height: number } | null } }).__setupHarness;
+        const rect = api.canvasBox();
+        if (!rect) throw new Error('harness canvas has no box.');
+        return rect;
+      });
+    };
+    await modelSetup(page, 'area-name').fill('CurvedRect');
+    await modelSetup(page, 'tool-rectangle').click();
+    {
+      const box = await canvasBox();
+      await page.mouse.move(box.x + box.width * 0.36, box.y + box.height * 0.38);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.46, box.y + box.height * 0.52, { steps: 6 });
+      await page.mouse.up();
+    }
+    await expect(modelSetup(page, 'area-list')).toContainText('CurvedRect');
+    const snapshot = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+    assert.ok(snapshot && snapshot.areas.length === 1, 'one staged area on the curved surface');
+    expect(snapshot.areas[0]!.points.length).toBeGreaterThan(4);
+    expect(snapshot.areas[0]!.status).toBe('current');
+    expect(await hCall<number>(page, 'safeAreaOverlays')).toBeGreaterThan(0);
+    await expect(modelSetup(page, 'status')).toContainText('added');
+    // An off-model release must preserve the exact previously staged geometry.
+    await modelSetup(page, 'tool-rectangle').click();
+    {
+      const box = await canvasBox();
+      await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.98, box.y + box.height * 0.98, { steps: 6 });
+      await page.mouse.up();
+    }
+    await expect(modelSetup(page, 'status')).toContainText('Release missed');
+    expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas).toEqual(snapshot.areas);
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});
+
+for (const viewport of VIEWPORTS) {
+  test(`model clicked outlines accept optional names and avoid name collisions (${viewport.label})`, async ({ browser }, info) => {
+    const { context, page, probe } = await openHarness(browser, viewport, `setup-unnamed-${viewport.label}.html`);
+    try {
+      await attachEnv(info, browser, viewport, 'model optional area name');
+      expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
+      const draw = async (name: string): Promise<void> => {
+        await modelSetup(page, 'tool-freehand').click();
+        await modelSetup(page, 'area-name').fill(name);
+        for (const [x, y] of [[0.44, 0.44], [0.56, 0.44], [0.56, 0.52], [0.44, 0.52]]) {
+          await harnessClick(page, x!, y!);
+        }
+        await modelSetup(page, 'area-finish').click();
+      };
+      await draw('');
+      await expect(modelSetup(page, 'area-list')).toContainText('Safe area 1');
+      // The next automatic candidate must skip a manually entered name,
+      // including a different case, rather than rejecting an optional field.
+      await draw('safe area 3');
+      await draw('   ');
+      await expect(modelSetup(page, 'area-list')).toContainText('Safe area 4');
+      const snapshot = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
+      expect(snapshot?.areas.map((area) => area.name)).toEqual(['Safe area 1', 'safe area 3', 'Safe area 4']);
+      expect(snapshot?.areas.every((area) => area.points.length === 4)).toBe(true);
+      expectOfflineClean(probe);
+    } finally { await context.close(); }
+  });
+}

@@ -99,10 +99,15 @@ For **3D**, points must come from actual model surface picks. Keep native
 model coordinates and existing planar region validation. Temporarily suppress
 orbit while drawing/resizing, then restore it. Do not connect a freehand
 stroke across missed surface hits or manufacture invisible surface points.
-Rectangle corners/edge edits must resolve on a consistent planar model surface;
-if a valid rectangle cannot be obtained, preserve the last valid draft and
-explain that the surface cannot support this planar rectangle. Do not project
-a flat rectangle onto an unsupported curved surface and call it calibrated.
+Flat rectangle corners/edge edits must resolve on a consistent planar model
+surface. When creation cannot resolve a flat rectangle, sample the dragged
+screen rectangle's perimeter on the actual mesh instead. Curved results are
+general multi-point polygons, not physically rectangular areas or curved
+calibration. A missed perimeter sample rejects creation and preserves the
+previous valid areas. Saved regions remain provisional planar projections;
+sampling does not certify their interior or physical production suitability.
+Both dragged and clicked outlines receive a unique default name when the
+optional name is blank.
 Model safe-area meshes need translucent fills as well as outlines; dispose
 replaced overlay resources. View changes never alter the stored polygons.
 

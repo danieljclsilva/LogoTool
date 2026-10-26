@@ -1272,6 +1272,70 @@ export function createModelSetupView(
   };
 
   /**
+   * Surface-following fallback for a rectangle drag whose planar 4-corner
+   * resolve failed (for example, on a curved garment).
+   * Samples the screen-space rectangle PERIMETER with real raycast surface
+   * picks only — every returned point is an actual mesh hit, never invented
+   * fill. Order follows the perimeter; a missed sample rejects the ring.
+   * Sampling does not certify the interior or establish a curved physical map.
+   * Returns a miss error naming the failing sample (actionable re-drag
+   * route), or a ring that still runs through the kernel ring check by the
+   * caller (a degenerate projection is refused there, not here).
+   */
+  const resolveDragPerimeter = (
+    viewer: ModelSetupViewerLike,
+    downClient: { x: number; y: number },
+    upClient: { x: number; y: number },
+  ): { ring: SetupVec3[] } | { error: string } => {
+    const PER_EDGE = 8;
+    const total = PER_EDGE * 4;
+    const corners = [
+      { x: downClient.x, y: downClient.y },
+      { x: upClient.x, y: downClient.y },
+      { x: upClient.x, y: upClient.y },
+      { x: downClient.x, y: upClient.y },
+    ];
+    const ring: SetupVec3[] = [];
+    for (let edge = 0; edge < 4; edge += 1) {
+      const from = corners[edge]!;
+      const to = corners[(edge + 1) % 4]!;
+      for (let step = 0; step < PER_EDGE; step += 1) {
+        const fraction = step / PER_EDGE;
+        const clientX = from.x + (to.x - from.x) * fraction;
+        const clientY = from.y + (to.y - from.y) * fraction;
+        let hit: SetupVec3 | null = null;
+        try {
+          const raw = viewer.pickSurface?.(clientX, clientY) ?? null;
+          hit = raw !== null && isVec3(raw.modelPosition) ? { ...raw.modelPosition } : null;
+        } catch {
+          hit = null;
+        }
+        if (hit === null) {
+          return {
+            error: `That drag leaves the model surface (perimeter sample ${edge * PER_EDGE + step + 1} of ${total} missed) — keep the whole rectangle on one surface patch. Previous draft kept.`,
+          };
+        }
+        const last = ring[ring.length - 1] ?? null;
+        if (last === null || chordNative(last, hit) > 1e-9) ring.push(hit);
+      }
+    }
+    if (ring.length >= 2) {
+      const first = ring[0]!;
+      const last = ring[ring.length - 1]!;
+      if (chordNative(first, last) <= 1e-9) ring.pop();
+    }
+    return { ring };
+  };
+
+  const newAreaName = (draft: ProductDraft): string => {
+    const entered = draft.drawingName.trim();
+    if (entered !== '') return entered;
+    let number = draft.areas.length + 1;
+    while (draft.areas.some((area) => area.name.trim().toLowerCase() === `safe area ${number}`)) number += 1;
+    return `Safe area ${number}`;
+  };
+
+  /**
    * Stage one released drag/handle result as a single edit: create the area
    * when it is a valid named ring, else stash the corners as an open drawing
    * (or keep the prior drawing) — never replacing the last valid area.
@@ -1282,12 +1346,7 @@ export function createModelSetupView(
     corners: SetupVec3[],
     source: 'rectangle drag' | 'trace',
   ): string => {
-    let name = draft.drawingName.trim();
-    if (name === '') {
-      let number = draft.areas.length + 1;
-      while (draft.areas.some((area) => area.name === `Safe area ${number}`)) number += 1;
-      name = `Safe area ${number}`;
-    }
+    const name = newAreaName(draft);
     if (name !== '' && !draft.areas.some((area) => area.name.toLowerCase() === name.toLowerCase())) {
       const savedId = newAreaId();
       const reason = checkModelSafeArea(
@@ -1646,7 +1705,7 @@ export function createModelSetupView(
     if (draft.areaTool === 'rectangle') {
       const rectHint = el('p', 'areas-rect-hint', 'model-setup-hint muted');
       rectHint.textContent =
-        'Rectangle corners resolve on a consistent planar model surface patch (verified from actual surface samples). If the surface cannot support a flat rectangle, the previous draft is kept with an explanation.';
+        'Rectangle corners resolve on a consistent planar model surface patch (verified from actual surface samples). On curved patches the drag follows the surface as a multi-point ring instead — every point a real surface pick. Misses keep the previous draft with an explanation.';
       section.append(rectHint);
     }
 
@@ -1675,7 +1734,7 @@ export function createModelSetupView(
     finish.disabled = draft.drawing === null;
     finish.addEventListener('click', () => {
       const points = draft.drawing ?? [];
-      const name = (draft.drawingName || nameInput.value).trim();
+      const name = newAreaName(draft);
       if (points.length < 3) {
         paintStatus(`Pick at least 3 surface points for “${name || 'the area'}” (have ${points.length}).`);
         refresh();
@@ -1906,7 +1965,7 @@ export function createModelSetupView(
     const modeHint = el('p', 'mode-hint', 'muted');
     const tool = scope?.draft.areaTool ?? 'rotate';
     modeHint.textContent = tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Freehand to draw.'
-      : tool === 'rectangle' ? 'Rectangle: drag diagonally on a flat part of the model; release to add.'
+      : tool === 'rectangle' ? 'Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.'
       : 'Freehand: drag around the area; release to close. Click corners for a precise outline.';
     tools.append(modeHint);
     const viewer = viewerOf();
@@ -2621,10 +2680,25 @@ export function createModelSetupView(
         { x: event.clientX, y: event.clientY },
       );
       // One staged edit per release; failures preserve the last valid draft.
-      lastStatus =
-        'corners' in resolved
-          ? stageReleasedCorners(active.entry, active.draft, resolved.corners, 'rectangle drag')
-          : resolved.error;
+      // A planar 4-corner resolve fails on curved garments (normals diverge,
+      // off-plane support, unverifiable corners): fall back to a
+      // surface-following perimeter ring built only from real raycast hits,
+      // so a rectangle drag still authors a visible named area instead of
+      // dying on curvature. The kernel ring check still gates the result.
+      if ('corners' in resolved) {
+        lastStatus = stageReleasedCorners(active.entry, active.draft, resolved.corners, 'rectangle drag');
+      } else {
+        const perimeter = resolveDragPerimeter(
+          viewer,
+          { x: active.downX, y: active.downY },
+          { x: event.clientX, y: event.clientY },
+        );
+        if ('ring' in perimeter && perimeter.ring.length >= 3) {
+          lastStatus = stageReleasedCorners(active.entry, active.draft, perimeter.ring, 'rectangle drag');
+        } else {
+          lastStatus = 'error' in perimeter ? perimeter.error : resolved.error;
+        }
+      }
       refresh();
       return;
     }
@@ -2746,6 +2820,20 @@ export function createModelSetupView(
     const { entry, draft } = resolved;
     const viewer = viewerOf();
     if (!viewer) return;
+    if (travel > CLICK_TRAVEL_PX) {
+      // A draw-intent press suspends orbit and captures the pointer, so a
+      // missed press otherwise ends in a silent no-op with a frozen camera.
+      // Name the miss explicitly; plain navigation drags stay silent.
+      const drawIntent = armed !== null || draft.handleArm !== null || draft.areaTool !== 'rotate';
+      if (gesture === null && pendingHandle === null && drawIntent) {
+        lastStatus =
+          armed === 'refA' || armed === 'refB'
+            ? 'Reference points use clicks — click directly on the model without dragging. Nothing recorded.'
+            : 'That press missed the model surface — start the drag on the model itself. Staged data kept.';
+        refresh();
+      }
+      return;
+    }
     if (armed === null) {
       // Unarmed taps: handle click-to-move, rectangle tap hint, else orbit.
       if (!(travel <= CLICK_TRAVEL_PX)) return;
