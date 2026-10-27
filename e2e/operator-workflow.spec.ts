@@ -1079,10 +1079,10 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await expect(await shown(page, 'logo-status')).toContainText('Added crest.png');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
-    // Measured placement diagram with model inspection — never an invented
-    // draping, no photo upload anywhere in this flow.
-    await expect(host).toContainText('Measured placement diagram');
-    await expect(host.getByRole('button', { name: 'View model' })).toBeVisible();
+    // Exact saved model calibration maps artwork onto the product, without
+    // requiring a photograph or changing the canonical region millimetres.
+    await expect(host).toContainText('Place logos on the product');
+    await expect(host.locator('[data-placement-hook="pw-model-canvas"]')).toBeVisible();
     await expect(host.locator('[data-placement-hook="pw-overlay-image"]')).toHaveCount(0);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
@@ -1121,7 +1121,8 @@ test('direct model-only job: calibrated diagram placement without any photo', as
       await fresh.locator('[data-builder-hook="job-to-placements"]').click();
       const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
       expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(1);
-      await expect(freshHost).toContainText('Measured placement diagram');
+      await expect(freshHost).toContainText('Place logos on the product');
+      await expect(freshHost.locator('[data-placement-hook="pw-model-workbench"]')).toHaveAttribute('data-artwork-count', /[1-9]/);
       expectOfflineClean(freshProbe);
     } finally {
       await freshContext.close();

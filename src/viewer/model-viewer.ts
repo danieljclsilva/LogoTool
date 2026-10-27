@@ -124,6 +124,17 @@ export interface PlacementOverlayItem {
   art?: string;
 }
 
+/** Real artwork, projected onto the asset's triangles for display only. */
+export interface SurfaceArtworkItem {
+  id: string;
+  cornersModel: Array<{ x: number; y: number; z: number }>;
+  anchorModel: { x: number; y: number; z: number };
+  depthModel: number;
+  image: CanvasImageSource;
+  selected: boolean;
+  fits: boolean;
+}
+
 const FIT_DISTANCE_FACTOR = 1.15;
 const NEAR_FACTOR = 1 / 100;
 const FAR_FACTOR = 100;
@@ -1309,6 +1320,93 @@ export class ModelViewer {
     } catch {
       return;
     }
+  }
+
+  /** Artwork faces the real outside surface, with its width along region +x. */
+  setSurfaceArtworkOverlays(items: SurfaceArtworkItem[]): void {
+    this.clearPlacements();
+    if (this.disposed) return;
+    this.scene.updateMatrixWorld(true);
+    const meshes: THREE.Mesh[] = [];
+    for (const child of this.wrapper.children) {
+      if ([this.markerGroup, this.axesGroup, this.placementGroup, this.safeAreaGroup, this.referenceGroup].includes(child as THREE.Group)) continue;
+      child.traverse((node) => { if (node instanceof THREE.Mesh) meshes.push(node); });
+    }
+    for (const item of items) {
+      if (item.cornersModel.length !== 4 || !item.cornersModel.every(isVec3) || !isVec3(item.anchorModel) || !(item.depthModel > 0)) continue;
+      const points = item.cornersModel.map((p) => new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(this.wrapper.matrixWorld));
+      const u = points[1]!.clone().sub(points[0]!);
+      const v = points[3]!.clone().sub(points[0]!);
+      const width = u.length(), height = v.length();
+      if (!(width > 0 && height > 0)) continue;
+      u.normalize(); v.normalize();
+      const normal = new THREE.Vector3().crossVectors(u, v).normalize();
+      const anchor = new THREE.Vector3(item.anchorModel.x, item.anchorModel.y, item.anchorModel.z).applyMatrix4(this.wrapper.matrixWorld);
+      const worldScale = new THREE.Vector3().setFromMatrixScale(this.wrapper.matrixWorld).x;
+      const depth = item.depthModel * Math.abs(worldScale);
+      const ray = new THREE.Raycaster();
+      let nearest = Infinity;
+      let outward: THREE.Vector3 | null = null;
+      for (const sign of [1, -1]) {
+        ray.set(anchor.clone().addScaledVector(normal, depth * sign), normal.clone().multiplyScalar(-sign));
+        for (const hit of ray.intersectObjects(meshes, false)) {
+          const distance = hit.point.distanceToSquared(anchor);
+          if (hit.face && distance < nearest) {
+            nearest = distance;
+            const attribute = (hit.object as THREE.Mesh).geometry.getAttribute('normal');
+            outward = (attribute
+              ? new THREE.Vector3().fromBufferAttribute(attribute, hit.face.a)
+                .add(new THREE.Vector3().fromBufferAttribute(attribute, hit.face.b))
+                .add(new THREE.Vector3().fromBufferAttribute(attribute, hit.face.c))
+              : hit.face.normal.clone()).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+          }
+        }
+      }
+      if (!outward) continue;
+      // The patch plane supplies the projection direction. A single anchor
+      // triangle on a garment fold only chooses its sign, not a new axis.
+      const facingDirection = normal.clone().multiplyScalar(normal.dot(outward) < 0 ? -1 : 1);
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d'); if (!ctx) continue;
+      ctx.drawImage(item.image, 0, 0, 1024, 1024);
+      if (item.selected || !item.fits) {
+        ctx.strokeStyle = item.fits ? '#0072ce' : '#d20a2e'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, 1016, 1016);
+      }
+      const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+      const center = points[0]!.clone().add(points[2]!).multiplyScalar(0.5);
+      // Polygon winding can point a saved plane into the garment. Orient the
+      // raster toward the actual outside face so lettering is not mirrored.
+      // Flipping the projector's height axis does not change its rectangular
+      // footprint, centre, physical dimensions or persisted frame.
+      const imageNormal = facingDirection;
+      const imageUp = new THREE.Vector3().crossVectors(imageNormal, u).normalize();
+      const orientation = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, imageUp, imageNormal));
+      const inverse = this.wrapper.matrixWorld.clone().invert();
+      let used = false;
+      for (const mesh of meshes) {
+        const geometry = new DecalGeometry(mesh, center, orientation, new THREE.Vector3(width, height, depth));
+        const normals = geometry.getAttribute('normal');
+        const positions = geometry.getAttribute('position');
+        const kept: number[] = [];
+        for (let i = 0; i + 2 < positions.count; i += 3) {
+          const face = normals ? new THREE.Vector3().fromBufferAttribute(normals, i) :
+            new THREE.Vector3().subVectors(new THREE.Vector3().fromBufferAttribute(positions, i + 1), new THREE.Vector3().fromBufferAttribute(positions, i))
+              .cross(new THREE.Vector3().subVectors(new THREE.Vector3().fromBufferAttribute(positions, i + 2), new THREE.Vector3().fromBufferAttribute(positions, i)));
+          if (face.dot(facingDirection) > 0) kept.push(i, i + 1, i + 2);
+        }
+        if (kept.length === 0) { geometry.dispose(); continue; }
+        geometry.setIndex(kept); geometry.applyMatrix4(inverse);
+        const overlay = new THREE.Mesh(geometry, material); overlay.name = `surface-artwork:${item.id}`;
+        overlay.renderOrder = 10;
+        this.placementGroup.add(overlay); used = true;
+      }
+      if (!used) { texture.dispose(); material.dispose(); }
+    }
+  }
+
+  getSurfaceArtworkCount(): number {
+    return this.placementGroup.children.filter((node) => node.name.startsWith('surface-artwork:')).length;
   }
 
   /** Remove overlay lines/meshes and dispose their geometries/materials. */

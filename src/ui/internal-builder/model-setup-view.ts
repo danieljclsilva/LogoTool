@@ -544,6 +544,7 @@ export interface ModelSetupViewerLike {
   setZoomPercent?(pct: number): void;
   getZoomPercent?(): number;
   resetZoom?(): void;
+  setViewSide?(side: 'front' | 'back' | 'left' | 'right'): void;
   setOrbitEnabled?(enabled: boolean): void;
   /**
    * Optional per-frame hook for projected HTML overlays (overlay-only).
@@ -757,6 +758,48 @@ export function createModelSetupView(
    * polygons are only ever replaced by one explicit release commit.
    */
   let livePreview: SetupVec3[] | null = null;
+  let drawingOutline: SVGSVGElement | null = null;
+  let outlineSignature = '';
+  let outlineDraft: ProductDraft | null = null;
+
+  // Immediate display-only guide. It is never read back into saved geometry:
+  // release still verifies actual surface picks through the existing resolver.
+  const paintDrawingOutline = (points: SetupVec3[] | null, rectangle?: { x0: number; y0: number; x1: number; y1: number }): void => {
+    const canvas = canvasOf();
+    const stage = canvas?.parentElement;
+    if (!canvas || !stage) return;
+    const box = canvas.getBoundingClientRect();
+    const projected = rectangle ? [
+      { x: rectangle.x0, y: rectangle.y0 }, { x: rectangle.x1, y: rectangle.y0 },
+      { x: rectangle.x1, y: rectangle.y1 }, { x: rectangle.x0, y: rectangle.y1 },
+    ] : (points ?? []).map((point) => viewerOf()?.projectToClient?.(point) ?? null)
+      .filter((point): point is { x: number; y: number } => point !== null);
+    const signature = JSON.stringify([box.width, box.height, projected.map((point) => [point.x - box.left, point.y - box.top])]);
+    if (signature === outlineSignature && drawingOutline?.parentElement === stage) return;
+    outlineSignature = signature;
+    if (drawingOutline?.parentElement !== stage) {
+      drawingOutline?.remove();
+      drawingOutline = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      drawingOutline.setAttribute(HOOK, 'live-outline');
+      drawingOutline.setAttribute('aria-label', 'Safe area drawing preview');
+      drawingOutline.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2';
+      stage.append(drawingOutline);
+    }
+    drawingOutline.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+    drawingOutline.replaceChildren();
+    drawingOutline.style.display = projected.length === 0 ? 'none' : '';
+    if (projected.length === 0) return;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', projected.length >= 3 ? 'polygon' : 'polyline');
+    line.setAttribute('points', projected.map((point) => `${point.x - box.left},${point.y - box.top}`).join(' '));
+    line.setAttribute('fill', projected.length >= 3 ? 'rgba(0,114,206,.2)' : 'none');
+    line.setAttribute('stroke', '#0072ce'); line.setAttribute('stroke-width', '2.5');
+    drawingOutline.append(line);
+    for (const point of projected) {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', String(point.x - box.left)); dot.setAttribute('cy', String(point.y - box.top));
+      dot.setAttribute('r', '3'); dot.setAttribute('fill', '#0072ce'); drawingOutline.append(dot);
+    }
+  };
   /** Active canvas gesture (trace / rectangle drag / handle drag). */
   let gesture:
     | { kind: 'trace'; entry: ModelSetupProduct; draft: ProductDraft; points: SetupVec3[]; misses: number }
@@ -813,6 +856,7 @@ export function createModelSetupView(
   };
 
   const paintViewer = (draft: ProductDraft): void => {
+    outlineDraft = draft;
     const viewer = viewerOf();
     if (!viewer) return;
     try {
@@ -857,6 +901,7 @@ export function createModelSetupView(
       viewer.setAnchorsVisible(draft.anchorsVisible);
       viewer.setSafeAreasVisible(draft.safeAreasVisible);
       viewer.setProductVisible(draft.productVisible);
+      if (gesture === null) paintDrawingOutline(draft.safeAreasVisible && draft.productVisible ? draft.drawing : null);
     } catch {
       return;
     }
@@ -1010,7 +1055,7 @@ export function createModelSetupView(
     const viewer = viewerOf();
     const canvas = canvasOf();
     const stage = canvas?.parentElement ?? null;
-    if (!viewer || !canvas || !stage) {
+    if (!viewer || !canvas || !stage || canvas.getClientRects().length === 0) {
       if (handleLayer !== null) handleLayer.style.display = 'none';
       return;
     }
@@ -1081,7 +1126,10 @@ export function createModelSetupView(
       if (live) {
         try {
           live.onFrame = () => {
-            if (!destroyed) syncHandleLayer();
+            if (!destroyed) {
+              syncHandleLayer();
+              if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
+            }
           };
         } catch {
           framedViewer = null;
@@ -1388,6 +1436,7 @@ export function createModelSetupView(
 
   function refresh(): void {
     if (destroyed) return;
+    document.querySelector('[data-model-setup-hook="commit-tools"]')?.replaceChildren();
     container.replaceChildren();
     const root = document.createElement('div');
     root.className = 'model-setup';
@@ -1924,7 +1973,9 @@ export function createModelSetupView(
       emit(entry, draft);
       refresh();
     });
-    section.append(recompute);
+    const commitTools = document.querySelector('[data-model-setup-hook="commit-tools"]');
+    if (commitTools) { recompute.hidden = staleCount === 0; commitTools.append(recompute); }
+    else section.append(recompute);
     root.append(section);
   }
 
@@ -2026,6 +2077,14 @@ export function createModelSetupView(
       syncViewbar(scope);
     });
     mount.append(zoomOut, zoomSelect, zoomIn, fit);
+    for (const side of ['front', 'back'] as const) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = side === 'front' ? 'Front' : 'Back';
+      button.setAttribute(HOOK, `view-${side}`);
+      button.disabled = !viewer?.setViewSide;
+      button.addEventListener('click', () => viewerOf()?.setViewSide?.(side));
+      mount.append(button);
+    }
     const toggles: Array<{ view: string; hook: string; label: string; pressed: boolean }> = [
       {
         view: 'vis-anchors',
@@ -2562,7 +2621,7 @@ export function createModelSetupView(
       }
       const combined = [...(gesture.draft.drawing ?? []), ...gesture.points];
       livePreview = combined.length >= 3 ? combined : null;
-      paintViewer(gesture.draft);
+      paintDrawingOutline(combined);
       return;
     }
     if (gesture.kind === 'rect') {
@@ -2570,16 +2629,7 @@ export function createModelSetupView(
         gesture.misses += 1;
         return;
       }
-      const detailed = safePickDetailed(viewer, event.clientX, event.clientY);
-      const resolved = resolveDragRectangle(
-        viewer,
-        { point: gesture.corner0, normal: gesture.normal0 },
-        { point: hit, normal: detailed?.normal ?? null },
-        { x: gesture.downX, y: gesture.downY },
-        { x: event.clientX, y: event.clientY },
-      );
-      livePreview = 'corners' in resolved ? resolved.corners : null;
-      paintViewer(gesture.draft);
+      paintDrawingOutline(null, { x0: gesture.downX, y0: gesture.downY, x1: event.clientX, y1: event.clientY });
       return;
     }
     const active = gesture;
@@ -2993,6 +3043,7 @@ export function createModelSetupView(
         /* best-effort teardown */
       }
       handleLayer = null;
+      drawingOutline?.remove(); drawingOutline = null;
       handleDots = [];
       handleModelsCache = [];
       document.removeEventListener('keydown', onKeyDown);

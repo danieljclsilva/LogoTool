@@ -75,6 +75,9 @@ import type {
 import { createGuidedScale, guidedCorrespondences, validateImageSpan } from './guided-scale.js';
 import type { GuidedScaleCommit, GuidedScaleRequest, GuidedScaleSpanCommit } from './guided-scale.js';
 import { createModelSetupView, projectAreaToMm } from './model-setup-view.js';
+import { expandableWorkspace } from './workspace-expansion.js';
+import { modelAreaRegionId } from '../../core/model-placement/index.js';
+import type { ModelPlacementScene } from './model-placement-view.js';
 import type {
   ModelSetupInput,
   ModelSetupSnapshot,
@@ -87,6 +90,7 @@ import {
   serializeSetupCalibration,
   spanNativeDistance,
   validateReferenceSpan,
+  fitScaleFromReferences,
 } from '../../core/setup-calibration/index.js';
 import type { ReferenceSpan, SetupCalibrationBundle } from '../../core/setup-calibration/index.js';
 import {
@@ -257,6 +261,17 @@ const addProductDisclosure = hook<HTMLDetailsElement>('add-product-disclosure');
 const addProductSummary = hook<HTMLElement>('add-product-summary');
 const productModelBox = hook<HTMLElement>('product-model');
 const productModelStage = hook<HTMLElement>('product-model-stage');
+const modelExpandButton = hook<HTMLButtonElement>('product-model-expand');
+const modelExpansion = expandableWorkspace(productModelBox, (expanded) => {
+  modelExpandButton.textContent = expanded ? 'Close enlarged view' : 'Enlarge workspace';
+  modelExpandButton.setAttribute('aria-label', expanded ? 'Close enlarged product setup workspace' : 'Enlarge product setup workspace');
+  modelExpandButton.setAttribute('aria-expanded', String(expanded));
+});
+modelExpandButton.addEventListener('click', () => modelExpansion.toggle());
+const modelSettingsButton = hook<HTMLButtonElement>('product-model-settings');
+modelSettingsButton.addEventListener('click', () => {
+  modelSettingsButton.setAttribute('aria-expanded', String(productModelBox.classList.toggle('show-setup-settings')));
+});
 const productModelStatus = hook<HTMLElement>('product-model-status');
 const modelSetupBox = hook<HTMLElement>('model-setup');
 const modelSetupSave = hook<HTMLButtonElement>('model-setup-save');
@@ -334,6 +349,8 @@ function defaultPlacementSelection(): void {
   if (product) source.selection = { ...source.selection, productId: product.id, variantId: product.variants[0]?.id ?? '' };
 }
 function setJobStep(next: JobStep): void {
+  if (next !== 'prepare') modelExpansion.close();
+  if (next !== 'placements') placementHandle?.closeEnlarged();
   if (next !== 'landing' && next !== 'approval' && source === null) next = 'landing';
   if (next !== 'approval' && next !== 'landing') jobReturnStep = next;
   jobStep = next;
@@ -3239,6 +3256,8 @@ function jobPresentationLookup(): (path: string) => Uint8Array | undefined {
 function placementEmptyProject(): ProjectDocument {
   return { schemaVersion: '0.1.0-provisional', projectId: newLocalId(), revision: 1, products: [], logos: [], configurations: [] };
 }
+const jobLogoImageCache = new Map<string, { bytes: Uint8Array; mediaType: string; url: string }>();
+let jobLogoCacheProject = '';
 function jobLogoDataUrl(logoId: string): { src: string; alt: string } | null {
   if (!source) return null;
   const logo = source.project.logos.find((entry) => entry.id === logoId);
@@ -3247,9 +3266,18 @@ function jobLogoDataUrl(logoId: string): { src: string; alt: string } | null {
   const bytes = jobAssetBytes().get(assetRef?.uri ?? '');
   if (!bytes) return null;
   const mediaType = assetRef?.mediaType ?? 'image/png';
+  if (jobLogoCacheProject !== source.project.projectId) {
+    for (const cached of jobLogoImageCache.values()) URL.revokeObjectURL(cached.url);
+    jobLogoImageCache.clear(); jobLogoCacheProject = source.project.projectId;
+  }
+  const cached = jobLogoImageCache.get(logoId);
+  if (cached?.bytes === bytes && cached.mediaType === mediaType) return { src: cached.url, alt: name || logoId };
   try {
     const blob = new Blob([new Uint8Array(bytes)], { type: mediaType });
-    return { src: URL.createObjectURL(blob), alt: name || logoId };
+    const url = URL.createObjectURL(blob);
+    if (cached) URL.revokeObjectURL(cached.url);
+    jobLogoImageCache.set(logoId, { bytes, mediaType, url });
+    return { src: url, alt: name || logoId };
   } catch { return null; }
 }
 function jobViewRefs(productId: string): Array<{ id: string; label: string; imagePath: string }> {
@@ -3419,6 +3447,7 @@ function mountJobModules(): void {
       newPlacementId: () => newLocalId(),
       getProductViews: (productId) => jobProductViews(productId),
       getProductMediaKind: (productId) => jobProductMediaKind(productId),
+      getModelScene: (productId, variantId) => jobModelPlacementScene(productId, variantId),
       getStageOverlay: (productId, variantId, regionId, viewId) => jobStageOverlay(productId, variantId, regionId, viewId),
       getLogoImage: (logoId) => jobLogoDataUrl(logoId),
       getAnchors: (productId, variantId, regionId) =>
@@ -3460,6 +3489,7 @@ function mountJobModules(): void {
       onApprovalBranch: () => setJobStep('approval'),
       onBack: () => setJobStep('prepare'),
       onStatus: (message) => alertBuilder(message),
+      onSaveJob: () => void saveJobToFile(),
     });
   } catch (error) {
     alertBuilder(`Placement workspace unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -5258,6 +5288,41 @@ function readModelSetup(
   return null;
 }
 
+/** Reconstruct display mapping only from current, asset-bound setup evidence. */
+function jobModelPlacementScene(productId: string, variantId: string): ModelPlacementScene | null {
+  if (!source) return null;
+  const product = source.project.products.find((entry) => entry.id === productId);
+  const variant = product?.variants.find((entry) => entry.id === variantId);
+  const model = modelEntryFor(productId, variantId);
+  if (!product || !variant || !model) return null;
+  const bytes = sessionAssetMap().get(model.modelPath);
+  if (!bytes) return null;
+  const key = modelAssetKeyOf(model.modelPath, bytes);
+  const evidence = readModelSetup(product, model.variantId, key);
+  if (!evidence) return null;
+  const setup = evidence.sidecar.setup as Record<string, unknown>;
+  if (setup['version'] !== '0.1.0-provisional-model-setup' || setup['productId'] !== productId ||
+      (setup['variantId'] ?? null) !== (model.variantId ?? null) || setup['assetKey'] !== key || !Array.isArray(setup['areas']) || setup['areas'].length > 64) return null;
+  const reference = setup['reference'] as ReferenceSpan;
+  if (validateReferenceSpan(reference) !== null || !('z' in reference.a) || !('z' in reference.b)) return null;
+  const fit = fitScaleFromReferences([reference]); if (!fit.ok) return null;
+  const regions: ModelPlacementScene['regions'] = [];
+  for (const value of setup['areas']) {
+    if (!value || typeof value !== 'object') continue;
+    const area = value as Record<string, unknown>;
+    if (typeof area['id'] !== 'string' || area['status'] !== 'current' || !Array.isArray(area['points']) || area['points'].length > 512) continue;
+    const points = area['points'] as Array<{ x: number; y: number; z: number }>;
+    const projected = projectAreaToMm(points, fit.mmPerUnit); if (!projected) continue;
+    const regionId = modelAreaRegionId(area['id'], spanScopeSuffix(model.variantId));
+    const region = product.regions.find((entry) => entry.id === regionId && variant.regionIds.includes(entry.id));
+    if (!region || region.calibrationRef.calibrationId !== evidence.calibration.id || region.calibrationRef.version !== evidence.calibration.version || region.safeArea.length !== projected.ring.length) continue;
+    // A sidecar cannot silently map edited/stale canonical geometry.
+    if (!region.safeArea.every((point, index) => Math.abs(point[0]! - projected.ring[index]!.x) < 1e-6 && Math.abs(point[1]! - projected.ring[index]!.y) < 1e-6)) continue;
+    regions.push({ id: regionId, frame: { ...projected.plane, mmPerUnit: fit.mmPerUnit }, pointsModel: points.map((point) => ({ ...point })) });
+  }
+  return regions.length > 0 ? { key: `${productId}:${variantId}:${key}`, bytes, regions } : null;
+}
+
 function mountModelSetup(productId: string, modelPath: string): void {
   if (staffModelSetup !== null) {
     try {
@@ -5463,10 +5528,6 @@ async function commitModelSetup(): Promise<void> {
       // stably from area ids, so re-saving updates placements-safe regions
       // in place; regions whose area was deleted stay (placements never
       // dangle — geometry gates mark them invalid instead).
-      const sanitizeSegment = (value: string): string => {
-        const cleaned = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
-        return cleaned === '' ? 'area' : cleaned;
-      };
       const scopeVariantIds = scopeVariant !== undefined
         ? [scopeVariant]
         : nextProduct.variants.map((entry) => entry.id);
@@ -5477,7 +5538,7 @@ async function commitModelSetup(): Promise<void> {
           modelSetupStatus.textContent = `Safe area “${area.name}” no longer projects onto a plane; re-pick it. Nothing was saved.`;
           return;
         }
-        const regionId = `region-${sanitizeSegment(area.id)}-${spanScopeSuffix(scopeVariant)}`;
+        const regionId = modelAreaRegionId(area.id, spanScopeSuffix(scopeVariant));
         const frameId = `frame-${regionId}`;
         const safeArea = projected.ring.map((point) => [point.x, point.y] as [number, number]);
         const frame = {

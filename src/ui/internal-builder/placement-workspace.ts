@@ -35,6 +35,8 @@ import {
 import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import { displayVariantName } from '../../core/operation-document/index.js';
 import { validateProject } from '../../core/validate.js';
+import { createModelPlacementView, type ModelPlacementScene, type ModelPlacementView } from './model-placement-view.js';
+import { expandableWorkspace } from './workspace-expansion.js';
 import type {
   Configuration,
   Placement,
@@ -130,6 +132,7 @@ export interface PlacementWorkspaceDeps {
   getIncludedScope?(): { productIds: string[]; configurationIds: string[] } | null;
   getProductViews(productId: string): PlacementProductView[];
   getProductMediaKind(productId: string): 'images' | 'model' | 'none';
+  getModelScene?(productId: string, variantId: string): ModelPlacementScene | null;
   getStageOverlay(
     productId: string,
     variantId: string,
@@ -153,6 +156,7 @@ export interface PlacementWorkspaceDeps {
   onApprovalBranch(): void;
   onBack(): void;
   onStatus?(message: string): void;
+  onSaveJob?(): void;
 }
 
 export interface PendingPlacementEdit {
@@ -165,6 +169,7 @@ export interface PendingPlacementEdit {
 }
 
 export interface PlacementWorkspaceHandle {
+  closeEnlarged(): void;
   update(): void;
   destroy(): void;
   /** True while staged (unapplied) form edits or a dirty add draft exist. */
@@ -452,6 +457,24 @@ const CONVENTION_WORD: Record<MeasurementConvention, string> = {
 
 const STYLE_TEXT = [
   '.pw-root{font:inherit;color:inherit}',
+  '.pw-layout.pw-product-workspace{border:1px solid #e4e8ec;border-radius:10px;padding:12px;background:#fff;gap:16px;grid-template-columns:minmax(0,1fr) 320px}',
+  '.pw-product-workspace .model-placement-workbench{border:0;padding:0}',
+  '.pw-product-workspace .pw-rail{padding-left:16px}',
+  '.station-expanded-workspace .pw-product-workspace{border:0;padding:0}',
+  '@media(max-width:820px){.pw-layout.pw-product-workspace{grid-template-columns:minmax(0,1fr)}.pw-product-workspace .pw-rail{padding-left:0}}',
+  '.model-placement-workbench{border:1px solid #e4e8ec;border-radius:10px;padding:10px;background:#fff;min-width:0}',
+  '.model-placement-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}',
+  '.model-placement-toolbar .pw-secondary{padding:8px 12px;min-height:44px}',
+  '.model-placement-details-button{display:none}',
+  '.model-placement-stage{position:relative;height:clamp(340px,60vh,700px);min-height:0}',
+  '.model-placement-stage canvas{display:block;width:100%;height:100%;touch-action:none}',
+  '.station-expanded-workspace>.pw-root{height:100%;display:flex;flex-direction:column}',
+  '.station-expanded-workspace .pw-layout{flex:1;min-height:0;grid-template-columns:minmax(0,1fr) 320px;gap:12px}',
+  '.station-expanded-workspace .pw-main{min-height:0;display:flex;flex-direction:column}',
+  '.station-expanded-workspace .model-placement-workbench{flex:1;min-height:0;display:flex;flex-direction:column}',
+  '.station-expanded-workspace .model-placement-stage{flex:1;min-height:150px;height:auto}',
+  '.station-expanded-workspace .pw-rail{overflow:auto;padding:0 12px;min-height:0}',
+  '@media(max-width:700px){.station-expanded-workspace .pw-root>h2,.station-expanded-workspace .pw-header{display:none}.station-expanded-workspace .pw-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}.station-expanded-workspace .model-placement-details-button{display:block}.station-expanded-workspace:not(.show-placement-details) .pw-rail{display:none}.station-expanded-workspace.show-placement-details .pw-layout{grid-template-rows:minmax(210px,1fr) minmax(110px,30vh)}.station-expanded-workspace .pw-rail{margin:0;padding:8px}.station-expanded-workspace .model-placement-workbench>p{display:none}}',
   '.pw-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:0 32px}',
   '.pw-main{min-width:0}.pw-rail{border-left:1px solid #e4e8ec;padding-left:32px;min-width:0}',
   '@media(max-width:820px){.pw-layout{grid-template-columns:1fr}.pw-rail{border-left:0;border-top:1px solid #e4e8ec;padding-left:0;padding-top:20px;margin-top:24px}}',
@@ -545,6 +568,14 @@ export function mountPlacementWorkspace(
   const viewCache = new Map<string, { cx: number; cy: number; span: number }>();
   let viewOverride: { cx: number; cy: number; span: number } | null = null;
   const aborter = new AbortController();
+  let modelView: ModelPlacementView | null = null;
+  const expansion = expandableWorkspace(root, () => {
+    const expandButton = root.querySelector<HTMLButtonElement>('[data-placement-hook="pw-model-expand"]');
+    if (expandButton) {
+      expandButton.textContent = expansion.expanded() ? 'Close enlarged view' : 'Enlarge workspace';
+      expandButton.setAttribute('aria-expanded', String(expansion.expanded()));
+    }
+  });
 
   function announce(message: string): void {
     status = message;
@@ -838,6 +869,9 @@ export function mountPlacementWorkspace(
   function update(): void {
     if (destroyed) return;
     const memory = clearFocusMemory();
+    const openDetails = new Set(Array.from(root.querySelectorAll<HTMLDetailsElement>('details[open]')).map((node) => node.getAttribute(HOOK)));
+    const railScroll = root.querySelector<HTMLElement>('.pw-rail')?.scrollTop ?? 0;
+    modelView?.element.remove();
     root.replaceChildren();
     const wrap = el('div', 'pw-root', 'pw-root');
     root.append(wrap);
@@ -849,6 +883,10 @@ export function mountPlacementWorkspace(
     layout.append(main, rail);
     renderStage(main);
     renderRail(rail);
+    for (const details of root.querySelectorAll<HTMLDetailsElement>('details')) {
+      if (openDetails.has(details.getAttribute(HOOK))) details.open = true;
+    }
+    rail.scrollTop = railScroll;
     restoreFocus(memory);
   }
 
@@ -1018,9 +1056,10 @@ export function mountPlacementWorkspace(
     if (kind === 'model') {
       needsHeader = true;
       const label = el('p', 'pw-muted', 'pw-model-label');
-      label.textContent = 'Measured placement diagram';
+      const scene = deps.getModelScene?.(selection.productId, selection.variantId);
+      label.textContent = scene && scene.regions.length > 0 ? 'Place logos on the product' : 'Measured placement diagram';
       headerRow.append(label);
-      if (deps.onViewModel !== undefined) {
+      if (deps.onViewModel !== undefined && (!scene || scene.regions.length === 0)) {
         const view = el('button', 'pw-tab', 'pw-view-model') as HTMLButtonElement;
         view.type = 'button';
         view.textContent = 'View model';
@@ -1072,6 +1111,40 @@ export function mountPlacementWorkspace(
       return;
     }
     const region = stageRegion();
+    const modelScene = deps.getModelScene?.(selection.productId, selection.variantId) ?? null;
+    if (modelScene && region && modelScene.regions.some((entry) => entry.id === region.id)) {
+      main.parentElement?.classList.add('pw-product-workspace');
+      if (!modelView) modelView = createModelPlacementView({
+        select: (index) => {
+          const context = currentContext(); const entry = context.configuration?.placements[index];
+          if (!entry) return;
+          deps.setSelection({ placementId: entry.id ?? `index:${index}` }); update();
+        },
+        move: (index, pos) => {
+          const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
+          if (!config || !entry) return;
+          if (anyPendingForConfiguration(config)) { announce('Apply or discard pending changes before moving a logo.'); update(); return; }
+          if (Math.abs(pos.xMm - entry.pos.xMm) < 1e-9 && Math.abs(pos.yMm - entry.pos.yMm) < 1e-9) return;
+          try {
+            const next = updatePlacementInConfig(context.project, config.id, placementSelector(entry, index), { pos });
+            if (commitNext('Move logo on product', next)) { staged.delete(placementKeyOf(config.id, entry, index)); announce('Logo moved on the product.'); update(); }
+          } catch (error) { announce(`Move blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
+        },
+        status: (message) => announce(message),
+        expand: () => expansion.toggle(),
+        isExpanded: () => expansion.expanded(),
+        toggleDetails: () => root.classList.toggle('show-placement-details'),
+        ...(deps.onSaveJob ? { save: () => deps.onSaveJob?.() } : {}),
+      });
+      main.append(modelView.element);
+      modelView.update({ scene: modelScene, selectedIndex: placementIndex, activeRegionId: region.id, status,
+        revision: JSON.stringify([modelScene.key, modelScene.regions, configuration.id, project.revision, configuration.placements]),
+        items: configuration.placements.map((entry, index) => ({ index, placement: entry, imageSrc: deps.getLogoImage(entry.logoId)?.src ?? null,
+          fits: product.regions.some((area) => area.id === entry.regionId && evaluatePlacementGeometry(area, entry).ok) })),
+      });
+      return;
+    }
+    modelView?.destroy(); modelView = null;
     const views = deps.getProductViews(selection.productId);
     const viewId = activeViewId(views, selection);
     let overlay: PlacementStageOverlay | null = null;
@@ -2833,6 +2906,7 @@ export function mountPlacementWorkspace(
   update();
 
   return {
+    closeEnlarged: () => expansion.close(),
     hasPendingEdits,
     pendingEdits: collectPendingEdits,
     applyPendingEdits,
@@ -2840,6 +2914,7 @@ export function mountPlacementWorkspace(
     update,
     destroy() {
       destroyed = true;
+      expansion.destroy(); modelView?.destroy(); modelView = null;
       aborter.abort();
       styleNode.remove();
       root.replaceChildren();

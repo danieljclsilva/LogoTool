@@ -3,7 +3,7 @@
 // no browser/Three.js needed. Used by e2e/setup-calibration.spec.ts.
 
 /** Minimal synthetic self-contained cube GLB (unit cube, double-sided). */
-export function cubeGlb(raisedFront = false): Uint8Array {
+export function cubeGlb(raisedFront = false, withNormals = true): Uint8Array {
   const h = 0.5;
   type V = [number, number, number];
   const faces: Array<{ n: V; v: [V, V, V, V] }> = [
@@ -21,6 +21,11 @@ export function cubeGlb(raisedFront = false): Uint8Array {
     const vertices = raisedFront && face.n[2] === 1
       ? [a, b, [0, 0, 0.65] as V, b, c, [0, 0, 0.65] as V, c, d, [0, 0, 0.65] as V, d, a, [0, 0, 0.65] as V]
       : [a, b, c, a, c, d];
+    // With no NORMAL attribute the renderer derives normals from winding.
+    // Use outward triangles for that fixture; retain legacy bytes by default.
+    if (!withNormals) for (let at = 0; at < vertices.length; at += 3) {
+      const second = vertices[at + 1]!; vertices[at + 1] = vertices[at + 2]!; vertices[at + 2] = second;
+    }
     for (let index = 0; index < vertices.length; index += 1) {
       const p = vertices[index]!;
       pos.push(p[0], p[1], p[2]);
@@ -49,7 +54,7 @@ export function cubeGlb(raisedFront = false): Uint8Array {
     nodes: [{ name: 'syn-cube', mesh: 0 }],
     meshes: [{
       name: 'syn-cube',
-      primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, material: 0, mode: 4 }],
+      primitives: [{ attributes: withNormals ? { POSITION: 0, NORMAL: 1 } : { POSITION: 0 }, material: 0, mode: 4 }],
     }],
     materials: [{ name: 'syn-cube-mat', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [0.2, 0.4, 0.8, 1.0], metallicFactor: 0, roughnessFactor: 0.8 } }],
     accessors: [

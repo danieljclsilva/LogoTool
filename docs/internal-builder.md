@@ -56,14 +56,24 @@ save-and-continue replaces the job.
    structurally valid job; calibration gaps surface on Step 2, never here.
 2. **Set logo placements.** Heading `Set logo placements` (single step/module title), with product /
    option selectors (hidden when single), named view tabs, and either
-   calibrated photo overlays or the authoritative region-mm `Measured placement diagram`. Overlays appear wherever the
+   calibrated photo overlays, a calibrated 3D product workspace, or the authoritative region-mm `Measured placement diagram`. Photo overlays appear wherever the
    exact scope (product + region + option + view + image + calibration) has a valid evaluated mapping: the primary
    two-click span calibration stages a provisional mapping automatically, and an explicitly reviewed Advanced mapping
    also qualifies. Provisional overlays carry the truthful warning `Provisional calibrated preview — verify physical
    measurements before production` and never auto-approve production geometry. With no valid mapping (unmapped views,
-   model-only products, trial-only or invalid mappings) the stage shows the diagram instead — millimetres always come
+   trial-only or invalid mappings) the stage shows the diagram instead — millimetres always come
    from the region frame, never from pixels or mesh bounds. Each placed logo renders its actual original raster
    artwork inside the footprint (affine-mapped, beneath selection outlines; missing art keeps a labelled outline).
+   Model-only products with current asset-bound setup evidence show the actual
+   model and original raster artwork on its triangles. Drag artwork, or select
+   **Move logo** and click the product; **Rotate**, **Front**, **Back**, **Fit**,
+   zoom, **Enlarge workspace** and **Save job** stay inside the workbench. The
+   enlarged view includes logo selection, dimensions and actions; on narrow
+   screens **Logo details** opens that panel without leaving the product.
+   Screen picks are converted through the saved region plane and reference
+   scale, never pixels or mesh bounds. This remains a provisional planar
+   physical mapping; surface-following artwork is a visual preview. Stale,
+   missing or foreign model setup evidence never substitutes a guessed mapping.
    Action buttons meet a 44px minimum on desktop and narrow layouts. `Add logo placement` opens an
    inline form (Logo, Safe area, Width/Height mm, Method); starting position
    is the region centre, never invented sizes. Selected-placement controls run
@@ -186,6 +196,12 @@ scope changes mark dependent measurements unresolved, never silently rebind.
     never discard staged data. Limits: planar patches only (no curved
     mapping), one span proves no shape correctness, nothing here is
     production-approved. See `calibration.md`.
+    Safe-area drawing has an immediate outline while the pointer is held and
+    while clicked corners are incomplete. Only release/Finish validates and
+    commits geometry. **Enlarge workspace** keeps the tools, reference controls,
+    area list and Save inside one panel. **Measurements and safe areas** opens
+    the internal settings drawer on narrow enlarged views. Escape closes the
+    enlarged view and cancels any active gesture without changing geometry.
    The new issue project ID is minted in the approval branch (never the source
    ID, unique per issue) and stays stable across navigation; it is reused for
    repeated generation with unchanged input. The format defaults to the

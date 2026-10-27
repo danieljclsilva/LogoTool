@@ -111,6 +111,23 @@ optional name is blank.
 Model safe-area meshes need translucent fills as well as outlines; dispose
 replaced overlay resources. View changes never alter the stored polygons.
 
+Show a display-only outline during a held drag, including curved rectangle
+drags, and during incomplete clicked outlines. The guide never supplies saved
+coordinates: release still resolves and validates actual surface hits.
+Enlarge the setup workbench in place, with drawing, zoom, visibility, reference,
+area and save controls inside its boundary. Narrow enlarged views expose the
+reference/area panel through an internal settings drawer. Escape and Close
+restore the previous layout without changing calibration or staged geometry.
+
+For calibrated model placements, show original raster artwork on the actual
+asset triangles. Use only current asset-bound model setup and matching region
+geometry to convert physical coordinates. Dragging artwork or clicking a new
+position for the selected logo projects a real model hit into its declared
+region frame; commit one canonical millimetre update on release. Camera/view
+changes and cancelled/missed gestures commit nothing. Keep size/rotation and
+safe-area evaluation in the existing domain kernel. This display projection
+does not establish a curved physical mapping or production approval.
+
 ## Zoom
 
 Use `50%`, `75%`, `100%`, `125%`, `150%`, `200%`, `300%`, `400%` plus Fit.

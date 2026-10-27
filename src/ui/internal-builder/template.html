@@ -209,6 +209,46 @@
        Full available width; bounded height (55–65vh desktop, sensible min). */
     .product-model-stage { position: relative; width: 100%; max-width: none; height: clamp(320px, 55vh, 560px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
     .product-model-stage canvas { display: block; width: 100%; height: 100%; }
+    [data-builder-hook="product-model"] { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; display: grid; grid-template-columns: minmax(0,1fr) 290px; grid-template-rows: auto minmax(340px,52vh) auto; gap: 10px 16px; }
+    [data-builder-hook="product-model"][hidden] { display:none; }
+    .product-model-toolbar { grid-column:1/-1; display:flex; gap:12px; align-items:flex-start; }
+    .product-model-toolbar > [role="toolbar"] { flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:6px; }
+    .product-model-toolbar button, .product-model-toolbar select { min-height:44px; width:auto; }
+    .product-model-toolbar .model-setup-row { margin:4px 0; }
+    .product-model-toolbar .model-setup-author-tools { display:flex;flex-wrap:wrap;gap:4px 14px;align-items:end; }
+    .product-model-toolbar .model-setup-author-tools > p { flex-basis:100%;margin:2px 0; }
+    .product-model-toolbar .model-setup-status:empty { display:none; }
+    [data-builder-hook="product-model"] .product-model-stage { height:100%; min-height:0; border:0; grid-column:1; grid-row:2; }
+    [data-builder-hook="model-setup"] { grid-column:2; grid-row:2; overflow:auto; padding:0 8px; border-left:1px solid var(--line); }
+    [data-builder-hook="product-model-status"] { display:none; }
+    .product-model-footer { grid-column:1/-1; border-top:1px solid var(--line); padding-top:8px; }
+    .product-model-footer p { margin:4px 0; }
+    .product-model-footer p:empty { display:none; }
+    .product-model-footer .product-setup-actions { display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:0; }
+    .product-model-footer .btn-secondary { width:auto; }
+    .product-model-settings-button { display:none; }
+    .station-expanded-workspace { position:fixed!important; inset:8px!important; z-index:1000!important; margin:0!important; padding:12px!important; background:#fff!important; border:1px solid var(--line); border-radius:10px; box-shadow:0 0 0 100vmax #192d3dbb; overflow:hidden; }
+    [data-builder-hook="product-model"].station-expanded-workspace { grid-template-rows:auto minmax(0,1fr) auto; }
+    @media(max-width:700px) {
+      [data-builder-hook="product-model"] { grid-template-columns:minmax(0,1fr); grid-template-rows:auto 340px auto auto; }
+      [data-builder-hook="model-setup"] { grid-column:1; grid-row:3; max-height:260px; border-left:0; border-top:1px solid var(--line); }
+      [data-builder-hook="product-model"].station-expanded-workspace { grid-template-rows:auto minmax(180px,1fr) auto; }
+      [data-builder-hook="product-model"].station-expanded-workspace:not(.show-setup-settings) [data-builder-hook="model-setup"] { display:none; }
+      [data-builder-hook="product-model"].station-expanded-workspace.show-setup-settings [data-builder-hook="model-setup"] { display:block;position:absolute;left:12px;right:12px;bottom:72px;height:40vh;max-height:350px;z-index:5;background:#fff;box-shadow:0 2px 20px #192d3d40;padding:12px;border:1px solid var(--line);border-radius:8px; }
+      .station-expanded-workspace .product-model-settings-button { display:block; }
+      .product-model-toolbar { gap:6px; }
+      .product-model-toolbar .model-setup-hint { display:none; }
+      .product-model-toolbar > button { max-width:110px; }
+      .product-model-toolbar > button { width:44px!important;min-width:44px;max-width:44px;padding:6px;font-size:0; }
+      .product-model-toolbar > [data-builder-hook="product-model-expand"]::before { content:'⤢';font-size:24px; }
+      .station-expanded-workspace .product-model-toolbar > [data-builder-hook="product-model-expand"]::before { content:'×'; }
+      .product-model-toolbar > [data-builder-hook="product-model-settings"]::before { content:'⚙';font-size:24px; }
+      .product-model-toolbar [data-model-setup-hook="mode-hint"] { display:none; }
+      .product-model-toolbar .model-setup-actions button { padding:8px;font-size:13px; }
+      .product-model-toolbar .model-setup-field input { width:140px; }
+      .product-model-footer .btn-secondary { font-size:.85rem;padding:8px 12px; }
+      .product-model-footer label { font-size:.75rem; }
+    }
     .anchor-setup-drawing .anchor-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
     /* First-corner distinction is fill-only (see product-setup note above). */
     .anchor-setup-draw-first { fill: #0b6cab; }
@@ -445,15 +485,22 @@
             <div data-builder-hook="product-workspace" tabindex="-1"></div>
             <div data-builder-hook="guided-scale" hidden></div>
             <div data-builder-hook="product-model" hidden>
+              <div class="product-model-toolbar">
               <div data-model-setup-hook="viewbar" role="toolbar" aria-label="3D preview view controls"></div>
+              <button type="button" class="btn-secondary" data-builder-hook="product-model-expand" aria-label="Enlarge product setup workspace">Enlarge workspace</button>
+              <button type="button" class="btn-secondary product-model-settings-button" data-builder-hook="product-model-settings" aria-label="Measurements and safe areas" aria-expanded="false">Measurements and safe areas</button>
+              </div>
               <div class="product-model-stage" data-builder-hook="product-model-stage"><canvas data-builder-hook="product-model-canvas"></canvas></div>
               <p class="muted" data-builder-hook="product-model-status" role="status"></p>
               <div data-builder-hook="model-setup"></div>
+              <div class="product-model-footer">
               <div class="product-setup-actions">
                 <button type="button" class="btn-secondary" data-builder-hook="model-setup-save">Save 3D setup to master</button>
+                <span data-model-setup-hook="commit-tools"></span>
                 <label class="muted"><input type="checkbox" data-builder-hook="model-setup-products-toggle" checked> Show product buttons</label>
               </div>
               <p class="muted" data-builder-hook="model-setup-status" role="status" aria-live="polite"></p>
+              </div>
             </div>
             <details class="disclosure" data-builder-hook="product-photo-disclosure">
               <summary>Add or replace a view image</summary>
