@@ -32,6 +32,13 @@ import {
   measureEdgeToAnchor,
   rotatedFootprintCorners,
 } from '../../core/operation-measurements/index.js';
+import {
+  cornerSafeMeasurements,
+  rotationSnapDeg,
+  snapFootprint,
+  resizeFromCornerMm,
+  normalizeDeg,
+} from '../../core/placement-manipulation/index.js';
 import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import { displayVariantName } from '../../core/operation-document/index.js';
 import { validateProject } from '../../core/validate.js';
@@ -569,6 +576,7 @@ export function mountPlacementWorkspace(
   let viewOverride: { cx: number; cy: number; span: number } | null = null;
   const aborter = new AbortController();
   let modelView: ModelPlacementView | null = null;
+  let stageAborter: AbortController | null = null;
   const expansion = expandableWorkspace(root, () => {
     const expandButton = root.querySelector<HTMLButtonElement>('[data-placement-hook="pw-model-expand"]');
     if (expandButton) {
@@ -1103,6 +1111,8 @@ export function mountPlacementWorkspace(
   }
 
   function renderStage(main: HTMLElement): void {
+    stageAborter?.abort(); stageAborter = new AbortController();
+    const stageSignal = stageAborter.signal;
     const { project, selection, product, configuration, placement, placementIndex } = currentContext();
     if (product === null || configuration === null) {
       const note = el('p', 'pw-muted', 'pw-stage-empty');
@@ -1115,6 +1125,11 @@ export function mountPlacementWorkspace(
     if (modelScene && region && modelScene.regions.some((entry) => entry.id === region.id)) {
       main.parentElement?.classList.add('pw-product-workspace');
       if (!modelView) modelView = createModelPlacementView({
+        canEdit: () => {
+          const config = currentContext().configuration;
+          if (config && !anyPendingForConfiguration(config)) return true;
+          announce('Apply or discard pending changes before editing a logo.'); return false;
+        },
         select: (index) => {
           const context = currentContext(); const entry = context.configuration?.placements[index];
           if (!entry) return;
@@ -1130,7 +1145,36 @@ export function mountPlacementWorkspace(
             if (commitNext('Move logo on product', next)) { staged.delete(placementKeyOf(config.id, entry, index)); announce('Logo moved on the product.'); update(); }
           } catch (error) { announce(`Move blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
         },
+        commit: (index, patch) => {
+          const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
+          if (!config || !entry) return;
+          if (anyPendingForConfiguration(config)) { announce('Apply or discard pending changes before editing a logo.'); update(); return; }
+          const nextPatch: { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number } = {};
+          if (patch.pos && (Math.abs(patch.pos.xMm - entry.pos.xMm) > 1e-9 || Math.abs(patch.pos.yMm - entry.pos.yMm) > 1e-9)) nextPatch.pos = patch.pos;
+          if (patch.widthMm !== undefined && Math.abs(patch.widthMm - entry.widthMm) > 1e-9) nextPatch.widthMm = patch.widthMm;
+          if (patch.heightMm !== undefined && Math.abs(patch.heightMm - entry.heightMm) > 1e-9) nextPatch.heightMm = patch.heightMm;
+          if (patch.rotationDeg !== undefined && Math.abs(patch.rotationDeg - entry.rotationDeg) > 1e-9) nextPatch.rotationDeg = patch.rotationDeg;
+          if (Object.keys(nextPatch).length === 0) return;
+          try {
+            const next = updatePlacementInConfig(context.project, config.id, placementSelector(entry, index), nextPatch);
+            if (commitNext('Edit logo on product', next)) { staged.delete(placementKeyOf(config.id, entry, index)); announce('Logo updated on the product.'); update(); }
+          } catch (error) { announce(`Edit blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
+        },
         status: (message) => announce(message),
+        preview: (index, patch) => {
+          const context = currentContext();
+          if (index !== context.placementIndex) return;
+          const set = (hook: string, value: number): void => {
+            const input = root.querySelector<HTMLInputElement>(`[${HOOK}="${hook}"]`);
+            if (input !== null) {
+              input.value = String(Math.round(value * 100) / 100);
+            }
+          };
+          if (patch.pos !== undefined) { set('pw-x', patch.pos.xMm); set('pw-y', patch.pos.yMm); }
+          if (patch.widthMm !== undefined) set('pw-width', patch.widthMm);
+          if (patch.heightMm !== undefined) set('pw-height', patch.heightMm);
+          if (patch.rotationDeg !== undefined) set('pw-rotation', patch.rotationDeg);
+        },
         expand: () => expansion.toggle(),
         isExpanded: () => expansion.expanded(),
         toggleDetails: () => root.classList.toggle('show-placement-details'),
@@ -1207,6 +1251,11 @@ export function mountPlacementWorkspace(
     const aspectFix = 4 / 3;
     const half = current.span / 2;
     svg.setAttribute('viewBox', `${current.cx - half * aspectFix} ${current.cy - half} ${current.span * aspectFix} ${current.span}`);
+    const cssUnits = (pixels: number): number => {
+      const matrix = svg.getScreenCTM();
+      const scale = matrix ? Math.hypot(matrix.a, matrix.b) : 0;
+      return scale > 0 ? pixels / scale : current.span * pixels / 500;
+    };
 
     if (overlay !== null) {
       const image = svgEl('image', {
@@ -1271,7 +1320,7 @@ export function mountPlacementWorkspace(
       }
     }
 
-    for (const [index, entry] of configuration.placements.entries()) {
+    for (const [index, entry] of [...configuration.placements.entries()].sort(([a], [b]) => Number(a === placementIndex) - Number(b === placementIndex))) {
       const corners = rotatedFootprintCorners(
         entry.pos.xMm, entry.pos.yMm, entry.widthMm, entry.heightMm, entry.rotationDeg,
       );
@@ -1344,29 +1393,41 @@ export function mountPlacementWorkspace(
     for (const anchor of anchors) {
       const svgPt = mapping.toSvg(anchor.posMm[0]!, anchor.posMm[1]!);
       if (svgPt === null) continue;
-      const dot = svgEl('circle', {
-        cx: String(svgPt.x),
-        cy: String(svgPt.y),
-        r: String(Math.max(current.span / 200, 0.5)),
-        fill: '#d20a2e',
-        stroke: '#fff',
-        'stroke-width': String(Math.max(current.span / 500, 0.2)),
+      const size = cssUnits(7);
+      const dot = svgEl('rect', {
+        x: String(svgPt.x - size / 2),
+        y: String(svgPt.y - size / 2),
+        width: String(size),
+        height: String(size),
+        fill: '#fff',
+        stroke: '#0b6cab',
+        'stroke-width': String(Math.max(current.span / 600, 0.2)),
       });
+      dot.setAttribute('pointer-events', 'none');
+      mark(dot, `pw-anchor-${anchor.id}`);
       const title = svgEl('title', {});
       title.textContent = anchor.name;
       dot.append(title);
       svg.append(dot);
     }
 
-    if (placement !== null && region !== null) {
+    const safeMm: Array<[number, number]> = region !== null
+      ? region.safeArea.filter((pt): pt is [number, number] =>
+        Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1]))
+      : [];
+    const measureGroup = svgEl('g', { 'pointer-events': 'none' });
+    svg.append(measureGroup);
+    const paintMeasurements = (shown: Placement): void => {
+      measureGroup.replaceChildren();
+      if (region === null) return;
       const bindings = bindingsForPlacement(configuration.id, configuration.placements, placementIndex);
       const scopedAnchors = anchors;
       for (const binding of bindings) {
         const anchor = scopedAnchors.find((entry) => entry.id === binding.anchorId);
         if (anchor === undefined) continue;
         const footprint = rotatedFootprintCorners(
-          placement.pos.xMm, placement.pos.yMm,
-          placement.widthMm, placement.heightMm, placement.rotationDeg,
+          shown.pos.xMm, shown.pos.yMm,
+          shown.widthMm, shown.heightMm, shown.rotationDeg,
         ).map((corner) => ({ x: corner.x, y: corner.y }));
         const measured = measureEdgeToAnchor(
           footprint,
@@ -1377,22 +1438,150 @@ export function mountPlacementWorkspace(
         const start = mapping.toSvg(measured.endpoints[0].x, measured.endpoints[0].y);
         const end = mapping.toSvg(measured.endpoints[1].x, measured.endpoints[1].y);
         if (start === null || end === null) continue;
-        svg.append(svgEl('line', {
+        measureGroup.append(svgEl('line', {
           x1: String(start.x),
           y1: String(start.y),
           x2: String(end.x),
           y2: String(end.y),
           stroke: '#227443',
-          'stroke-width': String(Math.max(current.span / 400, 0.3)),
+          'stroke-width': String(Math.max(current.span / 500, 0.25)),
         }));
+        const label = svgEl('text', {
+          x: String((start.x + end.x) / 2),
+          y: String((start.y + end.y) / 2),
+          'font-size': String(cssUnits(12)),
+          fill: '#227443', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': String(cssUnits(3)),
+        });
+        label.textContent = `${displayMm(measured.valueMm)} mm`;
+        label.setAttribute('aria-hidden', 'true');
+        mark(label, 'pw-anchor-measure-label');
+        measureGroup.append(label);
+      }
+      // Four corner-to-nearest-safe-segment measurements for the selection.
+      // Compact labels render smaller than anchor measurement labels.
+      if (safeMm.length >= 3) {
+        const measures = cornerSafeMeasurements(
+          { cx: shown.pos.xMm, cy: shown.pos.yMm, widthMm: shown.widthMm, heightMm: shown.heightMm, rotationDeg: shown.rotationDeg },
+          safeMm,
+        );
+        for (const m of measures) {
+          const a = mapping.toSvg(m.corner.x, m.corner.y);
+          const b = mapping.toSvg(m.nearest.x, m.nearest.y);
+          if (a === null || b === null) continue;
+          const cline = svgEl('line', {
+            x1: String(a.x), y1: String(a.y), x2: String(b.x), y2: String(b.y),
+            stroke: '#6d4c00',
+            'stroke-width': String(Math.max(current.span / 600, 0.2)),
+            'stroke-dasharray': `${current.span / 200} ${current.span / 250}`,
+          });
+          cline.setAttribute('aria-hidden', 'true');
+          mark(cline, `pw-corner-line-${m.cornerIndex}`);
+          measureGroup.append(cline);
+          const tag = svgEl('text', {
+            x: String((a.x + b.x) / 2),
+            y: String((a.y + b.y) / 2),
+            'font-size': String(cssUnits(10)),
+            fill: '#6d4c00', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': String(cssUnits(3)),
+          });
+          tag.textContent = `${displayMm(m.distanceMm)} mm`;
+          tag.setAttribute('aria-hidden', 'true');
+          mark(tag, `pw-corner-dist-${m.cornerIndex}`);
+          measureGroup.append(tag);
+        }
+      }
+    };
+    if (placement !== null) paintMeasurements(placement);
+
+    /* Pointer gestures: footprint drag moves (mm via caller mapping);
+       corner handles resize, top handle rotates; empty-space drag pans;
+       wheel zooms. View changes never touch mm. Shift = unsnapped fine adjust. */
+    interface DragCandidate { pos: { xMm: number; yMm: number }; widthMm: number; heightMm: number; rotationDeg: number }
+    type StageDrag =
+      | { kind: 'move'; index: number; startMm: { xMm: number; yMm: number }; startRevision: number; base: DragCandidate }
+      | { kind: 'resize'; index: number; corner: number; startRevision: number; base: DragCandidate }
+      | { kind: 'rotate'; index: number; offsetDeg: number; startRevision: number; base: DragCandidate }
+      | { kind: 'pan'; startX: number; startY: number; origCx: number; origCy: number } | null;
+    let drag: StageDrag = null;
+    let moved = false;
+    let gesturePointer: number | null = null;
+    let ghostGuides: Array<{ a: StagePoint; b: StagePoint; center?: boolean }> = [];
+
+    // Visible accessible handles on the selected logo (direct manipulation).
+    if (placement !== null && placementIndex >= 0 && region !== null) {
+      const corners = rotatedFootprintCorners(
+        placement.pos.xMm, placement.pos.yMm, placement.widthMm, placement.heightMm, placement.rotationDeg,
+      );
+      const mappedCorners: StagePoint[] = [];
+      for (const corner of corners) {
+        const svgPt = mapping.toSvg(corner.x, corner.y);
+        if (svgPt === null) break;
+        mappedCorners.push(svgPt);
+      }
+      if (mappedCorners.length === 4) {
+        const handleSize = cssUnits(12);
+        for (let i = 0; i < 4; i += 1) {
+          const pt = mappedCorners[i]!;
+          const handle = svgEl('rect', {
+            x: String(pt.x - handleSize / 2), y: String(pt.y - handleSize / 2),
+            width: String(handleSize), height: String(handleSize),
+            fill: '#fff', stroke: '#d20a2e', 'stroke-width': String(Math.max(current.span / 500, 0.2)),
+          });
+          handle.setAttribute('data-handle-kind', 'resize');
+          handle.setAttribute('data-corner', String(i));
+          handle.setAttribute('data-placement-index', String(placementIndex));
+          handle.setAttribute('tabindex', '0');
+          handle.setAttribute('role', 'button');
+          handle.setAttribute('aria-label', `Resize logo from corner ${i + 1}. Drag or use arrow keys.`);
+          mark(handle, `pw-resize-handle-${i}`);
+          const title = svgEl('title', {});
+          title.textContent = `Resize corner ${i + 1}`;
+          handle.append(title);
+          svg.append(handle);
+        }
+        const topMid = {
+          x: (mappedCorners[2]!.x + mappedCorners[3]!.x) / 2,
+          y: (mappedCorners[2]!.y + mappedCorners[3]!.y) / 2,
+        };
+        const centre = mappedCorners.length === 4
+          ? { x: (mappedCorners[0]!.x + mappedCorners[2]!.x) / 2, y: (mappedCorners[0]!.y + mappedCorners[2]!.y) / 2 }
+          : topMid;
+        const length = Math.hypot(topMid.x - centre.x, topMid.y - centre.y);
+        const gap = cssUnits(28);
+        const rotatePt = {
+          x: topMid.x + (length > 1e-9 ? (topMid.x - centre.x) / length : 0) * gap,
+          y: topMid.y + (length > 1e-9 ? (topMid.y - centre.y) / length : -1) * gap,
+        };
+        const stem = svgEl('line', { x1: String(topMid.x), y1: String(topMid.y), x2: String(rotatePt.x), y2: String(rotatePt.y),
+          stroke: '#64748b', 'stroke-width': String(cssUnits(1)), 'pointer-events': 'none' });
+        mark(stem, 'pw-rotate-stem'); svg.append(stem);
+        const rotateHandle = svgEl('circle', {
+          cx: String(rotatePt.x), cy: String(rotatePt.y), r: String(cssUnits(7)),
+          fill: '#fff', stroke: '#d20a2e', 'stroke-width': String(Math.max(current.span / 500, 0.2)),
+        });
+        rotateHandle.setAttribute('data-handle-kind', 'rotate');
+        rotateHandle.setAttribute('data-placement-index', String(placementIndex));
+        rotateHandle.setAttribute('tabindex', '0');
+        rotateHandle.setAttribute('role', 'button');
+        rotateHandle.setAttribute('aria-label', 'Rotate logo. Drag around centre, or use [ and ] keys for fine steps.');
+        mark(rotateHandle, 'pw-rotate-handle');
+        const rotateTitle = svgEl('title', {});
+        rotateTitle.textContent = 'Rotate';
+        rotateHandle.append(rotateTitle);
+        svg.append(rotateHandle);
       }
     }
 
-    /* Pointer gestures: footprint drag moves (mm via caller mapping);
-       empty-space drag pans; wheel zooms. View changes never touch mm. */
-    let drag: { kind: 'move'; index: number; startMm: { xMm: number; yMm: number } } |
-      { kind: 'pan'; startX: number; startY: number; origCx: number; origCy: number } | null = null;
-    let moved = false;
+    const liveField = (hook: string, value: string): void => {
+      const input = root.querySelector<HTMLInputElement>(`[${HOOK}="${hook}"]`);
+      if (input !== null) input.value = value;
+    };
+    const reflectCandidate = (candidate: DragCandidate): void => {
+      liveField('pw-width', String(Math.round(candidate.widthMm * 100) / 100));
+      liveField('pw-height', String(Math.round(candidate.heightMm * 100) / 100));
+      liveField('pw-rotation', String(Math.round(candidate.rotationDeg * 100) / 100));
+      liveField('pw-x', String(Math.round(candidate.pos.xMm * 100) / 100));
+      liveField('pw-y', String(Math.round(candidate.pos.yMm * 100) / 100));
+    };
 
     const toSvgPoint = (clientX: number, clientY: number): StagePoint | null => {
       const ctm = svg.getScreenCTM();
@@ -1408,10 +1597,40 @@ export function mountPlacementWorkspace(
     };
 
     svg.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || !event.isPrimary || drag !== null) return;
       const target = event.target as Element | null;
-      const footprint = target?.closest?.('[data-placement-index]');
+      const handle = target?.closest?.('[data-handle-kind]');
       const svgPt = toSvgPoint(event.clientX, event.clientY);
+      const startRevision = deps.getProject().revision;
+      const handleKind = handle?.getAttribute('data-handle-kind');
+      if (handleKind === 'resize' || handleKind === 'rotate') {
+        const index = Number(handle?.getAttribute('data-placement-index'));
+        const entry = configuration.placements[index];
+        if (!Number.isInteger(index) || entry === undefined || svgPt === null) return;
+        const mm = mapping.fromSvg(svgPt);
+        if (mm === null) return;
+        const base: DragCandidate = {
+          pos: { xMm: entry.pos.xMm, yMm: entry.pos.yMm },
+          widthMm: entry.widthMm, heightMm: entry.heightMm, rotationDeg: entry.rotationDeg,
+        };
+        if (handleKind === 'resize') {
+          const corner = Number(handle?.getAttribute('data-corner'));
+          if (!Number.isInteger(corner) || corner < 0 || corner > 3) return;
+          drag = { kind: 'resize', index, corner, startRevision, base };
+        } else {
+          const pointerAngle = (Math.atan2(-(mm.yMm - base.pos.yMm), mm.xMm - base.pos.xMm) * 180) / Math.PI;
+          drag = { kind: 'rotate', index, offsetDeg: base.rotationDeg - pointerAngle, startRevision, base };
+        }
+        if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before editing a logo.'); drag = null; return; }
+        moved = false;
+        deps.setSelection({ placementId: entry.id ?? `index:${index}` });
+        gesturePointer = event.pointerId;
+        svg.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      const footprint = target?.closest?.('[data-placement-index]');
       if (footprint !== null && footprint !== undefined) {
         const index = Number(footprint.getAttribute('data-placement-index'));
         if (!Number.isInteger(index)) return;
@@ -1419,12 +1638,16 @@ export function mountPlacementWorkspace(
         if (entry === undefined || svgPt === null) return;
         const mm = mapping.fromSvg(svgPt);
         if (mm === null) return;
+        if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before moving a logo.'); return; }
         drag = {
           kind: 'move',
           index,
           startMm: { xMm: entry.pos.xMm - mm.xMm, yMm: entry.pos.yMm - mm.yMm },
+          startRevision,
+          base: { pos: { xMm: entry.pos.xMm, yMm: entry.pos.yMm }, widthMm: entry.widthMm, heightMm: entry.heightMm, rotationDeg: entry.rotationDeg },
         };
         moved = false;
+        gesturePointer = event.pointerId;
         svg.setPointerCapture?.(event.pointerId);
         event.preventDefault();
       } else if (svgPt !== null) {
@@ -1436,44 +1659,92 @@ export function mountPlacementWorkspace(
           origCy: current.cy,
         };
         moved = false;
+        gesturePointer = event.pointerId;
         svg.setPointerCapture?.(event.pointerId);
       }
     }, { signal: aborter.signal });
 
     svg.addEventListener('pointermove', (event) => {
-      if (drag === null) return;
+      const activeDrag = drag;
+      if (activeDrag === null || gesturePointer !== event.pointerId) return;
       const svgPt = toSvgPoint(event.clientX, event.clientY);
       if (svgPt === null) return;
-      if (drag.kind === 'pan') {
+      if (activeDrag.kind === 'pan') {
         const ctm = svg.getScreenCTM();
         if (ctm === null) return;
-        const dxSvg = (event.clientX - drag.startX) / ctm.a;
-        const dySvg = (event.clientY - drag.startY) / ctm.d;
+        const dxSvg = (event.clientX - activeDrag.startX) / ctm.a;
+        const dySvg = (event.clientY - activeDrag.startY) / ctm.d;
         if (!Number.isFinite(dxSvg) || !Number.isFinite(dySvg)) return;
-        current.cx = drag.origCx - dxSvg;
-        current.cy = drag.origCy - dySvg;
+        current.cx = activeDrag.origCx - dxSvg;
+        current.cy = activeDrag.origCy - dySvg;
         moved = true;
         paintView();
-      } else {
-        const mm = mapping.fromSvg(svgPt);
-        if (mm === null) return;
-        const entry = configuration.placements[drag.index];
-        if (entry === undefined) return;
-        const nextMm = { xMm: mm.xMm + drag.startMm.xMm, yMm: mm.yMm + drag.startMm.yMm };
-        if (!Number.isFinite(nextMm.xMm) || !Number.isFinite(nextMm.yMm)) return;
-        if (Math.abs(nextMm.xMm - entry.pos.xMm) > 1e-9 ||
-          Math.abs(nextMm.yMm - entry.pos.yMm) > 1e-9) {
+        return;
+      }
+      const mm = mapping.fromSvg(svgPt);
+      if (mm === null) return;
+      const entry = configuration.placements[activeDrag.index];
+      if (entry === undefined) return;
+      const unsnapped = event.shiftKey === true;
+      if (activeDrag.kind === 'move') {
+        const rawCx = mm.xMm + activeDrag.startMm.xMm;
+        const rawCy = mm.yMm + activeDrag.startMm.yMm;
+        if (!Number.isFinite(rawCx) || !Number.isFinite(rawCy)) return;
+        const snapped = snapFootprint(
+          { cx: rawCx, cy: rawCy, widthMm: activeDrag.base.widthMm, heightMm: activeDrag.base.heightMm, rotationDeg: activeDrag.base.rotationDeg },
+          safeMm, { unsnapped, rotateTolDeg: 0 },
+        );
+        const candidate: DragCandidate = {
+          pos: { xMm: snapped.cx, yMm: snapped.cy },
+          widthMm: snapped.widthMm, heightMm: snapped.heightMm, rotationDeg: snapped.rotationDeg,
+        };
+        if (Math.abs(candidate.pos.xMm - entry.pos.xMm) > 1e-9 ||
+          Math.abs(candidate.pos.yMm - entry.pos.yMm) > 1e-9 ||
+          Math.abs(candidate.rotationDeg - entry.rotationDeg) > 1e-9) {
           moved = true;
-          paintDragGhost(drag.index, nextMm);
+          paintCandidateGhost(activeDrag.index, candidate, snapped.guides, unsnapped);
+          reflectCandidate(candidate);
+        }
+      } else if (activeDrag.kind === 'resize') {
+        const resized = resizeFromCornerMm({ cx: activeDrag.base.pos.xMm, cy: activeDrag.base.pos.yMm,
+          widthMm: activeDrag.base.widthMm, heightMm: activeDrag.base.heightMm, rotationDeg: activeDrag.base.rotationDeg },
+          activeDrag.corner, { x: mm.xMm, y: mm.yMm });
+        const candidate: DragCandidate = { pos: { xMm: resized.cx, yMm: resized.cy },
+          widthMm: resized.widthMm, heightMm: resized.heightMm, rotationDeg: resized.rotationDeg };
+        moved = true;
+        paintCandidateGhost(activeDrag.index, candidate, [], unsnapped);
+        reflectCandidate(candidate);
+      } else {
+        const pointerAngle = (Math.atan2(-(mm.yMm - activeDrag.base.pos.yMm), mm.xMm - activeDrag.base.pos.xMm) * 180) / Math.PI;
+        if (!Number.isFinite(pointerAngle)) return;
+        const raw = pointerAngle + activeDrag.offsetDeg;
+        const snapped = rotationSnapDeg(raw, safeMm, 2, unsnapped);
+        const candidate: DragCandidate = {
+          pos: { ...activeDrag.base.pos },
+          widthMm: activeDrag.base.widthMm, heightMm: activeDrag.base.heightMm, rotationDeg: snapped.rotationDeg,
+        };
+        if (Math.abs(candidate.rotationDeg - entry.rotationDeg) > 1e-9 || !moved) {
+          moved = true;
+          paintCandidateGhost(activeDrag.index, candidate, snapped.guides, unsnapped);
+          reflectCandidate(candidate);
         }
       }
     }, { signal: aborter.signal });
 
+    let lastCandidate: DragCandidate | null = null;
+    const currentCandidate = (): DragCandidate | null => {
+      if (drag === null || drag.kind === 'pan' || !moved || lastCandidate === null) return null;
+      return lastCandidate;
+    };
     const finishDrag = (event: PointerEvent, commitDrag: boolean): void => {
-      if (drag === null) return;
+      if (drag === null || gesturePointer !== event.pointerId) return;
       const finished = drag;
+      const candidate = currentCandidate();
       drag = null;
+      const pointer = gesturePointer; gesturePointer = null;
+      if (pointer !== null && svg.hasPointerCapture(pointer)) svg.releasePointerCapture(pointer);
       clearGhost();
+      lastCandidate = null;
       if (finished.kind === 'pan') {
         if (moved) {
           viewCache.set(cacheKey, { cx: current.cx, cy: current.cy, span: current.span });
@@ -1481,7 +1752,7 @@ export function mountPlacementWorkspace(
         }
         return;
       }
-      if (!moved) {
+      if (!moved || candidate === null) {
         const entry = configuration.placements[finished.index];
         const id = entry?.id ?? `index:${finished.index}`;
         deps.setSelection({ placementId: id });
@@ -1490,12 +1761,12 @@ export function mountPlacementWorkspace(
         return;
       }
       if (!commitDrag) {
+        announce('Edit cancelled. Position unchanged.');
         update();
         return;
       }
-      const svgPt = toSvgPoint(event.clientX, event.clientY);
-      const mm = svgPt !== null ? mapping.fromSvg(svgPt) : null;
-      if (mm === null) {
+      if (deps.getProject().revision !== finished.startRevision) {
+        announce('Edit cancelled: the job changed while dragging. Position unchanged.');
         update();
         return;
       }
@@ -1504,9 +1775,8 @@ export function mountPlacementWorkspace(
         update();
         return;
       }
-      const pos = {
-        xMm: mm.xMm + finished.startMm.xMm,
-        yMm: mm.yMm + finished.startMm.yMm,
+      const patch: { pos: { xMm: number; yMm: number }; widthMm: number; heightMm: number; rotationDeg: number } = {
+        pos: candidate.pos, widthMm: candidate.widthMm, heightMm: candidate.heightMm, rotationDeg: candidate.rotationDeg,
       };
       let next: ProjectDocument;
       try {
@@ -1514,18 +1784,18 @@ export function mountPlacementWorkspace(
           deps.getProject(),
           configuration.id,
           placementSelector(entry, finished.index),
-          { pos },
+          patch,
         );
       } catch (error) {
-        announce(`Move blocked: ${error instanceof Error ? error.message : String(error)}`);
+        announce(`Edit blocked: ${error instanceof Error ? error.message : String(error)}`);
         update();
         return;
       }
-      if (commitNext('Move logo', next)) {
+      if (commitNext(finished.kind === 'move' ? 'Move logo' : finished.kind === 'resize' ? 'Resize logo' : 'Rotate logo', next)) {
         staged.delete(placementKeyOf(configuration.id, entry, finished.index));
         const id = entry.id ?? `index:${finished.index}`;
         deps.setSelection({ placementId: id });
-        announce('Logo moved.');
+        announce(finished.kind === 'move' ? 'Logo moved.' : finished.kind === 'resize' ? 'Logo resized.' : 'Logo rotated.');
         update();
       }
     };
@@ -1533,11 +1803,19 @@ export function mountPlacementWorkspace(
     svg.addEventListener('pointerup', (event) => {
       finishDrag(event, true);
     }, { signal: aborter.signal });
-    svg.addEventListener('pointercancel', () => {
-      drag = null;
-      clearGhost();
-      update();
-    }, { signal: aborter.signal });
+    const cancelGesture = (): void => {
+      if (drag === null) return;
+      drag = null; lastCandidate = null;
+      const pointer = gesturePointer; gesturePointer = null;
+      if (pointer !== null && svg.hasPointerCapture(pointer)) svg.releasePointerCapture(pointer);
+      clearGhost(); announce('Edit cancelled. Position unchanged.'); update();
+    };
+    svg.addEventListener('pointercancel', (event) => { if (event.pointerId === gesturePointer) cancelGesture(); }, { signal: stageSignal });
+    svg.addEventListener('lostpointercapture', (event) => { if (event.pointerId === gesturePointer) cancelGesture(); }, { signal: stageSignal });
+    window.addEventListener('blur', cancelGesture, { signal: stageSignal });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && drag !== null) { event.preventDefault(); cancelGesture(); }
+    }, { signal: stageSignal });
 
     const paintView = (): void => {
       const halfView = current.span / 2;
@@ -1548,28 +1826,84 @@ export function mountPlacementWorkspace(
     };
 
     let ghost: SVGElement | null = null;
-    const paintDragGhost = (index: number, pos: { xMm: number; yMm: number }): void => {
+    let ghostExtras: SVGElement[] = [];
+    const paintCandidateGhost = (
+      index: number, candidate: DragCandidate,
+      guides: Array<{ kind: string; valueMm?: number; fromMm?: { x: number; y: number }; toMm?: { x: number; y: number }; label: string }>,
+      unsnapped: boolean,
+    ): void => {
       clearGhost();
-      const entry = configuration.placements[index];
-      if (entry === undefined) return;
-      const corners = rotatedFootprintCorners(pos.xMm, pos.yMm, entry.widthMm, entry.heightMm, entry.rotationDeg);
+      lastCandidate = candidate;
+      const corners = rotatedFootprintCorners(candidate.pos.xMm, candidate.pos.yMm, candidate.widthMm, candidate.heightMm, candidate.rotationDeg);
       const mapped: StagePoint[] = [];
       for (const corner of corners) {
         const svgPt = mapping.toSvg(corner.x, corner.y);
         if (svgPt !== null) mapped.push(svgPt);
       }
       if (mapped.length < 3) return;
-      ghost = svgEl('polygon', {
-        points: mapped.map((point) => `${point.x},${point.y}`).join(' '),
-        fill: 'rgba(210,10,46,0.18)',
-        stroke: '#d20a2e',
-        'stroke-width': String(current.span / 250),
-      });
-      svg.append(ghost);
+      const polygon = svg.querySelector(`polygon[data-placement-index="${index}"]`);
+      polygon?.setAttribute('points', mapped.map((point) => `${point.x},${point.y}`).join(' '));
+      const entry = configuration.placements[index];
+      if (!entry || mapped.length !== 4) return;
+      const artwork = svg.querySelector(`[${HOOK}="pw-artwork-${entry.id ?? `index:${index}`}" ]`);
+      const q0 = mapped[0]!, q2 = mapped[2]!, q3 = mapped[3]!;
+      artwork?.setAttribute('transform', `matrix(${q2.x - q3.x} ${q2.y - q3.y} ${q0.x - q3.x} ${q0.y - q3.y} ${q3.x} ${q3.y})`);
+      for (let i = 0; i < 4; i++) {
+        const handle = svg.querySelector(`[${HOOK}="pw-resize-handle-${i}"]`), point = mapped[i]!;
+        const width = Number(handle?.getAttribute('width') ?? 0), height = Number(handle?.getAttribute('height') ?? 0);
+        handle?.setAttribute('x', String(point.x - width / 2)); handle?.setAttribute('y', String(point.y - height / 2));
+      }
+      const top = { x: (mapped[2]!.x + mapped[3]!.x) / 2, y: (mapped[2]!.y + mapped[3]!.y) / 2 };
+      const centre = { x: (mapped[0]!.x + mapped[2]!.x) / 2, y: (mapped[0]!.y + mapped[2]!.y) / 2 };
+      const rotation = svg.querySelector(`[${HOOK}="pw-rotate-handle"]`);
+      const length = Math.hypot(top.x - centre.x, top.y - centre.y), gap = cssUnits(28);
+      const rotatePt = { x: top.x + (length > 1e-9 ? (top.x - centre.x) / length : 0) * gap,
+        y: top.y + (length > 1e-9 ? (top.y - centre.y) / length : -1) * gap };
+      rotation?.setAttribute('cx', String(rotatePt.x)); rotation?.setAttribute('cy', String(rotatePt.y));
+      const stem = svg.querySelector(`[${HOOK}="pw-rotate-stem"]`);
+      stem?.setAttribute('x1', String(top.x)); stem?.setAttribute('y1', String(top.y));
+      stem?.setAttribute('x2', String(rotatePt.x)); stem?.setAttribute('y2', String(rotatePt.y));
+      paintMeasurements({ ...entry, ...candidate });
+      ghostGuides = [];
+      if (!unsnapped) {
+        for (const guide of guides) {
+          let a: StagePoint | null = null;
+          let b: StagePoint | null = null;
+          let center = false;
+          if (guide.fromMm !== undefined && guide.toMm !== undefined) {
+            a = mapping.toSvg(guide.fromMm.x, guide.fromMm.y);
+            b = mapping.toSvg(guide.toMm.x, guide.toMm.y);
+          } else if (guide.valueMm !== undefined && (guide.kind === 'v-center' || guide.kind === 'v-edge')) {
+            a = mapping.toSvg(guide.valueMm, candidate.pos.yMm - candidate.heightMm);
+            b = mapping.toSvg(guide.valueMm, candidate.pos.yMm + candidate.heightMm);
+            center = guide.kind === 'v-center';
+          } else if (guide.valueMm !== undefined && (guide.kind === 'h-center' || guide.kind === 'h-edge')) {
+            a = mapping.toSvg(candidate.pos.xMm - candidate.widthMm, guide.valueMm);
+            b = mapping.toSvg(candidate.pos.xMm + candidate.widthMm, guide.valueMm);
+            center = guide.kind === 'h-center';
+          }
+          if (a === null || b === null) continue;
+          ghostGuides.push({ a, b, center });
+          const line = svgEl('line', {
+            x1: String(a.x), y1: String(a.y), x2: String(b.x), y2: String(b.y),
+            stroke: '#0b6cab',
+            'stroke-width': String(Math.max(current.span / 600, 0.2)),
+            'stroke-dasharray': `${current.span / 200} ${current.span / 250}`,
+          });
+          line.setAttribute('aria-hidden', 'true');
+          line.setAttribute('pointer-events', 'none');
+          mark(line, 'pw-snap-guide');
+          svg.append(line);
+          ghostExtras.push(line);
+        }
+      }
     };
     const clearGhost = (): void => {
       ghost?.remove();
       ghost = null;
+      for (const extra of ghostExtras) extra.remove();
+      ghostExtras = [];
+      ghostGuides = [];
     };
 
     svg.addEventListener('wheel', (event) => {
@@ -1585,6 +1919,14 @@ export function mountPlacementWorkspace(
     svg.addEventListener('keydown', (event) => {
       if (placement === null || placementIndex < 0) return;
       if (event.key === 'Escape') {
+        if (drag !== null && drag.kind !== 'pan') {
+          drag = null;
+          lastCandidate = null;
+          clearGhost();
+          announce('Edit cancelled. Position unchanged.');
+          update();
+          return;
+        }
         if (measureDraft !== null && measureDraft.picking !== null) {
           measureDraft.picking = null;
           measureDraft.notice = 'Diagram pick cancelled; nothing changed.';
@@ -1593,21 +1935,35 @@ export function mountPlacementWorkspace(
         return;
       }
       const step = event.shiftKey ? 0.1 : 1;
-      let dx = 0;
-      let dy = 0;
+      const target = event.target as Element | null;
+      const handleKind = target?.getAttribute('data-handle-kind');
+      let dx = 0, dy = 0;
       if (event.key === 'ArrowLeft') dx = -step;
       else if (event.key === 'ArrowRight') dx = step;
       else if (event.key === 'ArrowUp') dy = step;
       else if (event.key === 'ArrowDown') dy = -step;
-      else return;
+      else if (!(handleKind === 'rotate' && (event.key === '[' || event.key === ']'))) return;
       event.preventDefault();
+      if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before editing a logo.'); return; }
+      let patch: { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number };
+      if (handleKind === 'rotate') {
+        const direction = event.key === '[' || event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
+        patch = { rotationDeg: normalizeDeg(placement.rotationDeg + direction * step) };
+      } else if (handleKind === 'resize') {
+        const corner = Number(target?.getAttribute('data-corner'));
+        const corners = rotatedFootprintCorners(placement.pos.xMm, placement.pos.yMm, placement.widthMm, placement.heightMm, placement.rotationDeg);
+        const pointer = corners[corner]; if (!pointer) return;
+        const resized = resizeFromCornerMm({ cx: placement.pos.xMm, cy: placement.pos.yMm, widthMm: placement.widthMm,
+          heightMm: placement.heightMm, rotationDeg: placement.rotationDeg }, corner, { x: pointer.x + dx, y: pointer.y + dy });
+        patch = { pos: { xMm: resized.cx, yMm: resized.cy }, widthMm: resized.widthMm, heightMm: resized.heightMm };
+      } else patch = { pos: { xMm: placement.pos.xMm + dx, yMm: placement.pos.yMm + dy } };
       let next: ProjectDocument;
       try {
         next = updatePlacementInConfig(
           deps.getProject(),
           configuration.id,
           placementSelector(placement, placementIndex),
-          { pos: { xMm: placement.pos.xMm + dx, yMm: placement.pos.yMm + dy } },
+          patch,
         );
       } catch (error) {
         announce(`Nudge blocked: ${error instanceof Error ? error.message : String(error)}`);
@@ -2915,7 +3271,7 @@ export function mountPlacementWorkspace(
     destroy() {
       destroyed = true;
       expansion.destroy(); modelView?.destroy(); modelView = null;
-      aborter.abort();
+      aborter.abort(); stageAborter?.abort();
       styleNode.remove();
       root.replaceChildren();
     },

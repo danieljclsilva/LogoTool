@@ -1526,6 +1526,15 @@ export function createProductSetupView(
       const want = Number((node as Element).getAttribute('data-markr'));
       if (Number.isFinite(want)) node.setAttribute('r', units(want));
     });
+    svg.querySelectorAll('[data-marksquare]').forEach((node) => {
+      const side = Number(node.getAttribute('data-marksquare'));
+      const cx = Number(node.getAttribute('cx')), cy = Number(node.getAttribute('cy'));
+      if (![side, cx, cy].every(Number.isFinite)) return;
+      node.setAttribute('x', String(cx - side / scale / 2));
+      node.setAttribute('y', String(cy - side / scale / 2));
+      node.setAttribute('width', units(side));
+      node.setAttribute('height', units(side));
+    });
     svg.querySelectorAll('[data-markhit]').forEach((node) => {
       const want = Number((node as Element).getAttribute('data-markhit'));
       if (Number.isFinite(want)) node.setAttribute('r', units(want));
@@ -2320,7 +2329,7 @@ export function createProductSetupView(
 
     // Drags paint directly onto the live overlay (no re-render) and commit
     // exactly once on pointerup; pointercancel/Escape abort with no commit.
-    const markerById = new Map<string, { dot: SVGCircleElement; tag: SVGTextElement; marker: SVGGElement }>();
+    const markerById = new Map<string, { dot: SVGRectElement; tag: SVGTextElement; marker: SVGGElement }>();
     const anchorsLayer = document.createElementNS(svgNS, 'g');
     anchorsLayer.setAttribute('class', 'product-setup-anchors');
     if (layerVisible(bucket, 'showAnchors')) svg.append(anchorsLayer);
@@ -2340,11 +2349,11 @@ export function createProductSetupView(
           'aria-label',
           `Anchor “${anchor.name}”. Arrow keys move, pointer drags, Delete removes.`,
         );
-        const dot = document.createElementNS(svgNS, 'circle');
+        const dot = document.createElementNS(svgNS, 'rect');
         dot.setAttribute('cx', String(px.x));
         dot.setAttribute('cy', String(px.y));
         dot.setAttribute('r', '9');
-        dot.setAttribute('data-markr', '7');
+        dot.setAttribute('data-marksquare', '7');
         dot.setAttribute('class', 'product-setup-dot');
         // Comfortable hit target: transparent, constant-CSS-px hit area that
         // bubbles to the marker handlers (no handler changes needed).
@@ -2362,13 +2371,13 @@ export function createProductSetupView(
         tag.setAttribute('class', 'product-setup-tag');
         // Label sizes are viewBox-relative in this renderer (like geometry),
         // so the layout pass counter-scales them to constant rendered px.
-        tag.setAttribute('data-markfont', '12');
+        tag.setAttribute('data-markfont', '10');
         tag.setAttribute('data-markstroke', '4');
         tag.setAttribute('data-markcx', String(px.x));
         tag.setAttribute('data-markcy', String(px.y));
         tag.textContent = anchor.name;
         marker.append(hit, dot, tag);
-        markerById.set(anchor.id, { dot: dot as SVGCircleElement, tag: tag as SVGTextElement, marker: marker as SVGGElement });
+        markerById.set(anchor.id, { dot: dot as SVGRectElement, tag: tag as SVGTextElement, marker: marker as SVGGElement });
         marker.addEventListener('pointerdown', (event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -2402,11 +2411,11 @@ export function createProductSetupView(
         });
         anchorsLayer.append(marker);
       } else {
-        const dot = document.createElementNS(svgNS, 'circle');
+        const dot = document.createElementNS(svgNS, 'rect');
         dot.setAttribute('cx', String(px.x));
         dot.setAttribute('cy', String(px.y));
         dot.setAttribute('r', '6');
-        dot.setAttribute('data-markr', '6');
+        dot.setAttribute('data-marksquare', '7');
         dot.setAttribute('class', 'product-setup-dot is-reference');
         anchorsLayer.append(dot);
       }
@@ -2442,7 +2451,7 @@ export function createProductSetupView(
       // Anchor-tag styling carries the white backing; the contract class
       // lets lead CSS target the measurement label.
       refLabel.setAttribute('class', 'product-setup-tag product-setup-reflabel');
-      refLabel.setAttribute('data-markfont', '12');
+      refLabel.setAttribute('data-markfont', '10');
       refLabel.setAttribute('data-markstroke', '4');
       refLabel.setAttribute('data-markcx', String(midX));
       refLabel.setAttribute('data-markcy', String(midY));
@@ -2454,18 +2463,18 @@ export function createProductSetupView(
         { x: savedSpan.bx, y: savedSpan.by, tag: 'B' },
       ];
       for (const end of ends) {
-        const dot = document.createElementNS(svgNS, 'circle');
+        const dot = document.createElementNS(svgNS, 'rect');
         dot.setAttribute('cx', String(end.x));
         dot.setAttribute('cy', String(end.y));
         dot.setAttribute('r', '7');
-        dot.setAttribute('data-markr', '7');
+        dot.setAttribute('data-marksquare', '7');
         dot.setAttribute('class', 'product-setup-dot is-reference');
         refGroup.append(dot);
         const tag = document.createElementNS(svgNS, 'text');
         tag.setAttribute('x', String(end.x + 12));
         tag.setAttribute('y', String(end.y + 4));
         tag.setAttribute('class', 'product-setup-tag');
-        tag.setAttribute('data-markfont', '12');
+        tag.setAttribute('data-markfont', '10');
         tag.setAttribute('data-markcx', String(end.x));
         tag.setAttribute('data-markcy', String(end.y));
         tag.textContent = end.tag;

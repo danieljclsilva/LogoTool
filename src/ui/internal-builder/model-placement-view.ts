@@ -2,27 +2,42 @@
 import { ModelViewer, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
 import { modelPointFromMm, regionMmFromModel, type ModelPoint, type ModelRegionFrame } from '../../core/model-placement/index.js';
 import { rotatedFootprintCorners } from '../../core/operation-measurements/index.js';
+import { normalizeDeg, rotationSnapDeg, snapFootprint, cornerSafeMeasurements, resizeFromCornerMm, type AlignGuide, type MmPolygon } from '../../core/placement-manipulation/index.js';
 import type { Placement } from '../../core/types.js';
 
 export interface ModelPlacementRegion { id: string; frame: ModelRegionFrame; pointsModel: ModelPoint[] }
 export interface ModelPlacementScene { key: string; bytes: Uint8Array; regions: ModelPlacementRegion[] }
 export interface ModelPlacementItem { index: number; placement: Placement; imageSrc: string | null; fits: boolean }
 interface ViewData { scene: ModelPlacementScene; items: ModelPlacementItem[]; selectedIndex: number; activeRegionId: string | null; revision: string; status: string }
+/** Geometry patch for a committed resize/rotate/move. Only changed fields are set. */
+export interface ModelPlacementCommitPatch { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number }
 export interface ModelPlacementView {
   element: HTMLElement;
   update(data: ViewData): void;
   destroy(): void;
 }
 
+/** Committed geometry snapshot plus a live transient candidate, all in region millimetres. */
+interface PreviewGeom { xMm: number; yMm: number; widthMm: number; heightMm: number; rotationDeg: number }
+type ActiveOp =
+  | { mode: 'move'; index: number; pointer: number; frame: ModelRegionFrame; safe: MmPolygon; base: PreviewGeom; offset: { xMm: number; yMm: number }; startX: number; startY: number; revision: string; geom: PreviewGeom | null }
+  | { mode: 'adjust'; index: number; revision: string; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; control: HTMLElement | null }
+  | { mode: 'resize-surface'; index: number; pointer: number; frame: ModelRegionFrame; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; corner: 0 | 1 | 2 | 3; grabOffset: { xMm: number; yMm: number }; captureEl: HTMLElement; revision: string }
+  | { mode: 'spin-surface'; index: number; pointer: number; frame: ModelRegionFrame; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; offsetDeg: number; captureEl: HTMLElement; revision: string };
+
 /** Persistent camera + local raster assets. Only release commits canonical mm. */
 export function createModelPlacementView(callbacks: {
   select(index: number): void;
+  canEdit?(): boolean;
   move(index: number, pos: { xMm: number; yMm: number }): void;
   status(message: string): void;
   expand(): void;
   isExpanded(): boolean;
   toggleDetails(): boolean;
   save?(): void;
+  commit?(index: number, patch: ModelPlacementCommitPatch): void;
+  /** Advisory live preview (mm); never staged or committed by the receiver. */
+  preview?(index: number, patch: ModelPlacementCommitPatch): void;
 }): ModelPlacementView {
   const element = document.createElement('section'); element.className = 'model-placement-workbench';
   element.setAttribute('data-placement-hook', 'pw-model-workbench');
@@ -30,21 +45,37 @@ export function createModelPlacementView(callbacks: {
   const stage = document.createElement('div'); stage.className = 'model-placement-stage';
   const canvas = document.createElement('canvas'); canvas.setAttribute('aria-label', 'Place logos directly on the product'); canvas.setAttribute('data-placement-hook', 'pw-model-canvas');
   stage.append(canvas);
+  // On-surface overlay: corner resize handles + rotation handle + corner-distance labels,
+  // positioned each frame from calibrated mm via viewer.projectToClient. Pointer-events
+  // stay on the small controls only so canvas drag/orbit is unaffected.
+  const overlay = document.createElement('div');
+  overlay.setAttribute('data-placement-hook', 'pw-model-surface-handles');
+  overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:5;display:none;';
+  const overlaySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  overlaySvg.setAttribute('data-placement-hook', 'pw-model-measure-lines');
+  overlaySvg.setAttribute('aria-hidden', 'true');
+  overlaySvg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
+  overlay.append(overlaySvg);
+  stage.append(overlay);
+  const handles = document.createElement('div'); handles.className = 'model-placement-handles';
+  handles.setAttribute('data-placement-hook', 'pw-model-handles');
+  handles.setAttribute('role', 'group'); handles.setAttribute('aria-label', 'Selected logo size and rotation');
   const hint = document.createElement('p'); hint.className = 'pw-muted';
-  hint.textContent = 'Drag a logo to move it; drag empty product to rotate. Move logo lets you click a new spot. Sizes and positions stay in millimetres.';
+  hint.textContent = 'Drag a logo to move it; drag empty product to rotate. Move logo lets you click a new spot. Use the size and rotation handles for fine changes. Hold Shift for unsnapped fine adjustment. Sizes and positions stay in millimetres.';
   const notice = document.createElement('p'); notice.className = 'pw-muted'; notice.textContent = 'Provisional surface preview — verify physical measurements before production.';
   const state = document.createElement('p'); state.className = 'pw-status pw-muted'; state.setAttribute('role', 'status'); state.setAttribute('data-placement-hook', 'pw-model-status');
-  element.append(bar, stage, hint, notice, state);
+  element.append(bar, stage, handles, hint, notice, state);
   let viewer: ModelViewer | null = null;
   let data: ViewData | null = null;
   let key = '', generation = 0, disposed = false, ready = false, forceRotate = false, placeMode = false;
   let artworkSignature = '';
   const images = new Map<string, HTMLImageElement | null>();
   const aborter = new AbortController();
-  let active: { index: number; pointer: number; frame: ModelRegionFrame; offset: { xMm: number; yMm: number }; startX: number; startY: number; revision: string; preview: { xMm: number; yMm: number } | null } | null = null;
+  let active: ActiveOp | null = null;
+  let fineHeld = false;
   let frameRequest = 0;
   const buttons: HTMLButtonElement[] = [];
-  function button(label: string, action: () => void, hook: string): HTMLButtonElement {
+  function button(label: string, action: (event: MouseEvent) => void, hook: string): HTMLButtonElement {
     const node = document.createElement('button'); node.type = 'button'; node.className = 'pw-secondary'; node.textContent = label;
     node.setAttribute('data-placement-hook', hook); node.addEventListener('click', action); bar.append(node); buttons.push(node); return node;
   }
@@ -64,7 +95,7 @@ export function createModelPlacementView(callbacks: {
     move.disabled = data === null || data.selectedIndex < 0;
     expand.textContent = callbacks.isExpanded() ? 'Close enlarged view' : 'Enlarge workspace';
     expand.setAttribute('aria-expanded', String(callbacks.isExpanded()));
-    state.textContent = placeMode ? 'Click the product to position the selected logo.' : data?.status || 'Drag a logo to move it, or rotate the product.';
+    if (!active) state.textContent = placeMode ? 'Click the product to position the selected logo.' : data?.status || 'Drag a logo to move it, or rotate the product.';
   }
   function zoom(direction: number): void {
     const steps = [50, 75, 100, 125, 150, 200, 300, 400];
@@ -72,6 +103,435 @@ export function createModelPlacementView(callbacks: {
     viewer?.setZoomPercent(steps[Math.min(steps.length - 1, Math.max(0, i + direction))]!);
   }
   function regionFor(item: ModelPlacementItem): ModelPlacementRegion | undefined { return data?.scene.regions.find((region) => region.id === item.placement.regionId); }
+  function selectedItem(): ModelPlacementItem | undefined { return data?.items.find((entry) => entry.index === data?.selectedIndex); }
+  function committedGeom(item: ModelPlacementItem): PreviewGeom {
+    const p = item.placement;
+    return { xMm: p.pos.xMm, yMm: p.pos.yMm, widthMm: p.widthMm, heightMm: p.heightMm, rotationDeg: normalizeDeg(p.rotationDeg) };
+  }
+  /** Region outline in frame millimetres; [] when unmappable so snapping degrades gracefully. Never fabricates calibration. */
+  function safeMmFor(region: ModelPlacementRegion): MmPolygon {
+    const out: Array<[number, number]> = [];
+    for (const point of region.pointsModel) {
+      const mm = regionMmFromModel(region.frame, point);
+      if (mm) out.push([mm.xMm, mm.yMm]);
+    }
+    return out;
+  }
+  const round2 = (v: number): number => Math.round(v * 100) / 100;
+  function previewStatus(geom: PreviewGeom, snapped: boolean): string {
+    return `Preview — X ${geom.xMm.toFixed(1)} mm · Y ${geom.yMm.toFixed(1)} mm · W ${geom.widthMm.toFixed(1)} mm · H ${geom.heightMm.toFixed(1)} mm · R ${normalizeDeg(geom.rotationDeg).toFixed(1)}°${snapped ? ' (snapped; hold Shift for fine)' : ''}`;
+  }
+  // ---- Resize/rotate handles (keyboard-accessible HTML controls) ----
+  function handleSlider(hook: string, label: string, min: number, max: number, step: number): HTMLInputElement {
+    const wrap = document.createElement('label'); wrap.className = 'model-placement-handle';
+    const caption = document.createElement('span'); caption.textContent = label; caption.className = 'pw-muted';
+    const input = document.createElement('input'); input.type = 'range'; input.min = String(min); input.max = String(max); input.step = String(step);
+    input.setAttribute('data-placement-hook', hook); input.setAttribute('aria-label', label); input.disabled = true;
+    wrap.append(caption, input); handles.append(wrap);
+    return input;
+  }
+  function handleButton(label: string, hook: string, action: (event: MouseEvent) => void): HTMLButtonElement {
+    const node = document.createElement('button'); node.type = 'button'; node.className = 'pw-secondary'; node.textContent = label;
+    node.setAttribute('data-placement-hook', hook); node.addEventListener('click', action); node.disabled = true;
+    handles.append(node); buttons.push(node); return node;
+  }
+  const widthSlider = handleSlider('pw-model-handle-width', 'Width (mm)', 1, 400, 0.5);
+  const heightSlider = handleSlider('pw-model-handle-height', 'Height (mm)', 1, 400, 0.5);
+  const rotationSlider = handleSlider('pw-model-handle-rotation', 'Rotation (°)', -180, 180, 0.5);
+  const growButton = handleButton('Grow', 'pw-model-handle-grow', (event) => stepSize(event, 1.05));
+  const shrinkButton = handleButton('Shrink', 'pw-model-handle-shrink', (event) => stepSize(event, 1 / 1.05));
+  const rotateCcw = handleButton('⟲ 1°', 'pw-model-handle-rotate-ccw', (event) => stepRotation(event, -1));
+  const rotateCw = handleButton('⟳ 1°', 'pw-model-handle-rotate-cw', (event) => stepRotation(event, 1));
+  const handleControls: HTMLElement[] = [widthSlider, heightSlider, rotationSlider, growButton, shrinkButton, rotateCcw, rotateCw];
+  function setHandlesEnabled(enabled: boolean): void { for (const control of handleControls) (control as HTMLInputElement | HTMLButtonElement).disabled = !enabled; }
+  function spanOf(safe: MmPolygon): { x: number; y: number } {
+    if (safe.length < 3) return { x: 0, y: 0 };
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of safe) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    return { x: maxX - minX, y: maxY - minY };
+  }
+  /** Refresh handle enablement and slider positions from committed geometry (or live preview for idle controls). */
+  function syncHandles(): void {
+    const item = selectedItem();
+    const region = item ? regionFor(item) : undefined;
+    if (!item || !region || (active && active.mode !== 'adjust')) { setHandlesEnabled(false); return; }
+    setHandlesEnabled(true);
+    const shown = active?.mode === 'adjust' && active.index === item.index ? active.geom : committedGeom(item);
+    const span = spanOf(safeMmFor(region));
+    const maxDim = Math.max(8, span.x, span.y, shown.widthMm, shown.heightMm);
+    for (const [slider, value] of [[widthSlider, shown.widthMm], [heightSlider, shown.heightMm]] as Array<[HTMLInputElement, number]>) {
+      slider.max = String(Math.ceil(maxDim));
+      if (active?.mode !== 'adjust' || active.control !== slider) slider.value = String(value);
+    }
+    if (active?.mode !== 'adjust' || active.control !== rotationSlider) rotationSlider.value = String(normalizeDeg(shown.rotationDeg));
+  }
+  function snapCandidate(safe: MmPolygon, geom: PreviewGeom, unsnapped: boolean): { geom: PreviewGeom; snapped: boolean; guides: AlignGuide[] } {
+    const snapped = snapFootprint(
+      { cx: geom.xMm, cy: geom.yMm, widthMm: geom.widthMm, heightMm: geom.heightMm, rotationDeg: geom.rotationDeg },
+      safe, { unsnapped, rotateTolDeg: 0 },
+    );
+    return {
+      geom: { xMm: round2(snapped.cx), yMm: round2(snapped.cy), widthMm: geom.widthMm, heightMm: geom.heightMm, rotationDeg: normalizeDeg(snapped.rotationDeg) },
+      snapped: snapped.snappedPosition || snapped.snappedRotation,
+      guides: unsnapped ? [] : snapped.guides,
+    };
+  }
+  /** Last snap guides in mm for the overlay (advisory; cleared on commit/cancel). */
+  let lastGuides: AlignGuide[] = [];
+  /** Advisory live preview for numeric fields; never staged or committed here. */
+  function emitPreview(index: number, geom: PreviewGeom): void {
+    try {
+      callbacks.preview?.(index, {
+        pos: { xMm: geom.xMm, yMm: geom.yMm },
+        widthMm: geom.widthMm, heightMm: geom.heightMm, rotationDeg: normalizeDeg(geom.rotationDeg),
+      });
+    } catch { /* preview is advisory only */ }
+  }
+  /** Live transient preview only — never exported. Committed on slider release / button commit. */
+  function previewAdjust(patch: Partial<PreviewGeom>, control: HTMLElement | null, unsnapped: boolean): void {
+    const item = selectedItem(); if (!item) return;
+    const region = regionFor(item); if (!region) return;
+    if (active && active.mode !== 'adjust') return;
+    if (active?.mode === 'adjust' && active.index !== item.index) cancel();
+    const safe = safeMmFor(region);
+    const base = active?.mode === 'adjust' && active.index === item.index ? active.base : committedGeom(item);
+    const raw: PreviewGeom = { ...(active?.mode === 'adjust' && active.index === item.index ? active.geom : base), ...patch };
+    raw.widthMm = Math.min(5000, Math.max(1, raw.widthMm));
+    raw.heightMm = Math.min(5000, Math.max(1, raw.heightMm));
+    let geom: PreviewGeom; let snapped: boolean; let guides: AlignGuide[];
+    if (patch.rotationDeg !== undefined && patch.xMm === undefined && patch.yMm === undefined && patch.widthMm === undefined && patch.heightMm === undefined) {
+      const rot = rotationSnapDeg(raw.rotationDeg, safe, 2, unsnapped);
+      geom = { ...raw, rotationDeg: normalizeDeg(rot.rotationDeg) }; snapped = rot.snapped; guides = unsnapped ? [] : rot.guides;
+    } else {
+      if (patch.widthMm !== undefined || patch.heightMm !== undefined) { geom = raw; snapped = false; guides = []; }
+      else { const out = snapCandidate(safe, raw, unsnapped); geom = out.geom; snapped = out.snapped; guides = out.guides; }
+    }
+    active = { mode: 'adjust', index: item.index, revision: data?.revision ?? '', safe, base, geom, control };
+    lastGuides = guides;
+    artworkSignature = ''; paint({ index: item.index, geom });
+    state.textContent = previewStatus(geom, snapped);
+    emitPreview(item.index, geom);
+    syncHandles();
+  }
+  function stepSize(event: MouseEvent, factor: number): void {
+    const item = selectedItem(); if (!item) return;
+    const fine = event.shiftKey || event.altKey || fineHeld;
+    const from = active?.mode === 'adjust' && active.index === item.index ? active.geom : committedGeom(item);
+    const scale = fine ? (factor > 1 ? 1.01 : 1 / 1.01) : factor;
+    previewAdjust({ widthMm: round2(from.widthMm * scale), heightMm: round2(from.heightMm * scale) }, null, fine);
+    commitAdjust();
+  }
+  function stepRotation(event: MouseEvent, deltaDeg: number): void {
+    const item = selectedItem(); if (!item) return;
+    const from = active?.mode === 'adjust' && active.index === item.index ? active.geom : committedGeom(item);
+    previewAdjust({ rotationDeg: normalizeDeg(from.rotationDeg + deltaDeg) }, null, true);
+    commitAdjust();
+  }
+  /** Commit the live preview once; restores committed geometry on stale revision. */
+  function buildPatch(base: PreviewGeom, geom: PreviewGeom): ModelPlacementCommitPatch {
+    const patch: ModelPlacementCommitPatch = {};
+    if (Math.abs(geom.xMm - base.xMm) > 1e-9 || Math.abs(geom.yMm - base.yMm) > 1e-9) patch.pos = { xMm: geom.xMm, yMm: geom.yMm };
+    if (Math.abs(geom.widthMm - base.widthMm) > 1e-9) patch.widthMm = geom.widthMm;
+    if (Math.abs(geom.heightMm - base.heightMm) > 1e-9) patch.heightMm = geom.heightMm;
+    if (Math.abs(normalizeDeg(geom.rotationDeg - base.rotationDeg)) > 1e-9) patch.rotationDeg = normalizeDeg(geom.rotationDeg);
+    return patch;
+  }
+  function dispatchPatch(index: number, patch: ModelPlacementCommitPatch): void {
+    const keys = Object.keys(patch);
+    if (keys.length === 0) return;
+    if (keys.length === 1 && patch.pos) { callbacks.move(index, patch.pos); return; }
+    if (callbacks.commit) { callbacks.commit(index, patch); return; }
+    if (patch.pos) callbacks.move(index, patch.pos);
+    callbacks.status('Size and rotation edits need workspace support in this build; position saved, size unchanged.');
+  }
+  function commitAdjust(): void {
+    if (active?.mode !== 'adjust' || !data) return;
+    const op = active; const item = data.items.find((entry) => entry.index === op.index);
+    if (!item || op.revision !== data.revision) {
+      cancel();
+      if (item && op.revision !== data?.revision) callbacks.status('Edit cancelled: the job changed. Position unchanged.');
+      return;
+    }
+    const patch = buildPatch(op.base, op.geom);
+    cancel();
+    dispatchPatch(op.index, patch);
+  }
+  for (const [slider, field] of [[widthSlider, 'widthMm'], [heightSlider, 'heightMm'], [rotationSlider, 'rotationDeg']] as Array<[HTMLInputElement, 'widthMm' | 'heightMm' | 'rotationDeg']>) {
+    slider.addEventListener('input', () => {
+      const value = Number(slider.value); if (!Number.isFinite(value)) return;
+      previewAdjust({ [field]: field === 'rotationDeg' ? normalizeDeg(value) : value } as Partial<PreviewGeom>, slider, fineHeld);
+    });
+    slider.addEventListener('change', () => commitAdjust());
+    slider.addEventListener('blur', () => { if (active?.mode === 'adjust' && active.control === slider) cancel(); });
+    slider.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && active?.mode === 'adjust') { event.preventDefault(); cancel(); callbacks.status('Resize cancelled. Size unchanged.'); slider.blur(); }
+    });
+  }
+  window.addEventListener('keydown', (event) => { if (event.key === 'Shift' || event.key === 'Alt') fineHeld = true; }, { signal: aborter.signal });
+  window.addEventListener('keyup', (event) => { if (event.key === 'Shift' || event.key === 'Alt') fineHeld = false; }, { signal: aborter.signal });
+  window.addEventListener('blur', () => { fineHeld = false; }, { signal: aborter.signal });
+  // ---- On-surface pointer handles (corners + rotate), positioned per frame ----
+  type SurfaceCorner = 0 | 1 | 2 | 3;
+  const cornerCursors = ['nwse-resize', 'nesw-resize', 'nwse-resize', 'nesw-resize'];
+  const cornerButtons: HTMLButtonElement[] = [];
+  const cornerLabels: HTMLDivElement[] = [];
+  const cornerLabelText = ['', '', '', ''];
+  function surfaceButton(hook: string, label: string, text: string, cursor: string): HTMLButtonElement {
+    const node = document.createElement('button'); node.type = 'button';
+    node.setAttribute('data-placement-hook', hook); node.setAttribute('aria-label', label);
+    node.textContent = text; node.tabIndex = 0;
+    node.style.cssText = `position:absolute;transform:translate(-50%,-50%);pointer-events:auto;touch-action:none;cursor:${cursor};` +
+      'width:14px;height:14px;min-width:14px;min-height:14px;padding:0;line-height:1;background:#fff;border:2px solid #2563eb;border-radius:1px;color:#1d4ed8;font-size:10px;';
+    overlay.append(node);
+    return node;
+  }
+  const spinButton = surfaceButton('pw-model-rotate-handle', 'Rotate logo on the product: drag, or press [ and ]', '⟳', 'grab');
+  spinButton.style.borderRadius = '50%'; spinButton.style.width = '22px'; spinButton.style.height = '22px';
+  for (let corner = 0 as SurfaceCorner; corner < 4; corner = (corner + 1) as SurfaceCorner) {
+    const node = surfaceButton(`pw-model-corner-${corner}`, `Resize logo from corner ${corner + 1} on the product: drag, or press plus and minus`, '⤢', cornerCursors[corner] ?? 'nwse-resize');
+    cornerButtons.push(node);
+    const tag = document.createElement('div');
+    tag.setAttribute('data-placement-hook', `pw-model-corner-dist-${corner}`);
+    tag.setAttribute('aria-hidden', 'true');
+    tag.style.cssText = 'position:absolute;transform:translate(-50%,-130%);pointer-events:none;white-space:nowrap;' +
+      'font-size:10px;line-height:1.4;padding:0 4px;background:rgba(255,255,255,.92);border:1px solid #cbd5e1;border-radius:4px;color:#334155;';
+    overlay.append(tag); cornerLabels.push(tag);
+    const captured = corner;
+    node.addEventListener('pointerdown', (event) => surfacePointerDown(event, 'resize-surface', node, captured));
+    node.addEventListener('pointermove', surfacePointerMove);
+    node.addEventListener('pointerup', surfacePointerUp);
+    node.addEventListener('pointercancel', () => cancel());
+    node.addEventListener('lostpointercapture', () => { if (active && active.mode !== 'move' && active.mode !== 'adjust') cancel(); });
+    node.addEventListener('keydown', surfaceKey);
+  }
+  spinButton.addEventListener('pointerdown', (event) => surfacePointerDown(event, 'spin-surface', spinButton));
+  spinButton.addEventListener('pointermove', surfacePointerMove);
+  spinButton.addEventListener('pointerup', surfacePointerUp);
+  spinButton.addEventListener('pointercancel', () => cancel());
+  spinButton.addEventListener('lostpointercapture', () => { if (active && active.mode !== 'move' && active.mode !== 'adjust') cancel(); });
+  spinButton.addEventListener('keydown', surfaceKey);
+  function shownGeomFor(item: ModelPlacementItem): PreviewGeom {
+    if (active && active.index === item.index && active.geom) return active.geom;
+    return committedGeom(item);
+  }
+  /** Reposition overlay controls from calibrated mm; follows orbit/zoom/resize. Hides when unprojectable. */
+  function positionOverlay(): void {
+    if (!viewer || !ready || !data || disposed || forceRotate || placeMode) { overlay.style.display = 'none'; return; }
+    const item = selectedItem(); const region = item ? regionFor(item) : undefined;
+    if (!item || !region) { overlay.style.display = 'none'; return; }
+    const shown = shownGeomFor(item);
+    const cornersMm = rotatedFootprintCorners(shown.xMm, shown.yMm, shown.widthMm, shown.heightMm, shown.rotationDeg);
+    const stageRect = stage.getBoundingClientRect();
+    if (!Number.isFinite(stageRect.width) || stageRect.width <= 0) { overlay.style.display = 'none'; return; }
+    const pts: Array<{ x: number; y: number } | null> = cornersMm.map((corner) => {
+      const mp = modelPointFromMm(region.frame, corner.x, corner.y); if (!mp) return null;
+      const client = viewer?.projectToClient(mp); if (!client) return null;
+      return { x: client.x - stageRect.left, y: client.y - stageRect.top };
+    });
+    if (pts.some((point) => point === null)) { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'block';
+    overlaySvg.setAttribute('width', String(Math.round(stageRect.width)));
+    overlaySvg.setAttribute('height', String(Math.round(stageRect.height)));
+    overlaySvg.setAttribute('viewBox', `0 0 ${stageRect.width} ${stageRect.height}`);
+    while (overlaySvg.firstChild) overlaySvg.removeChild(overlaySvg.firstChild);
+    const projectStage = (xMm: number, yMm: number): { x: number; y: number } | null => {
+      const mp = modelPointFromMm(region.frame, xMm, yMm); if (!mp) return null;
+      const client = viewer?.projectToClient(mp); if (!client) return null;
+      return { x: client.x - stageRect.left, y: client.y - stageRect.top };
+    };
+    const drawLine = (a: { x: number; y: number } | null, b: { x: number; y: number } | null, stroke: string, dash: string, width: number): void => {
+      if (!a || !b) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', String(a.x)); line.setAttribute('y1', String(a.y));
+      line.setAttribute('x2', String(b.x)); line.setAttribute('y2', String(b.y));
+      line.setAttribute('stroke', stroke); line.setAttribute('stroke-width', String(width));
+      if (dash) line.setAttribute('stroke-dasharray', dash);
+      overlaySvg.append(line);
+    };
+    const centrePx = { x: (pts[0]!.x + pts[2]!.x) / 2, y: (pts[0]!.y + pts[2]!.y) / 2 };
+    const widthVector = { x: pts[2]!.x - pts[3]!.x, y: pts[2]!.y - pts[3]!.y };
+    const heightVector = { x: pts[3]!.x - pts[0]!.x, y: pts[3]!.y - pts[0]!.y };
+    const wLength = Math.hypot(widthVector.x, widthVector.y), hLength = Math.hypot(heightVector.x, heightVector.y);
+    const displayCorners = pts.map((point, i) => {
+      if (!point) return null;
+      const sx = i === 1 || i === 2 ? 1 : -1, sy = i >= 2 ? 1 : -1;
+      const extendW = Math.max(0, 16 - wLength / 2), extendH = Math.max(0, 16 - hLength / 2);
+      return { x: point.x + sx * widthVector.x / Math.max(wLength, 1e-9) * extendW + sy * heightVector.x / Math.max(hLength, 1e-9) * extendH,
+        y: point.y + sx * widthVector.y / Math.max(wLength, 1e-9) * extendW + sy * heightVector.y / Math.max(hLength, 1e-9) * extendH };
+    });
+    for (let i = 0; i < 4; i += 1) {
+      const point = displayCorners[i]; const node = cornerButtons[i]; const tag = cornerLabels[i];
+      if (!point || !node || !tag) continue;
+      node.style.left = `${point.x}px`; node.style.top = `${point.y}px`;
+      const right = i === 1 || i === 2, upper = i >= 2;
+      tag.style.left = `${point.x + (right ? 9 : -9)}px`;
+      tag.style.top = `${point.y + (upper ? -9 : 9)}px`;
+      tag.style.transform = `translate(${right ? '0' : '-100%'},${upper ? '-100%' : '0'})`;
+    }
+    try {
+      const measures = cornerSafeMeasurements(
+        { cx: shown.xMm, cy: shown.yMm, widthMm: shown.widthMm, heightMm: shown.heightMm, rotationDeg: shown.rotationDeg },
+        safeMmFor(region),
+      );
+      for (const measure of measures) {
+        const tag = cornerLabels[measure.cornerIndex]; if (!tag) continue;
+        const text = `${measure.distanceMm.toFixed(1)}mm`;
+        if (cornerLabelText[measure.cornerIndex] !== text) { cornerLabelText[measure.cornerIndex] = text; tag.textContent = text; }
+        drawLine(projectStage(measure.corner.x, measure.corner.y), projectStage(measure.nearest.x, measure.nearest.y), '#6d4c00', '4 3', 1.5);
+      }
+    } catch { /* labels are advisory; never block handles */ }
+    // Keep all four compact values readable even when the artwork projects
+    // to only a few pixels, or rotation brings adjacent corners together.
+    const occupied: Array<{ x: number; y: number; width: number; height: number }> = [];
+    for (let i = 0; i < cornerLabels.length; i++) {
+      const tag = cornerLabels[i]!, point = displayCorners[i]; if (!point) continue;
+      const right = i === 1 || i === 2, upper = i >= 2;
+      const width = tag.offsetWidth, height = tag.offsetHeight;
+      const x = point.x + (right ? 10 : -10 - width);
+      let y = point.y + (upper ? -10 - height : 10);
+      for (let attempt = 0; attempt < 8; attempt++) {
+        if (!occupied.some((box) => x < box.x + box.width + 3 && x + width + 3 > box.x &&
+          y < box.y + box.height + 3 && y + height + 3 > box.y)) break;
+        y += (upper ? -1 : 1) * (height + 4);
+      }
+      tag.style.transform = 'none'; tag.style.left = `${x}px`; tag.style.top = `${y}px`;
+      occupied.push({ x, y, width, height });
+    }
+    try {
+      const span = Math.max(shown.widthMm, shown.heightMm, 8);
+      for (const guide of lastGuides) {
+        if (guide.fromMm && guide.toMm) {
+          drawLine(projectStage(guide.fromMm.x, guide.fromMm.y), projectStage(guide.toMm.x, guide.toMm.y), '#0b6cab', '6 4', 2);
+        } else if (guide.valueMm !== undefined && (guide.kind === 'v-center' || guide.kind === 'v-edge')) {
+          drawLine(projectStage(guide.valueMm, shown.yMm - span), projectStage(guide.valueMm, shown.yMm + span), '#0b6cab', '6 4', 1.5);
+        } else if (guide.valueMm !== undefined && (guide.kind === 'h-center' || guide.kind === 'h-edge')) {
+          drawLine(projectStage(shown.xMm - span, guide.valueMm), projectStage(shown.xMm + span, guide.valueMm), '#0b6cab', '6 4', 1.5);
+        }
+      }
+    } catch { /* guides are advisory; never block handles */ }
+    // A fixed screen-space gap keeps rotation usable even for tiny artwork;
+    // the pointer still resolves through the calibrated plane on drag.
+    const top = { x: (displayCorners[2]!.x + displayCorners[3]!.x) / 2, y: (displayCorners[2]!.y + displayCorners[3]!.y) / 2 };
+    const centre = centrePx;
+    const dx = top.x - centre.x, dy = top.y - centre.y, len = Math.hypot(dx, dy);
+    const rotate = { x: top.x + (len > 1e-6 ? dx / len : 0) * 28,
+      y: top.y + (len > 1e-6 ? dy / len : -1) * 28 };
+    drawLine(top, rotate, '#64748b', '', 1);
+    spinButton.style.display = 'block';
+    spinButton.style.left = `${rotate.x}px`; spinButton.style.top = `${rotate.y}px`;
+  }
+  /** Opposite-corner-anchored resize: dragged corner follows the pointer, opposite stays fixed. */
+  function resizeFromCorner(base: PreviewGeom, corner: SurfaceCorner, ptrMm: { xMm: number; yMm: number }): PreviewGeom {
+    const resized = resizeFromCornerMm({ cx: base.xMm, cy: base.yMm, widthMm: base.widthMm,
+      heightMm: base.heightMm, rotationDeg: base.rotationDeg }, corner, { x: ptrMm.xMm, y: ptrMm.yMm });
+    return { xMm: resized.cx, yMm: resized.cy, widthMm: resized.widthMm, heightMm: resized.heightMm,
+      rotationDeg: resized.rotationDeg };
+  }
+  /** Calibrated-plane inverse for handles: works beyond the mesh silhouette. */
+  function planeMm(clientX: number, clientY: number, frame: ModelRegionFrame): { xMm: number; yMm: number } | null {
+    if (!viewer) return null;
+    const point = viewer.intersectRegionPlane(clientX, clientY, frame);
+    if (!point) return null;
+    return regionMmFromModel(frame, point);
+  }
+  function surfacePointerDown(event: PointerEvent, mode: 'resize-surface' | 'spin-surface', captureEl: HTMLElement, corner?: SurfaceCorner): void {
+    if (!viewer || !ready || !data || event.button !== 0 || !event.isPrimary || callbacks.canEdit?.() === false) return;
+    if (active) cancel();
+    const item = selectedItem(); if (!item) return;
+    const region = regionFor(item); if (!region) return;
+    event.preventDefault(); event.stopPropagation();
+    const base = committedGeom(item);
+    const safe = safeMmFor(region);
+    if (mode === 'spin-surface') {
+      const mm = planeMm(event.clientX, event.clientY, region.frame); if (!mm) return;
+      const dx = mm.xMm - base.xMm, dy = mm.yMm - base.yMm;
+      if (Math.hypot(dx, dy) < 1e-6) return;
+      const grabAngle = normalizeDeg((Math.atan2(dx, dy) * 180) / Math.PI);
+      active = { mode, index: item.index, pointer: event.pointerId, frame: region.frame, safe, base, geom: { ...base }, offsetDeg: normalizeDeg(base.rotationDeg - grabAngle), captureEl, revision: data.revision };
+    } else {
+      const mm = planeMm(event.clientX, event.clientY, region.frame); if (!mm) return;
+      const cornerIndex = corner ?? 0;
+      const actual = rotatedFootprintCorners(base.xMm, base.yMm, base.widthMm, base.heightMm, base.rotationDeg)[cornerIndex]!;
+      active = { mode, index: item.index, pointer: event.pointerId, frame: region.frame, safe, base, geom: { ...base }, corner: cornerIndex,
+        grabOffset: { xMm: actual.x - mm.xMm, yMm: actual.y - mm.yMm }, captureEl, revision: data.revision };
+    }
+    viewer.setOrbitEnabled(false);
+    try { captureEl.setPointerCapture(event.pointerId); } catch { /* drag continues without capture */ }
+    syncHandles();
+  }
+  function surfacePointerMove(event: PointerEvent): void {
+    const op = active;
+    if (!op || (op.mode !== 'resize-surface' && op.mode !== 'spin-surface') || op.pointer !== event.pointerId || !viewer || !data) return;
+    const mm = planeMm(event.clientX, event.clientY, op.frame);
+    if (!mm) return;
+    const unsnapped = event.shiftKey || event.altKey || fineHeld;
+    if (op.mode === 'spin-surface') {
+      const dx = mm.xMm - op.base.xMm, dy = mm.yMm - op.base.yMm;
+      if (Math.hypot(dx, dy) < 1e-6) return;
+      const pointerAngle = normalizeDeg((Math.atan2(dx, dy) * 180) / Math.PI);
+      const rot = rotationSnapDeg(normalizeDeg(pointerAngle + op.offsetDeg), op.safe, 2, unsnapped);
+      op.geom = { ...op.base, rotationDeg: normalizeDeg(rot.rotationDeg) };
+      lastGuides = unsnapped ? [] : rot.guides;
+      artworkSignature = ''; paint({ index: op.index, geom: op.geom });
+      state.textContent = previewStatus(op.geom, rot.snapped);
+      emitPreview(op.index, op.geom);
+    } else {
+      op.geom = resizeFromCorner(op.base, op.corner, { xMm: mm.xMm + op.grabOffset.xMm, yMm: mm.yMm + op.grabOffset.yMm });
+      lastGuides = [];
+      artworkSignature = ''; paint({ index: op.index, geom: op.geom });
+      state.textContent = previewStatus(op.geom, false);
+      emitPreview(op.index, op.geom);
+    }
+    syncHandles();
+  }
+  function surfacePointerUp(event: PointerEvent): void {
+    const op = active;
+    if (!op || (op.mode !== 'resize-surface' && op.mode !== 'spin-surface') || op.pointer !== event.pointerId || !data) return;
+    surfacePointerMove(event);
+    const item = data.items.find((entry) => entry.index === op.index);
+    const stale = op.revision !== data.revision;
+    const patch = item && !stale ? buildPatch(op.base, op.geom) : null;
+    cancel();
+    if (!item || stale || !patch) {
+      if (stale) callbacks.status('Edit cancelled: the job changed. Position unchanged.');
+      return;
+    }
+    dispatchPatch(op.index, patch);
+  }
+  /** Keyboard equivalents for on-surface handles: arrows nudge, +/- size, [/] rotate. */
+  function surfaceKey(event: KeyboardEvent): void {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return;
+    const item = selectedItem(); if (!item) return;
+    const fine = event.shiftKey || event.altKey || fineHeld;
+    const from = active?.mode === 'adjust' && active.index === item.index ? active.geom : committedGeom(item);
+    const step = event.shiftKey ? 0.1 : 1;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+      const dy = event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0;
+      previewAdjust({ xMm: round2(from.xMm + dx), yMm: round2(from.yMm + dy) }, target, fine);
+      commitAdjust();
+    } else if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      const scale = fine ? 1.01 : 1.05;
+      previewAdjust({ widthMm: round2(from.widthMm * scale), heightMm: round2(from.heightMm * scale) }, target, fine);
+      commitAdjust();
+    } else if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      const scale = fine ? 1 / 1.01 : 1 / 1.05;
+      previewAdjust({ widthMm: round2(from.widthMm * scale), heightMm: round2(from.heightMm * scale) }, target, fine);
+      commitAdjust();
+    } else if (event.key === '[') {
+      event.preventDefault();
+      previewAdjust({ rotationDeg: normalizeDeg(from.rotationDeg - 1) }, target, true);
+      commitAdjust();
+    } else if (event.key === ']') {
+      event.preventDefault();
+      previewAdjust({ rotationDeg: normalizeDeg(from.rotationDeg + 1) }, target, true);
+      commitAdjust();
+    }
+  }
   function loadImage(src: string): HTMLImageElement | null {
     if (images.has(src)) return images.get(src) ?? null;
     // Package-owned in-memory URI only; artwork must never fetch a server.
@@ -83,7 +543,7 @@ export function createModelPlacementView(callbacks: {
     image.src = src;
     return null;
   }
-  function paint(preview?: { index: number; pos: { xMm: number; yMm: number } }): void {
+  function paint(preview?: { index: number; geom: PreviewGeom }): void {
     if (!viewer || !ready || !data || disposed) return;
     const signature = JSON.stringify([data.scene.regions, data.items.map((item) => [item.index, item.placement, item.fits, item.imageSrc, item.imageSrc ? images.get(item.imageSrc)?.complete : false]), data.selectedIndex, preview]);
     if (signature === artworkSignature) return;
@@ -93,13 +553,15 @@ export function createModelPlacementView(callbacks: {
       if (!region || !item.imageSrc) continue;
       const image = loadImage(item.imageSrc); if (!image) continue;
       const p = item.placement;
-      const pos = preview?.index === item.index ? preview.pos : p.pos;
-      const corners = rotatedFootprintCorners(pos.xMm, pos.yMm, p.widthMm, p.heightMm, p.rotationDeg)
+      const shown: PreviewGeom = preview?.index === item.index
+        ? preview.geom
+        : { xMm: p.pos.xMm, yMm: p.pos.yMm, widthMm: p.widthMm, heightMm: p.heightMm, rotationDeg: p.rotationDeg };
+      const corners = rotatedFootprintCorners(shown.xMm, shown.yMm, shown.widthMm, shown.heightMm, shown.rotationDeg)
         .map((point) => modelPointFromMm(region.frame, point.x, point.y));
       if (corners.some((point) => point === null)) continue;
       const reach = Math.max(...region.pointsModel.map((point) => Math.hypot(point.x - region.frame.origin.x, point.y - region.frame.origin.y, point.z - region.frame.origin.z))) * 3;
       const anchor = region.pointsModel[0]; if (!anchor) continue;
-      overlays.push({ id: String(item.index), cornersModel: corners as ModelPoint[], anchorModel: anchor, depthModel: Math.max(reach, p.widthMm / region.frame.mmPerUnit), image, fits: item.fits, selected: item.index === data.selectedIndex });
+      overlays.push({ id: String(item.index), cornersModel: corners as ModelPoint[], anchorModel: anchor, depthModel: Math.max(reach, shown.widthMm / region.frame.mmPerUnit), image, fits: item.fits, selected: item.index === data.selectedIndex });
     }
     viewer.setSurfaceArtworkOverlays(overlays);
     element.dataset.projectedArtworkCount = String(overlays.length);
@@ -107,10 +569,16 @@ export function createModelPlacementView(callbacks: {
     artworkSignature = signature;
   }
   function cancel(): void {
-    const old = active; active = null; viewer?.setOrbitEnabled(true);
-    if (old) { try { canvas.releasePointerCapture(old.pointer); } catch { /* released already */ } }
+    const old = active; active = null; fineHeld = false; lastGuides = []; viewer?.setOrbitEnabled(true);
+    if (old && old.mode === 'move') { try { canvas.releasePointerCapture(old.pointer); } catch { /* released already */ } }
+    else if (old && (old.mode === 'resize-surface' || old.mode === 'spin-surface')) { try { old.captureEl.releasePointerCapture(old.pointer); } catch { /* released already */ } }
     if (frameRequest) cancelAnimationFrame(frameRequest); frameRequest = 0;
-    artworkSignature = ''; paint();
+    artworkSignature = ''; paint(); positionOverlay();
+    if (old && !disposed) {
+      const item = data?.items.find((entry) => entry.index === old.index);
+      if (item) emitPreview(old.index, committedGeom(item));
+      syncTools(); syncHandles();
+    }
   }
   function hitItem(point: ModelPoint): ModelPlacementItem | undefined {
     let best: ModelPlacementItem | undefined, distance = Infinity;
@@ -127,7 +595,8 @@ export function createModelPlacementView(callbacks: {
     return best;
   }
   canvas.addEventListener('pointerdown', (event) => {
-    if (!viewer || !ready || !data || forceRotate || event.button !== 0 || !event.isPrimary) return;
+    if (!viewer || !ready || !data || forceRotate || event.button !== 0 || !event.isPrimary || callbacks.canEdit?.() === false) return;
+    if (active?.mode === 'adjust') cancel();
     const hit = viewer.pickSurface(event.clientX, event.clientY); if (!hit) return;
     const item = placeMode ? data.items.find((entry) => entry.index === data?.selectedIndex) : hitItem(hit.modelPosition);
     if (!item) return;
@@ -135,33 +604,52 @@ export function createModelPlacementView(callbacks: {
     if (item.index !== data.selectedIndex) { callbacks.select(item.index); return; }
     const region = regionFor(item); if (!region) return;
     const mm = regionMmFromModel(region.frame, hit.modelPosition); if (!mm) return;
-    active = { index: item.index, pointer: event.pointerId, frame: region.frame, offset: placeMode ? { xMm: 0, yMm: 0 } : { xMm: item.placement.pos.xMm - mm.xMm, yMm: item.placement.pos.yMm - mm.yMm }, startX: event.clientX, startY: event.clientY, revision: data.revision, preview: null };
-    viewer.setOrbitEnabled(false); canvas.setPointerCapture(event.pointerId);
+    active = { mode: 'move', index: item.index, pointer: event.pointerId, frame: region.frame, safe: safeMmFor(region), base: committedGeom(item), offset: placeMode ? { xMm: 0, yMm: 0 } : { xMm: item.placement.pos.xMm - mm.xMm, yMm: item.placement.pos.yMm - mm.yMm }, startX: event.clientX, startY: event.clientY, revision: data.revision, geom: null };
+    viewer.setOrbitEnabled(false); canvas.setPointerCapture(event.pointerId); syncHandles();
   }, { capture: true, signal: aborter.signal });
   canvas.addEventListener('pointermove', (event) => {
-    if (!active || active.pointer !== event.pointerId || !viewer) return;
+    if (!active || active.mode !== 'move' || active.pointer !== event.pointerId || !viewer) return;
     const hit = viewer.pickSurface(event.clientX, event.clientY);
     const mm = hit ? regionMmFromModel(active.frame, hit.modelPosition) : null;
-    active.preview = mm ? { xMm: mm.xMm + active.offset.xMm, yMm: mm.yMm + active.offset.yMm } : null;
+    const raw = mm ? { xMm: mm.xMm + active.offset.xMm, yMm: mm.yMm + active.offset.yMm } : null;
+    const unsnapped = event.shiftKey || event.altKey;
+    const snapped = raw ? snapCandidate(active.safe, { ...active.base, xMm: raw.xMm, yMm: raw.yMm }, unsnapped) : null;
+    active.geom = snapped?.geom ?? null;
+    lastGuides = snapped?.guides ?? [];
     if (!frameRequest) frameRequest = requestAnimationFrame(() => {
       frameRequest = 0;
-      if (active?.preview) paint({ index: active.index, pos: active.preview });
+      if (active?.mode === 'move' && active.geom) {
+        paint({ index: active.index, geom: active.geom });
+        state.textContent = previewStatus(active.geom, false);
+        emitPreview(active.index, active.geom);
+      }
     });
   }, { signal: aborter.signal });
   canvas.addEventListener('pointerup', (event) => {
-    const drag = active; if (!drag || drag.pointer !== event.pointerId || !viewer || !data) return;
+    const drag = active; if (!drag || drag.mode !== 'move' || drag.pointer !== event.pointerId || !viewer || !data) return;
     const hit = viewer.pickSurface(event.clientX, event.clientY);
     const mm = hit ? regionMmFromModel(drag.frame, hit.modelPosition) : null;
     const commit = mm && drag.revision === data.revision && (placeMode || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4);
+    let snapped: { xMm: number; yMm: number } | null = null;
+    if (commit && mm) {
+      const unsnapped = event.shiftKey || event.altKey;
+      const out = snapCandidate(drag.safe, { ...drag.base, xMm: mm.xMm + drag.offset.xMm, yMm: mm.yMm + drag.offset.yMm }, unsnapped);
+      snapped = { xMm: out.geom.xMm, yMm: out.geom.yMm };
+    }
     cancel();
-    if (commit && mm) callbacks.move(drag.index, { xMm: mm.xMm + drag.offset.xMm, yMm: mm.yMm + drag.offset.yMm });
+    if (snapped) callbacks.move(drag.index, snapped);
     else if (!hit) { state.textContent = 'Move cancelled: release on the product surface. Position unchanged.'; callbacks.status(state.textContent); }
     placeMode = false; syncTools();
   }, { signal: aborter.signal });
   canvas.addEventListener('pointercancel', cancel, { signal: aborter.signal });
   canvas.addEventListener('lostpointercapture', () => { if (active) cancel(); }, { signal: aborter.signal });
   window.addEventListener('blur', cancel, { signal: aborter.signal });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && active) { cancel(); callbacks.status('Move cancelled. Position unchanged.'); } }, { signal: aborter.signal });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && active) {
+      const wasMove = active.mode === 'move';
+      cancel(); callbacks.status(wasMove ? 'Move cancelled. Position unchanged.' : 'Resize cancelled. Size unchanged.');
+    }
+  }, { signal: aborter.signal });
   function paintAreas(): void {
     if (!viewer || !data || !ready) return;
     viewer.setSafeAreaOverlays(data.scene.regions.map((region) => ({ id: region.id, pointsModel: region.pointsModel, selected: region.id === data?.activeRegionId })));
@@ -178,14 +666,15 @@ export function createModelPlacementView(callbacks: {
         images.clear(); artworkSignature = '';
         if (!viewer) viewer = ModelViewer.attach({ canvas, container: stage, background: 0xffffff }).viewer;
         if (!viewer) { state.textContent = 'The product view needs WebGL. Set up the product or use another supported browser.'; return; }
+        viewer.onFrame = () => positionOverlay();
         state.textContent = 'Loading product…';
         void viewer.showModel(next.scene.bytes.slice()).then((result) => {
           if (disposed || token !== generation) return;
           ready = result.kind === 'ready';
           if (!ready) { state.textContent = 'The product model could not be opened.'; return; }
-          paintAreas(); paint(); syncTools(); element.dataset.ready = 'true';
+          paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); element.dataset.ready = 'true';
         });
-      } else { paintAreas(); paint(); syncTools(); }
+      } else { paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); }
     },
     destroy() { disposed = true; ++generation; cancel(); aborter.abort(); viewer?.dispose(); viewer = null; images.clear(); element.remove(); },
   };

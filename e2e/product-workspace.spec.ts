@@ -9,10 +9,12 @@ import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 const b = (page: Page, name: string) => page.locator(`[data-builder-hook="${name}"]`);
 const ms = (page: Page, name: string) => page.locator(`[data-model-setup-hook="${name}"]`);
 const pw = (page: Page, name: string) => page.locator(`[data-placement-hook="${name}"]`);
-async function saveJob(page: Page, info: TestInfo, name: string) {
+async function saveJob(page: Page, info: TestInfo, name: string, keyboard = false) {
   const download = page.waitForEvent('download');
-  if (await b(page, 'job-placement-host').evaluate((node) => node.classList.contains('station-expanded-workspace'))) await pw(page, 'pw-model-save-job').click();
-  else await b(page, 'job-save').click();
+  const button = await b(page, 'job-placement-host').evaluate((node) => node.classList.contains('station-expanded-workspace'))
+    ? pw(page, 'pw-model-save-job') : b(page, 'job-save');
+  if (keyboard) { await button.evaluate((node) => (node as HTMLElement).focus({ preventScroll: true })); await button.press('Enter'); }
+  else await button.click();
   const path = info.outputPath(name);
   await (await download).saveAs(path);
   return { path, parsed: await parseProjectPackage(new Uint8Array(await readFile(path)), { sha256: async (bytes) => createHash('sha256').update(bytes).digest('hex') }) };
@@ -154,10 +156,75 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       expect(artworkCentre.count).toBeGreaterThan(0);
       await page.mouse.move(artworkCentre.x, artworkCentre.y); await page.mouse.down();
       await page.mouse.move(artworkCentre.x + 8, artworkCentre.y, { steps: 4 }); await page.mouse.up();
-      const dragged = await saveJob(page, info, 'dragged.logo-project');
+      let dragged = await saveJob(page, info, 'dragged.logo-project');
       expect(dragged.parsed.project.configurations[0]!.placements[0]!.pos).not.toEqual(second.pos);
       expect(dragged.parsed.project.revision).toBe(moved.parsed.project.revision + 1);
       expect(dragged.parsed.project.products).toEqual(original.parsed.project.products);
+
+      // Direct calibrated on-logo handles: live values are transient, one
+      // release commits, camera/view changes never enter physical geometry.
+      const firstPlacement = (saved: typeof dragged) => saved.parsed.project.configurations[0]!.placements[0]!;
+      const field = async (name: string) => Number(await pw(page, name).inputValue());
+      const corner = pw(page, 'pw-model-corner-2');
+      await expect(corner).toBeVisible();
+      const handle = (await corner.boundingBox())!;
+      const resizeStart = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+      const opposite = (await pw(page, 'pw-model-corner-0').boundingBox())!;
+      const resizeEnd = { x: resizeStart.x + (resizeStart.x - opposite.x - opposite.width / 2) * .2,
+        y: resizeStart.y + (resizeStart.y - opposite.y - opposite.height / 2) * .2 };
+      const widthBefore = await field('pw-width'), heightBefore = await field('pw-height');
+      await page.keyboard.down('Shift');
+      await page.mouse.move(resizeStart.x, resizeStart.y); await page.mouse.down();
+      await page.mouse.move(resizeEnd.x, resizeEnd.y, { steps: 4 });
+      await expect.poll(async () => Math.abs(await field('pw-width') - widthBefore) + Math.abs(await field('pw-height') - heightBefore)).toBeGreaterThan(0.1);
+      const liveWidth = await field('pw-width'), liveHeight = await field('pw-height');
+      const duringResize = await saveJob(page, info, 'during-resize.logo-project', true);
+      expect(duringResize.parsed.project.configurations).toEqual(dragged.parsed.project.configurations);
+      await page.mouse.up(); await page.keyboard.up('Shift');
+      const resized = await saveJob(page, info, 'resized.logo-project');
+      expect(firstPlacement(resized).widthMm).toBeCloseTo(liveWidth, 1);
+      expect(firstPlacement(resized).widthMm).toBeGreaterThan(widthBefore);
+      expect(firstPlacement(resized).heightMm).toBeGreaterThan(heightBefore);
+      expect(firstPlacement(resized).heightMm).toBeCloseTo(liveHeight, 1);
+      expect(resized.parsed.project.revision).toBe(dragged.parsed.project.revision + 1);
+      expect(resized.parsed.project.products).toEqual(dragged.parsed.project.products);
+      // Cancellation restores fields and committed bytes even with capture lost.
+      const cancelHandle = (await corner.boundingBox())!;
+      await page.mouse.move(cancelHandle.x + cancelHandle.width / 2, cancelHandle.y + cancelHandle.height / 2); await page.mouse.down();
+      await page.mouse.move(cancelHandle.x + cancelHandle.width / 2 + 9, cancelHandle.y + cancelHandle.height / 2 + 6, { steps: 4 });
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      await page.mouse.up();
+      expect(await field('pw-width')).toBeCloseTo(firstPlacement(resized).widthMm, 1);
+      const cancelledResize = await saveJob(page, info, 'cancelled-resize.logo-project');
+      expect(cancelledResize.parsed.project.configurations).toEqual(resized.parsed.project.configurations);
+      const rotateHandle = (await pw(page, 'pw-model-rotate-handle').boundingBox())!;
+      await page.keyboard.down('Shift');
+      await page.mouse.move(rotateHandle.x + rotateHandle.width / 2, rotateHandle.y + rotateHandle.height / 2); await page.mouse.down();
+      await page.mouse.move(rotateHandle.x + rotateHandle.width / 2 + 25, rotateHandle.y + rotateHandle.height / 2 + 5, { steps: 4 });
+      await expect.poll(async () => Math.abs(await field('pw-rotation') - firstPlacement(resized).rotationDeg)).toBeGreaterThan(0.2);
+      const rotationPreview = await field('pw-rotation');
+      await page.mouse.up(); await page.keyboard.up('Shift');
+      const rotated = await saveJob(page, info, 'rotated.logo-project');
+      expect(firstPlacement(rotated).rotationDeg).toBeCloseTo(rotationPreview, 1);
+      expect(rotated.parsed.project.revision).toBe(resized.parsed.project.revision + 1);
+      expect(firstPlacement(rotated).widthMm).toBe(firstPlacement(resized).widthMm);
+      expect(firstPlacement(rotated).heightMm).toBe(firstPlacement(resized).heightMm);
+      await expect(pw(page, 'pw-model-measure-lines').locator('line')).toHaveCount(5);
+      const distanceBoxes = await pw(page, 'pw-model-surface-handles').locator('[data-placement-hook^="pw-model-corner-dist-"]').evaluateAll((nodes) => nodes.map((node) => {
+        const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      }));
+      expect(distanceBoxes).toHaveLength(4);
+      for (let i = 0; i < distanceBoxes.length; i++) for (let j = i + 1; j < distanceBoxes.length; j++) {
+        const a = distanceBoxes[i]!, c = distanceBoxes[j]!;
+        expect(a.right <= c.left || c.right <= a.left || a.bottom <= c.top || c.bottom <= a.top).toBe(true);
+      }
+
+      const rotateControl = pw(page, 'pw-model-rotate-handle');
+      await rotateControl.focus(); await rotateControl.press(']');
+      const stepped = await saveJob(page, info, 'rotation-step.logo-project');
+      const expectedRotation = ((rotationPreview + 1 + 540) % 360) - 180;
+      expect(firstPlacement(stepped).rotationDeg).toBeCloseTo(expectedRotation, 1);
+      dragged = stepped;
       await page.screenshot({ path: info.outputPath('on-product.png') });
       await pw(page, 'pw-model-move').click();
       const cancelBox = (await modelCanvas.boundingBox())!;

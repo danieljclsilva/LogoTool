@@ -158,7 +158,7 @@ export class ModelViewer {
   private readonly controls: OrbitControls;
   private readonly wrapper: THREE.Group;
   private readonly markerGroup: THREE.Group;
-  private readonly markerGeometry: THREE.SphereGeometry;
+  private readonly markerGeometry: THREE.PlaneGeometry;
   private readonly markerMaterial: THREE.MeshBasicMaterial;
   private readonly axesGroup: THREE.Group;
   private readonly placementGroup: THREE.Group;
@@ -257,8 +257,8 @@ export class ModelViewer {
     this.wrapper.add(this.referenceGroup);
     this.axesXMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     this.axesYMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
-    this.markerGeometry = new THREE.SphereGeometry(1, 16, 12);
-    this.markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, depthTest: true });
+    this.markerGeometry = new THREE.PlaneGeometry(1, 1);
+    this.markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false });
 
     // Simple key/fill lighting; materials come from the GLB itself.
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -476,7 +476,7 @@ export class ModelViewer {
     }
   }
 
-  /** Keep the reference label at a constant CSS size (~26px tall). */
+  /** Keep the reference label at a constant CSS size (~18px tall). */
   private updateReferenceLabelScale(): void {
     const sprite = this.referenceLabel;
     if (sprite === null) return;
@@ -486,7 +486,7 @@ export class ModelViewer {
       const dist = this.camera.position.distanceTo(scratchVector);
       if (!Number.isFinite(dist) || dist <= 0) return;
       const worldH =
-        ((2 * dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / heightPx) * 26;
+        ((2 * dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / heightPx) * 18;
       if (!Number.isFinite(worldH) || worldH <= 0) return;
       const aspect =
         typeof sprite.userData['labelAspect'] === 'number'
@@ -726,6 +726,37 @@ export class ModelViewer {
   }
 
   /**
+   * Intersect a pointer ray with an already calibrated region plane. Used
+   * for resize/rotation handles that can lie beyond the product silhouette.
+   * Returns native model coordinates; physical conversion remains owned by
+   * the calibrated region mapping. Parallel or rear-facing rays yield null.
+   */
+  intersectRegionPlane(clientX: number, clientY: number, frame: {
+    origin: { x: number; y: number; z: number };
+    normal: { x: number; y: number; z: number };
+  }): { x: number; y: number; z: number } | null {
+    if (this.disposed || !frame || !frame.origin || !frame.normal) return null;
+    const { origin, normal } = frame;
+    if (![clientX, clientY, origin.x, origin.y, origin.z, normal.x, normal.y, normal.z].every(Number.isFinite)) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return null;
+    const n = new THREE.Vector3(normal.x, normal.y, normal.z);
+    if (n.lengthSq() < 1e-12) return null;
+    this.scene.updateMatrixWorld(); this.camera.updateMatrixWorld();
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(
+      (clientX - rect.left) / rect.width * 2 - 1,
+      1 - (clientY - rect.top) / rect.height * 2,
+    ), this.camera);
+    const ray = raycaster.ray.clone().applyMatrix4(this.wrapper.matrixWorld.clone().invert());
+    n.normalize();
+    if (Math.abs(ray.direction.dot(n)) < 1e-6) return null;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(origin.x, origin.y, origin.z));
+    const hit = ray.intersectPlane(plane, new THREE.Vector3());
+    return hit && [hit.x, hit.y, hit.z].every(Number.isFinite) ? { x: hit.x, y: hit.y, z: hit.z } : null;
+  }
+
+  /**
    * Replace the anchor marker set. Positions are wrapper-local model coords
    * so markers ride wrapper transforms. Entries with nonfinite coords are
    * skipped. Empty array clears markers. Never mutates the model subtree.
@@ -751,6 +782,7 @@ export class ModelViewer {
         const marker = new THREE.Mesh(this.markerGeometry, this.markerMaterial);
         marker.position.set(mx, my, mz);
         marker.scale.setScalar(radius);
+        marker.renderOrder = 12;
         this.markerGroup.add(marker);
       }
     } catch {
@@ -1505,6 +1537,17 @@ export class ModelViewer {
       /* overlay-only; never breaks rendering */
     }
     this.updateReferenceLabelScale();
+    // White squares retain a compact 6 CSS-pixel side while the camera moves.
+    const canvasHeight = this.renderer.domElement.clientHeight || 1;
+    const inverseParent = this.markerGroup.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const facing = inverseParent.multiply(this.camera.getWorldQuaternion(new THREE.Quaternion()));
+    for (const marker of this.markerGroup.children) {
+      marker.quaternion.copy(facing);
+      marker.getWorldPosition(scratchVector);
+      const distance = this.camera.position.distanceTo(scratchVector);
+      const size = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) / canvasHeight * 6;
+      if (Number.isFinite(size) && size > 0) marker.scale.setScalar(size);
+    }
     this.renderer.render(this.scene, this.camera);
   };
 

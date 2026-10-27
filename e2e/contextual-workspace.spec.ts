@@ -232,11 +232,15 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     await stage.click({ position: { x: Math.round(stageBox.width * 0.5), y: Math.round(stageBox.height * 0.5) } });
     await expect(workspace.getByText('Created “Anchor 1”')).toBeVisible();
     async function markerMinimums() {
-      const dot = workspace.locator('.product-setup-anchors circle.product-setup-dot').first();
+      const dot = workspace.locator('.product-setup-anchors .product-setup-dot').first();
       const dotBox = await dot.boundingBox();
       assert.ok(dotBox, 'anchor dot has a box');
-      expect(dotBox.width).toBeGreaterThanOrEqual(12);
-      expect(dotBox.height).toBeGreaterThanOrEqual(12);
+      expect(dotBox.width).toBeGreaterThanOrEqual(6);
+      expect(dotBox.width).toBeLessThanOrEqual(10);
+      expect(dotBox.height).toBeGreaterThanOrEqual(6);
+      expect(dotBox.height).toBeLessThanOrEqual(10);
+      expect(await dot.evaluate((node) => node.tagName)).toBe('rect');
+      await expect(dot).toHaveCSS('fill', 'rgb(255, 255, 255)');
       const tag = workspace.locator('.product-setup-anchors text.product-setup-tag').first();
       const tagBox = await tag.boundingBox();
       assert.ok(tagBox, 'anchor label has a box');
@@ -423,7 +427,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
 
     // Selected anchor exposes name/remove/precision; invalid input recovers.
     await productSelect.selectOption('P-CTX-A');
-    await workspace.locator('.product-setup-anchors circle.product-setup-dot').first().click();
+    await workspace.locator('.product-setup-anchors .product-setup-dot').first().click();
     const nameInput = workspace.locator('[data-fkey^="psv-anchor-name-"]');
     await expect(nameInput).toBeVisible();
     const xInput = workspace.locator('[data-fkey^="psv-anchor-x-"]');
@@ -543,7 +547,7 @@ test('contextual workspace: variant switches restore drafts, shared effect state
 
     // Keyboard focus survives a move round trip: focus the selected marker,
     // nudge with an arrow key (refreshes), focus is restored by data-fkey.
-    await workspace.locator('.product-setup-anchors circle.product-setup-dot').first().click();
+    await workspace.locator('.product-setup-anchors .product-setup-dot').first().click();
     const marker = workspace.locator('.product-setup-anchor.is-selected');
     await expect(marker).toBeFocused();
     await marker.press('ArrowRight');

@@ -1,5 +1,55 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Visual placement controls — 2026-10-27
+
+The operator can move, resize and rotate a selected logo directly on the
+calibrated photo/mm diagram or 3D product. Corner handles update physical
+width/height and keep the opposite corner fixed. Rotation handles remain
+reachable on small artwork. Live artwork, fields and four corner-to-nearest-safe-
+side distances follow the transient candidate; saving during a drag still
+exports committed geometry. Escape, lost capture and blur cancel the candidate.
+
+Alignment guides use the polygon centroid and actual boundary segments;
+footprint-to-edge snapping never substitutes the safe area's bounding box.
+Rotation can align with safe-side directions; Shift permits unsnapped fine
+adjustment. One-degree keyboard/button steps bypass rotation magnetism.
+Selected artwork stays above overlapping siblings. Anchor markers are small
+white squares, reference labels are smaller, and corner-distance labels are
+smaller than anchor measurements. Original assets and production schemas are
+unchanged; no Odoo calls or external uploads were used.
+
+OpenCode Contributor supplied the initial implementation and synthetic
+acceptance spec. Codex independently reviewed it, corrected polygon snapping,
+shared the opposite-corner resize calculation, completed live preview and
+cancellation behavior, and resolved small-handle/label overlap.
+
+| Verification | Result |
+| --- | --- |
+| `npm run typecheck` | Pass |
+| `npm test` | 814/814 Node tests |
+| `npm run test:e2e -- --workers=1` | 195/195 Chromium tests, 5.2 minutes |
+| `npx playwright test e2e/visual-placement.spec.ts e2e/product-workspace.spec.ts e2e/contextual-workspace.spec.ts --project=chromium --project=chrome --workers=1` | 12/12 focused checks |
+| Final label-layout follow-up: `npx playwright test e2e/product-workspace.spec.ts --project=chromium --project=chrome --workers=1` | 4/4 focused checks |
+
+The broad run preceded the final small-handle spacing, fine-step and label
+legibility refinements; the focused runs validate those final affected paths.
+Geometry stayed unchanged after the 814-test run. Acceptance includes real
+pointer gestures, live fields, mid-gesture saves, single-release revisions,
+resize cancellation, fine rotation, sibling preservation, save/reopen,
+centre guides and Shift override, compact square anchors and non-overlapping
+3D distance labels. Rendered screenshots were visually inspected.
+
+Environment: macOS Darwin 27.2.0 arm64; bundled Chromium 156.0.8078.4;
+installed Google Chrome 155.0.8059.85; 1280×900 and 390×844. Tests open built
+`dist/station/Logo Station.html` and dev artifacts through `file://`, using
+offline contexts and synthetic fixtures, and assert zero HTTP(S) requests,
+console errors and page errors. Playwright is the repository's primary
+acceptance runner. Run logs and final focused screenshots are local under
+`/tmp/logotool-visual-placement/`; broad-run artifacts are in ignored
+`test-results/`. Windows Chrome/Edge delivery acceptance remains untested;
+Edge was not run. Existing provisional planar surface calibration remains
+labelled and does not establish true curved-surface arc measurements.
+
 ## Whole-workflow browser acceptance — 2026-10-19
 
 Codex completed a native Chrome walkthrough with real local file pickers,
