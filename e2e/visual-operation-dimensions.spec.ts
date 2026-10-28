@@ -154,7 +154,7 @@ test('four select-based measurements across two logos print and export', async (
       await host.getByRole('button', { name: 'Add logo placement' }).click();
       await pw(page, 'pw-add-logo').selectOption({ label: logo });
       const addMethod = pw(page, 'pw-add-method');
-      if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+      if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
       await pw(page, 'pw-add-width').fill(width);
       await pw(page, 'pw-add-height').fill(height);
       await pw(page, 'pw-add-confirm').click();

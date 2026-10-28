@@ -434,7 +434,7 @@ describe("renderOperationSheet", () => {
     const statuses = findAllByClass(root, "opsheet-status");
     assert.equal(statuses.length, 1);
     assert.ok(textOf(statuses[0]!).includes("setup needed before production"));
-    assert.ok(serialize(root).includes("Dimensions not set"));
+    assert.ok(serialize(root).includes("Placement measurements not set"));
 
     const zero: OperationSheetView = {
       version: OPERATION_SHEET_VIEW_VERSION,

@@ -1056,3 +1056,52 @@ reports, print PDFs and page renders. The initial failed Chromium evidence is
 also retained separately. No Odoo calls, customer evidence reads, uploads,
 installs, publishing, commits or pushes were performed. Schemas stay
 provisional; production approval is not conferred.
+
+## Operator UX and model-document acceptance — 2026-10-28
+
+The ten operator UX areas are implemented: visual artwork Place/drag/drop,
+viewport-sized placement with persistent actions and overflow cues, Pan in
+setup and placement, orientation-preserving Fit, visible-surface artwork
+controls, unified corner/numeric ratio editing, committed-change Undo/Redo,
+Embroidery/Heat Seal/Print and explicitly named additional methods, and local
+model-derived operational views with physical references and measurements.
+Photos are optional for model-only jobs. Presentation cameras/order survive
+save/reopen independently of production mm and revision.
+
+| Independent Codex verification | Result |
+| --- | --- |
+| `npm run typecheck` | Pass |
+| `npm test` | 849/849 Node tests, no skips |
+| Complete `npx playwright test --project=chromium --max-failures=5` | 202/202 pass |
+| Installed Chrome: model documents, placement UX, rear shell rendering, product workspace | 9/9 pass |
+| Final layout refinement: placement UX + direct images job, Chromium and Chrome | 4/4 pass |
+
+The complete run preceded the final small rail-layout refinement. Its affected
+model/photo workflows passed the final targeted run on both browsers. Core
+controls are checked with intersection ratio 1, including ancestor clipping,
+at 1280x720, 1440x900, 1536x864 and 1920x1080; model setup/placement also has
+390x844 acceptance. Enlarged desktop canvas area is at least the normal area;
+mobile enlarged setup is larger than normal. Tests exercise native artwork
+drag/drop at its actual surface location, pending numeric + pointer commits,
+proportion locking, one gesture/one revision, Undo/Redo, custom methods, and
+front/back artwork visibility in both addition orders.
+
+Measured model-only front-only/front+back journeys check clean applied
+artwork pixels, direct physical reference picks, document view adjustment and
+reordering, unchanged production geometry, metadata persistence, and identical
+operator JSON after save/reopen. Four exported PDFs (initial and adjusted,
+front-only and front/back) were rendered with Poppler and visually checked.
+Each is one A4 landscape page, including the deliberately added third view,
+with numbered compact specifications and matching physical mm labels.
+
+Environment: macOS Darwin 27.2.0 arm64; bundled Chromium 156.0.8078.4; installed
+Google Chrome 155.0.8059.85. All browser contexts are offline and use file://
+with synthetic fixtures, asserting zero HTTP(S) requests, console errors and
+page errors. Logs and rendered review artifacts are local under
+`/tmp/logotool-ux-20261027/`; maintained tests reproduce their own fixtures in
+portable Playwright output directories. No Odoo calls, uploads or publishing.
+
+Actual Windows Chrome/Edge offline acceptance remains an untested delivery
+release gate; Edge was not run. Established provisional planar/chord
+calibration remains provisional. Undo history is session-local for committed
+changes; native field-text undo and explicit setup staging are preserved.

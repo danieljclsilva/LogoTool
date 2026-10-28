@@ -15,6 +15,7 @@
 import { summarizeSourceProject } from "../../core/project-builder/index.js";
 import type { BuilderSourceSummary } from "../../core/project-builder/index.js";
 import type { ProjectDocument } from "../../core/index.js";
+import { newRevision } from "../../core/revisions.js";
 import type { Placement } from "../../core/index.js";
 import {
   createEmptyJobMetadata,
@@ -337,7 +338,7 @@ export function snapshotSessionMetadata(
     },
     instructions: session.instructions,
     techniqueSettings,
-    anchors: session.anchors.map((entry) => ({ ...entry })),
+    anchors: cloneHistoryValue(session.anchors),
     bindings,
     ...(note !== undefined ? { updatedNote: note } : {}),
   };
@@ -499,4 +500,127 @@ export function captureSaveSnapshot(session: JobSession): SaveSnapshot {
 /** True only when the live session is still the exact session being saved. */
 export function isSameSaveSession(live: JobSession | null, snap: SaveSnapshot): boolean {
   return live === snap.session;
+}
+
+/** Bounded operator history (session-local): one gesture one entry. */
+export interface OperatorHistoryEntry {
+  label: string;
+  assets: ProjectPackageAsset[];
+  project: ProjectDocument;
+  instructions: string;
+  technique: JobTechniqueFields;
+  bindings: Record<string, DimensionBinding[]>;
+  logoTechnique: Record<string, Record<string, JobLogoTechnique>>;
+  anchors: AnchorDef[];
+}
+
+export interface OperatorHistory {
+  past: OperatorHistoryEntry[];
+  future: OperatorHistoryEntry[];
+}
+
+export const OPERATOR_HISTORY_LIMIT = 50 as const;
+
+function cloneHistoryProject(project: ProjectDocument): ProjectDocument {
+  return JSON.parse(JSON.stringify(project)) as ProjectDocument;
+}
+
+/** Preserve ID dictionaries, including absent prototype-like keys, across history. */
+function cloneHistoryValue<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((entry) => cloneHistoryValue(entry)) as T;
+  if (value !== null && typeof value === 'object') {
+    const out = Object.create(null) as Record<string, unknown>;
+    for (const [key, entry] of Object.entries(value)) out[key] = cloneHistoryValue(entry);
+    return out as T;
+  }
+  return value;
+}
+
+function snapshotEntry(session: JobSession, label: string): OperatorHistoryEntry {
+  return {
+    label,
+    assets: session.assets.map((asset) => ({ ...asset })),
+    project: cloneHistoryProject(session.project),
+    instructions: session.instructions,
+    technique: { ...session.technique },
+    bindings: cloneHistoryValue(session.bindings),
+    logoTechnique: cloneHistoryValue(session.logoTechnique),
+    anchors: cloneHistoryValue(session.anchors),
+  };
+}
+
+/** Fresh bounded history. Save/open/new-job boundaries reset via this. */
+export function createOperatorHistory(): OperatorHistory {
+  return { past: [], future: [] };
+}
+
+/** Record the pre-edit state; clears redo after a new edit. Bounded to 50. */
+export function pushOperatorHistory(
+  history: OperatorHistory,
+  session: JobSession,
+  label: string,
+): void {
+  history.past.push(snapshotEntry(session, label));
+  while (history.past.length > OPERATOR_HISTORY_LIMIT) history.past.shift();
+  history.future.length = 0;
+}
+
+export function canUndoOperatorHistory(history: OperatorHistory): boolean {
+  return history.past.length > 0;
+}
+
+export function canRedoOperatorHistory(history: OperatorHistory): boolean {
+  return history.future.length > 0;
+}
+
+function restoreHistoryAuthoring(session: JobSession, entry: OperatorHistoryEntry): void {
+  session.assets = entry.assets.map((asset) => ({ ...asset }));
+  session.summary = summarizeSourceProject(session.project);
+  session.instructions = entry.instructions;
+  session.technique = { ...entry.technique };
+  session.bindings = cloneHistoryValue(entry.bindings);
+  session.logoTechnique = cloneHistoryValue(entry.logoTechnique);
+  session.anchors = cloneHistoryValue(entry.anchors);
+}
+
+/**
+ * Undo one operator gesture: restores the previous snapshot as a NEW valid
+ * revision (never resurrects historical approval), invalidating dependent
+ * measurements via the caller's next snapshot. Camera-only moves must not
+ * push history, so they never appear here. Returns false when empty.
+ */
+export function undoOperatorHistory(history: OperatorHistory, session: JobSession): boolean {
+  const previous = history.past.at(-1);
+  if (!previous) return false;
+  const current = snapshotEntry(session, previous.label);
+  const stored = cloneHistoryProject(previous.project);
+  session.project = newRevision(session.project, (draft) => {
+    draft.products = stored.products;
+    draft.configurations = stored.configurations;
+    draft.logos = stored.logos;
+  });
+  history.past.pop();
+  history.future.push(current);
+  restoreHistoryAuthoring(session, previous);
+  touchSession(session);
+  return true;
+}
+
+/** Redo one undone gesture; returns false when empty. Same revision contract as undo. */
+export function redoOperatorHistory(history: OperatorHistory, session: JobSession): boolean {
+  const next = history.future.at(-1);
+  if (!next) return false;
+  const current = snapshotEntry(session, next.label);
+  const stored = cloneHistoryProject(next.project);
+  session.project = newRevision(session.project, (draft) => {
+    draft.products = stored.products;
+    draft.configurations = stored.configurations;
+    draft.logos = stored.logos;
+  });
+  history.future.pop();
+  history.past.push(current);
+  while (history.past.length > OPERATOR_HISTORY_LIMIT) history.past.shift();
+  restoreHistoryAuthoring(session, next);
+  touchSession(session);
+  return true;
 }

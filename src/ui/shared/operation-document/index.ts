@@ -23,6 +23,7 @@ export type {
   OperationSheetOverlayArtwork,
   OperationSheetOverlayMap,
   OperationSheetPhotoOverlay,
+  ModelViewRenderImage,
   SheetOverlay,
   SheetOverlayArtwork,
   SheetOverlayMapping,

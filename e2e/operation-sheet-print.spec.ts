@@ -137,7 +137,7 @@ async function addPlacement(page: Page, logoLabel: string, areaLabel: string | n
   const area = pw(page, 'pw-add-area');
   if (areaLabel !== null && (await area.count()) > 0) await area.selectOption({ label: areaLabel });
   const addMethod = pw(page, 'pw-add-method');
-  if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+  if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
   await pw(page, 'pw-add-width').fill(widthMm);
   await pw(page, 'pw-add-height').fill(heightMm);
   await pw(page, 'pw-add-confirm').click();

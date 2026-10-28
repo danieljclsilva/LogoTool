@@ -39,6 +39,18 @@ import {
   resizeFromCornerMm,
   normalizeDeg,
 } from '../../core/placement-manipulation/index.js';
+import {
+  beginEdit,
+  policyForLock,
+  provisionalSizeMm,
+  resetToArtworkRatio,
+  resizeCorner,
+  setCandidateHeight,
+  setCandidateWidth,
+  type RatioPolicy,
+} from '../../core/placement-manipulation/edit-transaction.js';
+import { modelPointFromMm } from '../../core/model-placement/index.js';
+import { methodLabel, SUPPORTED_METHODS, configurePlacementMethod } from '../../core/decoration-methods/index.js';
 import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import { displayVariantName } from '../../core/operation-document/index.js';
 import { validateProject } from '../../core/validate.js';
@@ -149,6 +161,7 @@ export interface PlacementWorkspaceDeps {
   getLogoImage(logoId: string): { src: string; alt: string } | null;
   /** Anchors scoped to one product/option/region (caller filters; module refilters). */
   getAnchors(productId: string, variantId: string, regionId: string): AnchorDef[];
+  addAnchor?(anchor: Omit<AnchorDef, "id" | "frameId" | "calibrationId" | "calibrationVersion">): void;
   getBindings(configurationId: string): DimensionBinding[];
   setBindings(configurationId: string, bindings: DimensionBinding[]): void;
   getTechnique?(configurationId: string, logoRef: string): PlacementTechnique | null;
@@ -157,6 +170,12 @@ export interface PlacementWorkspaceDeps {
   requestProductSetup(productId: string, variantId?: string, regionId?: string): void;
   /** Show the existing model viewer for inspection (model mode only). */
   onViewModel?(productId: string): void;
+  /**
+   * Lead-owned operator history (job-session.ts/main.ts): called once per
+   * committed placement edit with a human label. Camera moves never call
+   * this. Optional until the lead wires the session mutation boundary.
+   */
+  pushHistory?(label: string): void;
   /** No logos exist yet: return/focus the Step 1 logo control. */
   onAddLogo(): void;
   onReview(): void;
@@ -449,6 +468,24 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   return node;
 }
 
+/**
+ * Keyboard/click-accessible help popover (native details/summary: no
+ * hover-only behavior, no JS state). Status and errors never hide here.
+ */
+function helpPopover(hook: string, text: string): HTMLElement {
+  const details = document.createElement('details');
+  details.className = 'pw-help';
+  details.setAttribute(HOOK, hook);
+  const summary = document.createElement('summary');
+  summary.className = 'pw-help-summary';
+  summary.textContent = 'ⓘ Help';
+  details.append(summary);
+  const body = el('p', 'pw-help-body');
+  body.textContent = text;
+  details.append(body);
+  return details;
+}
+
 const EDGE_WORD: Record<ArtworkEdge, string> = {
   minX: 'left',
   maxX: 'right',
@@ -509,6 +546,31 @@ const STYLE_TEXT = [
   '.pw-secondary{border:1px solid #c6ced6;background:#fff;color:inherit;font-weight:550;border-radius:8px;padding:12px 18px;font:inherit;cursor:pointer;min-height:44px}',
   '.pw-secondary:disabled{opacity:.48;cursor:default}',
   '.pw-actions{display:grid;gap:10px;margin-top:12px}',
+  '.pw-step-actions{position:sticky;bottom:0;background:#fff;padding:10px 0;z-index:2}',
+  '.pw-overflow-cue{position:sticky;bottom:0;display:block;text-align:center;color:#0b6cab;background:linear-gradient(transparent,#fff 40%);padding:10px 0 2px;font-size:.85rem;z-index:1}',
+  '.pw-help{display:inline-block;margin:2px 0 8px}',
+  '.pw-help-summary{cursor:pointer;color:#0b6cab;font-weight:600;list-style:none;min-height:44px;display:inline-flex;align-items:center}',
+  '.pw-help-summary::-webkit-details-marker{display:none}',
+  '.pw-help-body{margin:4px 0 8px;padding:8px 10px;border:1px solid #e4e8ec;border-radius:6px;background:#f8fafc;max-width:34rem}',
+  '.pw-artwork-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px;margin:8px 0}',
+  '.pw-artwork-card{display:grid;gap:6px;border:1px solid #e4e8ec;border-radius:8px;padding:8px;background:#fff}',
+  '.pw-artwork-pick{display:grid;gap:4px;justify-items:center;border:0;background:none;padding:4px;cursor:grab;font:inherit;color:inherit;text-align:center;min-height:44px}',
+  '.pw-artwork-thumb{width:64px;height:64px;object-fit:contain;border:1px solid #e4e8ec;border-radius:6px;background:#fff;pointer-events:none}',
+  '.pw-artwork-name{font-weight:650;overflow-wrap:anywhere}',
+  '.pw-artwork-state{color:#657183;font-size:.8rem}',
+  '.pw-artwork-place{min-height:44px}',
+  '.pw-product-workspace.pw-layout{min-height:min(72vh,640px);align-items:start}',
+  '.pw-product-workspace .pw-main{min-height:0;min-width:0}',
+  '.pw-product-workspace .pw-rail{max-height:calc(100vh - 140px);overflow:auto;overscroll-behavior:contain}',
+  '.pw-product-workspace .model-placement-workbench{position:sticky;top:0}',
+  '@media(max-width:820px){.pw-product-workspace.pw-layout{min-height:0}.pw-product-workspace .pw-rail{max-height:none;overflow:visible}.pw-product-workspace .model-placement-workbench{position:static}}',
+  '.station-expanded-workspace .model-placement-workbench>p{display:none}',
+  '.station-expanded-workspace .pw-product-workspace .model-placement-toolbar{flex-wrap:nowrap;overflow-x:auto}',
+  '.pw-field{margin-top:6px;margin-bottom:6px}',
+  '.pw-check{margin:6px 0}',
+  '.pw-measure{padding:6px 0}',
+  '.pw-selected h3{margin:.4em 0 .2em}',
+  '.pw-placements-title,.pw-artwork-title{margin:.6em 0 .2em}',
   '.pw-inline{display:flex;flex-wrap:wrap;gap:8px}',
   '.pw-inline .pw-secondary,.pw-inline .pw-primary{width:auto}',
   '.pw-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}',
@@ -567,6 +629,19 @@ export function mountPlacementWorkspace(
   document.head.append(styleNode);
 
   const staged = new Map<string, StagedEdits>();
+  /** Tray drag payload fallback (some hosts restrict dataTransfer reads). */
+  let pendingTrayDrop: string | null = null;
+  /**
+   * Persisted ratio policies per placement key (unified edit transaction).
+   * Locks survive commits and selection changes; toggling never rolls back
+   * committed geometry. Apply/commit never clears these.
+   */
+  const ratioLocks = new Map<string, RatioPolicy>();
+  function lockFor(configurationId: string, placement: Placement, index: number): RatioPolicy {
+    const stored = ratioLocks.get(placementKeyOf(configurationId, placement, index));
+    if (stored !== undefined) return stored;
+    return { locked: false, ratio: NaN };
+  }
   let addOpen = false;
   let addDraft: AddDraft | null = null;
   let measureOpen = false;
@@ -577,6 +652,7 @@ export function mountPlacementWorkspace(
   const aborter = new AbortController();
   let modelView: ModelPlacementView | null = null;
   let stageAborter: AbortController | null = null;
+  let stageDropPoint: ((x: number, y: number) => { regionId: string; pos: { xMm: number; yMm: number } } | null) | null = null;
   const expansion = expandableWorkspace(root, () => {
     const expandButton = root.querySelector<HTMLButtonElement>('[data-placement-hook="pw-model-expand"]');
     if (expandButton) {
@@ -687,6 +763,20 @@ export function mountPlacementWorkspace(
       edit.method !== placement.method;
   }
 
+  /** Valid local geometry drives the visual candidate; exports still read the committed project. */
+  function candidatePlacement(configurationId: string, placement: Placement, index: number): Placement {
+    const edit = staged.get(placementKeyOf(configurationId, placement, index));
+    if (!edit) return placement;
+    const width = parseMm(edit.widthRaw), height = parseMm(edit.heightRaw);
+    const x = parseMm(edit.centreXRaw), y = parseMm(edit.centreYRaw), rotation = parseMm(edit.rotationRaw);
+    return { ...placement,
+      widthMm: width !== null && width > 0 ? width : placement.widthMm,
+      heightMm: height !== null && height > 0 ? height : placement.heightMm,
+      pos: { xMm: x ?? placement.pos.xMm, yMm: y ?? placement.pos.yMm },
+      rotationDeg: rotation ?? placement.rotationDeg,
+    };
+  }
+
   function anyPendingForConfiguration(configuration: Configuration): boolean {
     for (const [index, placement] of configuration.placements.entries()) {
       const edit = staged.get(placementKeyOf(configuration.id, placement, index));
@@ -707,6 +797,10 @@ export function mountPlacementWorkspace(
       update();
       return false;
     }
+    // Operator history owns undo after this point; camera moves never reach here.
+    try {
+      deps.pushHistory?.(label);
+    } catch { /* history is advisory to this commit */ }
     update();
     return true;
   }
@@ -878,7 +972,7 @@ export function mountPlacementWorkspace(
     if (destroyed) return;
     const memory = clearFocusMemory();
     const openDetails = new Set(Array.from(root.querySelectorAll<HTMLDetailsElement>('details[open]')).map((node) => node.getAttribute(HOOK)));
-    const railScroll = root.querySelector<HTMLElement>('.pw-rail')?.scrollTop ?? 0;
+    const railScroll = root.querySelector<HTMLElement>('.pw-rail-content')?.scrollTop ?? 0;
     modelView?.element.remove();
     root.replaceChildren();
     const wrap = el('div', 'pw-root', 'pw-root');
@@ -890,13 +984,27 @@ export function mountPlacementWorkspace(
     const rail = el('aside', 'pw-rail', 'pw-rail');
     layout.append(main, rail);
     renderStage(main);
-    renderRail(rail);
+    const railBody = el('div', 'pw-rail-content', 'pw-rail-content');
+    rail.append(railBody);
+    renderRail(railBody);
+    const actions = railBody.querySelector('[data-placement-hook="pw-step-actions"]');
+    if (actions) rail.append(actions);
+    const cue = railBody.querySelector('[data-placement-hook="pw-overflow-cue"]');
+    if (cue) rail.insertBefore(cue, actions);
+    railBody.tabIndex = 0; railBody.setAttribute('aria-label', 'Placement details');
     for (const details of root.querySelectorAll<HTMLDetailsElement>('details')) {
       if (openDetails.has(details.getAttribute(HOOK))) details.open = true;
     }
-    rail.scrollTop = railScroll;
+    railBody.scrollTop = railScroll;
     restoreFocus(memory);
+    fitWorkspace();
   }
+
+  function fitWorkspace(): void {
+    if (root.getClientRects().length === 0) return;
+    root.style.setProperty("--pw-workspace-height", `${Math.max(300, window.innerHeight - root.getBoundingClientRect().top - 12)}px`);
+  }
+  window.addEventListener("resize", fitWorkspace, { signal: aborter.signal });
 
   /** Included scope for chooser lists, or null for the full catalogue. */
   function includedScope(): { products: Set<string>; configurations: Set<string> } | null {
@@ -986,7 +1094,7 @@ export function mountPlacementWorkspace(
     title.textContent = 'Set logo placements';
     wrap.append(title);
     const products = optionProducts(project);
-    const headerRow = el('div', 'pw-row', 'pw-header');
+    const headerRow = el('div', 'pw-row pw-header', 'pw-header');
     let needsHeader = false;
     if (products.length > 1) {
       needsHeader = true;
@@ -1113,7 +1221,13 @@ export function mountPlacementWorkspace(
   function renderStage(main: HTMLElement): void {
     stageAborter?.abort(); stageAborter = new AbortController();
     const stageSignal = stageAborter.signal;
-    const { project, selection, product, configuration, placement, placementIndex } = currentContext();
+    stageDropPoint = null;
+    const context = currentContext();
+    const { project, selection, product, placementIndex } = context;
+    const configuration = context.configuration === null ? null : { ...context.configuration,
+      placements: context.configuration.placements.map((entry, index) => candidatePlacement(context.configuration!.id, entry, index)),
+    };
+    const placement = context.placement === null || !configuration ? null : candidatePlacement(configuration.id, context.placement, placementIndex);
     if (product === null || configuration === null) {
       const note = el('p', 'pw-muted', 'pw-stage-empty');
       note.textContent = 'Include at least one product to continue.';
@@ -1125,10 +1239,11 @@ export function mountPlacementWorkspace(
     if (modelScene && region && modelScene.regions.some((entry) => entry.id === region.id)) {
       main.parentElement?.classList.add('pw-product-workspace');
       if (!modelView) modelView = createModelPlacementView({
-        canEdit: () => {
-          const config = currentContext().configuration;
-          if (config && !anyPendingForConfiguration(config)) return true;
-          announce('Apply or discard pending changes before editing a logo.'); return false;
+        anchor: (regionId, pos, name) => {
+          const context = currentContext(); const config = context.configuration;
+          if (!config || !deps.addAnchor) return;
+          deps.addAnchor({ name, productId: config.productId, variantId: config.variantId, regionId, posMm: [pos.xMm, pos.yMm] });
+          announce(`Reference point “${name}” added. Choose an artwork edge to save a placement measurement.`); update();
         },
         select: (index) => {
           const context = currentContext(); const entry = context.configuration?.placements[index];
@@ -1138,18 +1253,27 @@ export function mountPlacementWorkspace(
         move: (index, pos) => {
           const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
           if (!config || !entry) return;
-          if (anyPendingForConfiguration(config)) { announce('Apply or discard pending changes before moving a logo.'); update(); return; }
           if (Math.abs(pos.xMm - entry.pos.xMm) < 1e-9 && Math.abs(pos.yMm - entry.pos.yMm) < 1e-9) return;
           try {
-            const next = updatePlacementInConfig(context.project, config.id, placementSelector(entry, index), { pos });
-            if (commitNext('Move logo on product', next)) { staged.delete(placementKeyOf(config.id, entry, index)); announce('Logo moved on the product.'); update(); }
+            const candidate = candidatePlacement(config.id, entry, index);
+            const next = updatePlacementInConfig(context.project, config.id, placementSelector(entry, index), { pos, widthMm: candidate.widthMm, heightMm: candidate.heightMm, rotationDeg: candidate.rotationDeg });
+            if (commitNext('Move logo on product', next)) {
+              // Reconcile staged centre fields so a later Apply cannot
+              // overwrite this drag with stale coordinates.
+              const stagedEdit = staged.get(placementKeyOf(config.id, entry, index));
+              if (stagedEdit !== undefined) {
+                stagedEdit.centreXRaw = String(pos.xMm);
+                stagedEdit.centreYRaw = String(pos.yMm);
+              }
+              announce('Logo moved on the product.'); update();
+            }
           } catch (error) { announce(`Move blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
         },
         commit: (index, patch) => {
           const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
           if (!config || !entry) return;
-          if (anyPendingForConfiguration(config)) { announce('Apply or discard pending changes before editing a logo.'); update(); return; }
-          const nextPatch: { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number } = {};
+          const candidate = candidatePlacement(config.id, entry, index);
+          const nextPatch: { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number } = { pos: candidate.pos, widthMm: candidate.widthMm, heightMm: candidate.heightMm, rotationDeg: candidate.rotationDeg };
           if (patch.pos && (Math.abs(patch.pos.xMm - entry.pos.xMm) > 1e-9 || Math.abs(patch.pos.yMm - entry.pos.yMm) > 1e-9)) nextPatch.pos = patch.pos;
           if (patch.widthMm !== undefined && Math.abs(patch.widthMm - entry.widthMm) > 1e-9) nextPatch.widthMm = patch.widthMm;
           if (patch.heightMm !== undefined && Math.abs(patch.heightMm - entry.heightMm) > 1e-9) nextPatch.heightMm = patch.heightMm;
@@ -1157,7 +1281,22 @@ export function mountPlacementWorkspace(
           if (Object.keys(nextPatch).length === 0) return;
           try {
             const next = updatePlacementInConfig(context.project, config.id, placementSelector(entry, index), nextPatch);
-            if (commitNext('Edit logo on product', next)) { staged.delete(placementKeyOf(config.id, entry, index)); announce('Logo updated on the product.'); update(); }
+            if (commitNext('Edit logo on product', next)) {
+              // Reconcile staged fields with the committed drag instead of
+              // dropping them: a later Apply must not resurrect stale values.
+              const stagedEdit = staged.get(placementKeyOf(config.id, entry, index));
+              if (stagedEdit !== undefined) {
+                const updated = next.configurations.find((c) => c.id === config.id)?.placements[index];
+                if (updated !== undefined) {
+                  stagedEdit.centreXRaw = String(updated.pos.xMm);
+                  stagedEdit.centreYRaw = String(updated.pos.yMm);
+                  stagedEdit.widthRaw = String(updated.widthMm);
+                  stagedEdit.heightRaw = String(updated.heightMm);
+                  stagedEdit.rotationRaw = String(updated.rotationDeg);
+                }
+              }
+              announce('Logo updated on the product.'); update();
+            }
           } catch (error) { announce(`Edit blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
         },
         status: (message) => announce(message),
@@ -1180,11 +1319,20 @@ export function mountPlacementWorkspace(
         toggleDetails: () => root.classList.toggle('show-placement-details'),
         ...(deps.onSaveJob ? { save: () => deps.onSaveJob?.() } : {}),
       });
+      stageDropPoint = (x, y) => modelView?.dropPoint(x, y) ?? null;
       main.append(modelView.element);
-      modelView.update({ scene: modelScene, selectedIndex: placementIndex, activeRegionId: region.id, status,
+      const modelAnchors = modelScene.regions.flatMap((area) => deps.getAnchors(selection.productId, selection.variantId, area.id).flatMap((anchor) => {
+        const model = modelPointFromMm(area.frame, anchor.posMm[0], anchor.posMm[1]);
+        return model ? [{ id: anchor.id, model, regionId: area.id }] : [];
+      }));
+      modelView.update({ scene: modelScene, anchors: modelAnchors, selectedIndex: placementIndex, activeRegionId: region.id, status,
         revision: JSON.stringify([modelScene.key, modelScene.regions, configuration.id, project.revision, configuration.placements]),
-        items: configuration.placements.map((entry, index) => ({ index, placement: entry, imageSrc: deps.getLogoImage(entry.logoId)?.src ?? null,
-          fits: product.regions.some((area) => area.id === entry.regionId && evaluatePlacementGeometry(area, entry).ok) })),
+        items: configuration.placements.map((entry, index) => {
+          const policy = lockFor(configuration.id, entry, index);
+          return { index, placement: candidatePlacement(configuration.id, entry, index), imageSrc: deps.getLogoImage(entry.logoId)?.src ?? null,
+            fits: product.regions.some((area) => area.id === entry.regionId && evaluatePlacementGeometry(area, entry).ok),
+            lock: policy.locked && Number.isFinite(policy.ratio) && policy.ratio > 0 ? { ratio: policy.ratio } : null };
+        }),
       });
       return;
     }
@@ -1621,7 +1769,8 @@ export function mountPlacementWorkspace(
           const pointerAngle = (Math.atan2(-(mm.yMm - base.pos.yMm), mm.xMm - base.pos.xMm) * 180) / Math.PI;
           drag = { kind: 'rotate', index, offsetDeg: base.rotationDeg - pointerAngle, startRevision, base };
         }
-        if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before editing a logo.'); drag = null; return; }
+        // Direct manipulation is primary: drags work with staged numeric
+        // edits present; the release commit reconciles staged fields.
         moved = false;
         deps.setSelection({ placementId: entry.id ?? `index:${index}` });
         gesturePointer = event.pointerId;
@@ -1638,7 +1787,6 @@ export function mountPlacementWorkspace(
         if (entry === undefined || svgPt === null) return;
         const mm = mapping.fromSvg(svgPt);
         if (mm === null) return;
-        if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before moving a logo.'); return; }
         drag = {
           kind: 'move',
           index,
@@ -1706,9 +1854,16 @@ export function mountPlacementWorkspace(
           reflectCandidate(candidate);
         }
       } else if (activeDrag.kind === 'resize') {
-        const resized = resizeFromCornerMm({ cx: activeDrag.base.pos.xMm, cy: activeDrag.base.pos.yMm,
-          widthMm: activeDrag.base.widthMm, heightMm: activeDrag.base.heightMm, rotationDeg: activeDrag.base.rotationDeg },
-          activeDrag.corner, { x: mm.xMm, y: mm.yMm });
+        // Unified transaction: a persisted lock makes 2D corner drags scale
+        // uniformly from the opposite corner, like the 3D handles.
+        const txBase = { xMm: activeDrag.base.pos.xMm, yMm: activeDrag.base.pos.yMm,
+          widthMm: activeDrag.base.widthMm, heightMm: activeDrag.base.heightMm,
+          rotationDeg: activeDrag.base.rotationDeg };
+        const txResized = resizeCorner(
+          beginEdit(txBase, lockFor(configuration.id, entry, activeDrag.index)),
+          activeDrag.corner as 0 | 1 | 2 | 3, { xMm: mm.xMm, yMm: mm.yMm }).candidate;
+        const resized = { cx: txResized.xMm, cy: txResized.yMm,
+          widthMm: txResized.widthMm, heightMm: txResized.heightMm, rotationDeg: txResized.rotationDeg };
         const candidate: DragCandidate = { pos: { xMm: resized.cx, yMm: resized.cy },
           widthMm: resized.widthMm, heightMm: resized.heightMm, rotationDeg: resized.rotationDeg };
         moved = true;
@@ -1792,7 +1947,18 @@ export function mountPlacementWorkspace(
         return;
       }
       if (commitNext(finished.kind === 'move' ? 'Move logo' : finished.kind === 'resize' ? 'Resize logo' : 'Rotate logo', next)) {
-        staged.delete(placementKeyOf(configuration.id, entry, finished.index));
+        // Reconcile staged fields with the committed drag (never drop them).
+        const finishedEdit = staged.get(placementKeyOf(configuration.id, entry, finished.index));
+        if (finishedEdit !== undefined) {
+          const updated = next.configurations.find((c) => c.id === configuration.id)?.placements[finished.index];
+          if (updated !== undefined) {
+            finishedEdit.centreXRaw = String(updated.pos.xMm);
+            finishedEdit.centreYRaw = String(updated.pos.yMm);
+            finishedEdit.widthRaw = String(updated.widthMm);
+            finishedEdit.heightRaw = String(updated.heightMm);
+            finishedEdit.rotationRaw = String(updated.rotationDeg);
+          }
+        }
         const id = entry.id ?? `index:${finished.index}`;
         deps.setSelection({ placementId: id });
         announce(finished.kind === 'move' ? 'Logo moved.' : finished.kind === 'resize' ? 'Logo resized.' : 'Logo rotated.');
@@ -1944,7 +2110,8 @@ export function mountPlacementWorkspace(
       else if (event.key === 'ArrowDown') dy = -step;
       else if (!(handleKind === 'rotate' && (event.key === '[' || event.key === ']'))) return;
       event.preventDefault();
-      if (anyPendingForConfiguration(configuration)) { announce('Apply or discard pending changes before editing a logo.'); return; }
+      // Keyboard manipulation commits directly: no hidden pending-field
+      // Apply gate. Staged numeric fields are reconciled after the commit.
       let patch: { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number };
       if (handleKind === 'rotate') {
         const direction = event.key === '[' || event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
@@ -1953,9 +2120,15 @@ export function mountPlacementWorkspace(
         const corner = Number(target?.getAttribute('data-corner'));
         const corners = rotatedFootprintCorners(placement.pos.xMm, placement.pos.yMm, placement.widthMm, placement.heightMm, placement.rotationDeg);
         const pointer = corners[corner]; if (!pointer) return;
-        const resized = resizeFromCornerMm({ cx: placement.pos.xMm, cy: placement.pos.yMm, widthMm: placement.widthMm,
-          heightMm: placement.heightMm, rotationDeg: placement.rotationDeg }, corner, { x: pointer.x + dx, y: pointer.y + dy });
-        patch = { pos: { xMm: resized.cx, yMm: resized.cy }, widthMm: resized.widthMm, heightMm: resized.heightMm };
+        // Unified transaction: locked keyboard resize scales uniformly.
+        const txResized = resizeCorner(
+          beginEdit(
+            { xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm,
+              heightMm: placement.heightMm, rotationDeg: placement.rotationDeg },
+            lockFor(configuration.id, placement, placementIndex),
+          ),
+          corner as 0 | 1 | 2 | 3, { xMm: pointer.x + dx, yMm: pointer.y + dy }).candidate;
+        patch = { pos: { xMm: txResized.xMm, yMm: txResized.yMm }, widthMm: txResized.widthMm, heightMm: txResized.heightMm };
       } else patch = { pos: { xMm: placement.pos.xMm + dx, yMm: placement.pos.yMm + dy } };
       let next: ProjectDocument;
       try {
@@ -1971,7 +2144,20 @@ export function mountPlacementWorkspace(
         return;
       }
       if (commitNext('Nudge logo', next)) {
-        staged.delete(placementKeyOf(configuration.id, placement, placementIndex));
+        // Reconcile staged fields instead of dropping them: a later Apply
+        // must not resurrect pre-nudge values.
+        const stagedKey = placementKeyOf(configuration.id, placement, placementIndex);
+        const stagedEdit = staged.get(stagedKey);
+        if (stagedEdit !== undefined) {
+          const updated = next.configurations.find((c) => c.id === configuration.id)?.placements[placementIndex];
+          if (updated !== undefined) {
+            stagedEdit.centreXRaw = String(updated.pos.xMm);
+            stagedEdit.centreYRaw = String(updated.pos.yMm);
+            stagedEdit.widthRaw = String(updated.widthMm);
+            stagedEdit.heightRaw = String(updated.heightMm);
+            stagedEdit.rotationRaw = String(updated.rotationDeg);
+          }
+        }
         update();
       }
     }, { signal: aborter.signal });
@@ -1980,6 +2166,12 @@ export function mountPlacementWorkspace(
        Two-click flow: first click selects the anchor identity, second click
        selects the artwork edge. The measured value always comes from the
        visual-dimension kernel — pointer positions never enter millimetres. */
+    stageDropPoint = (x, y) => {
+      if (!region) return null;
+      const point = toSvgPoint(x, y); if (!point) return null;
+      const pos = mapping.fromSvg(point);
+      return pos ? { regionId: region.id, pos } : null;
+    };
     const pickerHandler = (event: PointerEvent): void => {
       if (measureDraft === null) return;
       const picking = measureDraft.picking;
@@ -2111,13 +2303,195 @@ export function mountPlacementWorkspace(
     return bindings.filter((binding) => binding.logoRef === logoRef);
   }
 
+  /**
+   * Immediate provisional preview for tray artwork: commits a provisional
+   * placement at the calibrated region centre right away. Unresolved method
+   * or size stays visible in the inspector and blocks review — never the
+   * preview. One gesture, one history entry.
+   */
+  function placeProvisional(
+    project: ProjectDocument,
+    configuration: Configuration,
+    logoId: string,
+    destination?: { regionId: string; pos: { xMm: number; yMm: number } },
+  ): void {
+    const product = project.products.find((entry) => entry.id === configuration.productId);
+    if (product === undefined) {
+      announce('The product for this option is missing; reopen the job.');
+      update();
+      return;
+    }
+    const areas = configuredAreas(product, configuration.variantId);
+    const currentRegion = stageRegion();
+    const target = destination ? areas.find((area) => area.id === destination.regionId) ?? null
+      : (currentRegion !== null && areas.some((area) => area.id === currentRegion.id) ? currentRegion : areas[0]) ?? null;
+    if (target === null) {
+      announce(`Add a safe area for ${product.name?.trim() || 'this product'} before placing a logo.`);
+      deps.requestProductSetup(configuration.productId, configuration.variantId);
+      update();
+      return;
+    }
+    if (calibrationState(product, target) === 'missing-calibration') {
+      announce(`Set up measurements for ${product.name?.trim() || 'this product'} before placing a logo.`);
+      deps.requestProductSetup(configuration.productId, configuration.variantId, target.id);
+      update();
+      return;
+    }
+    const known = knownDimensions(project, logoId);
+    const size = provisionalSizeMm(regionSpanMm(target), logoPixelAspect(project, logoId), known);
+    if (size === null) {
+      announce('The safe area has no usable size; redraw it in product setup.');
+      update();
+      return;
+    }
+    const centre = destination ? { x: destination.pos.xMm, y: destination.pos.yMm } : regionCentreMm(target);
+    if (centre === null) {
+      announce('The safe area has no usable centre; redraw it in product setup.');
+      update();
+      return;
+    }
+    const method = target.allowedMethods[0] ?? '';
+    if (!method) { announce('Configure a decoration method for this safe area first.'); update(); return; }
+    const id = deps.newPlacementId();
+    const placement: Placement = {
+      id,
+      logoId,
+      regionId: target.id,
+      method,
+      pos: { xMm: centre.x, yMm: centre.y },
+      widthMm: size.widthMm,
+      heightMm: size.heightMm,
+      rotationDeg: 0,
+    };
+    let next: ProjectDocument;
+    try {
+      next = addPlacementToConfig(project, configuration.id, placement);
+    } catch (error) {
+      announce(`Place blocked: ${error instanceof Error ? error.message : String(error)}`);
+      update();
+      return;
+    }
+    if (commitNext('Place artwork preview', next)) {
+      deps.setSelection({ placementId: id });
+      const notes: string[] = [];
+      if (known === null) notes.push('size is provisional — verify physically before production');
+      notes.push(`method defaults to ${methodLabel(method)} — change it in the inspector if needed`);
+      announce(notes.length === 0
+        ? `Preview placed for ${logoNameOf(project, logoId)} in ${target.name?.trim() || 'unnamed area'}. Drag it on the product to position it.`
+        : `Provisional preview placed for ${logoNameOf(project, logoId)} (${notes.join('; ')}). Drag it on the product; review stays blocked until resolved.`);
+      update();
+    }
+  }
+
+  /** Tray pick without placing: prefill the add form (click, Enter, or Space). */
+  function prefillAddForm(project: ProjectDocument, configuration: Configuration, logoId: string): void {
+    const product = project.products.find((entry) => entry.id === configuration.productId);
+    addOpen = true;
+    addDraft = makeAddDraft(project, configuration);
+    addDraft.logoId = logoId;
+    const region = product?.regions.find((entry) => entry.id === addDraft?.regionId);
+    const raws = provisionalRaws(project, logoId, region);
+    addDraft.widthRaw = raws.widthRaw;
+    addDraft.heightRaw = raws.heightRaw;
+    addDraft.method = region !== undefined && region.allowedMethods.length === 1
+      ? (region.allowedMethods[0] ?? '')
+      : '';
+    addDraft.notice = '';
+    announce('Artwork ready: check the size, then Add placement — or Place it for an immediate preview.');
+    update();
+  }
+
+  function renderArtworkTray(rail: HTMLElement, project: ProjectDocument, configuration: Configuration): void {
+    const section = el('section', '', 'pw-artwork-tray');
+    section.setAttribute('aria-label', 'Artwork tray');
+    const title = el('h3', '', 'pw-artwork-title');
+    title.textContent = 'Artwork';
+    section.append(title);
+    const hint = el('p', 'pw-muted', 'pw-artwork-hint');
+    hint.textContent = 'Choose artwork, then place it on the product: drag a card onto the product, use Place, or open the form for exact sizes.';
+    section.append(hint);
+    let included: Set<string> | null = null;
+    try {
+      const ids = deps.getIncludedLogoIds?.();
+      if (ids !== undefined && ids !== null) included = new Set(ids);
+    } catch { included = null; }
+    const logos = project.logos.filter((logo) => included === null || included.has(logo.id));
+    if (logos.length === 0) {
+      const note = el('p', 'pw-muted', 'pw-artwork-empty');
+      note.textContent = 'Add artwork in Step 1 (Prepare the job) to place new logos.';
+      section.append(note);
+      rail.append(section);
+      return;
+    }
+    const grid = el('div', 'pw-artwork-grid', 'pw-artwork-grid');
+    for (const logo of logos) {
+      const card = el('div', 'pw-artwork-card', `pw-artwork-${logo.id}`);
+      const pick = el('button', 'pw-artwork-pick', `pw-artwork-pick-${logo.id}`) as HTMLButtonElement;
+      pick.type = 'button';
+      const name = logo.name?.trim() || 'Unnamed logo';
+      pick.setAttribute('aria-label', `Use artwork ${name}: fills the add form`);
+      pick.title = `Use ${name}: fills the add form with a provisional size`;
+      pick.draggable = true;
+      const thumb = deps.getLogoImage(logo.id);
+      if (thumb !== null) {
+        const img = document.createElement('img');
+        img.className = 'pw-artwork-thumb';
+        img.src = thumb.src;
+        img.alt = '';
+        pick.append(img);
+      }
+      const label = el('span', 'pw-artwork-name');
+      label.textContent = name;
+      pick.append(label);
+      const known = knownDimensions(project, logo.id);
+      const state = el('span', 'pw-artwork-state');
+      state.textContent = known !== null
+        ? `${displayMm(known.widthMm)} × ${displayMm(known.heightMm)} mm`
+        : 'size provisional';
+      pick.append(state);
+      // Keyboard alternative: Enter/Space activates like a click.
+      pick.addEventListener('click', () => { prefillAddForm(deps.getProject(), configuration, logo.id); });
+      pick.addEventListener('dragstart', (event) => {
+        try {
+          event.dataTransfer?.setData('text/logo-id', logo.id);
+          if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
+        } catch { /* drag still carries the pending pick below */ }
+        pendingTrayDrop = logo.id;
+      });
+      pick.addEventListener('dragend', () => { pendingTrayDrop = null; });
+      pick.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          prefillAddForm(deps.getProject(), configuration, logo.id);
+        }
+      });
+      card.append(pick);
+      const place = el('button', 'pw-secondary pw-artwork-place', `pw-artwork-place-${logo.id}`) as HTMLButtonElement;
+      place.type = 'button';
+      place.textContent = 'Place';
+      place.setAttribute('aria-label', `Place ${name} on the product now as a provisional preview`);
+      place.addEventListener('click', () => { placeProvisional(deps.getProject(), configuration, logo.id); });
+      card.append(place);
+      grid.append(card);
+    }
+    section.append(grid);
+    section.append(helpPopover('pw-help-tray', 'Place shows the artwork on the product immediately with a provisional size and method. Unresolved size or method stays visible in the inspector and blocks review — never the preview.'));
+    rail.append(section);
+  }
+
   function renderRail(rail: HTMLElement): void {
     const { project, selection, product, configuration, placement, placementIndex } = currentContext();
     if (product === null || configuration === null) return;
 
+    // Visual artwork tray comes before placements: artwork is chosen first,
+    // then positioned. Drag cards onto the product, Place for an immediate
+    // provisional preview, or pick a card to fill the add form.
+    renderArtworkTray(rail, project, configuration);
+
     const listTitle = el('h3', '', 'pw-placements-title');
-    listTitle.textContent = 'Placements';
-    rail.append(listTitle);
+    listTitle.textContent = `Placements (${configuration.placements.length})`;
+    const placementHead = el('div', 'pw-placement-head');
+    placementHead.append(listTitle); rail.append(placementHead);
 
     if (project.logos.length === 0) {
       const note = el('p', 'pw-muted', 'pw-no-logos');
@@ -2178,7 +2552,7 @@ export function mountPlacementWorkspace(
       addDraft = makeAddDraft(project, configuration);
       update();
     });
-    rail.append(addToggle);
+    placementHead.append(addToggle);
 
     if (addOpen) renderAddForm(rail, project, configuration);
 
@@ -2188,10 +2562,11 @@ export function mountPlacementWorkspace(
 
     renderValidation(rail, project, configuration);
 
-    const actions = el('div', 'pw-actions', 'pw-step-actions');
+    const actions = el('div', 'pw-actions pw-step-actions', 'pw-step-actions');
     const approval = el('button', 'pw-secondary', 'pw-approval') as HTMLButtonElement;
     approval.type = 'button';
-    approval.textContent = 'Send for customer approval';
+    approval.textContent = 'Customer approval';
+    approval.setAttribute('aria-label', 'Send for customer approval');
     approval.addEventListener('click', () => {
       deps.onApprovalBranch();
     });
@@ -2222,6 +2597,51 @@ export function mountPlacementWorkspace(
     });
     actions.append(approval, review, back);
     rail.append(actions);
+    // Explicit overflow cue: the rail scrolls internally while core actions
+    // stay sticky, so secondary content is never silently cut off.
+    const cue = el('div', 'pw-overflow-cue', 'pw-overflow-cue');
+    cue.setAttribute('aria-hidden', 'true');
+    cue.textContent = 'More placement details below ↓';
+    rail.append(cue);
+    const syncCue = (): void => {
+      const needs = rail.scrollHeight > rail.clientHeight + 8;
+      const more = rail.scrollTop + rail.clientHeight < rail.scrollHeight - 8;
+      cue.style.display = needs && more ? '' : 'none';
+    };
+    rail.addEventListener('scroll', syncCue, { passive: true });
+    syncCue();
+    requestAnimationFrame(syncCue);
+  }
+
+  function regionSpanMm(region: Region): { spanX: number; spanY: number } | null {
+    if (region.safeArea.length < 3) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const point of region.safeArea) {
+      const x = point[0], y = point[1];
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      if (x < minX) minX = x; if (y < minY) minY = y;
+      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return null;
+    if (!Number.isFinite(minY) || !Number.isFinite(maxY) || maxY <= minY) return null;
+    return { spanX: maxX - minX, spanY: maxY - minY };
+  }
+
+  function provisionalRaws(
+    project: ProjectDocument,
+    logoId: string,
+    region: Region | undefined,
+  ): { widthRaw: string; heightRaw: string } {
+    const known = logoId !== '' ? knownDimensions(project, logoId) : null;
+    if (known !== null) return { widthRaw: String(known.widthMm), heightRaw: String(known.heightMm) };
+    if (logoId === '') return { widthRaw: '', heightRaw: '' };
+    const size = provisionalSizeMm(
+      region !== undefined ? regionSpanMm(region) : null,
+      logoPixelAspect(project, logoId),
+      null,
+    );
+    if (size === null) return { widthRaw: '', heightRaw: '' };
+    return { widthRaw: String(size.widthMm), heightRaw: String(size.heightMm) };
   }
 
   function makeAddDraft(project: ProjectDocument, configuration: Configuration): AddDraft {
@@ -2230,19 +2650,22 @@ export function mountPlacementWorkspace(
     const areas = product !== undefined ? configuredAreas(product, configuration.variantId) : [];
     const firstLogo = project.logos[0];
     const logoId = firstLogo?.id ?? '';
-    const known = logoId !== '' ? knownDimensions(project, logoId) : null;
     const currentRegion = stageRegion();
     const regionId = (currentRegion !== null &&
       areas.some((area) => area.id === currentRegion.id))
       ? currentRegion.id
       : (areas[0]?.id ?? '');
-    const area = areas.find((entry) => entry.id === regionId);
+    // Provisional starting size when the artwork has no known mm
+    // dimensions: aspect-preserving, fitted to the calibrated region.
+    const targetArea = areas.find((entry) => entry.id === regionId);
+    const raws = provisionalRaws(project, logoId, targetArea);
+    const area = targetArea;
     void selection;
     return {
       logoId,
       regionId,
-      widthRaw: known !== null ? String(known.widthMm) : '',
-      heightRaw: known !== null ? String(known.heightMm) : '',
+      widthRaw: raws.widthRaw,
+      heightRaw: raws.heightRaw,
       rotationRaw: '0',
       keepProportions: false,
       method: area !== undefined && area.allowedMethods.length === 1
@@ -2376,6 +2799,18 @@ export function mountPlacementWorkspace(
     heightInput.value = draft.heightRaw;
     heightInput.addEventListener('input', () => {
       draft.heightRaw = heightInput.value;
+      // Symmetric with width: a locked height edit scales width via the
+      // artwork pixel aspect (add-time ratio source; committed placements
+      // use the unified transaction instead).
+      if (draft.keepProportions) {
+        const aspect = logoPixelAspect(project, draft.logoId);
+        const heightMm = parseMm(draft.heightRaw);
+        if (aspect !== null && aspect > 0 && heightMm !== null && heightMm > 0) {
+          draft.widthRaw = String(Math.round(heightMm * aspect * 100) / 100);
+          const widthLive = form.querySelector<HTMLInputElement>(`[${HOOK}="pw-add-width"]`);
+          if (widthLive !== null && document.activeElement !== widthLive) widthLive.value = draft.widthRaw;
+        }
+      }
     });
     heightLabel.append(heightInput);
     form.append(heightLabel);
@@ -2394,8 +2829,8 @@ export function mountPlacementWorkspace(
     const area = areas.find((entry) => entry.id === draft.regionId);
     if (area !== undefined) {
       if (area.allowedMethods.length > 1) {
-        const methodLabel = el('label', 'pw-field', 'pw-add-method-field');
-        methodLabel.textContent = 'Method';
+        const methodField = el('label', 'pw-field', 'pw-add-method-field');
+        methodField.textContent = 'Method';
         const methodSelect = el('select', '', 'pw-add-method') as HTMLSelectElement;
         const blank = document.createElement('option');
         blank.value = '';
@@ -2404,15 +2839,15 @@ export function mountPlacementWorkspace(
         for (const method of area.allowedMethods) {
           const option = document.createElement('option');
           option.value = method;
-          option.textContent = method;
+          option.textContent = methodLabel(method);
           methodSelect.append(option);
         }
         methodSelect.value = draft.method;
         methodSelect.addEventListener('change', () => {
           draft.method = methodSelect.value;
         });
-        methodLabel.append(methodSelect);
-        form.append(methodLabel);
+        methodField.append(methodSelect);
+        form.append(methodField);
       } else {
         const single = el('p', 'pw-muted', 'pw-add-method-single');
         single.textContent = `Method: ${area.allowedMethods[0] ?? '(none configured)'}`;
@@ -2565,6 +3000,21 @@ export function mountPlacementWorkspace(
     logoStrong.textContent = logoNameOf(project, edit.logoId);
     logoLine.append(logoStrong);
     group.append(logoLine);
+    // Unresolved method/size stays visible in the inspector and blocks only
+    // readiness (review), never the on-product preview.
+    if (knownDimensions(project, edit.logoId) === null) {
+      const provisional = el('p', 'pw-warning', 'pw-provisional-size');
+      provisional.textContent =
+        'Draft size — verify dimensions.';
+      group.append(provisional);
+    }
+    const inspectorRegion = product.regions.find((entry) => entry.id === edit.regionId);
+    if (inspectorRegion === undefined || placement.method === '' || !inspectorRegion.allowedMethods.includes(placement.method)) {
+      const unresolved = el('p', 'pw-warning', 'pw-unresolved-method');
+      unresolved.textContent =
+        'Method not set: choose an offered method before review. The preview stays visible while this is unresolved.';
+      group.append(unresolved);
+    }
 
     const areas = configuredAreas(product, configuration.variantId);
     const areaLabel = el('label', 'pw-field', 'pw-field-area');
@@ -2610,17 +3060,22 @@ export function mountPlacementWorkspace(
     widthInput.addEventListener('input', () => {
       edit.widthRaw = widthInput.value;
       edit.widthTouched = true;
-      if (edit.keepProportions) {
-        const aspect = logoPixelAspect(project, edit.logoId);
-        const widthMm = parseMm(edit.widthRaw);
-        if (aspect !== null && widthMm !== null && widthMm > 0) {
-          edit.heightRaw = String(Math.round((widthMm / aspect) * 100) / 100);
-        }
+      // Unified transaction: the persisted lock is consulted in BOTH axes,
+      // and invalid partial text stays local (never propagates).
+      const widthMm = parseMm(edit.widthRaw);
+      if (widthMm !== null && widthMm > 0 && lockFor(configuration.id, placement, placementIndex).locked) {
+        const tx = beginEdit(
+          { xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm,
+            heightMm: placement.heightMm, rotationDeg: placement.rotationDeg },
+          lockFor(configuration.id, placement, placementIndex),
+        );
+        edit.heightRaw = String(Math.round(setCandidateWidth(tx, widthMm).candidate.heightMm * 100) / 100);
       }
       update();
     });
     widthLabel.append(widthInput);
     group.append(widthLabel);
+    group.append(helpPopover('pw-help-size', 'Width and height edit the same logo: when proportions are locked, changing one side scales the other. Partial numbers stay local until they are valid.'));
 
     const heightLabel = el('label', 'pw-field', 'pw-field-height');
     heightLabel.textContent = 'Height (mm)';
@@ -2631,6 +3086,15 @@ export function mountPlacementWorkspace(
     heightInput.value = edit.heightRaw;
     heightInput.addEventListener('input', () => {
       edit.heightRaw = heightInput.value;
+      const heightMm = parseMm(edit.heightRaw);
+      if (heightMm !== null && heightMm > 0 && lockFor(configuration.id, placement, placementIndex).locked) {
+        const tx = beginEdit(
+          { xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm,
+            heightMm: placement.heightMm, rotationDeg: placement.rotationDeg },
+          lockFor(configuration.id, placement, placementIndex),
+        );
+        edit.widthRaw = String(Math.round(setCandidateHeight(tx, heightMm).candidate.widthMm * 100) / 100);
+      }
       update();
     });
     heightLabel.append(heightInput);
@@ -2639,13 +3103,50 @@ export function mountPlacementWorkspace(
     const keep = el('label', 'pw-check', 'pw-field-keep');
     const keepBox = el('input', '', 'pw-keep') as HTMLInputElement;
     keepBox.type = 'checkbox';
-    keepBox.checked = edit.keepProportions;
+    keepBox.checked = lockFor(configuration.id, placement, placementIndex).locked;
     keepBox.addEventListener('change', () => {
-      edit.keepProportions = keepBox.checked;
+      // Locking captures the CURRENT placement ratio; unlocking or toggling
+      // never rolls back committed geometry. The preference persists across
+      // commits and selection changes.
+      if (keepBox.checked) {
+        const captured = policyForLock({
+          xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: parseMm(edit.widthRaw) ?? placement.widthMm,
+          heightMm: parseMm(edit.heightRaw) ?? placement.heightMm, rotationDeg: placement.rotationDeg,
+        });
+        ratioLocks.set(key, captured.locked ? captured : { locked: false, ratio: captured.ratio });
+      } else {
+        const prev = ratioLocks.get(key);
+        ratioLocks.set(key, { locked: false, ratio: prev?.ratio ?? NaN });
+      }
       update();
     });
     keep.append(keepBox, document.createTextNode('Keep proportions'));
     group.append(keep);
+    const resetRatio = el('button', 'pw-secondary', 'pw-ratio-reset') as HTMLButtonElement;
+    resetRatio.type = 'button';
+    resetRatio.textContent = 'Reset to artwork ratio';
+    resetRatio.title = 'Re-anchor the proportions lock to the original artwork ratio (geometry unchanged)';
+    resetRatio.addEventListener('click', () => {
+      const aspect = logoPixelAspect(project, edit.logoId);
+      if (aspect === null || !(aspect > 0)) {
+        announce('No known artwork ratio for this logo; the lock keeps the placement ratio.');
+        update();
+        return;
+      }
+      const prev = lockFor(configuration.id, placement, placementIndex);
+      const tx = resetToArtworkRatio(
+        beginEdit(
+          { xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm,
+            heightMm: placement.heightMm, rotationDeg: placement.rotationDeg },
+          prev,
+        ),
+        aspect * 100, 100,
+      );
+      ratioLocks.set(key, tx.policy);
+      announce('Ratio lock now follows the original artwork ratio. Geometry unchanged.');
+      update();
+    });
+    group.append(resetRatio);
 
     const rotationLabel = el('label', 'pw-field', 'pw-field-rotation');
     rotationLabel.textContent = 'Rotation (degrees)';
@@ -2705,6 +3206,7 @@ export function mountPlacementWorkspace(
       }
       if (commitNext('Remove placement', next)) {
         staged.delete(key);
+        ratioLocks.delete(key);
         const remaining = next.configurations.find((entry) => entry.id === configuration.id)?.placements ?? [];
         const first = remaining[0];
         deps.setSelection({ placementId: first?.id ?? null });
@@ -2767,19 +3269,23 @@ export function mountPlacementWorkspace(
 
     const methodRegion = product.regions.find((entry) => entry.id === edit.regionId);
     if (methodRegion !== undefined && methodRegion.allowedMethods.length > 1) {
-      const methodLabel = el('label', 'pw-field', 'pw-field-method');
-      methodLabel.textContent = 'Method';
+      const methodField = el('label', 'pw-field', 'pw-field-method');
+      methodField.textContent = 'Method';
       const methodSelect = el('select', '', 'pw-method') as HTMLSelectElement;
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'Choose a method';
+      methodSelect.append(blank);
       for (const method of methodRegion.allowedMethods) {
         const option = document.createElement('option');
         option.value = method;
-        option.textContent = method;
+        option.textContent = methodLabel(method);
         methodSelect.append(option);
       }
       if (edit.method !== '' && !methodRegion.allowedMethods.includes(edit.method)) {
         const option = document.createElement('option');
         option.value = edit.method;
-        option.textContent = `${edit.method} (not offered here)`;
+        option.textContent = `${methodLabel(edit.method)} (not offered here)`;
         methodSelect.append(option);
       }
       methodSelect.value = edit.method;
@@ -2787,16 +3293,49 @@ export function mountPlacementWorkspace(
         edit.method = methodSelect.value;
         update();
       });
-      methodLabel.append(methodSelect);
-      group.append(methodLabel);
+      methodField.append(methodSelect);
+      group.append(methodField);
     }
+
+    const methods = el('details', '', 'pw-more-methods') as HTMLDetailsElement;
+    const methodsSummary = el('summary', ''); methodsSummary.textContent = 'More methods'; methods.append(methodsSummary);
+    const methodHint = el('p', 'pw-muted'); methodHint.textContent = 'Enable a method for this safe area and use it for the selected logo. Process settings are entered separately.'; methods.append(methodHint);
+    const methodButtons = el('div', 'pw-inline');
+    const enableMethod = (name: string): void => {
+      try {
+        const live = currentContext();
+        if (!live.configuration || live.placementIndex < 0) return;
+        if (!live.placement) return;
+        if (edit.regionId !== live.placement.regionId) { announce('Apply the safe-area change before enabling a method.'); return; }
+        const candidate = candidatePlacement(live.configuration.id, live.placement, live.placementIndex);
+        const next = configurePlacementMethod(live.project, live.configuration.id, live.placementIndex, name, candidate);
+        if (commitNext('Configure decoration method', next)) {
+          staged.delete(placementKeyOf(configuration.id, placement, placementIndex));
+          announce(`Method set to ${methodLabel(name.trim())}.`); update();
+        }
+      } catch (error) { announce(error instanceof Error ? error.message : String(error)); }
+    };
+    for (const method of SUPPORTED_METHODS.filter((entry) => entry.key !== 'other')) {
+      if (methodRegion?.allowedMethods.includes(method.key)) continue;
+      const enable = el('button', 'pw-secondary') as HTMLButtonElement;
+      enable.type = 'button'; enable.textContent = `Enable ${method.label}`;
+      enable.addEventListener('click', () => enableMethod(method.key)); methodButtons.append(enable);
+    }
+    methods.append(methodButtons);
+    const custom = el('label', 'pw-field'); custom.textContent = 'Other method name';
+    const customName = el('input', '', 'pw-custom-method-name') as HTMLInputElement;
+    customName.type = 'text'; customName.maxLength = 80; customName.placeholder = 'Enter the department’s method name'; custom.append(customName);
+    const useCustom = el('button', 'pw-secondary', 'pw-custom-method-use') as HTMLButtonElement;
+    useCustom.type = 'button'; useCustom.textContent = 'Enable and use method';
+    useCustom.addEventListener('click', () => enableMethod(customName.value)); methods.append(custom, useCustom);
+    group.append(methods);
 
     const details = el('details', '', 'pw-production-details') as HTMLDetailsElement;
     const detailsSummary = el('summary', '');
     detailsSummary.textContent = 'Production details';
     details.append(detailsSummary);
     const methodLine = el('p', 'pw-muted', 'pw-method-readout');
-    methodLine.textContent = `Method: ${edit.method || '(choose a method above)'}`;
+    methodLine.textContent = `Method: ${edit.method ? methodLabel(edit.method) : '(choose a method above)'}`;
     details.append(methodLine);
     if (placement.instructions !== undefined && placement.instructions !== '') {
       const note = el('p', 'pw-muted', 'pw-customer-note');
@@ -2881,6 +3420,18 @@ export function mountPlacementWorkspace(
     const heading = el('h4', '', 'pw-measurements-title');
     heading.textContent = 'Placement measurements';
     section.append(heading);
+    if (modelView && deps.addAnchor) {
+      const ref = el('label', 'pw-field'); ref.textContent = 'Reference point name';
+      const name = el('input', '', 'pw-model-anchor-name') as HTMLInputElement;
+      name.type = 'text'; name.maxLength = 80; name.placeholder = 'e.g. Collar centre'; ref.append(name);
+      const addReference = el('button', 'pw-secondary', 'pw-model-anchor-add') as HTMLButtonElement;
+      addReference.type = 'button'; addReference.textContent = 'Pick reference on model';
+      addReference.addEventListener('click', () => {
+        const count = deps.getAnchors(configuration.productId, configuration.variantId, placement.regionId).length;
+        modelView?.beginAnchorPick(name.value.trim() || `Reference ${count + 1}`);
+      });
+      section.append(ref, addReference);
+    }
     const rows = bindingsForPlacement(configuration.id, configuration.placements, placementIndex);
     const summary = el('p', 'pw-muted', 'pw-measurements-summary');
     summary.textContent = rows.length === 0
@@ -3260,6 +3811,37 @@ export function mountPlacementWorkspace(
   }
 
   update();
+
+  // Native tray drops use the existing calibrated surface/diagram inverse.
+  // Pixel positions select a surface point; region millimetres remain authoritative.
+  root.addEventListener('dragover', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-placement-hook="pw-model-workbench"],[data-placement-hook="pw-stage-svg"],.pw-stage') !== null) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  root.addEventListener('drop', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-placement-hook="pw-model-workbench"],[data-placement-hook="pw-stage-svg"],.pw-stage') === null) return;
+    let logoId: string | null = pendingTrayDrop;
+    try {
+      const viaTransfer = event.dataTransfer?.getData('text/logo-id');
+      if (viaTransfer !== undefined && viaTransfer !== '') logoId = viaTransfer;
+    } catch { /* fall back to the pending pick */ }
+    pendingTrayDrop = null;
+    if (logoId === null || logoId === '') return;
+    event.preventDefault();
+    const context = currentContext();
+    if (context.configuration === null || !context.project.logos.some((logo) => logo.id === logoId)) return;
+    const included = deps.getIncludedLogoIds?.();
+    if (included && !included.includes(logoId)) return;
+    const destination = stageDropPoint?.(event.clientX, event.clientY);
+    if (!destination) { announce('Drop the artwork on the visible calibrated product surface.'); return; }
+    placeProvisional(context.project, context.configuration, logoId, destination);
+  });
 
   return {
     closeEnlarged: () => expansion.close(),

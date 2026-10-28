@@ -113,7 +113,7 @@ test('visual placement: photo/diagram handles move, resize, rotate, cancel, sibl
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-confirm').click();
     await expect(host.locator('[data-placement-hook="pw-placement-list"]')).toContainText('crest');
     await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();

@@ -39,6 +39,35 @@ export type {
   PresentationViewScope,
 } from "./types.js";
 export { PRESENTATION_VIEW_LIMITS } from "./types.js";
+export type {
+  ModelDocumentView,
+  ModelRenderCoordinator,
+  ModelViewCamera,
+  ModelViewFraming,
+  ModelViewListResult,
+  ModelViewPatch,
+  ModelViewRender,
+} from "./model-document-views.js";
+export {
+  addModelDocumentView,
+  adjustModelDocumentView,
+  cameraDigest,
+  createModelRenderCoordinator,
+  DEFAULT_MODEL_CAMERA,
+  defaultModelDocumentViews,
+  isModelDocumentViewId,
+  isModelDocumentViewLabel,
+  isModelViewRenderStale,
+  MODEL_DOCUMENT_VIEW_LIMITS,
+  MODEL_DOCUMENT_VIEW_VERSION,
+  modelViewRenderKey,
+  normalizeModelViewMethod,
+  parseModelDocumentView,
+  parseModelDocumentViewList,
+  removeModelDocumentView,
+  reorderModelDocumentViews,
+  serializeModelDocumentViews,
+} from "./model-document-views.js";
 
 /** Legacy fixed side names: valid view ids with legacy default labels. */
 export const LEGACY_VIEW_IDS = ["front", "back", "left", "right"] as const;

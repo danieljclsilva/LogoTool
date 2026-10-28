@@ -70,6 +70,7 @@ import type {
   OperationSheetView,
   ReferenceViewInput,
 } from '../../core/operation-document/types.js';
+import type { ModelViewInput } from '../../core/operation-document/types.js';
 import type { SheetLogoExtras } from '../../core/operation-document/types.js';
 import {
   measurePlacement,
@@ -109,6 +110,10 @@ import type {
   SheetOverlayMapping,
 } from '../shared/operation-document/assets.js';
 import type { PhotoMappingState } from '../../core/operation-document/types.js';
+import type {
+  ModelDocumentView,
+} from '../../core/presentation-views/model-document-views.js';
+import { isModelViewRenderStale } from '../../core/presentation-views/model-document-views.js';
 
 /** Severity of one review item. `info` never gates printing. */
 export type ReviewSeverity = 'blocking' | 'incomplete' | 'info';
@@ -153,11 +158,36 @@ export interface ReviewTechniqueSettings {
 }
 
 /**
+ * One operator-managed model document view with its captured render state
+ * for the current review snapshot. `render` is the clean product capture
+ * (no handles/overlays) with applied artwork from `render.revision`; a null
+ * render means "not captured yet" and prints an explicit pending note.
+ * Stale renders (revision moved on, camera changed) are never served to the
+ * renderer — see `buildReviewSheetLookup`.
+ */
+export interface DocumentReviewModelView {
+  view: ModelDocumentView;
+  render: {
+    dataUrl: string;
+    width: number;
+    height: number;
+    revision: number;
+    /** Camera digest the render was captured with (see `cameraDigest`). */
+    cameraKey?: string;
+  } | null;
+  status: "ready" | "pending" | "failed";
+  note?: string;
+}
+
+/**
  * Canonical input for one review render. The lead builds this from the
  * current operator job: `candidate` MUST be the `buildCandidateExport` of
  * `project` (same revision/digest), or null with `candidateError` when the
  * export was rejected. Asset bytes cover every referenced package path.
  * `unapplied` carries pending Step 2 geometry edits the lead tracks.
+ * `modelViews` carries the operator-managed GLB views per configuration
+ * (key: configuration id); absent means "no model views supplied yet" and
+ * photo sides keep working as before.
  */
 export interface DocumentReviewSnapshot {
   project: ProjectDocument;
@@ -174,6 +204,7 @@ export interface DocumentReviewSnapshot {
   techniqueScopeLabel: string | null;
   unapplied: readonly ReviewUnappliedEdit[];
   brandMarkDataUrl?: string;
+  modelViews?: Record<string, readonly DocumentReviewModelView[]>;
 }
 
 /**
@@ -202,6 +233,26 @@ export interface DocumentReviewDeps {
   commitInstructions(text: string): void;
   /** Commit one technique field (updates dirty state; lead re-renders). */
   commitTechnique(patch: Partial<ReviewTechniqueSettings>): void;
+  /**
+   * Optional operator model-view management (GLB-backed products). Absent
+   * means the host build does not supply viewer capture yet: the review
+   * shows the managed views read-only. All callbacks operate on one
+   * configuration's view list; the lead re-renders via `handle.update()`
+   * after each change, which re-captures through the viewer coordinator
+   * (stale async captures are dropped by token, never painted).
+   */
+  modelViewOps?: {
+    /** Add a view for the option, framed from the current viewer camera. */
+    add(configId: string): void;
+    /** Re-frame an existing view from the current viewer camera. */
+    reframe(configId: string, viewId: string): void;
+    /** Remove a view (renders for it are dropped, never printed). */
+    remove(configId: string, viewId: string): void;
+    /** Move a view within its configuration (`-1` up, `1` down). */
+    move(configId: string, viewId: string, direction: -1 | 1): void;
+    /** Retry a failed or pending capture for one view. */
+    retry(configId: string, viewId: string): void;
+  };
 }
 
 export interface DocumentReviewHandle {
@@ -492,6 +543,29 @@ export function computeReviewItems(snapshot: DocumentReviewSnapshot): ReviewComp
       }
     }
     // Invalid footprints: exact domain reasons, never invented causes.
+    // Failed model-view captures are incomplete (never blocking): the sheet
+    // still prints its pending note plus the measured panels, and Print
+    // draft stays available. Pending captures are NOT listed — the preview
+    // placeholder already says so, and no warning wall is wanted.
+    for (const [configId, entries] of Object.entries(snapshot.modelViews ?? {})) {
+      const config = candidate.configurations.find((item) => item.id === configId);
+      if (config === undefined) continue;
+      const scope = displayScopeTitle(
+        project.products.find((entry) => entry.id === config.productId),
+        config.productId,
+        config.variantId,
+      );
+      for (const entry of entries) {
+        if (entry.status !== 'failed') continue;
+        const name = entry.view.label?.trim() || entry.view.id;
+        items.push({
+          id: `model-render-${configId}-${entry.view.id}`,
+          severity: 'incomplete',
+          message: `${scope} — model view “${name}” render failed. Retry the capture before printing.`,
+          fix: { kind: 'option', productId: config.productId, variantId: config.variantId },
+        });
+      }
+    }
     try {
       const verdict = evaluateProjectGeometry(project);
       for (const entry of verdict.placements) {
@@ -552,6 +626,8 @@ export function computeReviewItems(snapshot: DocumentReviewSnapshot): ReviewComp
 /**
  * Build the operation-sheet view for the exact snapshot the preview shows.
  * Shared by the preview and both output exports (same snapshot, never stale).
+ * Operator-managed model views (when supplied) ride alongside photo sides in
+ * operator display order; a missing render prints an explicit pending note.
  */
 export function buildReviewSheetView(snapshot: DocumentReviewSnapshot): OperationSheetView | null {
   if (snapshot.candidate === null) return null;
@@ -568,7 +644,31 @@ export function buildReviewSheetView(snapshot: DocumentReviewSnapshot): Operatio
     extras: snapshot.extras,
     operationalInstructions: lines,
   };
+  const modelViews = toModelViewInputs(snapshot.modelViews);
+  if (modelViews !== undefined) input.modelViews = modelViews;
   return buildOperationSheetView(input);
+}
+
+/**
+ * Map snapshot model-view state to sheet inputs. Pure; preserves operator
+ * display order (reorder is meaningful — never re-sorted).
+ */
+function toModelViewInputs(
+  source: Record<string, readonly DocumentReviewModelView[]> | undefined,
+): Record<string, readonly ModelViewInput[]> | undefined {
+  if (source === undefined) return undefined;
+  const out: Record<string, readonly ModelViewInput[]> = Object.create(null);
+  for (const [configId, entries] of Object.entries(source)) {
+    out[configId] = entries.map((entry) => ({
+      view: entry.view.id,
+      imagePath: `model-view/${encodeURIComponent(configId)}/${entry.view.id}.png`,
+      ...(entry.view.label !== undefined ? { label: entry.view.label } : {}),
+      modelAssetId: entry.view.modelAssetId,
+      modelRevision: entry.view.modelRevision,
+      regions: [...entry.view.associatedRegions],
+    }));
+  }
+  return out;
 }
 
 /**
@@ -582,13 +682,42 @@ export function buildReviewSheetLookup(
 ): OperationSheetAssetLookup | null {
   if (snapshot.candidate === null) return null;
   const candidate = snapshot.candidate;
+  const revision = candidate.revision;
   const states = evaluateOperationPhotoStates(candidate, new Map(snapshot.assetBytes));
+  // Revision-bound model renders by synthetic cache key: only renders
+  // captured from THIS revision (and, when the capturer recorded one, from
+  // the view's current camera) are served. Anything stale — revision moved
+  // on after a placement/method change, camera reframed, asset swapped —
+  // reads as "not rendered yet" instead of printing a stale capture.
+  const renders = new Map<string, { dataUrl: string; width: number; height: number; revision: number }>();
+  for (const [configId, entries] of Object.entries(snapshot.modelViews ?? {})) {
+    for (const entry of entries) {
+      const render = entry.render;
+      if (render === null) continue;
+      if (render.revision !== revision) continue;
+      if (render.cameraKey !== undefined
+        && isModelViewRenderStale(
+          { revision: render.revision, cameraKey: render.cameraKey, modelRevision: entry.view.modelRevision },
+          entry.view,
+          revision,
+        )) {
+        continue;
+      }
+      renders.set(`model-view/${encodeURIComponent(configId)}/${entry.view.id}.png`, {
+        dataUrl: render.dataUrl,
+        width: render.width,
+        height: render.height,
+        revision: render.revision,
+      });
+    }
+  }
   const artworkUri = (assets: ReadonlyArray<{ uri: string }>): string | undefined => {
     if (assets.length === 0) return undefined;
     return assets.find((asset) => /\.(png|jpe?g|webp)$/i.test(asset.uri))?.uri ?? assets[0]?.uri;
   };
   return {
     getBytes: (path) => snapshot.assetBytes.get(path),
+    getModelViewImage: (path) => renders.get(path),
     getSheetOverlay: (sheetIndex) => {
       const config = candidate.configurations[sheetIndex];
       if (!config) return undefined;
@@ -714,6 +843,20 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
   const itemsList = el('div');
   itemsBox.append(itemsTitle, itemsList);
 
+  // Operator-managed GLB document views: add / reframe / reorder / remove /
+  // retry capture per configuration. Presentation-only metadata — camera
+  // moves here never touch production geometry.
+  const modelBox = el('section');
+  modelBox.setAttribute('aria-label', 'Model views');
+  const modelTitle = el('h3', undefined, 'Model views');
+  const modelHint = el(
+    'p',
+    'muted',
+    'Clean product renders with applied artwork from the current revision. Camera moves never change saved measurements.',
+  );
+  const modelList = el('div');
+  modelBox.append(modelTitle, modelHint, modelList);
+
   const physicalLine = el(
     'p',
     'muted',
@@ -828,7 +971,7 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
   );
   moreDetails.append(moreSummary, moreBody);
 
-  rail.append(summaryBox, itemsBox, physicalLine, instructionsBox, techDetails, actionsBox, moreDetails);
+  rail.append(summaryBox, itemsBox, modelBox, physicalLine, instructionsBox, techDetails, actionsBox, moreDetails);
   host.append(heading, rail, main);
 
   const scheduleInstructionsCommit = (): void => {
@@ -887,6 +1030,88 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
     }
   }
 
+  function paintModelViews(snapshot: DocumentReviewSnapshot): void {
+    modelList.replaceChildren();
+    const entries = Object.entries(snapshot.modelViews ?? {});
+    const ops = deps.modelViewOps;
+    if (snapshot.candidate === null) {
+      modelList.append(el('p', 'muted', 'No candidate to render views for.'));
+      return;
+    }
+    if (entries.length === 0) {
+      modelList.append(el(
+        'p',
+        'muted',
+        ops
+          ? 'No model views yet. Add one to render this option from the 3D model — no product photos needed.'
+          : 'No model views supplied for this job. Photo references below keep working as before.',
+      ));
+    }
+    for (const [configId, views] of entries) {
+      const config = snapshot.candidate.configurations.find((item) => item.id === configId);
+      const scope = config !== undefined
+        ? displayScopeTitle(
+          snapshot.project.products.find((entry) => entry.id === config.productId),
+          config.productId,
+          config.variantId,
+        )
+        : configId;
+      const group = el('div', 'doc-review-model-group');
+      const covered = new Set(views.flatMap((entry) => entry.view.associatedRegions));
+      const uncovered = [...new Set(config?.placements.map((placement) => placement.regionId) ?? [])].filter((id) => !covered.has(id));
+      if (views.length > 0 && uncovered.length > 0) {
+        const product = snapshot.project.products.find((entry) => entry.id === config?.productId);
+        const names = uncovered.map((id) => product?.regions.find((region) => region.id === id)?.name || 'a placed area');
+        group.append(el('p', 'doc-review-warning', `Add or adjust a model view to show ${names.join(', ')}. Existing views do not cover these placed areas.`));
+      }
+      const head = el('div', 'doc-review-model-head');
+      head.append(el('strong', undefined, scope));
+      if (ops) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'btn-link';
+        add.textContent = 'Add view from current camera';
+        add.addEventListener('click', () => ops.add(configId), { signal });
+        head.append(add);
+      }
+      group.append(head);
+      views.forEach((entry, viewIndex) => {
+        const row = el('div', 'doc-review-model-row');
+        const name = entry.view.label?.trim() || entry.view.id;
+        const status = entry.status === 'ready'
+          ? `rendered from revision ${entry.render?.revision ?? '?'}.`
+          : entry.status === 'failed'
+            ? `render failed${entry.note ? ` — ${entry.note}` : '. Retry below.'}`
+            : 'render pending — capture from the 3D model.';
+        row.append(el('span', undefined, `${name} (${status})`));
+        if (ops) {
+          const buttons: Array<{ label: string; run: () => void; disabled?: boolean }> = [
+            { label: 'Reframe to current camera', run: () => ops.reframe(configId, entry.view.id) },
+            { label: 'Move up', run: () => ops.move(configId, entry.view.id, -1), disabled: viewIndex === 0 },
+            {
+              label: 'Move down',
+              run: () => ops.move(configId, entry.view.id, 1),
+              disabled: viewIndex === views.length - 1,
+            },
+            { label: 'Retry capture', run: () => ops.retry(configId, entry.view.id) },
+            { label: 'Remove', run: () => ops.remove(configId, entry.view.id) },
+          ];
+          for (const spec of buttons) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn-link';
+            button.textContent = spec.label;
+            if (spec.disabled === true) button.disabled = true;
+            button.addEventListener('click', spec.run, { signal });
+            row.append(button);
+          }
+        }
+        group.append(row);
+      });
+      modelList.append(group);
+    }
+  }
+
   function paintPreview(snapshot: DocumentReviewSnapshot, computation: ReviewComputation): void {
     // Never steal focus: when focus sits on a preview Edit action, remember
     // its key and restore it after the re-render.
@@ -901,7 +1126,10 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
         el('p', undefined, `The operational document cannot be built: ${snapshot.candidateError ?? 'no candidate available.'}`),
       );
     } else {
-      const text = canonicalize(view);
+      const renderState = Object.entries(snapshot.modelViews ?? {}).map(([id, entries]) => [id,
+        entries.map((entry) => [entry.view.id, entry.status, entry.render?.revision ?? null, entry.render?.cameraKey ?? null]),
+      ]);
+      const text = canonicalize({ view, renderState });
       if (text !== lastRenderedViewText) {
         lastRenderedViewText = text;
         ensureReviewStyles();
@@ -962,6 +1190,7 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
       lastRenderedViewText = null;
       summaryLines.replaceChildren(el('p', 'muted', 'Create or open a job to review its operational document.'));
       itemsList.replaceChildren();
+      modelList.replaceChildren();
       notesList.replaceChildren();
       previewHost.replaceChildren(el('p', 'muted', 'No job open.'));
       printButton.disabled = true;
@@ -980,6 +1209,7 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
       el('p', undefined, `Products: ${computation.productCount} · Options: ${computation.optionCount} · Placements: ${computation.placementCount}`),
     );
     paintItems(computation);
+    paintModelViews(snapshot);
     const notes = reviewCustomerNotes(snapshot);
     notesList.replaceChildren();
     if (notes.project !== undefined) notesList.append(el('p', undefined, `Project note: ${notes.project}`));

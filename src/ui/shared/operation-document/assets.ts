@@ -170,13 +170,40 @@ export interface SheetOverlay {
 }
 
 /**
+ * One locally captured model-view render for the one-sheet renderer.
+ * Captured clean (no handles, overlays or controls) with applied artwork
+ * from the committed revision the lookup was built for. The lookup
+ * implementation MUST only serve renders bound to that same revision —
+ * stale captures (revision moved on, camera changed, asset swapped) are
+ * dropped by the caller adapter, never served here, so the renderer can
+ * never print a stale render. Pure data; no blobs beyond the inert URL.
+ */
+export interface ModelViewRenderImage {
+  /** Inert `data:` URL of the captured render. */
+  dataUrl: string;
+  width: number;
+  height: number;
+  /** Canonical committed revision the artwork was rendered from. */
+  revision: number;
+}
+
+/**
  * Asset lookup for the one-sheet renderer: package bytes plus the optional
  * caller-evaluated per-sheet overlay (photo mappings + artwork geometry). A
  * plain `{ getBytes }` lookup stays valid: everything overlay-related then
- * reads as unmapped with explicit notes.
+ * reads as unmapped with explicit notes. Model-view renders arrive through
+ * the optional `getModelViewImage` by the side's synthetic cache key;
+ * absent means "not rendered yet" — the renderer prints an explicit pending
+ * note instead of guessing.
  */
 export interface OperationSheetAssetLookup extends OperationDocumentAssetLookup {
   getSheetOverlay?(sheetIndex: number): SheetOverlay | undefined;
+  /**
+   * Captured model-view render by the side's synthetic cache key. Only
+   * revision-bound current renders are ever served (see
+   * `ModelViewRenderImage`); absent reads as "not rendered yet".
+   */
+  getModelViewImage?(path: string): ModelViewRenderImage | undefined;
 }
 
 export interface OperationReferenceSelection {

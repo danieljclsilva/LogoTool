@@ -598,6 +598,11 @@ export interface ProductSetupCallbacks {
   onStatus(message: string): void;
   /** Photo has no evaluated mapping for this tab scope; caller routes to scale setup. */
   onScaleNeeded(scope: ProductSetupScope): void;
+  /**
+   * Lead-owned operator history: called once per successful setup save.
+   * Optional until the lead wires the session mutation boundary.
+   */
+  pushHistory?(label: string): void;
 }
 
 export interface ProductSetupViewHandle {
@@ -4098,6 +4103,12 @@ export function createProductSetupView(
       void pending.then((outcome) => {
         if (destroyed) return;
         paintStatus(applySaveOutcome(bucket, snapshot, scopeLabel, outcome));
+        // Operator history owns undo after this point; camera moves never reach here.
+        if (outcome !== null && typeof outcome === 'object' && (outcome as { ok?: unknown }).ok === true) {
+          try {
+            callbacks.pushHistory?.(`Save product setup (${scopeLabel})`);
+          } catch { /* history is advisory to this save */ }
+        }
         refresh();
       });
     });

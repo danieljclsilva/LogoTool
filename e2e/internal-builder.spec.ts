@@ -325,7 +325,7 @@ test('issues a subset hybrid package at revision 1 with approvals cleared', asyn
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'marka' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -403,7 +403,7 @@ test('issues self-contained HTML that opens standalone and auto-loads the projec
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'marka' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -548,7 +548,7 @@ test('fractional millimetres render rounded once in staff return comparisons', a
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'fracmark' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('100');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -653,7 +653,7 @@ test('clears generated outputs and the baseline when a different source loads', 
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'stalemark' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('80');
     await pw(page, 'pw-add-height').fill('30');
     await pw(page, 'pw-add-confirm').click();
@@ -695,13 +695,13 @@ test('saves two files, opens the customer file, and reviews the return against t
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'basea' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'baseb' });
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('70');
     await pw(page, 'pw-add-height').fill('35');
     await pw(page, 'pw-add-confirm').click();
@@ -824,7 +824,7 @@ test('keeps the automatic project ID stable and regenerates deterministic delive
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'determmark' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -954,7 +954,7 @@ test('generation locks inputs, rejects obsolete hashing and recovers from hash f
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'hashmark' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -1007,7 +1007,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844
       await host.getByRole('button', { name: 'Add logo placement' }).click();
       await pw(page, 'pw-add-logo').selectOption({ label: 'guidedmark' });
       const addMethod = pw(page, 'pw-add-method');
-      if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+      if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
       await pw(page, 'pw-add-width').fill('90');
       await pw(page, 'pw-add-height').fill('40');
       await pw(page, 'pw-add-confirm').click();

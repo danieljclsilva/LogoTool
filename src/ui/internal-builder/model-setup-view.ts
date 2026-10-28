@@ -544,8 +544,10 @@ export interface ModelSetupViewerLike {
   setZoomPercent?(pct: number): void;
   getZoomPercent?(): number;
   resetZoom?(): void;
+  fitCurrentView?(): void;
   setViewSide?(side: 'front' | 'back' | 'left' | 'right'): void;
   setOrbitEnabled?(enabled: boolean): void;
+  setInteractionMode?(mode: 'select' | 'pan'): void;
   /**
    * Optional per-frame hook for projected HTML overlays (overlay-only).
    * The view sets/clears it as the live viewer attaches; the viewer never
@@ -607,6 +609,13 @@ export interface ModelSetupCallbacks {
    * without changing the active scope.
    */
   onSelectProduct?: (productId: string, variantId?: string) => void;
+  /**
+   * Lead-owned operator history: the committed-setup save path lives with
+   * the lead caller (main.ts savebar), which owns the session mutation
+   * boundary — this view only stages drafts and emits snapshots, so it
+   * never calls this itself. Optional until the lead wires it.
+   */
+  pushHistory?(label: string): void;
 }
 
 export interface ModelSetupViewHandle {
@@ -747,6 +756,11 @@ export function createModelSetupView(
   callbacks: ModelSetupCallbacks,
 ): ModelSetupViewHandle {
   let destroyed = false;
+  const syncOverflow = (): void => {
+    container.toggleAttribute('data-more-controls', container.scrollHeight - container.clientHeight - container.scrollTop > 8);
+  };
+  const resizeObserver = new ResizeObserver(syncOverflow); resizeObserver.observe(container);
+  container.addEventListener('scroll', syncOverflow, { passive: true });
   let armed: ArmTarget = null;
   let advancedOpen = false;
   let lastStatus = '';
@@ -820,6 +834,7 @@ export function createModelSetupView(
   let framedViewer: ModelSetupViewerLike | null = null;
   /** True while orbit is suspended for a draw/edit gesture (restored after). */
   let orbitSuspended = false;
+  let panMode = false;
   /** Lead-provided viewbar mount fallback created inside the stage. */
   let ownedViewbar: HTMLElement | null = null;
 
@@ -1070,6 +1085,7 @@ export function createModelSetupView(
       draft.safeAreasVisible &&
       draft.productVisible &&
       armed === null &&
+      !panMode &&
       gesture === null &&
       pendingHandle === null &&
       typeof viewer.projectToClient === 'function';
@@ -1436,6 +1452,9 @@ export function createModelSetupView(
 
   function refresh(): void {
     if (destroyed) return;
+    requestAnimationFrame(() => { if (!destroyed) syncOverflow(); });
+    if (armed !== null) panMode = false;
+    viewerOf()?.setInteractionMode?.(panMode ? 'pan' : 'select');
     document.querySelector('[data-model-setup-hook="commit-tools"]')?.replaceChildren();
     container.replaceChildren();
     const root = document.createElement('div');
@@ -1444,7 +1463,7 @@ export function createModelSetupView(
 
     const banner = el('p', 'pending-banner', 'model-setup-banner muted');
     banner.textContent =
-      'Draft 3D setup — pending review, never production-approved. No images needed: every input below is a 3D surface pick in model coordinates.';
+      'Draft 3D setup — pending review.';
     root.append(banner);
 
     const statusBox = el('p', 'status', 'model-setup-status muted');
@@ -1550,12 +1569,14 @@ export function createModelSetupView(
   ): void {
     const section = el('section', 'reference-section', '');
     const title = document.createElement('h4');
-    title.textContent = 'Reference distance (two surface picks + real millimetres)';
+    title.textContent = 'Calibrate scale';
     section.append(title);
     const intro = el('p', 'reference-intro', 'muted');
     intro.textContent =
       'Click two distinct points on the model surface (A, then B), enter their real distance, and fit the uniform scale. Straight-line chord — not a surface arc.';
-    section.append(intro);
+    const help = document.createElement('details');
+    const helpTitle = document.createElement('summary'); helpTitle.textContent = 'ⓘ How to calibrate';
+    help.append(helpTitle, intro); section.append(help);
 
     const row = el('div', 'reference-row', 'model-setup-row');
     const pickA = el('button', 'ref-pick-a', 'btn-secondary');
@@ -1738,6 +1759,7 @@ export function createModelSetupView(
       if (draft.areaTool === tool) button.classList.add('is-selected');
       button.addEventListener('click', () => {
         cancelGestureSilent();
+        panMode = false;
         draft.areaTool = tool;
         draft.handleArm = null;
         draft.drawing = tool === 'freehand' ? [] : null;
@@ -2015,7 +2037,7 @@ export function createModelSetupView(
     mount.append(tools);
     const modeHint = el('p', 'mode-hint', 'muted');
     const tool = scope?.draft.areaTool ?? 'rotate';
-    modeHint.textContent = tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Freehand to draw.'
+    modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Freehand to draw.'
       : tool === 'rectangle' ? 'Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.'
       : 'Freehand: drag around the area; release to close. Click corners for a precise outline.';
     tools.append(modeHint);
@@ -2070,13 +2092,20 @@ export function createModelSetupView(
     fit.setAttribute('aria-label', 'Fit product view (100%)');
     fit.addEventListener('click', () => {
       try {
-        viewer?.resetZoom?.();
+        if (viewer?.fitCurrentView) viewer.fitCurrentView(); else viewer?.resetZoom?.();
       } catch {
         return;
       }
       syncViewbar(scope);
     });
-    mount.append(zoomOut, zoomSelect, zoomIn, fit);
+    const pan = el('button', 'pan', 'btn-secondary');
+    pan.type = 'button'; pan.textContent = 'Pan'; pan.setAttribute('aria-pressed', String(panMode));
+    pan.addEventListener('click', () => {
+      cancelGestureSilent(); armed = null;
+      const current = currentDraft(); if (!('error' in current)) { current.draft.handleArm = null; current.draft.areaTool = 'rotate'; }
+      panMode = !panMode; refresh();
+    });
+    mount.append(zoomOut, zoomSelect, zoomIn, fit, pan);
     for (const side of ['front', 'back'] as const) {
       const button = document.createElement('button'); button.type = 'button';
       button.textContent = side === 'front' ? 'Front' : 'Back';
@@ -2771,6 +2800,7 @@ export function createModelSetupView(
   }
 
   function onCanvasDown(event: PointerEvent): void {
+    if (panMode) return;
     if (destroyed || event.button !== 0 || !event.isPrimary) return;
     // Gate on the LIVE canvas (the lead replaces the canvas per viewer
     // attach, so a captured element would go stale).
@@ -2788,6 +2818,7 @@ export function createModelSetupView(
   }
 
   function onCanvasMove(event: PointerEvent): void {
+    if (panMode) return;
     if (destroyed) return;
     // A pressed direct handle turns into a handle gesture past the travel
     // threshold; orbit was already suspended at press, so the camera cannot
@@ -2831,6 +2862,7 @@ export function createModelSetupView(
   }
 
   function onCanvasUp(event: PointerEvent): void {
+    if (panMode) return;
     if (destroyed) return;
     if (gesture === null && pendingHandle === null) {
       restoreOrbit();
@@ -3028,6 +3060,8 @@ export function createModelSetupView(
     },
     destroy(): void {
       destroyed = true;
+      resizeObserver.disconnect(); container.removeEventListener('scroll', syncOverflow);
+      viewerOf()?.setInteractionMode?.('select');
       armed = null;
       pendingHandle = null;
       cancelGestureSilent();

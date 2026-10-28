@@ -20,6 +20,7 @@ import type {
   BuildOperationSheetViewInput,
   DiagramAxes,
   DiagramExclusion,
+  ModelViewInput,
   OperationArtworkAsset,
   OperationConfiguration,
   OperationDocument,
@@ -559,11 +560,28 @@ function sheetSidesFor(
   input: BuildOperationSheetViewInput,
 ): OperationSheetSide[] {
   const selections: readonly ReferenceViewInput[] = ownEntry(input.sides, configurationId) ?? [];
-  return selections.map((selection) => ({
+  const photoSides: OperationSheetSide[] = selections.map((selection) => ({
     view: selection.view,
     imagePath: selection.imagePath,
     ...(selection.label !== undefined && selection.label !== null ? { label: selection.label } : {}),
   }));
+  // Operator-managed model views ride alongside photo sides in operator
+  // display order (reorder is meaningful — never re-sorted). They bind the
+  // model asset revision explicitly so a swapped asset invalidates the view.
+  const modelSelections: readonly ModelViewInput[] = ownEntry(input.modelViews, configurationId) ?? [];
+  const modelSides: OperationSheetSide[] = [];
+  for (const selection of modelSelections) {
+    if (selection.view === null && selection.imagePath.trim() === "") continue;
+    modelSides.push({
+      kind: "model",
+      view: selection.view,
+      imagePath: selection.imagePath,
+      ...(selection.label !== undefined && selection.label !== null ? { label: selection.label } : {}),
+      model: { assetId: selection.modelAssetId, revision: selection.modelRevision },
+      regions: [...selection.regions],
+    });
+  }
+  return [...photoSides, ...modelSides];
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

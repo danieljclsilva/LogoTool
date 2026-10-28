@@ -151,6 +151,43 @@ const FAR_FACTOR = 100;
 /** Product side presets for multiview showcase framing. */
 export type ViewerSide = 'front' | 'back' | 'left' | 'right';
 
+/**
+ * Pointer-gesture reservation for the shared camera tools (frozen for A).
+ *
+ * - `select`: left-drag orbits; logo hit-testing is live. Default.
+ * - `pan`: left-drag pans; viewer hit-tests (`pickSurface*`,
+ *   `intersectRegionPlane`) return null so a pan gesture can never start or
+ *   move a logo. Worker A must switch to `pan` BEFORE logo hit-testing to
+ *   reserve the gesture, and back to `select` to edit.
+ */
+export type ViewerInteractionMode = 'select' | 'pan';
+
+/** Plain camera snapshot for A (pan/orbit/fit/focus tools) and C. */
+export interface ViewerCameraState {
+  position: { x: number; y: number; z: number };
+  target: { x: number; y: number; z: number };
+  zoomPct: number;
+  mode: ViewerInteractionMode;
+  fov?: number;
+  up?: { x: number; y: number; z: number };
+}
+
+/** Clean product render request for C (operator document views). */
+export interface CleanCaptureOptions {
+  width?: number;
+  height?: number;
+  /** Committed production revision the caller rendered from; echoed back. */
+  revision: string;
+}
+
+/** Clean product render: handles/overlays/safe-areas hidden, mm untouched. */
+export interface CleanCaptureResult {
+  revision: string;
+  dataURL: string;
+  width: number;
+  height: number;
+}
+
 export class ModelViewer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
@@ -195,6 +232,14 @@ export class ModelViewer {
   private productVisible = true;
   private status: ViewerStatus = { kind: 'empty' };
   private onStatus: ((status: ViewerStatus) => void) | null = null;
+  /**
+   * Gesture reservation (frozen for A): `pan` reserves left-drag/touch for
+   * camera panning and nulls viewer hit-tests. Never affects mm or history.
+   */
+  private interactionMode: ViewerInteractionMode = 'select';
+  /** Monotonic capture token: a newer capture (or model swap) voids older ones. */
+  private captureToken = 0;
+  private surfaceArtworkItems: SurfaceArtworkItem[] = [];
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -402,6 +447,34 @@ export class ModelViewer {
     this.zoomPct = 100;
   }
 
+  /** Tight, orientation-preserving presentation fit. Camera only; no mesh/mm changes. */
+  fitCurrentView(margin = 0.08): void {
+    if (this.disposed) return;
+    const box = this.modelBBox(); if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const direction = this.camera.position.clone().sub(this.controls.target).normalize();
+    if (direction.lengthSq() === 0) direction.set(0, 0, 1);
+    const corners: THREE.Vector3[] = [];
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z));
+    const extent = 1 - Math.min(0.3, Math.max(0.02, margin));
+    let low = 0, high = Math.max(box.getSize(new THREE.Vector3()).length() * 10, 1);
+    for (let i = 0; i < 32; i++) {
+      const distance = (low + high) / 2;
+      this.camera.position.copy(center).addScaledVector(direction, distance);
+      this.camera.lookAt(center); this.camera.updateMatrixWorld(true);
+      const fits = corners.every((corner) => {
+        const depth = corner.clone().sub(this.camera.position).dot(direction.clone().negate());
+        const projected = corner.clone().project(this.camera);
+        return depth > 0 && Math.abs(projected.x) <= extent && Math.abs(projected.y) <= extent;
+      });
+      if (fits) high = distance; else low = distance;
+    }
+    this.camera.position.copy(center).addScaledVector(direction, high);
+    this.controls.target.copy(center); this.fitDistance = high; this.zoomPct = 100;
+    this.camera.near = Math.max(high * NEAR_FACTOR, 0.001); this.camera.far = high * FAR_FACTOR;
+    this.camera.updateProjectionMatrix(); this.controls.update();
+  }
+
   /** Restore the default camera framing for the current model. */
   resetView(): void {
     this.fitView();
@@ -598,6 +671,199 @@ export class ModelViewer {
   }
 
   /**
+   * Reserve the primary gesture (frozen for A).
+   *
+   * `pan` maps left-drag/one-finger touch to OrbitControls pan AND makes
+   * `pickSurface`, `pickSurfaceDetailed`, `pickSurfaceFromEvent` and
+   * `intersectRegionPlane` return null, so a reserved pan can never start,
+   * move or resize a logo. `select` restores left-drag orbit and live
+   * hit-testing. Camera/viewport only — mm, frames and history untouched.
+   * Invalid input is ignored. Never throws.
+   */
+  setInteractionMode(mode: ViewerInteractionMode): void {
+    try {
+      if (this.disposed) return;
+      if (mode !== 'select' && mode !== 'pan') return;
+      this.interactionMode = mode;
+      if (mode === 'pan') {
+        this.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+        this.controls.touches.ONE = THREE.TOUCH.PAN;
+      } else {
+        this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+        this.controls.touches.ONE = THREE.TOUCH.ROTATE;
+      }
+      this.controls.update();
+    } catch {
+      return;
+    }
+  }
+
+  /** Current gesture reservation (`select` after attach; never throws). */
+  getInteractionMode(): ViewerInteractionMode {
+    try {
+      return this.interactionMode;
+    } catch {
+      return 'select';
+    }
+  }
+
+  /**
+   * Enable/disable OrbitControls panning without touching scene content.
+   * Independent of the gesture reservation above. Never throws.
+   */
+  setPanEnabled(enabled: boolean): void {
+    try {
+      if (!this.disposed) this.controls.enablePan = enabled === true;
+    } catch {
+      return;
+    }
+  }
+
+  /** Current OrbitControls pan flag (true after attach; never throws). */
+  getPanEnabled(): boolean {
+    try {
+      return this.controls.enablePan === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Snapshot the camera for A/C (position, pan target, zoom step, mode).
+   * Camera/viewport only — production mm, frames and history are untouched.
+   * Null when disposed. Never throws.
+   */
+  getCameraState(): ViewerCameraState | null {
+    try {
+      if (this.disposed) return null;
+      const position = this.camera.position;
+      const target = this.controls.target;
+      if (![position.x, position.y, position.z, target.x, target.y, target.z].every(Number.isFinite)) return null;
+      return {
+        position: { x: position.x, y: position.y, z: position.z },
+        target: { x: target.x, y: target.y, z: target.z },
+        zoomPct: this.zoomPct,
+        mode: this.interactionMode,
+        fov: this.camera.fov,
+        up: { x: this.camera.up.x, y: this.camera.up.y, z: this.camera.up.z },
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Restore a camera snapshot (frozen for A/C document views and tools).
+   * Applies position + pan target exactly, then re-applies the stored zoom
+   * step only when it is a supported step; otherwise the % readout follows
+   * the restored distance via the existing change listener. Applies the
+   * stored gesture mode last. Camera/viewport only — mm never mutated.
+   * Returns false (no-op) on disposed viewer or invalid state. Never throws.
+   */
+  setCameraState(state: ViewerCameraState): boolean {
+    try {
+      if (this.disposed) return false;
+      if (state === null || typeof state !== 'object') return false;
+      const { position, target, zoomPct, mode } = state;
+      if (!isVec3(position) || !isVec3(target)) return false;
+      if (mode !== 'select' && mode !== 'pan') return false;
+      const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+      if (!Number.isFinite(distance) || distance <= 0) return false;
+      if (state.fov !== undefined && (!Number.isFinite(state.fov) || state.fov <= 0 || state.fov >= 180)) return false;
+      if (state.up !== undefined && (!isVec3(state.up) || Math.hypot(state.up.x, state.up.y, state.up.z) <= 0)) return false;
+      this.camera.position.set(position.x, position.y, position.z);
+      this.controls.target.set(target.x, target.y, target.z);
+      if (state.fov !== undefined) this.camera.fov = state.fov;
+      if (state.up !== undefined) this.camera.up.set(state.up.x, state.up.y, state.up.z);
+      this.camera.near = Math.max(distance * NEAR_FACTOR, 0.001);
+      this.camera.far = distance * FAR_FACTOR;
+      this.camera.updateProjectionMatrix();
+      this.controls.update();
+      if (typeof zoomPct === 'number' && (VIEW_ZOOM_STEPS as readonly number[]).includes(zoomPct)) {
+        // Position already contains the exact dolly distance. Reapplying a
+        // rounded zoom step here would alter the persisted camera pose.
+        this.zoomPct = zoomPct;
+      }
+      this.setInteractionMode(mode);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Render a clean product view for C (operator document views).
+   *
+   * Hides anchor markers, region axes, selection outlines and
+   * safe areas and the reference line, renders once at the requested pixel
+   * size off the live viewport, then restores every layer flag, the renderer
+   * size and the camera aspect. The camera never moves and mm is untouched.
+   *
+   * Stale rejection: each call takes a capture token; when a newer capture
+   * starts, the model swaps, or the viewer disposes before the render
+   * completes, the older call resolves null. Callers must also discard
+   * results whose `revision` no longer matches the committed revision.
+   * Null on bad input (including empty revision), stale capture or any
+   * failure. Never throws.
+   */
+  async captureCleanView(options: CleanCaptureOptions): Promise<CleanCaptureResult | null> {
+    if (this.disposed) return null;
+    if (options === null || typeof options !== 'object') return null;
+    const revision: unknown = options.revision;
+    if (typeof revision !== 'string' || revision.length === 0) return null;
+    const clamp = (value: unknown, fallback: number): number => {
+      const floored = typeof value === 'number' ? Math.floor(value) : fallback;
+      if (!Number.isFinite(floored)) return fallback;
+      return Math.min(2048, Math.max(64, floored));
+    };
+    const width = clamp(options.width, this.container.clientWidth || 800);
+    const height = clamp(options.height, this.container.clientHeight || 600);
+    const token = ++this.captureToken;
+    const generation = this.generation;
+    // Await before mutating live renderer/layer state. Overlapping calls
+    // supersede earlier requests without interleaved hide/restore sections.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (token !== this.captureToken || generation !== this.generation || this.disposed) return null;
+    const artwork = this.surfaceArtworkItems;
+    if (artwork.length > 0) this.setSurfaceArtworkOverlays(artwork.map((item) => ({ ...item, selected: false, fits: true })));
+    const layers = [this.markerGroup, this.axesGroup, this.safeAreaGroup, this.referenceGroup];
+    const wasVisible = layers.map((layer) => layer.visible);
+    for (const layer of layers) layer.visible = false;
+    const prevSize = this.renderer.getSize(new THREE.Vector2());
+    const prevPixelRatio = this.renderer.getPixelRatio();
+    const prevAspect = this.camera.aspect;
+    try {
+      this.renderer.setPixelRatio(1);
+      this.renderer.setSize(width, height, false);
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+      this.controls.update();
+      this.scene.updateMatrixWorld(true);
+      this.renderer.render(this.scene, this.camera);
+      const dataURL = this.renderer.domElement.toDataURL('image/png');
+      if (typeof dataURL !== 'string' || !dataURL.startsWith('data:image/png')) return null;
+      return { revision, dataURL, width, height };
+    } catch {
+      return null;
+    } finally {
+      if (artwork.length > 0 && !this.disposed) this.setSurfaceArtworkOverlays(artwork);
+      for (let i = 0; i < layers.length; i += 1) {
+        const layer = layers[i];
+        if (layer !== undefined && wasVisible[i] !== undefined) layer.visible = wasVisible[i]!;
+      }
+      try {
+        this.renderer.setPixelRatio(prevPixelRatio);
+        this.renderer.setSize(Math.max(1, Math.floor(prevSize.x)), Math.max(1, Math.floor(prevSize.y)), false);
+        this.camera.aspect = prevAspect;
+        this.camera.updateProjectionMatrix();
+        this.controls.update();
+      } catch {
+        /* restore-only; the outer result already decided */
+      }
+    }
+  }
+
+  /**
    * Display a validated raster image as an orbitable textured-plane proxy.
    * The plane is sized to the image aspect and centered at the origin.
    * Previous content (model or proxy) is disposed via clearModel, exactly
@@ -678,6 +944,121 @@ export class ModelViewer {
   }
 
   /**
+   * Model-subtree render targets for picking and occlusion: every wrapper
+   * child except the editor overlay groups (markers, axes, placements,
+   * safe areas, reference). Overlays never occlude, never hit-test.
+   */
+  private modelTargets(): THREE.Object3D[] {
+    const targets: THREE.Object3D[] = [];
+    for (const child of this.wrapper.children) {
+      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup && child !== this.referenceGroup) targets.push(child);
+    }
+    return targets;
+  }
+
+  /**
+   * Occlusion tolerance in model units: a surface point counts as visible
+   * when the nearest garment hit along the camera ray is within this of the
+   * point itself. Scales with the fitted model (0.2% of its diagonal) so
+   * thin synthetic shells (gap >> tolerance) cull correctly while exact
+   * on-surface corners survive float noise. Never throws.
+   */
+  private occlusionEpsilon(): number {
+    try {
+      const size = this.modelBBox().getSize(new THREE.Vector3()).length();
+      if (!Number.isFinite(size) || size <= 0) return 1e-6;
+      return Math.max(size * 0.002, 1e-9);
+    } catch {
+      return 1e-6;
+    }
+  }
+
+  /**
+   * True when garment geometry hides a world-space surface point from the
+   * camera: a nearer mesh hit exists beyond the occlusion tolerance. False
+   * when the point's own triangle is hit first (or nothing is loaded, in
+   * which case projection keeps its legacy unoccluded behavior). Never throws.
+   */
+  private surfacePointOccluded(worldPoint: THREE.Vector3): boolean {
+    try {
+      const targets = this.modelTargets();
+      if (targets.length === 0) return false;
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld();
+      const offset = worldPoint.clone().sub(this.camera.position);
+      const distance = offset.length();
+      if (!Number.isFinite(distance) || distance <= 0) return false;
+      offset.normalize();
+      const raycaster = new THREE.Raycaster(this.camera.position.clone(), offset, 0, distance);
+      const hits = raycaster.intersectObjects(targets, true);
+      const hit = hits.find((candidate) => candidate.object instanceof THREE.Mesh);
+      if (!hit) return false;
+      return hit.distance < distance - this.occlusionEpsilon();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Whether a wrapper-local surface point with its wrapper-local outward
+   * normal currently faces the operator (frozen for A hit-test gating).
+   *
+   * False when the normal points away from the camera (dot <= 0) OR when
+   * nearer garment geometry occludes the point (rear handles/labels on a
+   * thin shell read false from the far side). True only for a front-facing,
+   * unoccluded point. Null on disposed viewer or bad input. Null-safe.
+   *
+   * The caller maps regionId + mm to model coords (e.g. via
+   * modelPointFromMm) and supplies the region/face normal: this viewer never
+   * touches mm, regions or calibration frames.
+   */
+  isSurfaceFacing(
+    point: { x: number; y: number; z: number },
+    normal: { x: number; y: number; z: number },
+  ): boolean | null {
+    try {
+      if (this.disposed) return null;
+      if (!isVec3(point) || !isVec3(normal)) return null;
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld();
+      const worldPoint = this.wrapper.localToWorld(new THREE.Vector3(point.x, point.y, point.z));
+      const worldNormal = new THREE.Vector3(normal.x, normal.y, normal.z)
+        .transformDirection(this.wrapper.matrixWorld);
+      if (worldNormal.lengthSq() <= 0) return null;
+      worldNormal.normalize();
+      // The calibrated frame normal may wind into the product. Resolve its
+      // sign from the closest actual mesh face, independently of the camera.
+      const reach = Math.max(1e-6, this.modelBBox().getSize(new THREE.Vector3()).length() * 2);
+      const probe = new THREE.Raycaster();
+      let closest = Infinity;
+      let surfaceNormal: THREE.Vector3 | null = null;
+      let surfacePoint: THREE.Vector3 | null = null;
+      for (const sign of [1, -1]) {
+        probe.set(worldPoint.clone().addScaledVector(worldNormal, reach * sign), worldNormal.clone().multiplyScalar(-sign));
+        for (const hit of probe.intersectObjects(this.modelTargets(), true)) {
+          if (!(hit.object instanceof THREE.Mesh) || !hit.face) continue;
+          const gap = hit.point.distanceToSquared(worldPoint);
+          if (gap < closest) {
+            closest = gap;
+            surfacePoint = hit.point.clone();
+            surfaceNormal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+          }
+        }
+      }
+      if (surfaceNormal) worldNormal.copy(surfaceNormal);
+      if (surfacePoint) worldPoint.copy(surfacePoint);
+      const toCamera = this.camera.position.clone().sub(worldPoint);
+      const distance = toCamera.length();
+      if (!Number.isFinite(distance) || distance <= 0) return null;
+      toCamera.normalize();
+      if (worldNormal.dot(toCamera) <= 0) return false;
+      return !this.surfacePointOccluded(worldPoint);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Shared raycast gate: canvas client coords to the first Mesh hit,
    * excluding marker/overlay groups. Null on any miss or bad input.
    */
@@ -698,10 +1079,7 @@ export class ModelViewer {
     const ndc = new THREE.Vector2((px / rect.width) * 2 - 1, -((py / rect.height) * 2 - 1));
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(ndc, this.camera);
-    const targets: THREE.Object3D[] = [];
-    for (const child of this.wrapper.children) {
-      if (child !== this.markerGroup && child !== this.axesGroup && child !== this.placementGroup && child !== this.safeAreaGroup && child !== this.referenceGroup) targets.push(child);
-    }
+    const targets = this.modelTargets();
     if (targets.length === 0) return null;
     const hits = raycaster.intersectObjects(targets, true);
     const hit = hits.find(candidate => candidate.object instanceof THREE.Mesh);
@@ -711,10 +1089,13 @@ export class ModelViewer {
   /**
    * Raycast the asset model at canvas client coords; returns the hit in
    * wrapper-local (unframed asset-scene root) coords, or null on any miss
-   * or bad input. Never throws. Marker meshes are never hit-tested.
+   * or bad input. Null while the `pan` gesture is reserved (see
+   * setInteractionMode): a reserved pan can never pick a logo. Never throws.
+   * Marker meshes are never hit-tested.
    */
   pickSurface(clientX: number, clientY: number): { modelPosition: { x: number; y: number; z: number } } | null {
     try {
+      if (this.interactionMode === 'pan') return null;
       const hit = this.raycastMesh(clientX, clientY);
       if (hit === null) return null;
       const local = this.wrapper.worldToLocal(hit.point.clone());
@@ -729,13 +1110,17 @@ export class ModelViewer {
    * Intersect a pointer ray with an already calibrated region plane. Used
    * for resize/rotation handles that can lie beyond the product silhouette.
    * Returns native model coordinates; physical conversion remains owned by
-   * the calibrated region mapping. Parallel or rear-facing rays yield null.
+   * the calibrated region mapping. Null while the `pan` gesture is reserved,
+   * when the region plane faces away from the camera (rear-view drags can
+   * no longer move a front placement), and on parallel rays, misses or bad
+   * input. Camera/viewport only — never mutates mm. Never throws.
    */
   intersectRegionPlane(clientX: number, clientY: number, frame: {
     origin: { x: number; y: number; z: number };
     normal: { x: number; y: number; z: number };
   }): { x: number; y: number; z: number } | null {
     if (this.disposed || !frame || !frame.origin || !frame.normal) return null;
+    if (this.interactionMode === 'pan') return null;
     const { origin, normal } = frame;
     if (![clientX, clientY, origin.x, origin.y, origin.z, normal.x, normal.y, normal.z].every(Number.isFinite)) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -751,6 +1136,15 @@ export class ModelViewer {
     const ray = raycaster.ray.clone().applyMatrix4(this.wrapper.matrixWorld.clone().invert());
     n.normalize();
     if (Math.abs(ray.direction.dot(n)) < 1e-6) return null;
+    // Rear-facing region planes reject handle drags: a front placement's
+    // calibration plane points away from a back-view camera, so every drag
+    // ray would otherwise resolve through the garment. The wrapper carries
+    // translation only, so direction transforms are exact.
+    try {
+      if (this.isSurfaceFacing(origin, normal) === false) return null;
+    } catch {
+      return null;
+    }
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(origin.x, origin.y, origin.z));
     const hit = ray.intersectPlane(plane, new THREE.Vector3());
     return hit && [hit.x, hit.y, hit.z].every(Number.isFinite) ? { x: hit.x, y: hit.y, z: hit.z } : null;
@@ -813,6 +1207,7 @@ export class ModelViewer {
    */
   pickSurfaceDetailed(clientX: number, clientY: number): SurfacePickDetailed | null {
     try {
+      if (this.interactionMode === 'pan') return null;
       const hit = this.raycastMesh(clientX, clientY);
       if (hit === null || !hit.face) return null;
       const local = this.wrapper.worldToLocal(hit.point.clone());
@@ -834,16 +1229,29 @@ export class ModelViewer {
 
   /**
    * Project a wrapper-local model point to canvas client coords (CSS px).
-   * Inverse of picking: used to verify computed overlay corners/edges
-   * against the actual surface. Null when disposed, on bad input, or when
-   * the point is behind the camera. Never throws.
+   * Inverse of picking: used to position overlay corners/handles/labels and
+   * to verify computed edges against the actual surface. Besides frustum
+   * clipping, the point must be garment-visible from the camera: when nearer
+   * model geometry occludes it (e.g. a front placement seen from the back of
+   * a thin shell), this returns null so every handle, label and hit-test
+   * anchored to it culls with the surface instead of bleeding through.
+   * Callers already treat null as "hide the overlay". With no model loaded
+   * the legacy unoccluded projection applies. Null when disposed, on bad
+   * input, when the point is behind the camera, or when occluded. Camera
+   * only — mm untouched. Never throws.
    */
-  projectToClient(model: { x: number; y: number; z: number }): { x: number; y: number } | null {
+  projectToClient(model: { x: number; y: number; z: number }, checkOcclusion = true): { x: number; y: number } | null {
     try {
       if (this.disposed) return null;
       if (model === null || typeof model !== 'object') return null;
       if (!Number.isFinite(model.x) || !Number.isFinite(model.y) || !Number.isFinite(model.z)) return null;
       const world = this.wrapper.localToWorld(new THREE.Vector3(model.x, model.y, model.z));
+      // Garment occlusion (issue 5): a point hidden behind nearer geometry
+      // (rear view of a front placement) projects to null so HTML handles,
+      // labels and selection hit-tests cull with the visible surface.
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld();
+      if (checkOcclusion && this.surfacePointOccluded(world.clone())) return null;
       const ndc = world.project(this.camera);
       if (!Number.isFinite(ndc.x) || !Number.isFinite(ndc.y) || !Number.isFinite(ndc.z)) return null;
       if (ndc.z > 1 || ndc.z < -1) return null;
@@ -1354,9 +1762,20 @@ export class ModelViewer {
     }
   }
 
-  /** Artwork faces the real outside surface, with its width along region +x. */
+  /**
+   * Artwork faces the real outside surface, with its width along region +x.
+   *
+   * Each item is projected independently from its own anchor/normal/depth:
+   * the projector binds to the intended shell (per-mesh outward check plus
+   * per-triangle facing filter), so opposite-shell triangles of thin/folded
+   * garments are never painted and adding another logo — in either add
+   * order — never changes an existing item's visibility. Occlusion between
+   * the two sides at view time comes from real depth testing (art materials
+   * keep depthTest enabled), not from DoubleSide assumptions.
+   */
   setSurfaceArtworkOverlays(items: SurfaceArtworkItem[]): void {
     this.clearPlacements();
+    this.surfaceArtworkItems = items.slice();
     if (this.disposed) return;
     this.scene.updateMatrixWorld(true);
     const meshes: THREE.Mesh[] = [];
@@ -1405,7 +1824,11 @@ export class ModelViewer {
         ctx.strokeStyle = item.fits ? '#0072ce' : '#d20a2e'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, 1016, 1016);
       }
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+      // depthWrite TRUE (unlike safe-area skins): coplanar opposite-side
+      // decals must resolve by real depth testing, never by transparent
+      // draw order, so either add order occludes identically. polygonOffset
+      // keeps each decal ahead of its own shell against z-fighting.
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
       const center = points[0]!.clone().add(points[2]!).multiplyScalar(0.5);
       // Polygon winding can point a saved plane into the garment. Orient the
       // raster toward the actual outside face so lettering is not mirrored.
@@ -1416,7 +1839,32 @@ export class ModelViewer {
       const orientation = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, imageUp, imageNormal));
       const inverse = this.wrapper.matrixWorld.clone().invert();
       let used = false;
+      // Per-item state only (anchor, facing, material): adding another logo
+      // never changes an existing item's visibility, in either add order.
+      const shellProbe = new THREE.Raycaster();
       for (const mesh of meshes) {
+        // Bind the projector to the intended shell: skip meshes whose own
+        // nearest face along the projection axis points away (opposite shell
+        // of a thin/folded garment inside the projector box). The surviving
+        // per-triangle facing filter below then keeps only outward faces.
+        try {
+          shellProbe.set(
+            anchor.clone().addScaledVector(facingDirection, Math.max(depth, 1e-9)),
+            facingDirection.clone().negate(),
+          );
+          const shellHits = shellProbe.intersectObject(mesh, false);
+          const shellHit = shellHits.find((candidate) => candidate.face !== null && candidate.face !== undefined);
+          if (shellHit?.face) {
+            const attribute = (shellHit.object as THREE.Mesh).geometry.getAttribute('normal');
+            const shellNormal = (attribute
+              ? new THREE.Vector3().fromBufferAttribute(attribute, shellHit.face.a)
+              : shellHit.face.normal.clone()
+            ).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(shellHit.object.matrixWorld)).normalize();
+            if (shellNormal.dot(facingDirection) <= 0) continue;
+          }
+        } catch {
+          continue;
+        }
         const geometry = new DecalGeometry(mesh, center, orientation, new THREE.Vector3(width, height, depth));
         const normals = geometry.getAttribute('normal');
         const positions = geometry.getAttribute('position');
@@ -1443,6 +1891,7 @@ export class ModelViewer {
 
   /** Remove overlay lines/meshes and dispose their geometries/materials. */
   private clearPlacements(): void {
+    this.surfaceArtworkItems = [];
     for (let i = this.placementGroup.children.length - 1; i >= 0; i--) {
       const child = this.placementGroup.children[i];
       if (child === undefined) continue;

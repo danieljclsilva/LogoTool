@@ -26,6 +26,7 @@
  * render an explicit migration notice instead of production content.
  */
 
+import { methodLabel } from '../../../core/decoration-methods/index.js';
 import { formatMm1 } from "../../../core/operation-document/index.js";
 import type {
   OperationDocument,
@@ -428,16 +429,24 @@ function planSheetPages(
   return { pages };
 }
 /**
- * Focused-print side indices shared by the planner and the renderer: a side
- * prints only when the overlay maps it AND at least one artwork entry
- * carries that mapping's region. Pure; no DOM.
+ * Focused-print side indices shared by the planner and the renderer.
+ *
+ * Photo sides print only when the overlay maps them AND at least one
+ * artwork entry carries that mapping's region. Model sides always print:
+ * the capture already composites the committed-revision artwork, so the
+ * figure is either the current render or an explicit pending note — never
+ * a guessed overlay. Pure; no DOM.
  */
 function printableSideIndices(
   sheet: OperationSheetView["sheets"][number],
   overlay: SheetOverlay | undefined,
 ): number[] {
   const printable: number[] = [];
-  sheet.sides.forEach((_, sideIndex) => {
+  sheet.sides.forEach((side, sideIndex) => {
+    if (side.kind === "model") {
+      printable.push(sideIndex);
+      return;
+    }
     const sideMapping = overlay?.mappings[sideIndex];
     if (
       sideMapping !== undefined &&
@@ -453,8 +462,10 @@ function printableSideIndices(
 /**
  * Planner relevance for one sheet: logo-to-proof bindings from the
  * caller-evaluated overlay (artwork region matched to a mapped printable
- * side's region), or the conservative declared fallback without asset
- * context. Shared verbatim by the counter and the renderer.
+ * side's region), plus model-view bindings (artwork region matched to a
+ * printable model side's explicit regions), or the conservative declared
+ * fallback without asset context. Shared verbatim by the counter and the
+ * renderer.
  */
 function relevanceForSheet(
   sheet: OperationSheetView["sheets"][number],
@@ -470,7 +481,13 @@ function relevanceForSheet(
     sideOfLogo: (logoIndex: number): number | undefined => {
       const art = overlay.artworks[logoIndex];
       if (!art) return undefined;
-      return printable.find((sideIndex) => overlay.mappings[sideIndex]?.regionId === art.regionId);
+      const photo = printable.find((sideIndex) => overlay.mappings[sideIndex]?.regionId === art.regionId);
+      if (photo !== undefined) return photo;
+      return printable.find((sideIndex) => {
+        const side = sheet.sides[sideIndex];
+        return side !== undefined && side.kind === "model"
+          && (side.regions ?? []).includes(art.regionId);
+      });
     },
   };
 }
@@ -834,6 +851,48 @@ function shortEdge(toEdge: string): string {
  * continues), so gutter labels and panel lines share one numbering that
  * never restarts per logo. Never guesses.
  */
+/**
+ * One model-view figure: the locally captured clean product render (no
+ * handles, overlays or controls) with applied artwork from the committed
+ * revision the lookup was built for. The capture already composites the
+ * artwork, so no mapping math runs here and no gutter arrows are drawn —
+ * measured dimensions stay in the logo panels as pure-mm text. A missing
+ * render prints one explicit pending note, never a guessed image. Pure
+ * data flow; no DOM beyond the figure itself.
+ */
+function renderModelFigure(
+  document: Document,
+  sideLabel: string,
+  imagePath: string,
+  lookup: OperationSheetAssetLookup | undefined,
+): HTMLElement {
+  const figure = createElement(document, "figure", "opsheet-photo opsheet-model-photo");
+  const render = lookup?.getModelViewImage?.(imagePath);
+  const url = render?.dataUrl;
+  const safe = typeof url === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url);
+  if (render && safe && Number.isFinite(render.width) && render.width > 0
+    && Number.isFinite(render.height) && render.height > 0) {
+    const image = createElement(document, "img", "opsheet-photo-img");
+    image.setAttribute("src", url as string);
+    image.setAttribute("alt", `${sideLabel}: model view with applied artwork`);
+    image.setAttribute("width", String(render.width));
+    image.setAttribute("height", String(render.height));
+    watchImageDecode(document, figure, image, imagePath);
+    figure.append(image);
+  } else {
+    figure.append(createTextElement(
+      document,
+      "p",
+      `Model view \u201c${sideLabel}\u201d is not rendered yet \u2014 capture it from the 3D model; dimensions below are the source of truth.`,
+      "opsheet-placeholder",
+    ));
+  }
+  const caption = createElement(document, "figcaption", "opsheet-caption");
+  setText(caption, sideLabel);
+  figure.append(caption);
+  return figure;
+}
+
 function renderSideFigure(
   document: Document,
   view: OperationSheetView,
@@ -852,6 +911,9 @@ function renderSideFigure(
   const side = sheet.sides[sideIndex]!;
   const figure = createElement(document, "figure", "opsheet-photo");
   const sideLabel = side.label ?? side.view ?? "Product photo";
+  if (side.kind === "model") {
+    return renderModelFigure(document, sideLabel, side.imagePath, lookup);
+  }
 
   const photoBytes = lookup?.getBytes(side.imagePath);
   const photoHeader = photoBytes && photoBytes.length > 0 ? readRasterHeader(photoBytes) : null;
@@ -1201,6 +1263,7 @@ function renderCardPart(
   isLastPart: boolean,
 ): HTMLElement {
   const panel = createElement(document, "article", "opsheet-logo");
+  panel.append(createTextElement(document, "span", String(part.logo + 1), "opsheet-logo-number"));
   // A card split across pages carries continued identity on every part
   // except a whole card: a stranded head, a middle slice, and the tail all
   // read "CODE (continued)" so no part poses as the complete card.
@@ -1228,10 +1291,10 @@ function renderCardPart(
   panel.append(createTextElement(document, "h3", heading, "opsheet-logo-name"));
   if (part.head) {
     const size = `${formatMm1(logo.widthMm)} \u00d7 ${formatMm1(logo.heightMm)} mm` +
-      (logo.rotationDeg !== 0 ? `, rotated ${logo.rotationDeg}\u00b0` : "");
+      (logo.rotationDeg !== 0 ? `, rotated ${formatMm1(logo.rotationDeg)}\u00b0` : "");
     panel.append(createTextElement(document, "p", size, "opsheet-size"));
     panel.append(createTextElement(document, "p", logo.side, "opsheet-side"));
-    panel.append(createTextElement(document, "p", `Method: ${logo.method}`, "opsheet-method"));
+    panel.append(createTextElement(document, "p", `Method: ${methodLabel(logo.method)}`, "opsheet-method"));
     if (logo.methodParams) {
       for (const key of Object.keys(logo.methodParams).sort()) {
         panel.append(createTextElement(document, "p", `${key}: ${logo.methodParams[key]!}`, "opsheet-param"));
@@ -1241,10 +1304,17 @@ function renderCardPart(
       panel.append(createTextElement(document, "p", `Colours: ${logo.colours.join(", ")}`, "opsheet-colours"));
     }
     if (logo.dimensions.length === 0) {
+      // Precise missing-measurement wording: when the logo already carries
+      // physical width/height, only the anchor-to-edge placement measurements
+      // are missing — never the dimensions themselves.
+      const hasSize = Number.isFinite(logo.widthMm) && logo.widthMm > 0
+        && Number.isFinite(logo.heightMm) && logo.heightMm > 0;
       panel.append(createTextElement(
         document,
         "p",
-        "Dimensions not set \u2014 setup needed.",
+        hasSize
+          ? "Placement measurements not set \u2014 setup needed."
+          : "Dimensions not set \u2014 setup needed.",
         "opsheet-unfinished",
       ));
     }
@@ -1266,6 +1336,7 @@ function renderCardPart(
   }
   if (isLastPart) {
     for (const reason of new Set(logo.unfinished)) {
+      if (logo.dimensions.length === 0 && reason.includes('no anchor bindings supplied')) continue;
       panel.append(createTextElement(document, "p", reason, "opsheet-unfinished"));
     }
     for (const note of photoNotes) {
@@ -1430,7 +1501,16 @@ function renderSheetPages(
     const body = createElement(document, "div", "opsheet-body");
     // A logo-less sheet stages every printable proof; otherwise each page
     // stages exactly the proofs its card parts bind.
-    const sides = sheet.logos.length === 0 ? printableSides : relevantSides(parts);
+    // An operator may deliberately choose two views of the same placement.
+    // A single logo-to-proof lookup must not silently discard the second view.
+    const sides = sheet.logos.length === 0 ? printableSides : [...new Set([
+      ...relevantSides(parts), ...printableSides.filter((index) => sheet.sides[index]?.kind === 'model'),
+    ])].sort((a, b) => a - b);
+    // Model views replace the photo demand: a sheet backed by model views
+    // never asks for uploaded photos. Image-only products (no model views)
+    // keep the established photo wording below.
+    const photoSideCount = sheet.sides.filter((entry) => entry.kind !== "model").length;
+    const hasModelSides = sheet.sides.some((entry) => entry.kind === "model");
     if (!continued) {
       if (sheet.sides.length === 0) {
         body.append(createTextElement(
@@ -1439,17 +1519,18 @@ function renderSheetPages(
           "No product photo supplied for this sheet \u2014 setup needed. Dimensions below are the source of truth.",
           "opsheet-empty",
         ));
-      } else if (printableSides.length === 0) {
+      } else if (printableSides.length === 0 && !hasModelSides) {
         body.append(createTextElement(
           document,
           "p",
-          `${sheet.sides.length} supplied photo(s) not shown \u2014 no mapped logos on these sides; dimensions below are the source of truth.`,
+          `${photoSideCount} supplied photo(s) not shown \u2014 no mapped logos on these sides; dimensions below are the source of truth.`,
           "opsheet-empty",
         ));
       }
     }
     const legendSink: Array<{ code: string; name: string }> = [];
     let renderedProofs = 0;
+    let renderedMappedPhotos = 0;
     const cardParts = parts.filter((part) => part.kind === "card");
     // Proof scoping collects the page's card dim slices (a repeated proof
     // shows only its page's cards' dimensions, never another page's).
@@ -1487,6 +1568,7 @@ function renderSheetPages(
         ));
         occurrence += 1;
         renderedProofs += 1;
+        if (sheet.sides[sideIndex]?.kind !== "model") renderedMappedPhotos += 1;
       }
       // Proof stage + card rail: garment proofs dominate left, light gray
       // logo cards ride the right rail. The views modifier follows the
@@ -1540,9 +1622,10 @@ function renderSheetPages(
       }
       body.append(createTextElement(document, "p", entries.join("; "), "opsheet-anchor-key"));
     }
-    // Trial disclaimer travels with proofs: every page that renders a
-    // mapped proof states the trial plainly; proof-less pages say nothing.
-    if (renderedProofs > 0) {
+    // Trial disclaimer travels with mapped photo proofs: every page that
+    // renders a mapped photo states the trial plainly; model-view pages
+    // render committed-revision captures (not trials) and say nothing here.
+    if (renderedMappedPhotos > 0) {
       body.append(createTextElement(
         document,
         "p",
@@ -1711,6 +1794,10 @@ export function operationSheetStyles(): string {
     .opsheet-photo-svg { display: block; width: 100%; height: auto; max-height: 84mm; background: #fff; }
     .opsheet-stage.opsheet-views-1 .opsheet-photo-svg { max-height: 100mm; }
     .opsheet-stage.opsheet-views-1 .opsheet-photo-img { max-height: 100mm; }
+    .opsheet-logo { position:relative; }
+    .opsheet-logo-number { position:absolute;right:5px;top:5px;min-width:18px;height:18px;border:1px solid #155b7d;border-radius:50%;text-align:center;color:#155b7d;background:#fff;font-size:10pt;font-weight:700; }
+    .opsheet-logo-name { padding-right:22px; }
+    .opsheet-model-photo { border:0; }
     .opsheet-photo-img { display: block; width: 100%; height: auto; max-height: 84mm; object-fit: contain; background: #fff; }
     .opsheet-artwork-overlay { pointer-events: none; }
     .opsheet-arrow { stroke: #111; fill: none; }
@@ -1722,7 +1809,7 @@ export function operationSheetStyles(): string {
     .opsheet-caption { font-size: 9pt; color: #4c5b66; margin: 2px 0 0; overflow-wrap: anywhere; }
     .opsheet-anchor-key { font-size: 9pt; color: #33424d; margin: 4px 0 0; break-inside: avoid; }
     .opsheet-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(62mm, 1fr)); gap: 5px; margin-top: 4px; line-height: 1.3; }
-    .opsheet-cards { display: grid; gap: 4px; margin-top: 0; }
+    .opsheet-cards { display: grid; gap: 4px; margin-top: 0;align-self:start; }
     .opsheet-stage.opsheet-views-1 .opsheet-cards, .opsheet-stage.opsheet-views-2 .opsheet-cards { grid-template-columns: minmax(0, 1fr); }
     .opsheet-stage.opsheet-views-3plus .opsheet-cards { grid-template-columns: repeat(auto-fit, minmax(72mm, 1fr)); }
     .opsheet-logo { background: #eef1f3; border: 0.75pt solid #c3ccd3; border-radius: 3pt; padding: 3px 5px 4px; break-inside: avoid; min-width: 0; }

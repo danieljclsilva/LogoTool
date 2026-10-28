@@ -84,6 +84,7 @@ import type {
   ModelSetupViewHandle,
   ModelSetupViewerLike,
 } from './model-setup-view.js';
+import { createModelDocumentController, MODEL_DOCUMENT_VIEWS_PATH } from './model-document-controller.js';
 import type { ModelViewer as ModelViewerType } from '../../viewer/model-viewer.js';
 import {
   parseSetupCalibration,
@@ -134,21 +135,28 @@ import type {
 } from '../../core/operator-job/index.js';
 import {
   applySessionAuthoring,
+  canRedoOperatorHistory,
+  canUndoOperatorHistory,
   captureSaveSnapshot,
   cleanSession,
   createEmptySession,
+  createOperatorHistory,
   emptyLogoTechnique,
   emptyRecord,
   emptySelection,
   isSameSaveSession,
+  pushOperatorHistory,
   rebaseSessionAuthoring,
+  redoOperatorHistory,
   replaceSessionProject,
   sessionAuthoringFromMetadata,
   sessionDocumentInputs,
   snapshotSessionMetadata,
   touchSession,
+  undoOperatorHistory,
 } from './job-session.js';
-import type { JobSession } from './job-session.js';
+import type { JobSession, OperatorHistory } from './job-session.js';
+import { DEFAULT_NEW_REGION_METHODS } from '../../core/decoration-methods/index.js';
 import { createOperatorAuthoringContext } from '../../core/operator-authoring/index.js';
 
 /** Live logo import staging (the retained intake path); the issued/return
@@ -354,6 +362,7 @@ function setJobStep(next: JobStep): void {
   if (next !== 'landing' && next !== 'approval' && source === null) next = 'landing';
   if (next !== 'approval' && next !== 'landing') jobReturnStep = next;
   jobStep = next;
+  document.body.classList.toggle('station-placement-active', next === 'placements');
   paintJobNav();
   if (next === 'approval') {
     // The Advanced issue-ID field shows the pending auto ID: seed it from
@@ -444,6 +453,90 @@ const hasher = createWebCryptoProjectHasher();
  * metadata, document inputs) rebuild from these fields; the decode result on
  * open is a transfer object, never a second store. */
 let source: JobSession | null = null;
+/** Session-local operator undo/redo (one gesture one entry, bounded 50). */
+let operatorHistory: OperatorHistory = createOperatorHistory();
+let undoButton: HTMLButtonElement | null = null;
+let redoButton: HTMLButtonElement | null = null;
+function resetOperatorHistory(): void {
+  operatorHistory = createOperatorHistory();
+  syncHistoryButtons();
+}
+function pushHistoryForEdit(label: string): void {
+  if (!source) return;
+  pushOperatorHistory(operatorHistory, source, label);
+  syncHistoryButtons();
+}
+function syncHistoryButtons(): void {
+  if (undoButton) {
+    undoButton.disabled = source === null || !canUndoOperatorHistory(operatorHistory);
+  }
+  if (redoButton) {
+    redoButton.disabled = source === null || !canRedoOperatorHistory(operatorHistory);
+  }
+}
+function afterHistoryRestore(): void {
+  // Retire outstanding async source snapshots before they can replace an undo.
+  if (source) source = replaceSessionProject(source, source.project, source.assets);
+  reprepareJobDigest();
+  invalidateOutputsForEdit();
+  placementHandle?.discardPendingEdits();
+  refreshWorkspaceSelectors();
+  refreshWorkspace();
+  if (placementHandle && jobStep === 'placements') placementHandle.update();
+  if (reviewHandle) reviewHandle.update();
+  if (approvalHandle) approvalHandle.notifyJobChanged();
+  syncHistoryButtons();
+  updateControls();
+}
+function doOperatorUndo(): void {
+  if (!source || !canUndoOperatorHistory(operatorHistory)) return;
+  try { if (undoOperatorHistory(operatorHistory, source)) afterHistoryRestore(); }
+  catch (error) { alertBuilder(`Undo unavailable: ${error instanceof Error ? error.message : String(error)}`); }
+}
+function doOperatorRedo(): void {
+  if (!source || !canRedoOperatorHistory(operatorHistory)) return;
+  try { if (redoOperatorHistory(operatorHistory, source)) afterHistoryRestore(); }
+  catch (error) { alertBuilder(`Redo unavailable: ${error instanceof Error ? error.message : String(error)}`); }
+}
+function isTextUndoTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT') return !['checkbox', 'radio', 'range', 'button', 'submit'].includes((target as HTMLInputElement).type);
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return target.isContentEditable;
+}
+function setupOperatorHistoryUI(): void {
+  if (undoButton || redoButton) return;
+  const nav = jobSave.parentElement;
+  if (!nav) return;
+  undoButton = document.createElement('button');
+  undoButton.type = 'button';
+  undoButton.textContent = 'Undo';
+  undoButton.setAttribute('aria-label', 'Undo last placement or setup change');
+  undoButton.addEventListener('click', () => doOperatorUndo());
+  redoButton = document.createElement('button');
+  redoButton.type = 'button';
+  redoButton.textContent = 'Redo';
+  redoButton.setAttribute('aria-label', 'Redo last undone change');
+  redoButton.addEventListener('click', () => doOperatorRedo());
+  nav.insertBefore(redoButton, jobSave);
+  nav.insertBefore(undoButton, redoButton);
+  document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented) return;
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || event.altKey) return;
+    const key = event.key.toLowerCase();
+    const isUndo = key === 'z' && !event.shiftKey;
+    const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
+    if (!isUndo && !isRedo) return;
+    if (isTextUndoTarget(event.target)) return;
+    if (source === null) return;
+    event.preventDefault();
+    if (isUndo) doOperatorUndo();
+    else doOperatorRedo();
+  });
+  syncHistoryButtons();
+}
 let selectionValid = false;
 /**
  * Whether the operator deliberately narrowed "Choose specific setups" (a real
@@ -577,6 +670,7 @@ function updateControls(): void {
   jobLandingResponse.disabled = blocked;
   jobLandingStatus.textContent = source === null ? '' : `Job open: ${source.fileName}.`;
   paintJobNavStateOnly();
+  syncHistoryButtons();
 }
 function paintJobNavStateOnly(): void {
   const steps: Array<[HTMLButtonElement, boolean]> = [
@@ -876,6 +970,7 @@ async function loadJobFile(file: File): Promise<void> {
     addedPresentations = [];
     productName.value = '';
     source = createEmptySession(file.name, parsed.project, parsed.assets, bytes.slice());
+    resetOperatorHistory();
     configurationsTouched = false;
     renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
@@ -1521,6 +1616,7 @@ async function createEmptyProject(): Promise<void> {
     addedPresentations = [];
     productName.value = '';
     source = createEmptySession('empty-draft', draft, [], new Uint8Array(0));
+    resetOperatorHistory();
     configurationsTouched = false;
     renderSelectionLists(source.summary);
     stagedPhotoMappings = [];
@@ -2121,6 +2217,7 @@ async function addProductFromStaged(): Promise<void> {
     if (generation !== productGeneration) return;
     const summary = summarizeSourceProject(reparsed.project);
     if (snapshot === null) throw new Error('no job open');
+    pushHistoryForEdit('Update product setup and assets');
     source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
     addedPresentations.push({ views, models, assets: assets.filter((asset) => asset.path !== PRESENTATION_MANIFEST_PATH) });
     if (generation !== productGeneration) return;
@@ -2601,7 +2698,8 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
       }
       if (!fresh() || source !== snapshot) return;
       stagedPhotoMappings = stagedKept;
-      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
+      pushHistoryForEdit('Update product setup and assets');
+    source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       if (plan.replacedAssetPath !== undefined) {
         // Retire staged drafts bound to the superseded photo/scope — but
         // only when no other manifest entry still references that path:
@@ -2919,7 +3017,8 @@ async function attachSlugViewImage(file: File, viewKey: string): Promise<void> {
       }
       if (!fresh() || source !== snapshot) return;
       stagedPhotoMappings = stagedKept;
-      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
+      pushHistoryForEdit('Update product setup and assets');
+    source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       if (replacedAssetPath !== undefined) {
         // Retire staged drafts bound to the superseded photo/scope — but
         // only when no other manifest entry still references that path.
@@ -3126,7 +3225,8 @@ async function renameExistingView(viewKey: string, rawLabel: string): Promise<vo
         throw new Error('The reparse lost the renamed view image; the previous project is unchanged.');
       }
       if (!fresh() || source !== snapshot) return;
-      source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
+      pushHistoryForEdit('Update product setup and assets');
+    source = replaceSessionProject(snapshot, reparsed.project, reparsed.assets, packageBytes.slice());
       // Identity is unchanged, so no draft or mapping retires. Release the
       // busy guard BEFORE repainting so the rows, tabs and status refresh.
       photoAttaching = false;
@@ -3386,13 +3486,14 @@ function jobProductMediaKind(productId: string): 'images' | 'model' | 'none' {
   return 'none';
 }
 function commitPlacementProject(label: string, next: ProjectDocument): { ok: true } | { ok: false; error: string } {
-  void label;
   if (!source) return { ok: false, error: 'No job open.' };
+  if (next === source.project) return { ok: true };
   try {
     assertProjectEditorLimits(next);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+  pushHistoryForEdit(label);
   source = replaceSessionProject(source, next);
   markJobDirty();
   reprepareJobDigest();
@@ -3437,7 +3538,25 @@ function focusProductSetup(productId: string, variantId?: string): void {
   refreshWorkspace();
   workspaceBox.scrollIntoView({ block: 'start' });
 }
+let documentModels: ReturnType<typeof createModelDocumentController> | null = null;
 function mountJobModules(): void {
+  documentModels = createModelDocumentController({
+    active: () => jobStep === 'review',
+    project: () => source?.project ?? null,
+    scene: (productId, variantId) => jobModelPlacementScene(productId, variantId),
+    logo: (id) => jobLogoDataUrl(id),
+    metadata: () => source?.assets.find((asset) => asset.path === MODEL_DOCUMENT_VIEWS_PATH)?.bytes,
+    persist: (bytes) => {
+      if (!source) return;
+      source = replaceSessionProject(source, source.project, [
+        ...source.assets.filter((asset) => asset.path !== MODEL_DOCUMENT_VIEWS_PATH),
+        { path: MODEL_DOCUMENT_VIEWS_PATH, bytes, kind: 'additional' },
+      ]);
+      markJobDirty();
+    },
+    changed: () => { if (reviewHandle && jobStep === 'review') reviewHandle.update(); },
+    status: (message) => alertBuilder(message),
+  });
   try {
     placementHandle = mountPlacementWorkspace(jobPlacementHost, {
       getProject: () => source?.project ?? placementEmptyProject(),
@@ -3452,9 +3571,20 @@ function mountJobModules(): void {
       getLogoImage: (logoId) => jobLogoDataUrl(logoId),
       getAnchors: (productId, variantId, regionId) =>
         (source?.anchors ?? []).filter((anchor) => anchor.productId === productId && anchor.variantId === variantId && anchor.regionId === regionId),
+      addAnchor: (anchor) => {
+        if (!source) return;
+        const product = source.project.products.find((entry) => entry.id === anchor.productId);
+        const region = product?.regions.find((entry) => entry.id === anchor.regionId);
+        if (!region || !anchor.posMm.every(Number.isFinite)) return;
+        pushHistoryForEdit('Add physical reference point');
+        source.anchors = [...source.anchors, { ...anchor, id: newLocalId(), frameId: region.frame.frameId,
+          calibrationId: region.calibrationRef.calibrationId, calibrationVersion: region.calibrationRef.version }];
+        markJobDirty();
+      },
       getBindings: (configurationId) => [...(source?.bindings[configurationId] ?? [])],
       setBindings: (configurationId, bindings) => {
         if (!source) return;
+        pushHistoryForEdit('measurement bindings');
         source.bindings[configurationId] = [...bindings];
         markJobDirty();
         reprepareJobDigest();
@@ -3463,6 +3593,7 @@ function mountJobModules(): void {
       getTechnique: (configurationId, logoRef) => ({ ...(source?.logoTechnique[configurationId]?.[logoRef] ?? emptyLogoTechnique()) }),
       setTechnique: (configurationId, logoRef, technique) => {
         if (!source) return;
+        pushHistoryForEdit('technique');
         const perLogo = source.logoTechnique[configurationId] ?? emptyRecord();
         perLogo[logoRef] = { ...technique };
         source.logoTechnique[configurationId] = perLogo;
@@ -3497,6 +3628,7 @@ function mountJobModules(): void {
   try {
     reviewHandle = mountDocumentReview(jobReviewHost, {
       readSnapshot: () => readReviewSnapshot(),
+      modelViewOps: documentModels.ops,
       requestPrint: () => globalThis.print(),
       saveJob: () => void saveJobToFile(),
       saveOperatorData: (view) => {
@@ -3510,6 +3642,7 @@ function mountJobModules(): void {
       fixItem: (target) => fixReviewItem(target),
       commitInstructions: (text) => {
         if (source && source.instructions !== text) {
+          pushHistoryForEdit('instructions');
           source.instructions = text;
           markJobDirty();
           if (reviewHandle && jobStep === 'review') reviewHandle.update();
@@ -3519,6 +3652,7 @@ function mountJobModules(): void {
         if (!source) return;
         const next = { ...source.technique, ...patch };
         if (JSON.stringify(next) !== JSON.stringify(source.technique)) {
+          pushHistoryForEdit('technique');
           source.technique = next;
           markJobDirty();
           if (reviewHandle && jobStep === 'review') reviewHandle.update();
@@ -3611,6 +3745,7 @@ function readReviewSnapshot(): import('./document-review.js').DocumentReviewSnap
     candidateError,
     assetBytes: bytes,
     referenceViews,
+    modelViews: documentModels?.snapshot(project, { candidate, anchors: source.anchors, bindings }) ?? emptyRecord(),
     anchors: [...source.anchors],
     bindings,
     extras,
@@ -3726,6 +3861,7 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
     addedPresentations = [];
     productName.value = '';
     source = createEmptySession('customer-response', project, assets.map((asset) => ({ path: asset.path, bytes: asset.bytes, kind: asset.kind })), new Uint8Array(0));
+    resetOperatorHistory();
     if (carried !== null) {
       source.instructions = carried.instructions;
       source.technique = carried.technique;
@@ -3775,6 +3911,7 @@ function openApprovalResponseEntry(): void {
   if (approvalHandle) approvalHandle.openResponseEntry();
 }
 mountJobModules();
+setupOperatorHistoryUI();
 wireIssueIdentityControls();
 setJobStep('landing');
 
@@ -4721,6 +4858,7 @@ async function saveWorkspaceSetup(
     snapshot.anchors = nextAnchors;
     stagedPhotoMappings = [...stagedKeptMappings, ...scopeMappings, ...twinEntries];
     areaManifestBaseline.set(scope.regionId, submittedSiblingCanonical);
+    pushHistoryForEdit('Update product setup and assets');
     source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only — every
@@ -5562,7 +5700,7 @@ async function commitModelSetup(): Promise<void> {
             frame,
             calibrationRef: { calibrationId, version: nextVersion },
             safeArea,
-            allowedMethods: ['embroidery', 'print'],
+            allowedMethods: [...DEFAULT_NEW_REGION_METHODS],
           });
         }
         for (const variantId of scopeVariantIds) {
@@ -5643,7 +5781,8 @@ async function commitModelSetup(): Promise<void> {
         modelSetupStatus.textContent = 'The reparse lost a projected region; the previous project is unchanged.';
         return;
       }
-      source = replaceSessionProject(snap, back.project, back.assets, packageBytes.slice());
+      pushHistoryForEdit('Update product setup and assets');
+    source = replaceSessionProject(snap, back.project, back.assets, packageBytes.slice());
       // The package changed under any generated delivery: mark outputs stale
       // so a regen is required before download. Success path only — every
       // early return above leaves prior outputs intact.
@@ -5788,7 +5927,7 @@ async function commitGuidedScale(
       },
       calibrationRef: { calibrationId, version: '1' },
       safeArea: [[0, 0], [widthMm, 0], [widthMm, heightMm], [0, heightMm]],
-      allowedMethods: ['embroidery', 'print'],
+      allowedMethods: [...DEFAULT_NEW_REGION_METHODS],
     });
     const nextVariant = nextProduct.variants.find((entry) => entry.id === variant.id)!;
     if (!nextVariant.regionIds.includes(regionId)) nextVariant.regionIds.push(regionId);
@@ -5870,6 +6009,7 @@ async function commitGuidedScale(
     }
     if (stale()) return fail('The project changed while measuring (new file opened or product added); measure again.');
     stagedPhotoMappings = [...stagedPhotoMappings.filter((candidate) => !isReplacedMapping(candidate)), entry];
+    pushHistoryForEdit('Update product setup and assets');
     source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only.
@@ -6245,7 +6385,7 @@ async function commitGuidedSpan(
         },
         calibrationRef: { calibrationId, version: nextVersion },
         safeArea: [],
-        allowedMethods: ['embroidery', 'print'],
+        allowedMethods: [...DEFAULT_NEW_REGION_METHODS],
       });
       const nextVariant = nextProduct.variants.find((entry) => entry.id === variant.id)!;
       if (!nextVariant.regionIds.includes(regionId)) nextVariant.regionIds.push(regionId);
@@ -6350,6 +6490,7 @@ async function commitGuidedSpan(
     stagedPhotoMappings = [...stagedKept, entry, ...rewrittenSiblings];
     // The scope region restarts with no named siblings either way.
     areaManifestBaseline.set(regionId, '[]');
+    pushHistoryForEdit('Update product setup and assets');
     source = replaceSessionProject(snapshot, back.project, back.assets, packageBytes.slice());
     // The package changed under any generated delivery: mark outputs stale
     // so a regen is required before download. Success path only.

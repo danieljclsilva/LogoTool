@@ -41,7 +41,7 @@ minimal operator JSON export derive from the same configuration.
 | Section | Information |
 | --- | --- |
 | Header | FlexiTog mark, human customer / reference / article, product/variant titles |
-| Product views | Actual garment photos with applied original artwork plus clean dimension arrows from the same pure mm calculations as the panels; unmapped photos are labelled reference-only |
+| Product views | Selected local 3D-model views or actual garment photos, with applied original artwork and clean dimension arrows from the same pure mm calculations as the panels; unmapped photos are labelled reference-only |
 | Logo panels | Business logo name/code, actual width×height in mm, readable side/position, method, optional supplied colour/thread refs and method parameters |
 | Instructions | Logo-department operational instructions only (staff-authored) |
 | Status | One concise business draft/status indicator, only when it changes an operator decision |
@@ -236,3 +236,18 @@ print dialogs, printer scaling and physical production accuracy remain untested.
   via Chromium `page.pdf`, desktop/narrow screenshots and print-media
   checks, all with zero console/page errors and zero HTTP(S) requests.
   Windows Chrome/Edge `file://` remains the untested delivery gate.
+
+## Model-only jobs (2026-10-28)
+
+A calibrated local GLB is sufficient for the operational document; photos are
+optional. Review creates relevant front/back views with applied artwork. Use
+Adjust view to rotate, pan, fit or zoom each view; add, remove and reorder views
+as needed. Cameras and view order persist as versioned presentation metadata
+in the editable project package, independently of physical mm and production
+revision. Changing a model invalidates its saved views until adjusted.
+
+In placements, name a reference point and pick it directly on the model, then
+use Add measurement to bind an artwork edge to that reference. Physical
+anchor/edge calculations supply both the document arrows and operator JSON.
+Unbound references remain explicitly unfinished. Document capture excludes
+editing handles and safe-area shading while retaining the actual artwork.

@@ -282,6 +282,28 @@ export interface ReferenceViewInput {
   label?: string | null;
 }
 
+/**
+ * One operator-managed model document view selected for the sheet, via the
+ * presentation-only model-view metadata (`ModelDocumentView`). The renderer
+ * materializes the captured render through its asset lookup by the
+ * synthetic `imagePath` cache key (never a package fetch); a missing render
+ * prints an explicit pending note, never a guessed image. Operator display
+ * order is preserved (reorder is meaningful) — never re-sorted here.
+ */
+export interface ModelViewInput {
+  /** Stable model-view id (never the mutable human label). */
+  view: string | null;
+  /** Synthetic render-cache key, e.g. `model-view/<id>.png`. */
+  imagePath: string;
+  label?: string | null;
+  /** Package model asset identity the camera was framed against. */
+  modelAssetId: string;
+  /** Model asset revision the camera was framed against. */
+  modelRevision: string;
+  /** Explicit region ids this view backs (from the managed view). */
+  regions: readonly string[];
+}
+
 /** Input to the operation-document builder. */
 export interface BuildOperationDocumentInput {
   candidate: ResultCandidate;
@@ -342,11 +364,29 @@ export interface OperationSheetSide {
   /**
    * Stable presentation view id (never the mutable human label), or null
    * when undeclared. Legacy `front`/`back`/`left`/`right` names are
-   * ordinary view ids; flexible ids pass through untouched.
+   * ordinary view ids; flexible ids pass through untouched. For model
+   * views this is the stable `ModelDocumentView.id`.
    */
   view: string | null;
   imagePath: string;
   label?: string;
+  /**
+   * Side kind: `"photo"` (package raster reference, default) or `"model"`
+   * (locally rendered GLB view with applied artwork from the committed
+   * revision). Model sides never demand uploaded photos.
+   */
+  kind?: "photo" | "model";
+  /**
+   * Model asset binding for `"model"` sides: package model asset identity
+   * plus the asset revision the camera was framed against.
+   */
+  model?: { assetId: string; revision: string };
+  /**
+   * Explicit region ids a `"model"` side backs (from the operator-managed
+   * model view's `associatedRegions`). Used for logo-to-proof relevance;
+   * photo sides leave this absent.
+   */
+  regions?: readonly string[];
 }
 
 export interface OperationSheetDimension {
@@ -465,6 +505,13 @@ export interface BuildOperationSheetViewInput {
   job?: OperationSheetJob;
   /** Per-configuration reference sides. Key: configuration id. */
   sides?: Record<string, readonly ReferenceViewInput[]>;
+  /**
+   * Per-configuration operator-managed model views (GLB-only operational
+   * documents). Key: configuration id. Operator display order is preserved.
+   * Model views never demand uploaded photos; image-only products keep using
+   * `sides` photo references as before.
+   */
+  modelViews?: Record<string, readonly ModelViewInput[]>;
   /**
    * Optional caller-supplied per-logo extras (method settings, colour
    * references). Keyed configuration id -> logoRef (same selector as

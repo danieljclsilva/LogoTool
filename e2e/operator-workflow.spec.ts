@@ -260,7 +260,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       expect(addMinHeight).toBeGreaterThanOrEqual(44);
       await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
       const addMethod = pw(page, 'pw-add-method');
-      if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+      if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
       await pw(page, 'pw-add-width').fill('90');
       await pw(page, 'pw-add-height').fill('40');
       await pw(page, 'pw-add-confirm').click();
@@ -671,7 +671,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     // disabled. Blocking items offer no unmarked production output.
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('500');
     await pw(page, 'pw-add-height').fill('400');
     await pw(page, 'pw-add-confirm').click();
@@ -689,7 +689,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
     await host.getByRole('button', { name: 'Remove placement' }).click();
     await host.getByRole('button', { name: 'Add logo placement' }).click();
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -779,7 +779,7 @@ test('artwork selection: add choices selected-only, excluded-used stays resolvab
     expect(options).not.toContain('star');
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -852,7 +852,7 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -978,7 +978,7 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -1087,7 +1087,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
-    if ((await addMethod.count()) > 0) await addMethod.selectOption({ label: 'print' });
+    if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('60');
     await pw(page, 'pw-add-height').fill('30');
     await pw(page, 'pw-add-confirm').click();

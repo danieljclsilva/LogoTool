@@ -338,7 +338,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → jo
       await freshHost.getByRole('button', { name: 'Add logo placement' }).click();
       await fresh.locator('[data-placement-hook="pw-add-logo"]').selectOption({ label: 'crest' });
       const freshMethod = fresh.locator('[data-placement-hook="pw-add-method"]');
-      if ((await freshMethod.count()) > 0) await freshMethod.selectOption({ label: 'print' });
+      if ((await freshMethod.count()) > 0) await freshMethod.selectOption('print');
       await fresh.locator('[data-placement-hook="pw-add-width"]').fill('90');
       await fresh.locator('[data-placement-hook="pw-add-height"]').fill('40');
       await fresh.locator('[data-placement-hook="pw-add-confirm"]').click();

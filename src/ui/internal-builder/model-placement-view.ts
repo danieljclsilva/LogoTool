@@ -2,18 +2,40 @@
 import { ModelViewer, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
 import { modelPointFromMm, regionMmFromModel, type ModelPoint, type ModelRegionFrame } from '../../core/model-placement/index.js';
 import { rotatedFootprintCorners } from '../../core/operation-measurements/index.js';
-import { normalizeDeg, rotationSnapDeg, snapFootprint, cornerSafeMeasurements, resizeFromCornerMm, type AlignGuide, type MmPolygon } from '../../core/placement-manipulation/index.js';
+import { normalizeDeg, rotationSnapDeg, snapFootprint, cornerSafeMeasurements, type AlignGuide, type MmPolygon } from '../../core/placement-manipulation/index.js';
+import {
+  beginEdit,
+  resizeCorner as resizeCornerTx,
+  scaleCandidate as scaleCandidateTx,
+  setCandidateHeight as setCandidateHeightTx,
+  setCandidateWidth as setCandidateWidthTx,
+  type RatioPolicy,
+} from '../../core/placement-manipulation/edit-transaction.js';
+import { pointInPolygon } from '../../core/geometry/index.js';
 import type { Placement } from '../../core/types.js';
 
 export interface ModelPlacementRegion { id: string; frame: ModelRegionFrame; pointsModel: ModelPoint[] }
 export interface ModelPlacementScene { key: string; bytes: Uint8Array; regions: ModelPlacementRegion[] }
-export interface ModelPlacementItem { index: number; placement: Placement; imageSrc: string | null; fits: boolean }
-interface ViewData { scene: ModelPlacementScene; items: ModelPlacementItem[]; selectedIndex: number; activeRegionId: string | null; revision: string; status: string }
+export interface ModelPlacementItem {
+  index: number;
+  placement: Placement;
+  imageSrc: string | null;
+  fits: boolean;
+  /**
+   * Persisted ratio policy for unified candidate/committed edits (owner:
+   * placement-workspace ratioLocks, survives commits and selection).
+   * Null/undefined means unlocked free-form editing.
+   */
+  lock?: { ratio: number } | null;
+}
+interface ViewData { anchors?: Array<{ id: string; model: ModelPoint; regionId?: string }>; scene: ModelPlacementScene; items: ModelPlacementItem[]; selectedIndex: number; activeRegionId: string | null; revision: string; status: string }
 /** Geometry patch for a committed resize/rotate/move. Only changed fields are set. */
 export interface ModelPlacementCommitPatch { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number }
 export interface ModelPlacementView {
   element: HTMLElement;
   update(data: ViewData): void;
+  beginAnchorPick(name: string): void;
+  dropPoint(clientX: number, clientY: number): { regionId: string; pos: { xMm: number; yMm: number } } | null;
   destroy(): void;
 }
 
@@ -28,7 +50,7 @@ type ActiveOp =
 /** Persistent camera + local raster assets. Only release commits canonical mm. */
 export function createModelPlacementView(callbacks: {
   select(index: number): void;
-  canEdit?(): boolean;
+  anchor?(regionId: string, pos: { xMm: number; yMm: number }, name: string): void;
   move(index: number, pos: { xMm: number; yMm: number }): void;
   status(message: string): void;
   expand(): void;
@@ -67,8 +89,9 @@ export function createModelPlacementView(callbacks: {
   element.append(bar, stage, handles, hint, notice, state);
   let viewer: ModelViewer | null = null;
   let data: ViewData | null = null;
-  let key = '', generation = 0, disposed = false, ready = false, forceRotate = false, placeMode = false;
+  let key = '', generation = 0, disposed = false, ready = false, forceRotate = false, placeMode = false, panMode = false;
   let artworkSignature = '';
+  let anchorName: string | null = null;
   const images = new Map<string, HTMLImageElement | null>();
   const aborter = new AbortController();
   let active: ActiveOp | null = null;
@@ -79,11 +102,13 @@ export function createModelPlacementView(callbacks: {
     const node = document.createElement('button'); node.type = 'button'; node.className = 'pw-secondary'; node.textContent = label;
     node.setAttribute('data-placement-hook', hook); node.addEventListener('click', action); bar.append(node); buttons.push(node); return node;
   }
-  const rotate = button('Rotate', () => { forceRotate = true; placeMode = false; syncTools(); }, 'pw-model-rotate');
-  const move = button('Move logo', () => { forceRotate = false; placeMode = true; syncTools(); }, 'pw-model-move');
+  const rotate = button('Rotate', () => { anchorName = null; forceRotate = true; placeMode = false; panMode = false; syncTools(); }, 'pw-model-rotate');
+  const pan = button('Pan', () => { anchorName = null; forceRotate = false; placeMode = false; panMode = true; syncTools(); }, 'pw-model-pan');
+  const move = button('Move logo', () => { anchorName = null; forceRotate = false; placeMode = true; panMode = false; syncTools(); }, 'pw-model-move');
+  move.title = 'Select or move: click a logo to select it, drag it to move it';
   button('Front', () => viewer?.setViewSide('front'), 'pw-model-front');
   button('Back', () => viewer?.setViewSide('back'), 'pw-model-back');
-  button('Fit', () => viewer?.resetZoom(), 'pw-model-fit');
+  button('Fit', () => viewer?.fitCurrentView(), 'pw-model-fit');
   button('−', () => zoom(-1), 'pw-model-zoom-out').setAttribute('aria-label', 'Zoom out product');
   button('+', () => zoom(1), 'pw-model-zoom-in').setAttribute('aria-label', 'Zoom in product');
   const expand = button('Enlarge workspace', () => { callbacks.expand(); syncTools(); }, 'pw-model-expand');
@@ -92,15 +117,35 @@ export function createModelPlacementView(callbacks: {
   if (callbacks.save) button('Save job', () => callbacks.save?.(), 'pw-model-save-job');
   function syncTools(): void {
     rotate.setAttribute('aria-pressed', String(forceRotate)); move.setAttribute('aria-pressed', String(placeMode));
+    pan.setAttribute('aria-pressed', String(panMode));
+    viewer?.setInteractionMode(panMode ? 'pan' : 'select');
     move.disabled = data === null || data.selectedIndex < 0;
     expand.textContent = callbacks.isExpanded() ? 'Close enlarged view' : 'Enlarge workspace';
     expand.setAttribute('aria-expanded', String(callbacks.isExpanded()));
-    if (!active) state.textContent = placeMode ? 'Click the product to position the selected logo.' : data?.status || 'Drag a logo to move it, or rotate the product.';
+    if (!active) {
+      state.textContent = panMode
+        ? 'Drag to pan the product; scroll to zoom. Choose Rotate or Move logo to edit again.'
+        : placeMode
+          ? 'Click the product to position the selected logo.'
+          : data?.status || 'Drag a logo to move it, or rotate the product.';
+    }
   }
   function zoom(direction: number): void {
     const steps = [50, 75, 100, 125, 150, 200, 300, 400];
     const i = steps.indexOf(viewer?.getZoomPercent() ?? 100);
     viewer?.setZoomPercent(steps[Math.min(steps.length - 1, Math.max(0, i + direction))]!);
+  }
+  let visibleCameraKey = '';
+  const regionVisibility = new Map<string, boolean>();
+  function regionVisible(region: ModelPlacementRegion): boolean {
+    if (!viewer || !data) return false;
+    const state = viewer.getCameraState();
+    const key = JSON.stringify([data.scene.key, data.scene.regions.map((r) => [r.id, r.pointsModel[0], r.frame.normal]), state?.position, state?.target]);
+    if (key !== visibleCameraKey) { visibleCameraKey = key; regionVisibility.clear(); }
+    const cached = regionVisibility.get(region.id); if (cached !== undefined) return cached;
+    const anchor = region.pointsModel[0];
+    const visible = !anchor || viewer.isSurfaceFacing(anchor, region.frame.normal) !== false;
+    regionVisibility.set(region.id, visible); return visible;
   }
   function regionFor(item: ModelPlacementItem): ModelPlacementRegion | undefined { return data?.scene.regions.find((region) => region.id === item.placement.regionId); }
   function selectedItem(): ModelPlacementItem | undefined { return data?.items.find((entry) => entry.index === data?.selectedIndex); }
@@ -118,6 +163,16 @@ export function createModelPlacementView(callbacks: {
     return out;
   }
   const round2 = (v: number): number => Math.round(v * 100) / 100;
+  /** Ratio policy for unified edits: persisted per placement by the workspace (survives commits/selection). */
+  function policyForItem(item: ModelPlacementItem): RatioPolicy {
+    const ratio = item.lock?.ratio;
+    if (typeof ratio === "number" && Number.isFinite(ratio) && ratio > 0) return { locked: true, ratio };
+    return { locked: false, ratio: NaN };
+  }
+  function policyForIndex(index: number): RatioPolicy {
+    const item = data?.items.find((entry) => entry.index === index);
+    return item ? policyForItem(item) : { locked: false, ratio: NaN };
+  }
   function previewStatus(geom: PreviewGeom, snapped: boolean): string {
     return `Preview — X ${geom.xMm.toFixed(1)} mm · Y ${geom.yMm.toFixed(1)} mm · W ${geom.widthMm.toFixed(1)} mm · H ${geom.heightMm.toFixed(1)} mm · R ${normalizeDeg(geom.rotationDeg).toFixed(1)}°${snapped ? ' (snapped; hold Shift for fine)' : ''}`;
   }
@@ -203,8 +258,14 @@ export function createModelPlacementView(callbacks: {
       const rot = rotationSnapDeg(raw.rotationDeg, safe, 2, unsnapped);
       geom = { ...raw, rotationDeg: normalizeDeg(rot.rotationDeg) }; snapped = rot.snapped; guides = unsnapped ? [] : rot.guides;
     } else {
-      if (patch.widthMm !== undefined || patch.heightMm !== undefined) { geom = raw; snapped = false; guides = []; }
-      else { const out = snapCandidate(safe, raw, unsnapped); geom = out.geom; snapped = out.snapped; guides = out.guides; }
+      if (patch.widthMm !== undefined || patch.heightMm !== undefined) {
+        // Unified transaction: both axes consult the persisted ratio lock.
+        let tx = beginEdit(base, policyForItem(item));
+        if (patch.widthMm !== undefined) tx = setCandidateWidthTx(tx, patch.widthMm);
+        if (patch.heightMm !== undefined) tx = setCandidateHeightTx(tx, patch.heightMm);
+        geom = { ...tx.candidate };
+        snapped = false; guides = [];
+      } else { const out = snapCandidate(safe, raw, unsnapped); geom = out.geom; snapped = out.snapped; guides = out.guides; }
     }
     active = { mode: 'adjust', index: item.index, revision: data?.revision ?? '', safe, base, geom, control };
     lastGuides = guides;
@@ -280,13 +341,18 @@ export function createModelPlacementView(callbacks: {
     const node = document.createElement('button'); node.type = 'button';
     node.setAttribute('data-placement-hook', hook); node.setAttribute('aria-label', label);
     node.textContent = text; node.tabIndex = 0;
+    // Large invisible pointer target (32px) around a compact visible core
+    // (10px outline square): touch-friendly without covering the artwork.
     node.style.cssText = `position:absolute;transform:translate(-50%,-50%);pointer-events:auto;touch-action:none;cursor:${cursor};` +
-      'width:14px;height:14px;min-width:14px;min-height:14px;padding:0;line-height:1;background:#fff;border:2px solid #2563eb;border-radius:1px;color:#1d4ed8;font-size:10px;';
+      'width:32px;height:32px;min-width:32px;min-height:32px;padding:0;line-height:1;background:rgba(255,255,255,0.01);border:0;color:#1d4ed8;font-size:10px;' +
+      'outline:2px solid #2563eb;outline-offset:-11px;border-radius:1px;';
     overlay.append(node);
     return node;
   }
   const spinButton = surfaceButton('pw-model-rotate-handle', 'Rotate logo on the product: drag, or press [ and ]', '⟳', 'grab');
-  spinButton.style.borderRadius = '50%'; spinButton.style.width = '22px'; spinButton.style.height = '22px';
+  spinButton.style.outline = 'none';
+  spinButton.style.borderRadius = '50%'; spinButton.style.width = '32px'; spinButton.style.height = '32px';
+  spinButton.style.background = '#fff'; spinButton.style.border = '2px solid #2563eb';
   for (let corner = 0 as SurfaceCorner; corner < 4; corner = (corner + 1) as SurfaceCorner) {
     const node = surfaceButton(`pw-model-corner-${corner}`, `Resize logo from corner ${corner + 1} on the product: drag, or press plus and minus`, '⤢', cornerCursors[corner] ?? 'nwse-resize');
     cornerButtons.push(node);
@@ -316,16 +382,18 @@ export function createModelPlacementView(callbacks: {
   }
   /** Reposition overlay controls from calibrated mm; follows orbit/zoom/resize. Hides when unprojectable. */
   function positionOverlay(): void {
-    if (!viewer || !ready || !data || disposed || forceRotate || placeMode) { overlay.style.display = 'none'; return; }
+    paintAnchors();
+    if (!viewer || !ready || !data || disposed || forceRotate || placeMode || panMode || anchorName !== null) { overlay.style.display = 'none'; return; }
     const item = selectedItem(); const region = item ? regionFor(item) : undefined;
     if (!item || !region) { overlay.style.display = 'none'; return; }
+    if (!regionVisible(region)) { overlay.style.display = 'none'; return; }
     const shown = shownGeomFor(item);
     const cornersMm = rotatedFootprintCorners(shown.xMm, shown.yMm, shown.widthMm, shown.heightMm, shown.rotationDeg);
     const stageRect = stage.getBoundingClientRect();
     if (!Number.isFinite(stageRect.width) || stageRect.width <= 0) { overlay.style.display = 'none'; return; }
     const pts: Array<{ x: number; y: number } | null> = cornersMm.map((corner) => {
       const mp = modelPointFromMm(region.frame, corner.x, corner.y); if (!mp) return null;
-      const client = viewer?.projectToClient(mp); if (!client) return null;
+      const client = viewer?.projectToClient(mp, false); if (!client) return null;
       return { x: client.x - stageRect.left, y: client.y - stageRect.top };
     });
     if (pts.some((point) => point === null)) { overlay.style.display = 'none'; return; }
@@ -336,7 +404,7 @@ export function createModelPlacementView(callbacks: {
     while (overlaySvg.firstChild) overlaySvg.removeChild(overlaySvg.firstChild);
     const projectStage = (xMm: number, yMm: number): { x: number; y: number } | null => {
       const mp = modelPointFromMm(region.frame, xMm, yMm); if (!mp) return null;
-      const client = viewer?.projectToClient(mp); if (!client) return null;
+      const client = viewer?.projectToClient(mp, false); if (!client) return null;
       return { x: client.x - stageRect.left, y: client.y - stageRect.top };
     };
     const drawLine = (a: { x: number; y: number } | null, b: { x: number; y: number } | null, stroke: string, dash: string, width: number): void => {
@@ -362,6 +430,7 @@ export function createModelPlacementView(callbacks: {
     for (let i = 0; i < 4; i += 1) {
       const point = displayCorners[i]; const node = cornerButtons[i]; const tag = cornerLabels[i];
       if (!point || !node || !tag) continue;
+      node.style.display = ''; tag.style.display = '';
       node.style.left = `${point.x}px`; node.style.top = `${point.y}px`;
       const right = i === 1 || i === 2, upper = i >= 2;
       tag.style.left = `${point.x + (right ? 9 : -9)}px`;
@@ -420,14 +489,7 @@ export function createModelPlacementView(callbacks: {
     spinButton.style.display = 'block';
     spinButton.style.left = `${rotate.x}px`; spinButton.style.top = `${rotate.y}px`;
   }
-  /** Opposite-corner-anchored resize: dragged corner follows the pointer, opposite stays fixed. */
-  function resizeFromCorner(base: PreviewGeom, corner: SurfaceCorner, ptrMm: { xMm: number; yMm: number }): PreviewGeom {
-    const resized = resizeFromCornerMm({ cx: base.xMm, cy: base.yMm, widthMm: base.widthMm,
-      heightMm: base.heightMm, rotationDeg: base.rotationDeg }, corner, { x: ptrMm.xMm, y: ptrMm.yMm });
-    return { xMm: resized.cx, yMm: resized.cy, widthMm: resized.widthMm, heightMm: resized.heightMm,
-      rotationDeg: resized.rotationDeg };
-  }
-  /** Calibrated-plane inverse for handles: works beyond the mesh silhouette. */
+  /** Opposite-corner-anchored resize is owned by the shared edit transaction. */
   function planeMm(clientX: number, clientY: number, frame: ModelRegionFrame): { xMm: number; yMm: number } | null {
     if (!viewer) return null;
     const point = viewer.intersectRegionPlane(clientX, clientY, frame);
@@ -435,7 +497,9 @@ export function createModelPlacementView(callbacks: {
     return regionMmFromModel(frame, point);
   }
   function surfacePointerDown(event: PointerEvent, mode: 'resize-surface' | 'spin-surface', captureEl: HTMLElement, corner?: SurfaceCorner): void {
-    if (!viewer || !ready || !data || event.button !== 0 || !event.isPrimary || callbacks.canEdit?.() === false) return;
+    // Direct manipulation is primary: no hidden pending-field Apply gate blocks
+    // handle drags. Staged numeric edits are reconciled by the workspace commit.
+    if (!viewer || !ready || !data || event.button !== 0 || !event.isPrimary) return;
     if (active) cancel();
     const item = selectedItem(); if (!item) return;
     const region = regionFor(item); if (!region) return;
@@ -476,7 +540,20 @@ export function createModelPlacementView(callbacks: {
       state.textContent = previewStatus(op.geom, rot.snapped);
       emitPreview(op.index, op.geom);
     } else {
-      op.geom = resizeFromCorner(op.base, op.corner, { xMm: mm.xMm + op.grabOffset.xMm, yMm: mm.yMm + op.grabOffset.yMm });
+      // Unified transaction: locked corner drags scale uniformly from the
+      // opposite corner so the persisted ratio is preserved exactly.
+      const tx = resizeCornerTx(
+        beginEdit(
+          { xMm: op.base.xMm, yMm: op.base.yMm, widthMm: op.base.widthMm,
+            heightMm: op.base.heightMm, rotationDeg: op.base.rotationDeg },
+          policyForIndex(op.index),
+        ),
+        op.corner,
+        { xMm: mm.xMm + op.grabOffset.xMm, yMm: mm.yMm + op.grabOffset.yMm },
+      );
+      const next = tx.candidate;
+      op.geom = { xMm: next.xMm, yMm: next.yMm, widthMm: next.widthMm,
+        heightMm: next.heightMm, rotationDeg: next.rotationDeg };
       lastGuides = [];
       artworkSignature = ''; paint({ index: op.index, geom: op.geom });
       state.textContent = previewStatus(op.geom, false);
@@ -580,7 +657,24 @@ export function createModelPlacementView(callbacks: {
       syncTools(); syncHandles();
     }
   }
-  function hitItem(point: ModelPoint): ModelPlacementItem | undefined {
+  /**
+   * Logo hit test at client coords using the actual mesh triangle normal:
+   * regions whose calibrated outward normal faces away from the picked
+   * face (opposite shell) never own the pointer. Falls back to the
+   * position-only pick when detailed normals are unavailable.
+   */
+  function hitItem(clientX: number, clientY: number): ModelPlacementItem | undefined {
+    if (!viewer) return undefined;
+    let normal: { x: number; y: number; z: number } | null = null;
+    let point: { x: number; y: number; z: number } | null = null;
+    try {
+      const detailed = typeof viewer.pickSurfaceDetailed === 'function'
+        ? viewer.pickSurfaceDetailed(clientX, clientY)
+        : null;
+      if (detailed !== null) { normal = detailed.normal; point = detailed.modelPosition; }
+      else point = viewer.pickSurface(clientX, clientY)?.modelPosition ?? null;
+    } catch { return undefined; }
+    if (!point) return undefined;
     let best: ModelPlacementItem | undefined, distance = Infinity;
     for (const item of data?.items ?? []) {
       const region = regionFor(item); if (!region) continue;
@@ -590,20 +684,34 @@ export function createModelPlacementView(callbacks: {
       if (Math.abs(x) > p.widthMm / 2 || Math.abs(y) > p.heightMm / 2) continue;
       const onPlane = modelPointFromMm(region.frame, mm.xMm, mm.yMm); if (!onPlane) continue;
       const depth = Math.hypot(point.x - onPlane.x, point.y - onPlane.y, point.z - onPlane.z);
+      // Calibration plane winding is arbitrary. Cull by the actual visible
+      // garment surface, not the sign of its coordinate-frame normal.
+      if (!regionVisible(region)) continue;
       if (depth < distance) { distance = depth; best = item; }
     }
     return best;
   }
   canvas.addEventListener('pointerdown', (event) => {
-    if (!viewer || !ready || !data || forceRotate || event.button !== 0 || !event.isPrimary || callbacks.canEdit?.() === false) return;
+    // Pan tool reserves pointer before logo hit testing: navigation reaches
+    // OrbitControls untouched. Right/middle drags always pan/zoom natively.
+    if (!viewer || !ready || !data || forceRotate || panMode || event.button !== 0 || !event.isPrimary) return;
+    if (anchorName !== null) {
+      const region = data.scene.regions.find((entry) => entry.id === data?.activeRegionId);
+      const hit = viewer.pickSurface(event.clientX, event.clientY);
+      if (!region || !regionVisible(region)) { callbacks.status('Choose a visible calibrated area before adding a reference point.'); return; }
+      if (!hit) { callbacks.status('Reference point missed the product. Click directly on its surface; Escape cancels.'); return; }
+      const mm = regionMmFromModel(region.frame, hit.modelPosition); if (!mm) { callbacks.status('That surface point could not be mapped to the calibrated area.'); return; }
+      event.preventDefault(); event.stopImmediatePropagation();
+      const name = anchorName; anchorName = null; callbacks.anchor?.(region.id, mm, name); return;
+    }
     if (active?.mode === 'adjust') cancel();
-    const hit = viewer.pickSurface(event.clientX, event.clientY); if (!hit) return;
-    const item = placeMode ? data.items.find((entry) => entry.index === data?.selectedIndex) : hitItem(hit.modelPosition);
+    const item = placeMode ? data.items.find((entry) => entry.index === data?.selectedIndex) : hitItem(event.clientX, event.clientY);
     if (!item) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (item.index !== data.selectedIndex) { callbacks.select(item.index); return; }
     const region = regionFor(item); if (!region) return;
-    const mm = regionMmFromModel(region.frame, hit.modelPosition); if (!mm) return;
+    const surface = viewer.pickSurface(event.clientX, event.clientY); if (!surface) return;
+    const mm = regionMmFromModel(region.frame, surface.modelPosition); if (!mm) return;
     active = { mode: 'move', index: item.index, pointer: event.pointerId, frame: region.frame, safe: safeMmFor(region), base: committedGeom(item), offset: placeMode ? { xMm: 0, yMm: 0 } : { xMm: item.placement.pos.xMm - mm.xMm, yMm: item.placement.pos.yMm - mm.yMm }, startX: event.clientX, startY: event.clientY, revision: data.revision, geom: null };
     viewer.setOrbitEnabled(false); canvas.setPointerCapture(event.pointerId); syncHandles();
   }, { capture: true, signal: aborter.signal });
@@ -645,17 +753,50 @@ export function createModelPlacementView(callbacks: {
   canvas.addEventListener('lostpointercapture', () => { if (active) cancel(); }, { signal: aborter.signal });
   window.addEventListener('blur', cancel, { signal: aborter.signal });
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && anchorName !== null) { anchorName = null; state.textContent = 'Reference point cancelled.'; }
     if (event.key === 'Escape' && active) {
       const wasMove = active.mode === 'move';
       cancel(); callbacks.status(wasMove ? 'Move cancelled. Position unchanged.' : 'Resize cancelled. Size unchanged.');
     }
   }, { signal: aborter.signal });
+  let markerSignature = '';
+  function paintAnchors(): void {
+    if (!viewer || !data || !ready) return;
+    const anchors = (data.anchors ?? []).filter((anchor) => {
+      const region = data?.scene.regions.find((entry) => entry.id === anchor.regionId);
+      return !region || regionVisible(region);
+    });
+    const signature = JSON.stringify(anchors);
+    if (signature === markerSignature) return;
+    markerSignature = signature; viewer.setAnchorMarkers(anchors);
+  }
   function paintAreas(): void {
     if (!viewer || !data || !ready) return;
+    paintAnchors();
     viewer.setSafeAreaOverlays(data.scene.regions.map((region) => ({ id: region.id, pointsModel: region.pointsModel, selected: region.id === data?.activeRegionId })));
   }
   return {
     element,
+    beginAnchorPick(name) { anchorName = name; panMode = false; forceRotate = false; placeMode = false; syncTools(); state.textContent = 'Click the product to set a named physical reference point. Escape cancels.'; },
+    dropPoint(clientX, clientY) {
+      if (!viewer || !ready || !data) return null;
+      const mode = viewer.getInteractionMode();
+      viewer.setInteractionMode('select');
+      try {
+        const hit = viewer.pickSurface(clientX, clientY); if (!hit) return null;
+        let best: { regionId: string; pos: { xMm: number; yMm: number }; gap: number; inside: boolean } | null = null;
+        for (const region of data.scene.regions) {
+          if (!regionVisible(region)) continue;
+          const mm = regionMmFromModel(region.frame, hit.modelPosition); if (!mm) continue;
+          const safe = safeMmFor(region).map(([x, y]) => ({ x, y }));
+          const inside = pointInPolygon(safe, { x: mm.xMm, y: mm.yMm }) !== 'outside';
+          const n = region.frame.normal, origin = region.frame.origin;
+          const gap = Math.abs((hit.modelPosition.x - origin.x) * n.x + (hit.modelPosition.y - origin.y) * n.y + (hit.modelPosition.z - origin.z) * n.z);
+          if (!best || (inside && !best.inside) || (inside === best.inside && gap < best.gap)) best = { regionId: region.id, pos: mm, gap, inside };
+        }
+        return best ? { regionId: best.regionId, pos: best.pos } : null;
+      } finally { viewer.setInteractionMode(mode); }
+    },
     update(next) {
       if (disposed) return;
       if (active && (data?.revision !== next.revision || data?.selectedIndex !== next.selectedIndex || data?.activeRegionId !== next.activeRegionId)) cancel();
@@ -663,7 +804,7 @@ export function createModelPlacementView(callbacks: {
       for (const src of images.keys()) if (!next.items.some((item) => item.imageSrc === src)) images.delete(src);
       if (key !== next.scene.key) {
         key = next.scene.key; const token = ++generation; ready = false;
-        images.clear(); artworkSignature = '';
+        images.clear(); artworkSignature = ''; markerSignature = '';
         if (!viewer) viewer = ModelViewer.attach({ canvas, container: stage, background: 0xffffff }).viewer;
         if (!viewer) { state.textContent = 'The product view needs WebGL. Set up the product or use another supported browser.'; return; }
         viewer.onFrame = () => positionOverlay();

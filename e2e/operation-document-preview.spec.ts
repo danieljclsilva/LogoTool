@@ -112,7 +112,7 @@ test('operation sheet shows business identity, mm sizes and unfinished notes wit
   await expect(host).toContainText('Synthetic Mark B');
   await expect(host).toContainText('60.0 × 30.0 mm');
   // This read-only page authors nothing: every logo honestly reports setup needed.
-  await expect(host).toContainText('Dimensions not set — setup needed.');
+  await expect(host).toContainText('Placement measurements not set — setup needed.');
   await expect(host).toContainText('setup needed before production');
   // No technical envelope on the operator sheet: no digest, revision, config,
   // logo, region, frame or calibration ids, no review status, no customer notes.
