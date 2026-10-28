@@ -33,7 +33,7 @@ interface ViewData { anchors?: Array<{ id: string; model: ModelPoint; regionId?:
 export interface ModelPlacementCommitPatch { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number }
 export interface ModelPlacementView {
   element: HTMLElement;
-  update(data: ViewData): void;
+  update(data: ViewData | null): void;
   beginAnchorPick(name: string): void;
   dropPoint(clientX: number, clientY: number): { regionId: string; pos: { xMm: number; yMm: number } } | null;
   destroy(): void;
@@ -46,6 +46,13 @@ type ActiveOp =
   | { mode: 'adjust'; index: number; revision: string; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; control: HTMLElement | null }
   | { mode: 'resize-surface'; index: number; pointer: number; frame: ModelRegionFrame; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; corner: 0 | 1 | 2 | 3; grabOffset: { xMm: number; yMm: number }; captureEl: HTMLElement; revision: string }
   | { mode: 'spin-surface'; index: number; pointer: number; frame: ModelRegionFrame; safe: MmPolygon; base: PreviewGeom; geom: PreviewGeom; offsetDeg: number; captureEl: HTMLElement; revision: string };
+
+export interface ModelPlacementSharedSurface {
+  canvas: HTMLCanvasElement;
+  stage: HTMLElement;
+  getViewer(): ModelViewer | null;
+  isActive(): boolean;
+}
 
 /** Persistent camera + local raster assets. Only release commits canonical mm. */
 export function createModelPlacementView(callbacks: {
@@ -60,13 +67,24 @@ export function createModelPlacementView(callbacks: {
   commit?(index: number, patch: ModelPlacementCommitPatch): void;
   /** Advisory live preview (mm); never staged or committed by the receiver. */
   preview?(index: number, patch: ModelPlacementCommitPatch): void;
+  /**
+   * OPTIONAL borrowed surface (root-owned unified workspace). When provided,
+   * use those actual existing DOM canvas/stage and the provided viewer.
+   * Never reparent the external stage, never attach another ModelViewer,
+   * never call showModel(), never dispose the shared viewer. Root loads the
+   * asset and owns lifetime; getViewer() returns null until its model is
+   * ready. Ordinary standalone behavior without sharedSurface is unchanged.
+   */
+  sharedSurface?: ModelPlacementSharedSurface;
 }): ModelPlacementView {
+  const shared = callbacks.sharedSurface ?? null;
   const element = document.createElement('section'); element.className = 'model-placement-workbench';
   element.setAttribute('data-placement-hook', 'pw-model-workbench');
   const bar = document.createElement('div'); bar.className = 'model-placement-toolbar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Product placement controls');
-  const stage = document.createElement('div'); stage.className = 'model-placement-stage';
-  const canvas = document.createElement('canvas'); canvas.setAttribute('aria-label', 'Place logos directly on the product'); canvas.setAttribute('data-placement-hook', 'pw-model-canvas');
-  stage.append(canvas);
+  const stage = shared?.stage ?? document.createElement('div'); if (!shared) stage.className = 'model-placement-stage';
+  const canvas = shared?.canvas ?? document.createElement('canvas');
+  if (!shared) { canvas.setAttribute('aria-label', 'Place logos directly on the product'); stage.append(canvas); }
+  canvas.setAttribute('data-placement-hook', 'pw-model-canvas');
   // On-surface overlay: corner resize handles + rotation handle + corner-distance labels,
   // positioned each frame from calibrated mm via viewer.projectToClient. Pointer-events
   // stay on the small controls only so canvas drag/orbit is unaffected.
@@ -86,7 +104,7 @@ export function createModelPlacementView(callbacks: {
   hint.textContent = 'Drag a logo to move it; drag empty product to rotate. Move logo lets you click a new spot. Use the size and rotation handles for fine changes. Hold Shift for unsnapped fine adjustment. Sizes and positions stay in millimetres.';
   const notice = document.createElement('p'); notice.className = 'pw-muted'; notice.textContent = 'Provisional surface preview — verify physical measurements before production.';
   const state = document.createElement('p'); state.className = 'pw-status pw-muted'; state.setAttribute('role', 'status'); state.setAttribute('data-placement-hook', 'pw-model-status');
-  element.append(bar, stage, handles, hint, notice, state);
+  element.append(bar, ...(shared ? [] : [stage]), handles, hint, notice, state);
   let viewer: ModelViewer | null = null;
   let data: ViewData | null = null;
   let key = '', generation = 0, disposed = false, ready = false, forceRotate = false, placeMode = false, panMode = false;
@@ -98,6 +116,24 @@ export function createModelPlacementView(callbacks: {
   let fineHeld = false;
   let frameRequest = 0;
   const buttons: HTMLButtonElement[] = [];
+  /**
+   * Borrowed-surface helpers (root-owned unified workspace). Standalone path
+   * (shared === null) keeps the previous behavior verbatim: own viewer,
+   * own stage/canvas, own lifetime.
+   */
+  function viewerOf(): ModelViewer | null { return shared ? shared.getViewer() : viewer; }
+  function stageOf(): HTMLElement { return shared ? shared.stage : stage; }
+  function sharedActive(): boolean { return shared === null || shared.isActive(); }
+  if (shared) {
+    // The shared canvas can carry both the builder hook and the placement
+    // hook; never remove or reparent root-owned DOM here.
+    try {
+      if (!shared.canvas.hasAttribute('data-placement-hook')) shared.canvas.setAttribute('data-placement-hook', 'pw-model-canvas');
+    } catch { /* placement hook is advisory */ }
+    // Own overlay may live on the shared stage (positioned host owned by
+    // root); the external stage itself is never reparented into element.
+    try { shared.stage.append(overlay); } catch { /* overlay stays local */ }
+  }
   function button(label: string, action: (event: MouseEvent) => void, hook: string): HTMLButtonElement {
     const node = document.createElement('button'); node.type = 'button'; node.className = 'pw-secondary'; node.textContent = label;
     node.setAttribute('data-placement-hook', hook); node.addEventListener('click', action); bar.append(node); buttons.push(node); return node;
@@ -106,9 +142,9 @@ export function createModelPlacementView(callbacks: {
   const pan = button('Pan', () => { anchorName = null; forceRotate = false; placeMode = false; panMode = true; syncTools(); }, 'pw-model-pan');
   const move = button('Move logo', () => { anchorName = null; forceRotate = false; placeMode = true; panMode = false; syncTools(); }, 'pw-model-move');
   move.title = 'Select or move: click a logo to select it, drag it to move it';
-  button('Front', () => viewer?.setViewSide('front'), 'pw-model-front');
-  button('Back', () => viewer?.setViewSide('back'), 'pw-model-back');
-  button('Fit', () => viewer?.fitCurrentView(), 'pw-model-fit');
+  button('Front', () => { if (sharedActive()) viewerOf()?.setViewSide('front'); }, 'pw-model-front');
+  button('Back', () => { if (sharedActive()) viewerOf()?.setViewSide('back'); }, 'pw-model-back');
+  button('Fit', () => { if (sharedActive()) viewerOf()?.fitCurrentView(); }, 'pw-model-fit');
   button('−', () => zoom(-1), 'pw-model-zoom-out').setAttribute('aria-label', 'Zoom out product');
   button('+', () => zoom(1), 'pw-model-zoom-in').setAttribute('aria-label', 'Zoom in product');
   const expand = button('Enlarge workspace', () => { callbacks.expand(); syncTools(); }, 'pw-model-expand');
@@ -118,7 +154,7 @@ export function createModelPlacementView(callbacks: {
   function syncTools(): void {
     rotate.setAttribute('aria-pressed', String(forceRotate)); move.setAttribute('aria-pressed', String(placeMode));
     pan.setAttribute('aria-pressed', String(panMode));
-    viewer?.setInteractionMode(panMode ? 'pan' : 'select');
+    viewerOf()?.setInteractionMode(panMode ? 'pan' : 'select');
     move.disabled = data === null || data.selectedIndex < 0;
     expand.textContent = callbacks.isExpanded() ? 'Close enlarged view' : 'Enlarge workspace';
     expand.setAttribute('aria-expanded', String(callbacks.isExpanded()));
@@ -131,20 +167,22 @@ export function createModelPlacementView(callbacks: {
     }
   }
   function zoom(direction: number): void {
+    if (shared && !shared.isActive()) return;
     const steps = [50, 75, 100, 125, 150, 200, 300, 400];
-    const i = steps.indexOf(viewer?.getZoomPercent() ?? 100);
-    viewer?.setZoomPercent(steps[Math.min(steps.length - 1, Math.max(0, i + direction))]!);
+    const i = steps.indexOf(viewerOf()?.getZoomPercent() ?? 100);
+    viewerOf()?.setZoomPercent(steps[Math.min(steps.length - 1, Math.max(0, i + direction))]!);
   }
   let visibleCameraKey = '';
   const regionVisibility = new Map<string, boolean>();
   function regionVisible(region: ModelPlacementRegion): boolean {
-    if (!viewer || !data) return false;
-    const state = viewer.getCameraState();
+    const activeViewer = viewerOf();
+    if (!activeViewer || !data) return false;
+    const state = activeViewer.getCameraState();
     const key = JSON.stringify([data.scene.key, data.scene.regions.map((r) => [r.id, r.pointsModel[0], r.frame.normal]), state?.position, state?.target]);
     if (key !== visibleCameraKey) { visibleCameraKey = key; regionVisibility.clear(); }
     const cached = regionVisibility.get(region.id); if (cached !== undefined) return cached;
     const anchor = region.pointsModel[0];
-    const visible = !anchor || viewer.isSurfaceFacing(anchor, region.frame.normal) !== false;
+    const visible = !anchor || activeViewer.isSurfaceFacing(anchor, region.frame.normal) !== false;
     regionVisibility.set(region.id, visible); return visible;
   }
   function regionFor(item: ModelPlacementItem): ModelPlacementRegion | undefined { return data?.scene.regions.find((region) => region.id === item.placement.regionId); }
@@ -207,6 +245,7 @@ export function createModelPlacementView(callbacks: {
   }
   /** Refresh handle enablement and slider positions from committed geometry (or live preview for idle controls). */
   function syncHandles(): void {
+    if (shared) { handles.replaceChildren(); handles.hidden = true; return; }
     const item = selectedItem();
     const region = item ? regionFor(item) : undefined;
     if (!item || !region || (active && active.mode !== 'adjust')) { setHandlesEnabled(false); return; }
@@ -383,17 +422,18 @@ export function createModelPlacementView(callbacks: {
   /** Reposition overlay controls from calibrated mm; follows orbit/zoom/resize. Hides when unprojectable. */
   function positionOverlay(): void {
     paintAnchors();
-    if (!viewer || !ready || !data || disposed || forceRotate || placeMode || panMode || anchorName !== null) { overlay.style.display = 'none'; return; }
+    const activeViewer = viewerOf();
+    if (!activeViewer || !ready || !data || disposed || forceRotate || placeMode || panMode || anchorName !== null || !sharedActive()) { overlay.style.display = 'none'; return; }
     const item = selectedItem(); const region = item ? regionFor(item) : undefined;
     if (!item || !region) { overlay.style.display = 'none'; return; }
     if (!regionVisible(region)) { overlay.style.display = 'none'; return; }
     const shown = shownGeomFor(item);
     const cornersMm = rotatedFootprintCorners(shown.xMm, shown.yMm, shown.widthMm, shown.heightMm, shown.rotationDeg);
-    const stageRect = stage.getBoundingClientRect();
+    const stageRect = stageOf().getBoundingClientRect();
     if (!Number.isFinite(stageRect.width) || stageRect.width <= 0) { overlay.style.display = 'none'; return; }
     const pts: Array<{ x: number; y: number } | null> = cornersMm.map((corner) => {
       const mp = modelPointFromMm(region.frame, corner.x, corner.y); if (!mp) return null;
-      const client = viewer?.projectToClient(mp, false); if (!client) return null;
+      const client = activeViewer.projectToClient(mp, false); if (!client) return null;
       return { x: client.x - stageRect.left, y: client.y - stageRect.top };
     });
     if (pts.some((point) => point === null)) { overlay.style.display = 'none'; return; }
@@ -404,7 +444,7 @@ export function createModelPlacementView(callbacks: {
     while (overlaySvg.firstChild) overlaySvg.removeChild(overlaySvg.firstChild);
     const projectStage = (xMm: number, yMm: number): { x: number; y: number } | null => {
       const mp = modelPointFromMm(region.frame, xMm, yMm); if (!mp) return null;
-      const client = viewer?.projectToClient(mp, false); if (!client) return null;
+      const client = activeViewer.projectToClient(mp, false); if (!client) return null;
       return { x: client.x - stageRect.left, y: client.y - stageRect.top };
     };
     const drawLine = (a: { x: number; y: number } | null, b: { x: number; y: number } | null, stroke: string, dash: string, width: number): void => {
@@ -491,15 +531,20 @@ export function createModelPlacementView(callbacks: {
   }
   /** Opposite-corner-anchored resize is owned by the shared edit transaction. */
   function planeMm(clientX: number, clientY: number, frame: ModelRegionFrame): { xMm: number; yMm: number } | null {
-    if (!viewer) return null;
-    const point = viewer.intersectRegionPlane(clientX, clientY, frame);
+    const activeViewer = viewerOf();
+    if (!activeViewer) return null;
+    const point = activeViewer.intersectRegionPlane(clientX, clientY, frame);
     if (!point) return null;
     return regionMmFromModel(frame, point);
   }
   function surfacePointerDown(event: PointerEvent, mode: 'resize-surface' | 'spin-surface', captureEl: HTMLElement, corner?: SurfaceCorner): void {
+    // Gated by workspace activity: an inactive borrowed controller never
+    // intercepts setup picks or mutates shared overlays.
+    if (!sharedActive()) return;
     // Direct manipulation is primary: no hidden pending-field Apply gate blocks
     // handle drags. Staged numeric edits are reconciled by the workspace commit.
-    if (!viewer || !ready || !data || event.button !== 0 || !event.isPrimary) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !ready || !data || event.button !== 0 || !event.isPrimary) return;
     if (active) cancel();
     const item = selectedItem(); if (!item) return;
     const region = regionFor(item); if (!region) return;
@@ -519,13 +564,14 @@ export function createModelPlacementView(callbacks: {
       active = { mode, index: item.index, pointer: event.pointerId, frame: region.frame, safe, base, geom: { ...base }, corner: cornerIndex,
         grabOffset: { xMm: actual.x - mm.xMm, yMm: actual.y - mm.yMm }, captureEl, revision: data.revision };
     }
-    viewer.setOrbitEnabled(false);
+    viewerOf()?.setOrbitEnabled(false);
     try { captureEl.setPointerCapture(event.pointerId); } catch { /* drag continues without capture */ }
     syncHandles();
   }
   function surfacePointerMove(event: PointerEvent): void {
+    if (!sharedActive()) return;
     const op = active;
-    if (!op || (op.mode !== 'resize-surface' && op.mode !== 'spin-surface') || op.pointer !== event.pointerId || !viewer || !data) return;
+    if (!op || (op.mode !== 'resize-surface' && op.mode !== 'spin-surface') || op.pointer !== event.pointerId || !viewerOf() || !data) return;
     const mm = planeMm(event.clientX, event.clientY, op.frame);
     if (!mm) return;
     const unsnapped = event.shiftKey || event.altKey || fineHeld;
@@ -562,6 +608,7 @@ export function createModelPlacementView(callbacks: {
     syncHandles();
   }
   function surfacePointerUp(event: PointerEvent): void {
+    if (!sharedActive()) return;
     const op = active;
     if (!op || (op.mode !== 'resize-surface' && op.mode !== 'spin-surface') || op.pointer !== event.pointerId || !data) return;
     surfacePointerMove(event);
@@ -577,6 +624,7 @@ export function createModelPlacementView(callbacks: {
   }
   /** Keyboard equivalents for on-surface handles: arrows nudge, +/- size, [/] rotate. */
   function surfaceKey(event: KeyboardEvent): void {
+    if (!sharedActive()) return;
     const target = event.currentTarget;
     if (!(target instanceof HTMLElement)) return;
     const item = selectedItem(); if (!item) return;
@@ -621,7 +669,8 @@ export function createModelPlacementView(callbacks: {
     return null;
   }
   function paint(preview?: { index: number; geom: PreviewGeom }): void {
-    if (!viewer || !ready || !data || disposed) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !ready || !data || disposed || !sharedActive()) return;
     const signature = JSON.stringify([data.scene.regions, data.items.map((item) => [item.index, item.placement, item.fits, item.imageSrc, item.imageSrc ? images.get(item.imageSrc)?.complete : false]), data.selectedIndex, preview]);
     if (signature === artworkSignature) return;
     const overlays: SurfaceArtworkItem[] = [];
@@ -640,14 +689,14 @@ export function createModelPlacementView(callbacks: {
       const anchor = region.pointsModel[0]; if (!anchor) continue;
       overlays.push({ id: String(item.index), cornersModel: corners as ModelPoint[], anchorModel: anchor, depthModel: Math.max(reach, shown.widthMm / region.frame.mmPerUnit), image, fits: item.fits, selected: item.index === data.selectedIndex });
     }
-    viewer.setSurfaceArtworkOverlays(overlays);
+    viewerOf()?.setSurfaceArtworkOverlays(overlays);
     element.dataset.projectedArtworkCount = String(overlays.length);
-    element.dataset.artworkCount = String(viewer.getSurfaceArtworkCount());
+    element.dataset.artworkCount = String(activeViewer.getSurfaceArtworkCount());
     artworkSignature = signature;
   }
   function cancel(): void {
-    const old = active; active = null; fineHeld = false; lastGuides = []; viewer?.setOrbitEnabled(true);
-    if (old && old.mode === 'move') { try { canvas.releasePointerCapture(old.pointer); } catch { /* released already */ } }
+    const old = active; active = null; fineHeld = false; lastGuides = []; viewerOf()?.setOrbitEnabled(true);
+    if (old && old.mode === 'move') { try { (shared?.canvas ?? canvas).releasePointerCapture(old.pointer); } catch { /* released already */ } }
     else if (old && (old.mode === 'resize-surface' || old.mode === 'spin-surface')) { try { old.captureEl.releasePointerCapture(old.pointer); } catch { /* released already */ } }
     if (frameRequest) cancelAnimationFrame(frameRequest); frameRequest = 0;
     artworkSignature = ''; paint(); positionOverlay();
@@ -664,15 +713,17 @@ export function createModelPlacementView(callbacks: {
    * position-only pick when detailed normals are unavailable.
    */
   function hitItem(clientX: number, clientY: number): ModelPlacementItem | undefined {
-    if (!viewer) return undefined;
+    if (!sharedActive()) return undefined;
+    const activeViewer = viewerOf();
+    if (!activeViewer) return undefined;
     let normal: { x: number; y: number; z: number } | null = null;
     let point: { x: number; y: number; z: number } | null = null;
     try {
-      const detailed = typeof viewer.pickSurfaceDetailed === 'function'
-        ? viewer.pickSurfaceDetailed(clientX, clientY)
+      const detailed = typeof activeViewer.pickSurfaceDetailed === 'function'
+        ? activeViewer.pickSurfaceDetailed(clientX, clientY)
         : null;
       if (detailed !== null) { normal = detailed.normal; point = detailed.modelPosition; }
-      else point = viewer.pickSurface(clientX, clientY)?.modelPosition ?? null;
+      else point = activeViewer.pickSurface(clientX, clientY)?.modelPosition ?? null;
     } catch { return undefined; }
     if (!point) return undefined;
     let best: ModelPlacementItem | undefined, distance = Infinity;
@@ -691,13 +742,17 @@ export function createModelPlacementView(callbacks: {
     }
     return best;
   }
-  canvas.addEventListener('pointerdown', (event) => {
+  function canvasDown(event: PointerEvent): void {
+    // Gated by workspace activity: an inactive borrowed controller never
+    // intercepts setup picks or starts placement gestures.
+    if (!sharedActive()) return;
     // Pan tool reserves pointer before logo hit testing: navigation reaches
     // OrbitControls untouched. Right/middle drags always pan/zoom natively.
-    if (!viewer || !ready || !data || forceRotate || panMode || event.button !== 0 || !event.isPrimary) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !ready || !data || forceRotate || panMode || event.button !== 0 || !event.isPrimary) return;
     if (anchorName !== null) {
       const region = data.scene.regions.find((entry) => entry.id === data?.activeRegionId);
-      const hit = viewer.pickSurface(event.clientX, event.clientY);
+      const hit = activeViewer.pickSurface(event.clientX, event.clientY);
       if (!region || !regionVisible(region)) { callbacks.status('Choose a visible calibrated area before adding a reference point.'); return; }
       if (!hit) { callbacks.status('Reference point missed the product. Click directly on its surface; Escape cancels.'); return; }
       const mm = regionMmFromModel(region.frame, hit.modelPosition); if (!mm) { callbacks.status('That surface point could not be mapped to the calibrated area.'); return; }
@@ -710,14 +765,21 @@ export function createModelPlacementView(callbacks: {
     event.preventDefault(); event.stopImmediatePropagation();
     if (item.index !== data.selectedIndex) { callbacks.select(item.index); return; }
     const region = regionFor(item); if (!region) return;
-    const surface = viewer.pickSurface(event.clientX, event.clientY); if (!surface) return;
+    const surface = activeViewer.pickSurface(event.clientX, event.clientY); if (!surface) return;
     const mm = regionMmFromModel(region.frame, surface.modelPosition); if (!mm) return;
     active = { mode: 'move', index: item.index, pointer: event.pointerId, frame: region.frame, safe: safeMmFor(region), base: committedGeom(item), offset: placeMode ? { xMm: 0, yMm: 0 } : { xMm: item.placement.pos.xMm - mm.xMm, yMm: item.placement.pos.yMm - mm.yMm }, startX: event.clientX, startY: event.clientY, revision: data.revision, geom: null };
-    viewer.setOrbitEnabled(false); canvas.setPointerCapture(event.pointerId); syncHandles();
-  }, { capture: true, signal: aborter.signal });
-  canvas.addEventListener('pointermove', (event) => {
-    if (!active || active.mode !== 'move' || active.pointer !== event.pointerId || !viewer) return;
-    const hit = viewer.pickSurface(event.clientX, event.clientY);
+    viewerOf()?.setOrbitEnabled(false);
+    try { (event.currentTarget as HTMLCanvasElement | null)?.setPointerCapture(event.pointerId); } catch { /* drag continues without capture */ }
+    syncHandles();
+  }
+  canvas.addEventListener('pointerdown', canvasDown, { capture: true, signal: aborter.signal });
+  // Borrowed canvas: same placement gesture, gated by isActive() inside.
+  // Never reparented; removed via the shared abort signal on destroy.
+  function canvasMove(event: PointerEvent): void {
+    if (!sharedActive()) return;
+    if (!active || active.mode !== 'move' || active.pointer !== event.pointerId || !viewerOf()) return;
+    const activeViewer = viewerOf();
+    const hit = activeViewer?.pickSurface(event.clientX, event.clientY);
     const mm = hit ? regionMmFromModel(active.frame, hit.modelPosition) : null;
     const raw = mm ? { xMm: mm.xMm + active.offset.xMm, yMm: mm.yMm + active.offset.yMm } : null;
     const unsnapped = event.shiftKey || event.altKey;
@@ -732,10 +794,13 @@ export function createModelPlacementView(callbacks: {
         emitPreview(active.index, active.geom);
       }
     });
-  }, { signal: aborter.signal });
-  canvas.addEventListener('pointerup', (event) => {
-    const drag = active; if (!drag || drag.mode !== 'move' || drag.pointer !== event.pointerId || !viewer || !data) return;
-    const hit = viewer.pickSurface(event.clientX, event.clientY);
+  }
+  canvas.addEventListener('pointermove', canvasMove, { signal: aborter.signal });
+  function canvasUp(event: PointerEvent): void {
+    if (!sharedActive()) return;
+    const drag = active; if (!drag || drag.mode !== 'move' || drag.pointer !== event.pointerId || !viewerOf() || !data) return;
+    const activeViewer = viewerOf();
+    const hit = activeViewer?.pickSurface(event.clientX, event.clientY);
     const mm = hit ? regionMmFromModel(drag.frame, hit.modelPosition) : null;
     const commit = mm && drag.revision === data.revision && (placeMode || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4);
     let snapped: { xMm: number; yMm: number } | null = null;
@@ -748,42 +813,49 @@ export function createModelPlacementView(callbacks: {
     if (snapped) callbacks.move(drag.index, snapped);
     else if (!hit) { state.textContent = 'Move cancelled: release on the product surface. Position unchanged.'; callbacks.status(state.textContent); }
     placeMode = false; syncTools();
-  }, { signal: aborter.signal });
-  canvas.addEventListener('pointercancel', cancel, { signal: aborter.signal });
-  canvas.addEventListener('lostpointercapture', () => { if (active) cancel(); }, { signal: aborter.signal });
-  window.addEventListener('blur', cancel, { signal: aborter.signal });
+  }
+  canvas.addEventListener('pointerup', canvasUp, { signal: aborter.signal });
+  canvas.addEventListener('pointercancel', () => { if (sharedActive()) cancel(); }, { signal: aborter.signal });
+  canvas.addEventListener('lostpointercapture', () => { if (sharedActive() && active) cancel(); }, { signal: aborter.signal });
+  window.addEventListener('blur', () => { if (sharedActive()) cancel(); }, { signal: aborter.signal });
   document.addEventListener('keydown', (event) => {
+    if (!sharedActive()) return;
+    if (event.key === 'Escape' && (anchorName !== null || active !== null)) { event.preventDefault(); event.stopImmediatePropagation(); }
     if (event.key === 'Escape' && anchorName !== null) { anchorName = null; state.textContent = 'Reference point cancelled.'; }
     if (event.key === 'Escape' && active) {
       const wasMove = active.mode === 'move';
       cancel(); callbacks.status(wasMove ? 'Move cancelled. Position unchanged.' : 'Resize cancelled. Size unchanged.');
     }
-  }, { signal: aborter.signal });
+  }, { capture: true, signal: aborter.signal });
   let markerSignature = '';
   function paintAnchors(): void {
-    if (!viewer || !data || !ready) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !data || !ready || !sharedActive()) return;
     const anchors = (data.anchors ?? []).filter((anchor) => {
       const region = data?.scene.regions.find((entry) => entry.id === anchor.regionId);
       return !region || regionVisible(region);
     });
     const signature = JSON.stringify(anchors);
     if (signature === markerSignature) return;
-    markerSignature = signature; viewer.setAnchorMarkers(anchors);
+    markerSignature = signature; activeViewer.setAnchorMarkers(anchors);
   }
   function paintAreas(): void {
-    if (!viewer || !data || !ready) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !data || !ready || !sharedActive()) return;
     paintAnchors();
-    viewer.setSafeAreaOverlays(data.scene.regions.map((region) => ({ id: region.id, pointsModel: region.pointsModel, selected: region.id === data?.activeRegionId })));
+    activeViewer.setSafeAreaOverlays(data.scene.regions.map((region) => ({ id: region.id, pointsModel: region.pointsModel, selected: region.id === data?.activeRegionId })));
   }
   return {
     element,
     beginAnchorPick(name) { anchorName = name; panMode = false; forceRotate = false; placeMode = false; syncTools(); state.textContent = 'Click the product to set a named physical reference point. Escape cancels.'; },
     dropPoint(clientX, clientY) {
-      if (!viewer || !ready || !data) return null;
-      const mode = viewer.getInteractionMode();
-      viewer.setInteractionMode('select');
+      if (!sharedActive()) return null;
+      const activeViewer = viewerOf();
+      if (!activeViewer || !ready || !data) return null;
+      const mode = activeViewer.getInteractionMode();
+      activeViewer.setInteractionMode('select');
       try {
-        const hit = viewer.pickSurface(clientX, clientY); if (!hit) return null;
+        const hit = activeViewer.pickSurface(clientX, clientY); if (!hit) return null;
         let best: { regionId: string; pos: { xMm: number; yMm: number }; gap: number; inside: boolean } | null = null;
         for (const region of data.scene.regions) {
           if (!regionVisible(region)) continue;
@@ -795,10 +867,65 @@ export function createModelPlacementView(callbacks: {
           if (!best || (inside && !best.inside) || (inside === best.inside && gap < best.gap)) best = { regionId: region.id, pos: mm, gap, inside };
         }
         return best ? { regionId: best.regionId, pos: best.pos } : null;
-      } finally { viewer.setInteractionMode(mode); }
+      } finally { activeViewer.setInteractionMode(mode); }
     },
-    update(next) {
+    update(next: ViewData | null) {
       if (disposed) return;
+      // Borrowed surface (root-owned unified workspace): never attach a
+      // viewer, never showModel/fit/reset (camera and geometry stay owned by
+      // root), never dispose the shared viewer. Take turns owning onFrame.
+      if (shared) {
+        if (next === null || !shared.isActive()) {
+          // Inactive: drop own gestures/overlay/data safely. Clear only the
+          // artwork slot (owned by placement); leave the shared viewer's
+          // model, camera and foreign setup overlays intact.
+          if (active) cancel();
+          data = null;
+          ready = false;
+          artworkSignature = '';
+          markerSignature = '';
+          overlay.style.display = 'none';
+          try { shared.getViewer()?.setSurfaceArtworkOverlays([]); } catch { /* foreign viewer state stays intact */ }
+          element.removeAttribute('data-ready');
+          syncTools(); syncHandles();
+          return;
+        }
+        if (active && (data?.revision !== next.revision || data?.selectedIndex !== next.selectedIndex || data?.activeRegionId !== next.activeRegionId)) cancel();
+        data = next;
+        for (const src of images.keys()) if (!next.items.some((item) => item.imageSrc === src)) images.delete(src);
+        const borrowed = shared.getViewer();
+        // Rewire onFrame on EVERY active update (even a repeated scene key):
+        // setup and placement take turns owning the frame callback.
+        if (borrowed) {
+          // Calibration belongs to the measurement tools. Its centred label
+          // otherwise hides small logos on the shared surface. Setup restores
+          // the staged reference when its tools become active again.
+          borrowed.setReferenceOverlay(null);
+          ready = true;
+          try { borrowed.onFrame = () => positionOverlay(); } catch { /* frame callback is advisory */ }
+        } else {
+          ready = false;
+        }
+        // Same scene key: no reload, no camera touch — geometry and camera
+        // orientation/target/zoom stay exactly as root left them.
+        key = next.scene.key;
+        if (ready) {
+          paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); element.dataset.ready = 'true';
+        } else {
+          state.textContent = 'Loading product…';
+          syncTools(); syncHandles();
+        }
+        return;
+      }
+      if (next === null) {
+        if (active) cancel();
+        data = null;
+        ready = false;
+        artworkSignature = '';
+        overlay.style.display = 'none';
+        syncTools(); syncHandles();
+        return;
+      }
       if (active && (data?.revision !== next.revision || data?.selectedIndex !== next.selectedIndex || data?.activeRegionId !== next.activeRegionId)) cancel();
       data = next;
       for (const src of images.keys()) if (!next.items.some((item) => item.imageSrc === src)) images.delete(src);
@@ -817,6 +944,22 @@ export function createModelPlacementView(callbacks: {
         });
       } else { paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); }
     },
-    destroy() { disposed = true; ++generation; cancel(); aborter.abort(); viewer?.dispose(); viewer = null; images.clear(); element.remove(); },
+    destroy() {
+      disposed = true; ++generation;
+      if (shared) {
+        // Borrowed surface: abort only own listeners/overlays. The shared
+        // viewer, its model/camera and the shared canvas/stage stay intact
+        // for root; foreign setup overlays are never touched.
+        if (active) cancel();
+        try { aborter.abort(); } catch { /* listeners already released */ }
+        try { shared.getViewer()?.setSurfaceArtworkOverlays([]); } catch { /* foreign viewer state stays intact */ }
+        try { overlay.remove(); } catch { /* overlay already detached */ }
+        images.clear();
+        try { element.remove(); } catch { /* host teardown owns the rest */ }
+        viewer = null;
+        return;
+      }
+      cancel(); aborter.abort(); viewer?.dispose(); viewer = null; images.clear(); element.remove();
+    },
   };
 }

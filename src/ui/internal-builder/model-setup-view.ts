@@ -1,3 +1,4 @@
+import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
  * Model-only 3D setup view (W3-owned, staff-only).
@@ -305,7 +306,7 @@ const VIEW_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300, 400] as const;
 const CLICK_TRAVEL_PX = 6;
 
 /** Polygon-point bound shared with the kernel ring check. */
-const TRACE_POINT_LIMIT = 512;
+const POLYGON_POINT_LIMIT = 512;
 
 /**
  * Reference label text: `Enter distance` until a positive finite length is
@@ -324,20 +325,6 @@ function referenceOverlayLabel(distanceMmRaw: string): string {
   return formatReferenceLengthMm(Number(distanceMmRaw)) ?? 'Enter distance';
 }
 
-/** Stride-decimate a sampled trace to the polygon-point bound. Pure. */
-function decimateTrace(points: readonly SetupVec3[], limit: number = TRACE_POINT_LIMIT): SetupVec3[] {
-  if (points.length <= limit) return [...points];
-  const stride = Math.ceil(points.length / limit);
-  const out: SetupVec3[] = [];
-  for (let index = 0; index < points.length; index += stride) {
-    const point = points[index];
-    if (point !== undefined) out.push({ ...point });
-  }
-  const last = points[points.length - 1];
-  const prev = out[out.length - 1];
-  if (last !== undefined && (prev === undefined || chordNative(prev, last) > 0)) out.push({ ...last });
-  return out.slice(0, limit);
-}
 
 interface PlaneBox2D {
   minX: number;
@@ -364,26 +351,6 @@ function fromPlane2D(plane: SetupRegionPlane, x: number, y: number): SetupVec3 {
   };
 }
 
-function boxOfRing(points: readonly SetupVec3[], plane: SetupRegionPlane): PlaneBox2D | null {
-  if (points.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    const projected = toPlane2D(point, plane);
-    if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return null;
-    if (projected.x < minX) minX = projected.x;
-    if (projected.y < minY) minY = projected.y;
-    if (projected.x > maxX) maxX = projected.x;
-    if (projected.y > maxY) maxY = projected.y;
-  }
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-    return null;
-  }
-  return { minX, minY, maxX, maxY };
-}
-
 function cornersFromBox(plane: SetupRegionPlane, box: PlaneBox2D): SetupVec3[] {
   return [
     fromPlane2D(plane, box.minX, box.minY),
@@ -398,7 +365,7 @@ function cornersFromBox(plane: SetupRegionPlane, box: PlaneBox2D): SetupVec3[] {
  * angles and opposite sides within numeric roundoff ONLY (constructed
  * rectangles share exact values; hand picks never qualify, so corner edits
  * on general polygons never silently snap other vertices). Documented
- * tolerance for reopened rectangular geometry regaining side handles.
+ * tolerance for recognizing stored geometry. Editing never constrains a ring.
  */
 export function isRectangleRing(points: readonly SetupVec3[]): boolean {
   if (!Array.isArray(points) || points.length !== 4) return false;
@@ -438,72 +405,26 @@ function maxPlaneDeviation(points: readonly SetupVec3[], plane: SetupRegionPlane
   return worst;
 }
 
-type RectHandleRef = { areaId: string; kind: 'corner' | 'side'; index: number };
+type AreaHandleRef = { areaId: string; kind: 'corner' | 'side'; index: number };
 
 /**
- * Rectangle-preserving box edit for one handle move. Corners drag with the
- * opposite corner fixed; sides drag with the opposite side fixed. Returns
- * null when the move would collapse or invert the rectangle.
- */
-function applyHandleToBox(
-  box: PlaneBox2D,
-  corners2D: Array<{ x: number; y: number }>,
-  handle: RectHandleRef,
-  pick: { x: number; y: number },
-): PlaneBox2D | null {
-  const scale = Math.max(box.maxX - box.minX, box.maxY - box.minY, 1e-9);
-  const eps = Math.max(1e-9, scale * 0.005);
-  if (handle.kind === 'corner') {
-    const fixed = corners2D[(handle.index + 2) % 4];
-    if (fixed === undefined) return null;
-    const minX = Math.min(fixed.x, pick.x);
-    const maxX = Math.max(fixed.x, pick.x);
-    const minY = Math.min(fixed.y, pick.y);
-    const maxY = Math.max(fixed.y, pick.y);
-    if (maxX - minX < eps || maxY - minY < eps) return null;
-    return { minX, minY, maxX, maxY };
-  }
-  const a = corners2D[handle.index % 4];
-  const b = corners2D[(handle.index + 1) % 4];
-  if (a === undefined || b === undefined) return null;
-  const edgeTol = Math.max(1e-9, scale * 0.01);
-  const horizontal = Math.abs(a.y - b.y) <= edgeTol;
-  const vertical = Math.abs(a.x - b.x) <= edgeTol;
-  if (horizontal === vertical) return null;
-  if (horizontal) {
-    const fixedY = Math.abs(a.y - box.minY) < Math.abs(a.y - box.maxY) ? box.maxY : box.minY;
-    const minY = Math.min(fixedY, pick.y);
-    const maxY = Math.max(fixedY, pick.y);
-    if (maxY - minY < eps) return null;
-    return { ...box, minY, maxY };
-  }
-  const fixedX = Math.abs(a.x - box.minX) < Math.abs(a.x - box.maxX) ? box.maxX : box.minX;
-  const minX = Math.min(fixedX, pick.x);
-  const maxX = Math.max(fixedX, pick.x);
-  if (maxX - minX < eps) return null;
-  return { ...box, minX, maxX };
-}
-
-/**
- * Rebuild a rectangle's corners after one handle moves to a surface point.
- * The move resolves inside the area's own established plane (consistent
- * planar surface); view changes never alter stored polygons because only an
- * explicit surface pick rebuilds them. Returns null on collapse/inversion.
+ * Replace one independent vertex, or insert one surface pick after an edge.
+ * Only real surface picks reach this function. The caller validates the new
+ * polygon before replacing the last valid staged area.
  */
 function geometryForHandleMove(
   areaPoints: readonly SetupVec3[],
-  handle: RectHandleRef,
+  handle: AreaHandleRef,
   point: SetupVec3,
 ): SetupVec3[] | null {
-  if (areaPoints.length !== 4 || !isVec3(point)) return null;
-  const plane = planeFromPolygon(areaPoints);
-  if (plane === null) return null;
-  const box = boxOfRing(areaPoints, plane);
-  if (box === null) return null;
-  const corners2D = areaPoints.map((corner) => toPlane2D(corner, plane));
-  const moved = applyHandleToBox(box, corners2D, handle, toPlane2D(point, plane));
-  if (moved === null) return null;
-  return cornersFromBox(plane, moved);
+  if (areaPoints.length < 3 || !isVec3(point) || handle.index < 0 || handle.index >= areaPoints.length) return null;
+  const next = areaPoints.map((vertex) => ({ ...vertex }));
+  if (handle.kind === 'corner') next[handle.index] = { ...point };
+  else {
+    if (next.length >= POLYGON_POINT_LIMIT) return null;
+    next.splice(handle.index + 1, 0, { ...point });
+  }
+  return next;
 }
 
 /* ------------------------------------------------------------------ */
@@ -620,6 +541,7 @@ export interface ModelSetupCallbacks {
 
 export interface ModelSetupViewHandle {
   refresh(): void;
+  setActive(active: boolean): void;
   destroy(): void;
   /**
    * Hydrate the ACTIVE product's draft from a previously exported setup JSON
@@ -634,7 +556,7 @@ export interface ModelSetupViewHandle {
 
 type ArmTarget = 'refA' | 'refB' | 'areaPoint' | null;
 
-/** Safe-area authoring tool: freehand trace/corners or drag-a-rectangle. */
+/** Polygon uses deliberate point clicks; rectangle creates a starting outline. */
 type AreaTool = 'rotate' | 'freehand' | 'rectangle';
 
 interface DraftArea {
@@ -655,8 +577,8 @@ interface ProductDraft {
   drawing: SetupVec3[] | null;
   drawingName: string;
   areaTool: AreaTool;
-  /** Armed rectangle handle awaiting a canvas drag/click (UI-only, never saved). */
-  handleArm: RectHandleRef | null;
+  /** Armed polygon handle awaiting a surface pick (UI-only, never saved). */
+  handleArm: AreaHandleRef | null;
   anchorsVisible: boolean;
   safeAreasVisible: boolean;
   productVisible: boolean;
@@ -754,8 +676,47 @@ export function createModelSetupView(
   canvasOf: () => HTMLCanvasElement | null,
   getInput: () => ModelSetupInput,
   callbacks: ModelSetupCallbacks,
+  options: { contextHost?: HTMLElement } = {},
 ): ModelSetupViewHandle {
   let destroyed = false;
+  let active = true;
+  let contextPanel: ReturnType<typeof createCanvasContextPanel> | null = null;
+  let contextTask: 'measure' | 'areas' | 'more' = 'measure';
+  const originalParent = container.parentElement;
+  const originalNext = container.nextSibling;
+  const applyContextTask = (): void => {
+    if (!contextPanel) return;
+    for (const child of container.querySelectorAll<HTMLElement>('.model-setup > *')) {
+      const hook = child.getAttribute(HOOK);
+      child.hidden = contextTask === 'measure' ? hook !== 'reference-section'
+        : contextTask === 'areas' ? hook !== 'areas-section' : hook !== 'advanced';
+    }
+    if (contextTask === 'more') {
+      const details = container.querySelector<HTMLDetailsElement>('[data-model-setup-hook="advanced"]');
+      if (details) details.open = true;
+    }
+  };
+  const openContext = (task: typeof contextTask): void => {
+    contextTask = task; applyContextTask(); contextPanel?.open(task === 'measure' ? 'Measure' : task === 'areas' ? 'Safe areas' : 'More setup options');
+  };
+  const mountContext = (): void => {
+    if (!options.contextHost) return;
+    const toolbar = document.querySelector<HTMLElement>('[data-model-setup-hook="viewbar"]'); if (!toolbar) return;
+    if (!contextPanel) {
+      contextPanel = createCanvasContextPanel({ host: options.contextHost, toolbar, id: 'model-context', label: 'Measure' });
+      contextPanel.content.append(container);
+      contextPanel.trigger.setAttribute(HOOK, 'context-measure');
+      contextPanel.trigger.addEventListener('click', () => openContext('measure'));
+    }
+    toolbar.prepend(contextPanel.trigger);
+    for (const task of ['areas','more'] as const) {
+      const button = el('button', `context-${task}`, 'btn-secondary'); button.type = 'button';
+      button.textContent = task === 'areas' ? 'Areas' : 'More';
+      button.setAttribute('aria-controls', contextPanel.element.id);
+      button.addEventListener('click', () => openContext(task)); toolbar.append(button);
+    }
+    applyContextTask();
+  };
   const syncOverflow = (): void => {
     container.toggleAttribute('data-more-controls', container.scrollHeight - container.clientHeight - container.scrollTop > 8);
   };
@@ -763,6 +724,7 @@ export function createModelSetupView(
   container.addEventListener('scroll', syncOverflow, { passive: true });
   let armed: ArmTarget = null;
   let advancedOpen = false;
+  let handleDetailsOpen = false;
   let lastStatus = '';
   const drafts = new Map<string, ProductDraft>();
   let downAt: { x: number; y: number; button: number; pointerId: number } | null = null;
@@ -808,17 +770,31 @@ export function createModelSetupView(
     line.setAttribute('fill', projected.length >= 3 ? 'rgba(0,114,206,.2)' : 'none');
     line.setAttribute('stroke', '#0072ce'); line.setAttribute('stroke-width', '2.5');
     drawingOutline.append(line);
-    for (const point of projected) {
-      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot.setAttribute('cx', String(point.x - box.left)); dot.setAttribute('cy', String(point.y - box.top));
-      dot.setAttribute('r', '3'); dot.setAttribute('fill', '#0072ce'); drawingOutline.append(dot);
-    }
+    projected.forEach((point, index) => {
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      dot.setAttribute('x', String(point.x - box.left - 4)); dot.setAttribute('y', String(point.y - box.top - 4));
+      dot.setAttribute('width', '8'); dot.setAttribute('height', '8'); dot.setAttribute('fill', '#fff');
+      dot.setAttribute('stroke', '#0072ce'); dot.setAttribute('stroke-width', '1.5'); group.append(dot);
+      if (index === 0 && !rectangle) {
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        hit.setAttribute('x', String(point.x - box.left - 12)); hit.setAttribute('y', String(point.y - box.top - 12));
+        hit.setAttribute('width', '24'); hit.setAttribute('height', '24'); hit.setAttribute('fill', 'transparent');
+        hit.style.pointerEvents = 'all'; hit.style.cursor = 'pointer';
+        hit.setAttribute(HOOK, 'drawing-close'); hit.setAttribute('role', 'button'); hit.setAttribute('tabindex', '0');
+        hit.setAttribute('aria-label', 'Close polygon at first corner');
+        const close = (event: Event): void => { event.preventDefault(); event.stopPropagation(); document.querySelector<HTMLButtonElement>('[data-model-setup-hook="area-finish"]')?.click(); };
+        hit.addEventListener('click', close);
+        hit.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') close(event); });
+        group.append(hit);
+      }
+      drawingOutline!.append(group);
+    });
   };
-  /** Active canvas gesture (trace / rectangle drag / handle drag). */
+  /** Active canvas gesture (rectangle drag or independent corner drag). */
   let gesture:
-    | { kind: 'trace'; entry: ModelSetupProduct; draft: ProductDraft; points: SetupVec3[]; misses: number }
     | { kind: 'rect'; entry: ModelSetupProduct; draft: ProductDraft; corner0: SetupVec3; normal0: SetupVec3 | null; misses: number; downX: number; downY: number }
-    | { kind: 'handle'; entry: ModelSetupProduct; draft: ProductDraft; handle: RectHandleRef }
+    | { kind: 'handle'; entry: ModelSetupProduct; draft: ProductDraft; handle: AreaHandleRef }
     | null = null;
   /**
    * Pressed (not yet dragged) direct canvas handle: a press on a visible
@@ -826,7 +802,7 @@ export function createModelSetupView(
    * it into a `handle` gesture, release without travel arms it for
    * click-to-move. Escape/pointercancel roll it back with no commit.
    */
-  let pendingHandle: { ref: RectHandleRef; x: number; y: number } | null = null;
+  let pendingHandle: { ref: AreaHandleRef; x: number; y: number } | null = null;
   /** Projected HTML handle overlay (corners + side midpoints), cached nodes. */
   let handleLayer: HTMLDivElement | null = null;
   let handleDots: HTMLDivElement[] = [];
@@ -946,29 +922,27 @@ export function createModelSetupView(
   let handleModelsCache: Array<SetupVec3 | null> = [];
 
   /**
-   * Model points for the eight direct handles of a rectangular ring: four
-   * corners, then four side midpoints (side i spans corner i to i+1).
+   * Candidate handle positions: polygon vertices then edge midpoints. Midpoints
+   * are re-picked on the visible model before insertion; never saved as chords.
    */
-  function rectHandleModels(points: readonly SetupVec3[]): SetupVec3[] {
+  function areaHandleModels(points: readonly SetupVec3[]): SetupVec3[] {
     const models: SetupVec3[] = points.map((point) => ({ ...point }));
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < points.length; index += 1) {
       const a = points[index]!;
-      const b = points[(index + 1) % 4]!;
+      const b = points[(index + 1) % points.length]!;
       models.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
     }
     return models;
   }
 
-  function rectHandleRefFor(index: number, areaId: string): RectHandleRef {
-    return index < 4
-      ? { areaId, kind: 'corner', index }
-      : { areaId, kind: 'side', index: index - 4 };
+  function areaHandleRefFor(index: number, areaId: string, count: number): AreaHandleRef {
+    return index < count ? { areaId, kind: 'corner', index } : { areaId, kind: 'side', index: index - count };
   }
 
   /** Press on a visible projected handle: press-direct, never via buttons. */
   function onHandleDown(event: PointerEvent, index: number): void {
-    if (destroyed || event.button !== 0) return;
-    // Armed reference/trace modes own every press: visible handles are
+    if (destroyed || !active || event.button !== 0) return;
+    // Armed reference/polygon modes own every press: visible handles are
     // already hidden then, and a stray press never hijacks them.
     if (armed !== null || gesture !== null || pendingHandle !== null) return;
     const resolved = currentDraft();
@@ -977,17 +951,36 @@ export function createModelSetupView(
     const viewer = viewerOf();
     if (!viewer) return;
     const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId);
-    if (!area || !isRectangleRing(area.points)) return;
+    if (!area || area.points.length < 3) return;
     if (!draft.safeAreasVisible || !draft.productVisible) return;
+    // Comfortable hit targets overlap on dense rings. Resolve by distance to
+    // the visible handle centres instead of DOM stacking order, so a press
+    // on a particular white square cannot move its neighbour or insert a point.
+    let closest = Infinity;
+    for (let candidate = 0; candidate < handleModelsCache.length; candidate += 1) {
+      const position = handleModelsCache[candidate];
+      if (!position || handleDots[candidate]?.style.display === 'none') continue;
+      const projected = viewer.projectToClient?.(position); if (!projected) continue;
+      const distance = Math.hypot(projected.x - event.clientX, projected.y - event.clientY);
+      if (distance < closest) { closest = distance; index = candidate; }
+    }
     const model = handleModelsCache[index] ?? null;
     if (!model) return;
     // Live surface check: the press must resolve to this handle's own
     // surface point — never a backface, an occluder or a miss.
-    const hit = safePick(viewer, event.clientX, event.clientY);
+    const projected = viewer.projectToClient?.(model);
+    const hit = projected ? safePick(viewer, projected.x, projected.y) : null;
     if (!hit) return;
     const tol = Math.max(1e-9, longestChord(area.points) * 0.01);
     if (chordNative(hit, model) > tol) return;
-    pendingHandle = { ref: rectHandleRefFor(index, area.id), x: event.clientX, y: event.clientY };
+    const ref = areaHandleRefFor(index, area.id, area.points.length);
+    if (ref.kind === 'side') {
+      const outcome = commitHandlePoint(draft, ref, model);
+      lastStatus = outcome.message;
+      if (outcome.ok) emit(resolved.entry, draft);
+      event.preventDefault(); event.stopPropagation(); refresh(); return;
+    }
+    pendingHandle = { ref, x: event.clientX, y: event.clientY };
     suspendOrbit();
     event.preventDefault();
     event.stopPropagation();
@@ -999,11 +992,11 @@ export function createModelSetupView(
   }
 
   /** Create (once) and attach the projected handle overlay to the stage. */
-  function ensureHandleLayer(stage: HTMLElement): HTMLDivElement {
+  function ensureHandleLayer(stage: HTMLElement, count: number): HTMLDivElement {
     if (
       handleLayer !== null &&
       handleLayer.parentElement === stage &&
-      handleDots.length === 8
+      handleDots.length === count * 2
     ) {
       if (handleLayer.nextSibling !== null) stage.append(handleLayer);
       return handleLayer;
@@ -1022,12 +1015,12 @@ export function createModelSetupView(
     layer.style.inset = '0';
     layer.style.pointerEvents = 'none';
     layer.style.display = 'none';
-    for (let index = 0; index < 8; index += 1) {
-      const corner = index < 4;
+    for (let index = 0; index < count * 2; index += 1) {
+      const corner = index < count;
       const dot = document.createElement('div');
-      dot.setAttribute(HOOK, corner ? `canvas-handle-corner-${index}` : `canvas-handle-side-${index - 4}`);
+      dot.setAttribute(HOOK, corner ? `canvas-handle-corner-${index}` : `canvas-handle-side-${index - count}`);
       dot.setAttribute('role', 'button');
-      dot.tabIndex = -1;
+      dot.tabIndex = 0;
       dot.style.position = 'absolute';
       dot.style.pointerEvents = 'auto';
       dot.style.touchAction = 'none';
@@ -1039,10 +1032,32 @@ export function createModelSetupView(
       dot.style.width = `${hit}px`;
       dot.style.height = `${hit}px`;
       dot.style.transform = 'translate(-50%, -50%)';
-      dot.style.borderRadius = '50%';
-      dot.style.background = corner ? '#0b6cab' : '#ffffff';
-      dot.style.border = corner ? '2px solid #ffffff' : '2px solid #0b6cab';
-      dot.style.boxShadow = '0 0 0 1px rgba(0,0,0,.35)';
+      const square = document.createElement('span');
+      square.style.cssText = `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:${corner ? 9 : 6}px;height:${corner ? 9 : 6}px;background:#fff;border:1.5px solid #0b6cab;box-shadow:0 0 1px #192d3d;pointer-events:none`;
+      dot.append(square);
+      dot.addEventListener('keydown', (event) => {
+        const resolved = currentDraft(); if ('error' in resolved) return;
+        const { entry, draft } = resolved;
+        const area = draft.areas.find((item) => item.id === draft.selectedAreaId); if (!area) return;
+        const ref = areaHandleRefFor(index, area.id, area.points.length);
+        if ((event.key === 'Delete' || event.key === 'Backspace') && ref.kind === 'corner') {
+          event.preventDefault(); event.stopPropagation();
+          const next = area.points.filter((_, at) => at !== ref.index);
+          const reason = checkModelSafeArea(area.id, area.name, next, [], draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null);
+          if (reason) lastStatus = `${reason} Previous area kept.`;
+          else { area.points = next; lastStatus = 'Corner removed. Staged; save the setup to keep it.'; emit(entry, draft); }
+          refresh(); return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); event.stopPropagation();
+          if (ref.kind === 'side') {
+            const model = handleModelsCache[index]; if (!model) return;
+            const outcome = commitHandlePoint(draft, ref, model); lastStatus = outcome.message;
+            if (outcome.ok) emit(entry, draft);
+          } else { draft.handleArm = ref; lastStatus = 'Corner selected: click its new position on the model. Escape cancels.'; }
+          refresh();
+        }
+      });
       dot.style.display = 'none';
       dot.addEventListener('pointerdown', (event) => onHandleDown(event, index));
       layer.append(dot);
@@ -1054,8 +1069,7 @@ export function createModelSetupView(
   }
 
   /**
-   * Position the direct rectangle handles over the live canvas: four corners
-   * plus four side midpoints of the SELECTED valid rectangular area,
+   * Position independent corner and insertion handles for the selected polygon,
    * adjacent to its actual polygon at a constant CSS hit size. Runs on every
    * refresh and on every viewer frame (orbit/zoom/resize/orbit-damping all
    * reposition by the next frame). A handle shows only while its own surface
@@ -1074,11 +1088,11 @@ export function createModelSetupView(
       if (handleLayer !== null) handleLayer.style.display = 'none';
       return;
     }
-    const layer = ensureHandleLayer(stage);
     const resolved = currentDraft();
     const draft = 'error' in resolved ? null : resolved.draft;
     const area = draft?.areas.find((candidate) => candidate.id === draft.selectedAreaId) ?? null;
-    const rect = area !== null && area !== undefined && isRectangleRing(area.points) ? area : null;
+    const rect = area !== null && area.points.length >= 3 ? area : null;
+    const layer = ensureHandleLayer(stage, rect?.points.length ?? 0);
     const shown =
       rect !== null &&
       draft !== null &&
@@ -1093,7 +1107,7 @@ export function createModelSetupView(
     if (!shown || rect === null || draft === null) {
       return;
     }
-    const models = rectHandleModels(rect.points);
+    const models = areaHandleModels(rect.points);
     const tol = Math.max(1e-9, longestChord(rect.points) * 0.01);
     const layerRect = layer.getBoundingClientRect();
     handleModelsCache = models.map((model) => ({ ...model }));
@@ -1109,7 +1123,8 @@ export function createModelSetupView(
       let visible = client !== null;
       if (visible && client !== null) {
         const hit = safePick(viewer, client.x, client.y);
-        visible = hit !== null && chordNative(hit, model) <= tol;
+        visible = hit !== null && (index >= rect.points.length || chordNative(hit, model) <= tol);
+        if (visible && hit !== null && index >= rect.points.length) handleModelsCache[index] = { ...hit };
       }
       if (!visible || client === null) {
         dot.style.display = 'none';
@@ -1119,12 +1134,12 @@ export function createModelSetupView(
       dot.style.display = '';
       dot.style.left = `${client.x - layerRect.left}px`;
       dot.style.top = `${client.y - layerRect.top}px`;
-      const ref = rectHandleRefFor(index, rect.id);
+      const ref = areaHandleRefFor(index, rect.id, rect.points.length);
       dot.setAttribute(
         'aria-label',
         ref.kind === 'corner'
-          ? `Drag rectangle corner ${ref.index + 1} of “${rect.name}” on the model`
-          : `Drag rectangle side ${ref.index + 1} of “${rect.name}” on the model`,
+          ? `Drag corner ${ref.index + 1} of “${rect.name}” on the model. Delete removes.`
+          : `Insert a corner on edge ${ref.index + 1} of “${rect.name}”`,
       );
     });
   }
@@ -1142,7 +1157,7 @@ export function createModelSetupView(
       if (live) {
         try {
           live.onFrame = () => {
-            if (!destroyed) {
+            if (!destroyed && active) {
               syncHandleLayer();
               if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
             }
@@ -1189,7 +1204,7 @@ export function createModelSetupView(
 
   const commitHandlePoint = (
     draft: ProductDraft,
-    handle: RectHandleRef,
+    handle: AreaHandleRef,
     point: SetupVec3,
   ): { ok: boolean; message: string } => {
     const area = draft.areas.find((candidate) => candidate.id === handle.areaId);
@@ -1210,7 +1225,7 @@ export function createModelSetupView(
     area.points = next;
     return {
       ok: true,
-      message: `${handle.kind === 'corner' ? 'Corner' : 'Side'} moved — “${area.name}” stays a 4-corner rectangle. Staged; station Save persists.`,
+      message: `${handle.kind === 'corner' ? 'Corner moved' : 'Corner inserted'} — “${area.name}” has ${next.length} independent corners. Staged; save the setup to keep it.`,
     };
   };
 
@@ -1408,7 +1423,7 @@ export function createModelSetupView(
     entry: ModelSetupProduct,
     draft: ProductDraft,
     corners: SetupVec3[],
-    source: 'rectangle drag' | 'trace',
+    source: 'rectangle drag',
   ): string => {
     const name = newAreaName(draft);
     if (name !== '' && !draft.areas.some((area) => area.name.toLowerCase() === name.toLowerCase())) {
@@ -1445,13 +1460,13 @@ export function createModelSetupView(
         name === ''
           ? 'Name it above, then Finish area.'
           : `Another area is already called “${name}” — rename, then Finish area.`;
-      return `${source === 'rectangle drag' ? 'Rectangle' : 'Trace'} staged (${corners.length} surface points). ${why}`;
+      return `Rectangle staged (${corners.length} surface points). ${why}`;
     }
     return `Kept the ${draft.drawing.length} staged drawing point(s) — the ${source} was set aside to protect them. Finish or Cancel the drawing first.`;
   };
 
   function refresh(): void {
-    if (destroyed) return;
+    if (destroyed || !active) return;
     requestAnimationFrame(() => { if (!destroyed) syncOverflow(); });
     if (armed !== null) panMode = false;
     viewerOf()?.setInteractionMode?.(panMode ? 'pan' : 'select');
@@ -1489,7 +1504,7 @@ export function createModelSetupView(
       return;
     }
 
-    renderProductRow(root, input, paintStatus);
+    if (!options.contextHost) renderProductRow(root, input, paintStatus);
     const resolved = currentDraft();
     if ('error' in resolved) {
       const note = el('p', 'no-product', 'muted');
@@ -1504,6 +1519,7 @@ export function createModelSetupView(
     renderReference(root, entry, draft, paintStatus);
     renderAreas(root, entry, draft, paintStatus);
     renderAdvanced(root, entry, draft, paintStatus);
+    mountContext();
     const controls = document.querySelector('[data-model-setup-hook="author-tools"]');
     // Keep action feedback beside the surface, rather than below long lists.
     if (controls) controls.append(statusBox);
@@ -1585,6 +1601,7 @@ export function createModelSetupView(
     pickA.setAttribute('aria-pressed', armed === 'refA' ? 'true' : 'false');
     pickA.addEventListener('click', () => {
       armed = armed === 'refA' ? null : 'refA';
+      contextPanel?.close();
       paintStatus(
         armed === 'refA'
           ? 'Armed: click point A directly on the 3D surface. Drags and misses are ignored.'
@@ -1598,6 +1615,7 @@ export function createModelSetupView(
     pickB.setAttribute('aria-pressed', armed === 'refB' ? 'true' : 'false');
     pickB.addEventListener('click', () => {
       armed = armed === 'refB' ? null : 'refB';
+      contextPanel?.close();
       paintStatus(
         armed === 'refB'
           ? 'Armed: click point B directly on the 3D surface. Drags and misses are ignored.'
@@ -1744,7 +1762,7 @@ export function createModelSetupView(
     intro.textContent = 'Name areas for different logo positions. Select an area to edit it; save the setup when you are done.';
     section.append(intro);
 
-    // Authoring tool (freehand trace/corners, or press-drag rectangle). The
+    // Authoring tool (point polygon, or press-drag rectangle starter). The
     // switch lives here with the area actions; the viewbar above the preview
     // carries only zoom and visibility.
     const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
@@ -1753,13 +1771,14 @@ export function createModelSetupView(
     for (const tool of ['rotate', 'rectangle', 'freehand'] as const) {
       const button = el('button', `tool-${tool}`, 'btn-secondary');
       button.type = 'button';
-      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'freehand' ? 'Freehand' : 'Rectangle';
+      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
       button.setAttribute('data-ps-tool', tool);
       button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
       if (draft.areaTool === tool) button.classList.add('is-selected');
       button.addEventListener('click', () => {
         cancelGestureSilent();
         panMode = false;
+        contextPanel?.close();
         draft.areaTool = tool;
         draft.handleArm = null;
         draft.drawing = tool === 'freehand' ? [] : null;
@@ -1788,6 +1807,7 @@ export function createModelSetupView(
     nameInput.type = 'text';
     nameInput.placeholder = 'e.g. Left chest';
     nameInput.autocomplete = 'off';
+    nameInput.title = 'Name the new safe area (optional)';
     nameInput.value = draft.drawingName;
     nameInput.setAttribute(HOOK, 'area-name');
     nameInput.setAttribute('aria-label', 'Safe-area name');
@@ -1860,7 +1880,9 @@ export function createModelSetupView(
       paintStatus('Drawing cancelled; nothing was committed.');
       refresh();
     });
-    actions.append(finish, cancel);
+    const undo = el('button', 'area-undo', 'btn-secondary'); undo.type = 'button'; undo.textContent = 'Undo point'; undo.disabled = !draft.drawing?.length;
+    undo.addEventListener('click', () => { draft.drawing?.pop(); lastStatus = 'Last corner undone.'; refresh(); });
+    actions.append(finish, undo, cancel);
     if (draft.areaTool === 'freehand') (authorTools ?? section).append(actions);
 
     const list = el('div', 'area-list', 'model-setup-list');
@@ -1904,19 +1926,20 @@ export function createModelSetupView(
     }
     section.append(list);
 
-    // Rectangle handles for the selected area: corners plus side midpoints.
-    // A handle arms a canvas drag (or a click-to-move pick); release commits
-    // exactly one rectangle-preserving edit. View changes never alter the
-    // stored polygon. General polygons keep their vertices (no handles).
+    // Accessible fallback for selecting any polygon corner or inserting a point.
+    // Direct square handles remain the primary controls on the model.
     const selected = draft.areas.find((area) => area.id === draft.selectedAreaId);
-    if (selected !== undefined && isRectangleRing(selected.points)) {
+    if (selected !== undefined && selected.points.length >= 3) {
+      const details = document.createElement('details'); details.open = handleDetailsOpen;
+      details.addEventListener('toggle', () => { if (details.isConnected) handleDetailsOpen = details.open; });
+      const summary = document.createElement('summary'); summary.textContent = 'Edit individual corners'; details.append(summary);
       const handles = el('div', 'area-handles', 'model-setup-row');
       handles.setAttribute('role', 'group');
-      handles.setAttribute('aria-label', `Rectangle handles for “${selected.name}”`);
+      handles.setAttribute('aria-label', `Polygon handles for “${selected.name}”`);
       const hint = el('span', 'area-handles-hint', 'muted');
-      hint.textContent = `“${selected.name}” is rectangular — drag a handle on the model (Esc cancels):`;
+      hint.textContent = `Drag white squares independently. Small edge squares insert corners; focus a corner and press Delete to remove it.`;
       handles.append(hint);
-      for (let index = 0; index < 4; index += 1) {
+      for (let index = 0; index < selected.points.length; index += 1) {
         const corner = el('button', `handle-corner-${index}`, 'btn-secondary');
         corner.type = 'button';
         corner.textContent = `Corner ${index + 1}`;
@@ -1939,10 +1962,10 @@ export function createModelSetupView(
         });
         handles.append(corner);
       }
-      for (let index = 0; index < 4; index += 1) {
+      for (let index = 0; index < selected.points.length; index += 1) {
         const side = el('button', `handle-side-${index}`, 'btn-secondary');
         side.type = 'button';
-        side.textContent = `Side ${index + 1}–${((index + 1) % 4) + 1}`;
+        side.textContent = `Add on edge ${index + 1}`;
         const isArmed =
           draft.handleArm !== null &&
           draft.handleArm.areaId === selected.id &&
@@ -1957,12 +1980,12 @@ export function createModelSetupView(
           cancelGestureSilent();
           lastStatus = isArmed
             ? 'Handle disarmed — staged data unchanged.'
-            : `Side armed: drag it on the model surface (the opposite side stays fixed), or click its new position. Esc cancels.`;
+            : `Edge selected: click the surface to insert a corner. Esc cancels.`;
           refresh();
         });
         handles.append(side);
       }
-      section.append(handles);
+      details.append(handles); section.append(details);
     }
 
     const recompute = el('button', 'areas-recompute', 'btn-secondary');
@@ -2037,9 +2060,10 @@ export function createModelSetupView(
     mount.append(tools);
     const modeHint = el('p', 'mode-hint', 'muted');
     const tool = scope?.draft.areaTool ?? 'rotate';
-    modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Freehand to draw.'
+    modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Polygon to draw.'
       : tool === 'rectangle' ? 'Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.'
-      : 'Freehand: drag around the area; release to close. Click corners for a precise outline.';
+      : 'Polygon: click to add corners; click the first square or Enter to close. Backspace undoes; Escape cancels.';
+    modeHint.hidden = tool === 'rotate' && !panMode;
     tools.append(modeHint);
     const viewer = viewerOf();
     const zoomOf = (): number => {
@@ -2618,9 +2642,7 @@ export function createModelSetupView(
         downX: downAt.x,
         downY: downAt.y,
       };
-    } else if (armed === 'areaPoint' && draft.areaTool === 'freehand') {
-      if (draft.drawing === null) draft.drawing = [];
-      gesture = { kind: 'trace', entry, draft, points: [start], misses: 0 };
+
     } else {
       return;
     }
@@ -2637,22 +2659,6 @@ export function createModelSetupView(
     const viewer = viewerOf();
     if (!viewer) return;
     const hit = safePick(viewer, event.clientX, event.clientY);
-    if (gesture.kind === 'trace') {
-      if (hit === null) {
-        gesture.misses += 1;
-        return; // missed picks add no points; ANY miss rejects the whole stroke on release (never bridged).
-      }
-      const last = gesture.points[gesture.points.length - 1] ?? null;
-      if (last !== null && !(chordNative(last, hit) > 1e-9)) return;
-      gesture.points.push(hit);
-      if (gesture.points.length > 2048) {
-        gesture.points = gesture.points.filter((_, index) => index % 2 === 0);
-      }
-      const combined = [...(gesture.draft.drawing ?? []), ...gesture.points];
-      livePreview = combined.length >= 3 ? combined : null;
-      paintDrawingOutline(combined);
-      return;
-    }
     if (gesture.kind === 'rect') {
       if (hit === null) {
         gesture.misses += 1;
@@ -2687,62 +2693,7 @@ export function createModelSetupView(
     }
     if (active === null) return;
     const viewer = viewerOf();
-    if (active.kind === 'trace') {
-      const base = active.draft.drawing ?? [];
-      // An interrupted stroke (ANY missed surface pick mid-trace) is rejected
-      // wholesale: concatenating across the gap would bridge unpicked surface
-      // and invent geometry. The previous draft is preserved untouched; a
-      // fresh (empty) drawing is cleared so the next trace starts clean.
-      if (active.misses > 0) {
-        if (base.length === 0) active.draft.drawing = null;
-        lastStatus =
-          base.length === 0
-            ? `That trace left the model surface (${active.misses} missed pick${active.misses === 1 ? '' : 's'}) — ` +
-              'the interrupted stroke was discarded, not bridged; nothing was stashed. ' +
-              'Trace again in one motion staying on the surface.'
-            : `That trace left the model surface (${active.misses} missed pick${active.misses === 1 ? '' : 's'}) — ` +
-              `the interrupted stroke was discarded, not bridged. Kept the previous ${base.length} staged point(s). ` +
-              'Trace in one motion staying on the surface.';
-        refresh();
-        return;
-      }
-      const kept: SetupVec3[] = [];
-      for (const point of active.points) {
-        const last = kept[kept.length - 1] ?? null;
-        if (last === null || chordNative(last, point) > 1e-9) kept.push(point);
-      }
-      const traced = decimateTrace(kept);
-      if (traced.length === 0) {
-        const staged = base.length;
-        lastStatus =
-          staged > 0
-            ? `That trace added no new surface points — kept the ${staged} staged point(s).`
-            : 'That trace missed the model surface — nothing was recorded. Press directly on the surface and drag.';
-        refresh();
-        return;
-      }
-      if (base.length === 0 && traced.length >= 3) {
-        // A pure drag trace closes one ring on release (single staged edit).
-        lastStatus = stageReleasedCorners(active.entry, active.draft, traced, 'trace');
-        refresh();
-        return;
-      }
-      if (base.length + traced.length > TRACE_POINT_LIMIT) {
-        lastStatus = `That trace would exceed ${TRACE_POINT_LIMIT} polygon points — kept the previous ${base.length} staged point(s). Finish or Cancel the drawing first.`;
-        refresh();
-        return;
-      }
-      active.draft.drawing = [...base, ...traced];
-      lastStatus = `Traced ${traced.length} surface point(s) — ${active.draft.drawing.length} staged. Review, then Finish area.`;
-      emit(active.entry, active.draft);
-      refresh();
-      return;
-    }
-    if (viewer === null) {
-      lastStatus = 'The preview is unavailable — staged data unchanged.';
-      refresh();
-      return;
-    }
+    if (viewer === null) return;
     const release = safePick(viewer, event.clientX, event.clientY);
     if (active.kind === 'rect') {
       if (release === null) {
@@ -2800,11 +2751,12 @@ export function createModelSetupView(
   }
 
   function onCanvasDown(event: PointerEvent): void {
-    if (panMode) return;
-    if (destroyed || event.button !== 0 || !event.isPrimary) return;
+    if (!active || panMode) return;
+    if (destroyed || !active || event.button !== 0 || !event.isPrimary) return;
     // Gate on the LIVE canvas (the lead replaces the canvas per viewer
     // attach, so a captured element would go stale).
     if (event.target !== canvasOf()) return;
+    contextPanel?.close();
     downAt = { x: event.clientX, y: event.clientY, button: event.button, pointerId: event.pointerId };
     const resolved = currentDraft();
     if ('error' in resolved) return;
@@ -2818,7 +2770,7 @@ export function createModelSetupView(
   }
 
   function onCanvasMove(event: PointerEvent): void {
-    if (panMode) return;
+    if (!active || panMode) return;
     if (destroyed) return;
     // A pressed direct handle turns into a handle gesture past the travel
     // threshold; orbit was already suspended at press, so the camera cannot
@@ -2862,7 +2814,7 @@ export function createModelSetupView(
   }
 
   function onCanvasUp(event: PointerEvent): void {
-    if (panMode) return;
+    if (!active || panMode) return;
     if (destroyed) return;
     if (gesture === null && pendingHandle === null) {
       restoreOrbit();
@@ -2911,7 +2863,9 @@ export function createModelSetupView(
         lastStatus =
           armed === 'refA' || armed === 'refB'
             ? 'Reference points use clicks — click directly on the model without dragging. Nothing recorded.'
-            : 'That press missed the model surface — start the drag on the model itself. Staged data kept.';
+            : armed === 'areaPoint'
+              ? 'Polygon uses point clicks. Click to add a corner; dragging adds no points.'
+              : 'That press missed the model surface — start the drag on the model itself. Staged data kept.';
         refresh();
       }
       return;
@@ -2989,10 +2943,12 @@ export function createModelSetupView(
           : `Point B recorded (${formatNative(point.x)}, ${formatNative(point.y)}, ${formatNative(point.z)}). Enter millimetres and fit.`;
       emit(entry, draft);
       refresh();
+      if (which === 'refB') openContext('measure');
       return;
     }
     if (armed === 'areaPoint') {
       if (!draft.drawing) draft.drawing = [];
+      if (draft.drawing.length >= POLYGON_POINT_LIMIT) { lastStatus = 'Polygon limit reached (512 points). Finish or undo a corner.'; refresh(); return; }
       draft.drawing.push(point);
       lastStatus = `Area point ${draft.drawing.length} recorded on the surface. Finish at 3 or more.`;
       emit(entry, draft);
@@ -3001,7 +2957,7 @@ export function createModelSetupView(
   }
 
   function onKeyDown(event: KeyboardEvent): void {
-    if (destroyed || event.key !== 'Escape') return;
+    if (destroyed || !active) return;
     const target = event.target;
     if (
       target instanceof HTMLInputElement ||
@@ -3009,6 +2965,28 @@ export function createModelSetupView(
       target instanceof HTMLSelectElement
     ) {
       return;
+    }
+    const resolvedDrawing = currentDraft();
+    const drawing = 'error' in resolvedDrawing ? null : resolvedDrawing.draft;
+    if (drawing?.areaTool === 'freehand' && drawing.drawing !== null) {
+      if (event.key === 'Enter') {
+        if (target instanceof HTMLButtonElement) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        document.querySelector<HTMLButtonElement>('[data-model-setup-hook="area-finish"]')?.click(); return;
+      }
+      if (event.key === 'Backspace') {
+        event.preventDefault(); event.stopImmediatePropagation(); drawing.drawing.pop();
+        lastStatus = `Last corner undone (${drawing.drawing.length} points).`; refresh(); return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopImmediatePropagation(); cancelGestureSilent();
+        drawing.drawing = null; drawing.areaTool = 'rotate'; armed = null;
+        lastStatus = 'Drawing cancelled; nothing was committed.'; refresh(); return;
+      }
+    }
+    if (event.key !== 'Escape') return;
+    if (gesture !== null || pendingHandle !== null || downAt !== null || armed !== null || drawing?.handleArm) {
+      event.preventDefault(); event.stopImmediatePropagation();
     }
     // Escape/pointercancel rolls back any draw/edit gesture: staged data is
     // untouched because commits happen only on release.
@@ -3044,10 +3022,19 @@ export function createModelSetupView(
   document.addEventListener('pointermove', onCanvasMove);
   document.addEventListener('pointerup', onCanvasUp);
   document.addEventListener('pointercancel', onPointerCancel);
-  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keydown', onKeyDown, true);
 
   return {
     refresh,
+    setActive(next) {
+      if (active === next) return;
+      active = next;
+      if (!active) {
+        cancelGestureSilent(); contextPanel?.close();
+        if (handleLayer) handleLayer.style.display = 'none';
+        if (drawingOutline) drawingOutline.style.display = 'none';
+      } else { framedViewer = null; refresh(); }
+    },
     hydrateFromJson(text: string): { ok: boolean; message: string } {
       if (destroyed) return { ok: false, message: 'Setup view is closed.' };
       const resolved = currentDraft();
@@ -3060,6 +3047,10 @@ export function createModelSetupView(
     },
     destroy(): void {
       destroyed = true;
+      if (contextPanel) {
+        if (originalParent) originalParent.insertBefore(container, originalNext?.parentNode === originalParent ? originalNext : null);
+        contextPanel.destroy(); contextPanel = null;
+      }
       resizeObserver.disconnect(); container.removeEventListener('scroll', syncOverflow);
       viewerOf()?.setInteractionMode?.('select');
       armed = null;
@@ -3080,7 +3071,7 @@ export function createModelSetupView(
       drawingOutline?.remove(); drawingOutline = null;
       handleDots = [];
       handleModelsCache = [];
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('pointerdown', onCanvasDown, true);
       document.removeEventListener('pointermove', onCanvasMove);
       document.removeEventListener('pointerup', onCanvasUp);

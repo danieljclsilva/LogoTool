@@ -1,3 +1,4 @@
+import { createCanvasContextPanel } from './canvas-context-panel.js';
 import {
   PRESENTATION_MANIFEST_PATH,
   PRESENTATION_MAX_MODEL_BYTES,
@@ -269,17 +270,115 @@ const addProductDisclosure = hook<HTMLDetailsElement>('add-product-disclosure');
 const addProductSummary = hook<HTMLElement>('add-product-summary');
 const productModelBox = hook<HTMLElement>('product-model');
 const productModelStage = hook<HTMLElement>('product-model-stage');
+let staffModelViewer: ModelViewerType | null = null;
+const persistentModelCanvas = productModelStage.querySelector<HTMLCanvasElement>('canvas')!;
+let staffModelCanvas: HTMLCanvasElement | null = persistentModelCanvas;
+let staffModelReady = false;
+let staffModelKey: string | null = null;
+let staffModelGeneration = 0;
+/** Latest 3D-setup snapshot per product + model scope (in-memory staging, never stored). */
+const staffModelSnapshots = new Map<string, ModelSetupSnapshot>();
+let staffModelSetup: ModelSetupViewHandle | null = null;
+
 const modelExpandButton = hook<HTMLButtonElement>('product-model-expand');
-const modelExpansion = expandableWorkspace(productModelBox, (expanded) => {
-  modelExpandButton.textContent = expanded ? 'Close enlarged view' : 'Enlarge workspace';
-  modelExpandButton.setAttribute('aria-label', expanded ? 'Close enlarged product setup workspace' : 'Enlarge product setup workspace');
-  modelExpandButton.setAttribute('aria-expanded', String(expanded));
-});
-modelExpandButton.addEventListener('click', () => modelExpansion.toggle());
 const modelSettingsButton = hook<HTMLButtonElement>('product-model-settings');
 modelSettingsButton.addEventListener('click', () => {
   modelSettingsButton.setAttribute('aria-expanded', String(productModelBox.classList.toggle('show-setup-settings')));
 });
+const productEditor = document.createElement('section');
+productEditor.className = 'product-editor'; productEditor.setAttribute('data-builder-hook', 'product-editor');
+productEditor.setAttribute('aria-label', 'Product editing workspace'); productEditor.hidden = true;
+const editorModes = document.createElement('div'); editorModes.className = 'product-editor-modes';
+editorModes.setAttribute('role', 'toolbar'); editorModes.setAttribute('aria-label', 'Product editing tools');
+const editorSetup = document.createElement('button'); editorSetup.type = 'button'; editorSetup.className = 'btn-secondary';
+editorSetup.textContent = 'Measurements & areas'; editorSetup.setAttribute('data-builder-hook', 'editor-setup');
+const editorLogos = document.createElement('button'); editorLogos.type = 'button'; editorLogos.className = 'btn-secondary';
+editorLogos.textContent = 'Logos'; editorLogos.setAttribute('data-builder-hook', 'editor-logos');
+const saveHome = document.createComment('Job save action home'); jobSave.before(saveHome);
+const provisional = document.createElement('span'); provisional.className = 'muted editor-provisional';
+provisional.textContent = 'Provisional — verify physical measurements.';
+const editorProductName = document.createElement('strong'); editorProductName.setAttribute('data-builder-hook','editor-product-name');
+editorModes.append(editorProductName, editorSetup, editorLogos, provisional, modelExpandButton);
+const setupSection = document.querySelector<HTMLElement>('[data-builder-step="choose"]')!;
+const sharedChooser = setupSection.querySelector<HTMLElement>('.product-setup-chooser');
+if (sharedChooser) editorModes.prepend(sharedChooser);
+
+const setupHome = document.createComment('Shared model surface home'); productModelBox.before(setupHome);
+productEditor.append(editorModes, setupSection, jobPlacementHost);
+// Keep the existing navigation identity on its actual content, rather than
+// leaving an empty placement section behind the shared workspace.
+document.querySelector('[data-job-step="placements"]')?.remove();
+jobPlacementHost.setAttribute('data-job-step', 'placements');
+const productOptions = createCanvasContextPanel({host: productEditor, toolbar: editorModes, id:'product-options-context', label:'Product files'});
+productOptions.trigger.className = 'btn-secondary';
+productOptions.trigger.setAttribute('data-builder-hook','editor-files');
+productOptions.content.classList.add('canvas-context-content');
+for (const details of Array.from(setupSection.children)) if (details instanceof HTMLDetailsElement) productOptions.content.append(details);
+const selectionCard = setupSection.querySelector('.choose-selection');
+if (selectionCard) document.querySelector('[data-job-step="prepare"]')?.append(selectionCard);
+
+jobShell?.insertBefore(productEditor, document.querySelector('[data-job-step="review"]'));
+let editorOpen = false;
+editorSetup.addEventListener('click', () => openUnifiedEditor('setup'));
+editorLogos.addEventListener('click', () => openUnifiedEditor('logos'));
+function paintEditor(): void {
+  const active = editorOpen && (jobStep === 'prepare' || jobStep === 'placements');
+  productEditor.hidden = !active;
+  if (!active) productOptions.close();
+  if (active) editorModes.append(jobSave);
+  else if (saveHome.parentNode) saveHome.after(jobSave);
+  const logos = active && jobStep === 'placements';
+  productEditor.dataset.mode = logos ? 'logos' : 'setup';
+  editorProductName.textContent = source?.project.products.find((item) => item.id === workspaceProductId)?.name ?? '';
+  editorSetup.setAttribute('aria-pressed', String(!logos)); editorLogos.setAttribute('aria-pressed', String(logos));
+  setupSection.hidden = !active || logos; jobPlacementHost.hidden = !logos;
+  const prepare = document.querySelector<HTMLElement>('[data-job-step="prepare"]');
+  if (prepare) prepare.hidden = jobStep !== 'prepare' || active;
+  document.body.classList.toggle('station-editor-active', active);
+  if (!logos) {
+    if (setupHome.parentNode && productModelBox.previousSibling !== setupHome) setupHome.after(productModelBox);
+    productModelBox.dataset.mode = 'setup';
+  }
+  staffModelSetup?.setActive(!logos && active);
+}
+function openUnifiedEditor(mode: 'setup' | 'logos'): void {
+  if (!source) return;
+  productOptions.close();
+  if (mode === 'logos' && !canEnterPlacements()) {
+    editorOpen = true; setJobStep('prepare'); paintEditor(); refreshWorkspace();
+    alertBuilder(jobPrepareGateMessage() || 'Save the measurements and at least one safe area before placing logos.'); return;
+  }
+  if (mode === 'setup') {
+    if (placementHandle?.hasPendingEdits()) { alertBuilder('Apply or discard the pending logo edits before editing measurements.'); return; }
+    if (source.selection.productId) { workspaceProductId = source.selection.productId; workspaceVariantId = source.selection.variantId; }
+    editorOpen = true; setJobStep('prepare'); refreshWorkspace();
+  } else {
+    if (workspaceProductId) source.selection = { ...source.selection, productId: workspaceProductId, variantId: workspaceVariantId ?? '' };
+    editorOpen = true; setJobStep('placements');
+    void refreshStaffModel().then(() => { if (jobStep === 'placements') placementHandle?.update(); });
+  }
+  paintEditor(); productEditor.scrollIntoView({ block: 'start' });
+}
+function placeSharedModelSurface(): void {
+  if (!editorOpen || jobStep !== 'placements' || productModelBox.hidden) return;
+  const workbench = jobPlacementHost.querySelector<HTMLElement>('[data-placement-hook="pw-model-workbench"]');
+  const bar = workbench?.querySelector<HTMLElement>('.model-placement-toolbar');
+  if (workbench && bar) {
+    if (productModelBox.previousSibling !== bar) bar.after(productModelBox); productModelBox.dataset.mode = 'logos';
+  }
+}
+const modelExpansion = expandableWorkspace(productEditor, (expanded) => {
+  modelExpandButton.textContent = expanded ? 'Close enlarged view' : 'Enlarge workspace';
+  modelExpandButton.setAttribute('aria-label', expanded ? 'Close enlarged product workspace' : 'Enlarge product setup workspace');
+  modelExpandButton.setAttribute('aria-expanded', String(expanded));
+  requestAnimationFrame(() => {
+    // Step navigation can close an enlarged pane after hiding it.
+    if (productModelStage.clientWidth > 0 && productModelStage.clientHeight > 0 && staffModelViewer?.getZoomPercent() === 100) {
+      staffModelViewer.refreshSize(); staffModelViewer.fitCurrentView();
+    }
+  });
+});
+modelExpandButton.addEventListener('click', () => modelExpansion.toggle());
 const productModelStatus = hook<HTMLElement>('product-model-status');
 const modelSetupBox = hook<HTMLElement>('model-setup');
 const modelSetupSave = hook<HTMLButtonElement>('model-setup-save');
@@ -340,6 +439,7 @@ function paintJobNav(): void {
   }
   const chooseSection = document.querySelector<HTMLElement>('[data-builder-step="choose"]');
   if (chooseSection) chooseSection.hidden = jobStep !== 'prepare';
+  paintEditor();
   updateControls();
 }
 /** Step 2 selection default (product/option). */
@@ -357,8 +457,10 @@ function defaultPlacementSelection(): void {
   if (product) source.selection = { ...source.selection, productId: product.id, variantId: product.variants[0]?.id ?? '' };
 }
 function setJobStep(next: JobStep): void {
-  if (next !== 'prepare') modelExpansion.close();
-  if (next !== 'placements') placementHandle?.closeEnlarged();
+  productOptions.close();
+  if (next !== 'placements') placementHandle?.suspend();
+  if (next !== 'prepare' && next !== 'placements') { modelExpansion.close(); editorOpen = false; }
+  if (next === 'landing') editorOpen = false;
   if (next !== 'landing' && next !== 'approval' && source === null) next = 'landing';
   if (next !== 'approval' && next !== 'landing') jobReturnStep = next;
   jobStep = next;
@@ -373,10 +475,13 @@ function setJobStep(next: JobStep): void {
     } catch { /* branch input not mounted yet; create-time mint covers it */ }
   }
   if (next === 'placements') {
+    editorOpen = true; paintEditor();
     // Single-product/single-option jobs never render dropdowns: default the
     // selection so the rail is usable immediately (still explicit and visible).
     defaultPlacementSelection();
+    staffModelSetup?.setActive(false);
     if (placementHandle) placementHandle.update();
+    placeSharedModelSurface();
   }
   if (next === 'review') {
     // The sync candidate export needs a prepared digest for the exact scoped
@@ -658,7 +763,7 @@ function updateControls(): void {
   jobPrepareGate.textContent = gateMessage;
   jobToPlacements.disabled = blocked || !canEnterPlacements();
   jobStep1.disabled = blocked || source === null;
-  jobStep2.disabled = blocked || !canEnterPlacements();
+  jobStep2.disabled = blocked || !source?.project.products.length;
   jobStep3.disabled = blocked || source === null;
   jobSave.disabled = blocked || source === null;
   jobOpen.disabled = blocked;
@@ -674,8 +779,8 @@ function updateControls(): void {
 }
 function paintJobNavStateOnly(): void {
   const steps: Array<[HTMLButtonElement, boolean]> = [
-    [jobStep1, jobStep === 'prepare'],
-    [jobStep2, jobStep === 'placements' || jobStep === 'approval'],
+    [jobStep1, jobStep === 'prepare' && !editorOpen],
+    [jobStep2, editorOpen || jobStep === 'placements' || jobStep === 'approval'],
     [jobStep3, jobStep === 'review'],
   ];
   for (const [button, active] of steps) {
@@ -1000,7 +1105,7 @@ async function loadJobFile(file: File): Promise<void> {
     reprepareJobDigest();
     jobLandingStatus.textContent = '';
     sourceStatus.textContent = `Loaded ${file.name} (revision ${summary.revision}): ${summary.productIds.length} products, ${summary.logoIds.length} logos, ${summary.configurationIds.length} setups, ${summary.assetPaths.length} artwork files.`;
-    setJobStep('prepare');
+    editorOpen = false; setJobStep('prepare');
     clearJobDirtyState(false);
   } catch (error) {
     // Atomic failure: restore the previous live session and its outputs.
@@ -1635,7 +1740,7 @@ async function createEmptyProject(): Promise<void> {
     createStatus.textContent = 'Created a new empty draft with no products. Name the product and add views or a model below, or open an existing project file.';
     refreshSelectionValidation();
     resetSessionForInstall();
-    setJobStep('prepare');
+    editorOpen = false; setJobStep('prepare');
     clearJobDirtyState(false);
   } catch (error) {
     if (generation === createGeneration) {
@@ -1688,7 +1793,7 @@ async function importLogoFile(file: File): Promise<void> {
       });
     });
     source = replaceSessionProject(source, next, [...source.assets, { path: assetPath, bytes: bytes.slice(), kind: 'referenced' as const }]);
-    logoStatus.textContent = `Added ${file.name}. It is selected automatically; place it in Set logo placements.`;
+    logoStatus.textContent = `Added ${file.name}. It is selected automatically; open Logos to place it.`;
     renderSelectionLists(source.summary, true);
     refreshSelectionValidation();
     reprepareJobDigest();
@@ -1698,7 +1803,11 @@ async function importLogoFile(file: File): Promise<void> {
       alertBuilder(`Could not add ${file.name}. Choose a PNG, JPEG or WebP image. Previous logos are unchanged.`);
     }
   } finally {
-    if (generation === logoGeneration) { logoImporting = false; updateControls(); }
+    if (generation === logoGeneration) {
+      logoImporting = false;
+      updateControls();
+      if (jobStep === 'placements') placementHandle?.update();
+    }
   }
 }
 function onLogoFileChange(): void {
@@ -3276,8 +3385,8 @@ jobOpen.addEventListener('click', () => jobOpenFile.click());
 jobOpenFile.addEventListener('change', onJobOpenFileChange);
 jobSave.addEventListener('click', () => void saveJobToFile());
 jobResponse.addEventListener('click', () => openApprovalResponseEntry());
-jobStep1.addEventListener('click', () => setJobStep('prepare'));
-jobStep2.addEventListener('click', () => { if (canEnterPlacements()) setJobStep('placements'); else goNext(); });
+jobStep1.addEventListener('click', () => { editorOpen = false; modelExpansion.close(); setJobStep('prepare'); });
+jobStep2.addEventListener('click', () => openUnifiedEditor(canEnterPlacements() ? 'logos' : 'setup'));
 jobStep3.addEventListener('click', () => {
   if (source === null) return;
   // Forward tabs enforce the same gates as primary actions: pending Step 2
@@ -3534,9 +3643,9 @@ function focusProductSetup(productId: string, variantId?: string): void {
   workspaceViewHint = null;
   guidedScale.hide();
   alertBuilder();
-  setJobStep('prepare');
+  editorOpen = true; setJobStep('prepare');
   refreshWorkspace();
-  workspaceBox.scrollIntoView({ block: 'start' });
+  productEditor.scrollIntoView({ block: 'start' });
 }
 let documentModels: ReturnType<typeof createModelDocumentController> | null = null;
 function mountJobModules(): void {
@@ -3559,9 +3668,24 @@ function mountJobModules(): void {
   });
   try {
     placementHandle = mountPlacementWorkspace(jobPlacementHost, {
+      sharedSurface: { canvas: persistentModelCanvas, stage: productModelStage,
+        getViewer: () => staffModelReady ? staffModelViewer : null,
+        isActive: () => editorOpen && jobStep === 'placements' },
+      onBeforeRender: () => { if (setupHome.parentNode) setupHome.after(productModelBox); },
+      onRendered: placeSharedModelSurface,
+      toggleExpanded: () => modelExpansion.toggle(),
+      isExpanded: () => modelExpansion.expanded(),
+
       getProject: () => source?.project ?? placementEmptyProject(),
       getSelection: () => ({ ...(source?.selection ?? emptySelection()) }),
-      setSelection: (patch) => { if (source) source.selection = { ...source.selection, ...patch }; },
+      setSelection: (patch) => {
+        if (!source) return;
+        source.selection = { ...source.selection, ...patch };
+        if (patch.productId !== undefined || patch.variantId !== undefined) {
+          workspaceProductId = source.selection.productId; workspaceVariantId = source.selection.variantId;
+          void refreshStaffModel().then(() => { if (jobStep === 'placements') placementHandle?.update(); });
+        }
+      },
       commit: (label, next) => commitPlacementProject(label, next),
       newPlacementId: () => newLocalId(),
       getProductViews: (productId) => jobProductViews(productId),
@@ -3615,10 +3739,10 @@ function mountJobModules(): void {
       },
       requestProductSetup: (productId, variantId) => focusProductSetup(productId, variantId),
       onViewModel: (productId) => focusProductSetup(productId),
-      onAddLogo: () => { setJobStep('prepare'); logoAdd.focus(); },
+      onAddLogo: () => logoFile.click(),
       onReview: () => setJobStep('review'),
       onApprovalBranch: () => setJobStep('approval'),
-      onBack: () => setJobStep('prepare'),
+      onBack: () => { editorOpen = false; modelExpansion.close(); setJobStep('prepare'); },
       onStatus: (message) => alertBuilder(message),
       onSaveJob: () => void saveJobToFile(),
     });
@@ -4490,7 +4614,7 @@ function getWorkspaceInput(): ProductSetupWorkspaceInputV2 | { error: string } {
     const models = flexible !== null ? (flexible.models ?? []) : (legacy !== null && legacy.version === 2 ? (legacy.models ?? []) : []);
     const hasModel = models.some((entry) => entry.productId === product.id);
     if (hasModel) {
-      const message = 'This product uses a 3D model — set it up on the model below (no photos needed). Staged 3D references and areas save to the master with “Save 3D setup”.';
+      const message = ''; // The shared model canvas supplies this product's editing surface.
       // The workspace renders this notice itself; do not echo it in status.
       setWorkspaceNotice('');
       return { error: message };
@@ -4964,7 +5088,7 @@ const workspaceCallbacks: ProductSetupCallbacks = {
   onScaleNeeded: (scope) => routeWorkspaceScaleNeeded(scope),
 };
 
-const workspaceView = createProductSetupView(workspaceBox, getWorkspaceInput, workspaceCallbacks);
+const workspaceView = createProductSetupView(workspaceBox, getWorkspaceInput, workspaceCallbacks, { contextual: true });
 
 const guidedScale = createGuidedScale(guidedScaleBox, {
   onCommit: (request, commit) => commitGuidedScale(request, commit),
@@ -5036,8 +5160,9 @@ function openProductWorkspace(productId: string): void {
     : product.variants[0]?.id ?? null;
   workspaceViewHint = null;
   guidedScale.hide();
+  editorOpen = true; setJobStep('prepare');
   if (!prepareBlocked()) refreshWorkspace();
-  workspaceBox.scrollIntoView({ block: 'start' });
+  productEditor.scrollIntoView({ block: 'start' });
   workspaceProduct.focus();
   // Single-product/single-option workspaces hide the chooser selects, leaving
   // them unfocusable: fall back to the workspace mount itself (tabindex -1)
@@ -5048,8 +5173,12 @@ function openProductWorkspace(productId: string): void {
 function refreshWorkspace(): void {
   refreshWorkspaceSelectors();
   refreshPhotoAttachHint();
-  workspaceView.refresh();
-  void refreshStaffModel();
+  if (jobStep === 'prepare') workspaceView.refresh();
+  if (source && jobStep === 'placements' && workspaceProductId) {
+    source.selection = {...source.selection,productId:workspaceProductId,variantId:workspaceVariantId ?? '',placementId:null,viewId:null};
+  }
+  void refreshStaffModel().then(() => { if (jobStep === 'placements') placementHandle?.update(); });
+  paintEditor();
 }
 
 /**
@@ -5082,13 +5211,6 @@ function refreshAddProductDisclosure(): void {
 /* when the workspace product has no usable photos. Never a fake mesh        */
 /* projection.                                                               */
 
-let staffModelViewer: ModelViewerType | null = null;
-let staffModelCanvas: HTMLCanvasElement | null = null;
-let staffModelKey: string | null = null;
-let staffModelGeneration = 0;
-/** Latest 3D-setup snapshot per product + model scope (in-memory staging, never stored). */
-const staffModelSnapshots = new Map<string, ModelSetupSnapshot>();
-let staffModelSetup: ModelSetupViewHandle | null = null;
 
 function disposeStaffModel(): void {
   if (staffModelSetup !== null) {
@@ -5100,15 +5222,10 @@ function disposeStaffModel(): void {
     staffModelSetup = null;
   }
   modelSetupBox.replaceChildren();
-  if (staffModelViewer !== null) {
-    try {
-      staffModelViewer.dispose();
-    } catch {
-      /* best-effort GL teardown */
-    }
-    staffModelViewer = null;
-  }
-  staffModelCanvas = null;
+  // Keep the renderer and canvas alive: asset replacement uses showModel's
+  // guarded load path, and editor tools borrow this one surface.
+  staffModelReady = false;
+  staffModelCanvas = persistentModelCanvas;
   staffModelKey = null;
 }
 
@@ -5166,9 +5283,12 @@ async function refreshStaffModel(): Promise<void> {
   const key = `${selection.modelPath}#${bytes.length}:${fnv1a32Hex(bytes)}`;
   if (staffModelViewer !== null && staffModelKey === key) {
     productModelBox.hidden = false;
-    return;
+    staffModelSetup?.setActive(jobStep === 'prepare' && editorOpen);
+    if (jobStep === 'prepare' && editorOpen) staffModelSetup?.refresh();
+    placeSharedModelSurface(); return;
   }
   productModelBox.hidden = false;
+  staffModelReady = false;
   productModelStatus.textContent = `Showing ${selection.label ?? selection.modelPath} for reference — orbit to inspect.`;
   try {
     const module = await import('../../viewer/model-viewer.js');
@@ -5179,30 +5299,23 @@ async function refreshStaffModel(): Promise<void> {
       return;
     }
     disposeStaffModel();
-    // Fresh canvas per attach: a disposed GL context cannot be re-acquired
-    // on the same element.
-    const fresh = document.createElement('canvas');
-    fresh.setAttribute('aria-label', '3D model reference preview');
-    productModelStage.replaceChildren(fresh);
-    staffModelCanvas = fresh;
-    const attached = module.ModelViewer.attach({
-      canvas: fresh,
-      container: productModelStage,
-      background: 0xffffff,
-    });
-    if (attached.viewer === null) {
-      staffModelCanvas = null;
-      productModelStatus.textContent = `3D preview unavailable: ${attached.status.kind === 'webgl-unavailable' ? attached.status.message : 'no viewer'}. Add a view image above to author measurements.`;
-      return;
+    staffModelCanvas = persistentModelCanvas;
+    if (!staffModelViewer) {
+      const attached = module.ModelViewer.attach({ canvas: persistentModelCanvas, container: productModelStage, background: 0xffffff });
+      if (!attached.viewer) { productModelStatus.textContent = '3D preview unavailable on this device.'; return; }
+      staffModelViewer = attached.viewer;
     }
-    staffModelViewer = attached.viewer;
     staffModelKey = key;
-    const shown = await attached.viewer.showModel(bytes.slice());
+    const shown = await staffModelViewer.showModel(bytes.slice());
     if (!isCurrent()) return;
+    staffModelReady = shown.kind === 'ready';
+    if (staffModelReady) staffModelViewer.fitCurrentView();
     if (shown.kind !== 'ready' && shown.kind !== 'empty' && shown.kind !== 'loading') {
       productModelStatus.textContent = `3D preview unavailable (${shown.message}). Add a view image above to author measurements.`;
     }
     mountModelSetup(product.id, selection.modelPath);
+    staffModelSetup?.setActive(jobStep === 'prepare' && editorOpen);
+    placeSharedModelSurface();
   } catch (error) {
     if (!isCurrent()) return;
     disposeStaffModel();
@@ -5475,10 +5588,9 @@ function mountModelSetup(productId: string, modelPath: string): void {
   const viewerOf = (): ModelSetupViewerLike | null => staffModelViewer;
   const canvasOf = (): HTMLCanvasElement | null => staffModelCanvas;
   const handle = createModelSetupView(modelSetupBox, viewerOf, canvasOf, getModelSetupInput, {
-    onStatus: (message) => {
-      modelSetupStatus.textContent = message;
-    },
+    onStatus: () => { /* Tool feedback is rendered once beside the canvas. */ },
     onChange: (snapshot) => {
+      modelSetupStatus.textContent = '';
       staffModelSnapshots.set(modelSnapshotKey(snapshot.productId, snapshot.variantId), snapshot);
     },
     onSelectProduct: (nextId, nextVariantId) => {
@@ -5495,7 +5607,7 @@ function mountModelSetup(productId: string, modelPath: string): void {
       guidedScale.hide();
       if (!prepareBlocked()) refreshWorkspace();
     },
-  });
+  }, { contextHost: productModelStage });
   staffModelSetup = handle;
   handle.refresh();
   // Reopen master evidence for the mounted scope when the identical model

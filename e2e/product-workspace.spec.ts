@@ -11,8 +11,7 @@ const ms = (page: Page, name: string) => page.locator(`[data-model-setup-hook="$
 const pw = (page: Page, name: string) => page.locator(`[data-placement-hook="${name}"]`);
 async function saveJob(page: Page, info: TestInfo, name: string, keyboard = false) {
   const download = page.waitForEvent('download');
-  const button = await b(page, 'job-placement-host').evaluate((node) => node.classList.contains('station-expanded-workspace'))
-    ? pw(page, 'pw-model-save-job') : b(page, 'job-save');
+  const button = b(page, 'job-save');
   if (keyboard) { await button.evaluate((node) => (node as HTMLElement).focus({ preventScroll: true })); await button.press('Enter'); }
   else await button.click();
   const path = info.outputPath(name);
@@ -42,11 +41,15 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
         await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       };
       const normalHeight = (await canvas.boundingBox())!.height;
+      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .6);
       await b(page, 'product-model-expand').click();
-      await expect(setup).toHaveClass(/station-expanded-workspace/);
-      await expect(b(page, 'product-model-expand')).toHaveAccessibleName('Close enlarged product setup workspace');
+      await ms(page, 'view-front').click();
+      await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
+      await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
+      await expect(b(page, 'product-model-expand')).toHaveAccessibleName('Close enlarged product workspace');
       expect((await canvas.boundingBox())!.height).toBeGreaterThan(normalHeight);
-      if (viewport.width < 700) await b(page, 'product-model-settings').click();
+
+      await ms(page, 'context-measure').click();
       for (const hook of ['ref-pick-a', 'ref-pick-b', 'ref-mm', 'ref-fit', 'tool-rectangle']) {
         const control = ms(page, hook);
         expect(await setup.locator(`[data-model-setup-hook="${hook}"]`).count()).toBe(1);
@@ -54,13 +57,23 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       }
       const stageBox = (await canvas.boundingBox())!;
       expect(stageBox.height).toBeGreaterThanOrEqual(180);
+      if (viewport.width >= 700) expect(stageBox.y).toBeLessThan(150);
+      // Polygon cancellation belongs to the editor, not the enclosing dialog.
+
+      await ms(page, 'tool-freehand').click();
+      await clickSurface(.48,.48); await clickSurface(.52,.48);
+      await page.keyboard.press('Escape');
+      await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
+      await expect(ms(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
+
+      await ms(page, 'context-measure').click();
       await ms(page, 'ref-pick-a').click();
-      if (viewport.width < 700) await b(page, 'product-model-settings').click();
+
       await clickSurface(.5, .5); await clickSurface(.56, .5);
-      if (viewport.width < 700) await b(page, 'product-model-settings').click();
+
       await ms(page, 'ref-mm').fill('300'); await ms(page, 'ref-fit').click();
       await expect(ms(page, 'reference-scale')).toContainText('scale 1 unit =');
-      if (viewport.width < 700) await b(page, 'product-model-settings').click();
+
       await ms(page, 'area-name').fill('Chest'); await ms(page, 'tool-rectangle').click();
       const box = (await canvas.boundingBox())!;
       await page.mouse.move(box.x + box.width * .44, box.y + box.height * .42); await page.mouse.down();
@@ -80,14 +93,19 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       });
       await b(page, 'logo-file').setInputFiles({ name: 'synthetic-mark.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
       await expect(b(page, 'logo-status')).toContainText('Added');
-      await b(page, 'job-to-placements').click();
+      await b(page, 'editor-logos').click();
       await expect(pw(page, 'pw-model-workbench')).toHaveAttribute('data-ready', 'true');
       await expect(pw(page, 'pw-stage-svg')).toHaveCount(0);
+      await pw(page, 'pw-model-front').click();
+      await pw(page, 'pw-model-details').click();
       await pw(page, 'pw-add-placement').click();
       await pw(page, 'pw-add-width').fill('120'); await pw(page, 'pw-add-height').fill('60');
       await pw(page, 'pw-add-method').selectOption('print'); await pw(page, 'pw-add-confirm').click();
       await expect(pw(page, 'pw-model-workbench')).toHaveAttribute('data-artwork-count', /[1-9]/);
       const modelCanvas = pw(page, 'pw-model-canvas');
+      await modelCanvas.scrollIntoViewIfNeeded();
+      await pw(page, 'pw-model-fit').click();
+      await page.screenshot({path:info.outputPath('artwork-preview.png')});
       await expect.poll(async () => modelCanvas.evaluate((node) => {
         const copy = document.createElement('canvas'); copy.width = (node as HTMLCanvasElement).width; copy.height = (node as HTMLCanvasElement).height;
         const ctx = copy.getContext('2d')!; ctx.drawImage(node as HTMLCanvasElement, 0, 0);
@@ -121,14 +139,15 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       await expect(precise).toHaveAttribute('open', '');
       await pw(page, 'pw-x').fill(xBefore); await pw(page, 'pw-y').fill(yBefore);
       const original = await saveJob(page, info, 'original.logo-project');
-      await pw(page, 'pw-model-expand').click();
-      await expect(b(page, 'job-placement-host')).toHaveClass(/station-expanded-workspace/);
+      await b(page, 'product-model-expand').click();
+      await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
       await pw(page, 'pw-model-zoom-in').click(); await pw(page, 'pw-model-fit').click();
       const unchanged = await saveJob(page, info, 'zoomed.logo-project');
       expect(unchanged.parsed.project.configurations).toEqual(original.parsed.project.configurations);
-      if (viewport.width < 700) await pw(page, 'pw-model-details').click();
+
       await pw(page, 'pw-placement-list').getByRole('button').first().click();
-      if (viewport.width < 700) await pw(page, 'pw-model-details').click();
+
+      if (await page.locator('#placement-context').isVisible()) await page.locator('#placement-context [data-canvas-context-dismiss]').click();
       await pw(page, 'pw-model-move').click();
       const target = (await modelCanvas.boundingBox())!;
       await modelCanvas.click({ position: { x: target.width * .52, y: target.height * .5 } });
@@ -226,13 +245,15 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       expect(firstPlacement(stepped).rotationDeg).toBeCloseTo(expectedRotation, 1);
       dragged = stepped;
       await page.screenshot({ path: info.outputPath('on-product.png') });
+      if (await page.locator('#placement-context').isVisible()) await page.locator('#placement-context [data-canvas-context-dismiss]').click();
       await pw(page, 'pw-model-move').click();
       const cancelBox = (await modelCanvas.boundingBox())!;
       await page.mouse.move(cancelBox.x + cancelBox.width * .5, cancelBox.y + cancelBox.height * .5); await page.mouse.down();
       await page.mouse.move(cancelBox.x + cancelBox.width * .53, cancelBox.y + cancelBox.height * .5, { steps: 4 });
       await page.keyboard.press('Escape');
       await page.mouse.up();
-      await expect(b(page, 'job-placement-host')).not.toHaveClass(/station-expanded-workspace/);
+      await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
+      await b(page, 'product-model-expand').click();
       const cancelled = await saveJob(page, info, 'cancelled.logo-project');
       expect(cancelled.parsed.project.configurations).toEqual(dragged.parsed.project.configurations);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

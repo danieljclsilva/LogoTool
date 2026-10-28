@@ -1,3 +1,4 @@
+import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
  * Placement workspace — Step 2 "Set logo placements" (operator workflow, spec §5).
@@ -124,6 +125,11 @@ export interface PlacementTechnique {
 export type PlacementCommitResult = { ok: true } | { ok: false; error: string };
 
 export interface PlacementWorkspaceDeps {
+  sharedSurface?: Parameters<typeof createModelPlacementView>[0]['sharedSurface'];
+  onBeforeRender?(): void;
+  onRendered?(): void;
+  toggleExpanded?(): void;
+  isExpanded?(): boolean;
   getProject(): ProjectDocument;
   getSelection(): PlacementWorkspaceSelection;
   setSelection(patch: Partial<PlacementWorkspaceSelection>): void;
@@ -176,7 +182,7 @@ export interface PlacementWorkspaceDeps {
    * this. Optional until the lead wires the session mutation boundary.
    */
   pushHistory?(label: string): void;
-  /** No logos exist yet: return/focus the Step 1 logo control. */
+  /** Choose artwork from the device without leaving the editor. */
   onAddLogo(): void;
   onReview(): void;
   onApprovalBranch(): void;
@@ -195,6 +201,7 @@ export interface PendingPlacementEdit {
 }
 
 export interface PlacementWorkspaceHandle {
+  suspend(): void;
   closeEnlarged(): void;
   update(): void;
   destroy(): void;
@@ -623,6 +630,8 @@ export function mountPlacementWorkspace(
   deps: PlacementWorkspaceDeps,
 ): PlacementWorkspaceHandle {
   let destroyed = false;
+  let contextPanel: ReturnType<typeof createCanvasContextPanel> | null = null;
+  let contextOpen = false;
   const styleNode = document.createElement('style');
   styleNode.textContent = STYLE_TEXT;
   styleNode.setAttribute(HOOK, 'pw-style');
@@ -973,6 +982,8 @@ export function mountPlacementWorkspace(
     const memory = clearFocusMemory();
     const openDetails = new Set(Array.from(root.querySelectorAll<HTMLDetailsElement>('details[open]')).map((node) => node.getAttribute(HOOK)));
     const railScroll = root.querySelector<HTMLElement>('.pw-rail-content')?.scrollTop ?? 0;
+    deps.onBeforeRender?.();
+    if (contextPanel) { contextOpen = contextPanel.isOpen(); contextPanel.destroy(); contextPanel = null; }
     modelView?.element.remove();
     root.replaceChildren();
     const wrap = el('div', 'pw-root', 'pw-root');
@@ -996,6 +1007,24 @@ export function mountPlacementWorkspace(
       if (openDetails.has(details.getAttribute(HOOK))) details.open = true;
     }
     railBody.scrollTop = railScroll;
+    if (deps.sharedSurface) {
+      const modelBar = main.querySelector<HTMLElement>('.model-placement-toolbar');
+      const toolbar = modelBar ?? main.querySelector<HTMLElement>('[role="toolbar"]') ?? main;
+      const contextHost = modelBar ? deps.sharedSurface.stage : main;
+      contextPanel = createCanvasContextPanel({host: contextHost, toolbar, id:'placement-context', label:'Artwork & logos'});
+      contextPanel.content.classList.add('canvas-context-content');
+      contextPanel.content.append(rail);
+      contextPanel.trigger.className = 'pw-secondary';
+      const oldDetails = modelBar?.querySelector('[data-placement-hook="pw-model-details"]'); oldDetails?.remove();
+      modelBar?.querySelector('[data-placement-hook="pw-model-save-job"]')?.remove();
+      modelBar?.querySelector('[data-placement-hook="pw-model-expand"]')?.remove();
+      contextPanel.trigger.setAttribute('data-placement-hook','pw-model-details');
+      if (actions) wrap.append(actions);
+      if (cue) cue.remove();
+      if (contextOpen || addOpen || measureOpen) contextPanel.open('Logo details');
+
+    }
+    deps.onRendered?.();
     restoreFocus(memory);
     fitWorkspace();
   }
@@ -1187,7 +1216,7 @@ export function mountPlacementWorkspace(
         headerRow.append(view);
       }
     }
-    if (needsHeader) wrap.append(headerRow);
+    if (needsHeader && !deps.sharedSurface) wrap.append(headerRow);
   }
 
   function productForSelection(
@@ -1239,6 +1268,7 @@ export function mountPlacementWorkspace(
     if (modelScene && region && modelScene.regions.some((entry) => entry.id === region.id)) {
       main.parentElement?.classList.add('pw-product-workspace');
       if (!modelView) modelView = createModelPlacementView({
+        ...(deps.sharedSurface ? {sharedSurface: deps.sharedSurface} : {}),
         anchor: (regionId, pos, name) => {
           const context = currentContext(); const config = context.configuration;
           if (!config || !deps.addAnchor) return;
@@ -1314,9 +1344,12 @@ export function mountPlacementWorkspace(
           if (patch.heightMm !== undefined) set('pw-height', patch.heightMm);
           if (patch.rotationDeg !== undefined) set('pw-rotation', patch.rotationDeg);
         },
-        expand: () => expansion.toggle(),
-        isExpanded: () => expansion.expanded(),
-        toggleDetails: () => root.classList.toggle('show-placement-details'),
+        expand: () => deps.toggleExpanded ? deps.toggleExpanded() : expansion.toggle(),
+        isExpanded: () => deps.isExpanded ? deps.isExpanded() : expansion.expanded(),
+        toggleDetails: () => {
+          if (contextPanel) { if (contextPanel.isOpen()) contextPanel.close(); else contextPanel.open(); return contextPanel.isOpen(); }
+          return root.classList.toggle('show-placement-details');
+        },
         ...(deps.onSaveJob ? { save: () => deps.onSaveJob?.() } : {}),
       });
       stageDropPoint = (x, y) => modelView?.dropPoint(x, y) ?? null;
@@ -2418,7 +2451,7 @@ export function mountPlacementWorkspace(
     const logos = project.logos.filter((logo) => included === null || included.has(logo.id));
     if (logos.length === 0) {
       const note = el('p', 'pw-muted', 'pw-artwork-empty');
-      note.textContent = 'Add artwork in Step 1 (Prepare the job) to place new logos.';
+      note.textContent = 'Use Add logo to choose artwork from this device.';
       section.append(note);
       rail.append(section);
       return;
@@ -3844,6 +3877,7 @@ export function mountPlacementWorkspace(
   });
 
   return {
+    suspend() { modelView?.update(null); contextPanel?.close(); },
     closeEnlarged: () => expansion.close(),
     hasPendingEdits,
     pendingEdits: collectPendingEdits,
@@ -3852,6 +3886,7 @@ export function mountPlacementWorkspace(
     update,
     destroy() {
       destroyed = true;
+      contextPanel?.destroy(); contextPanel = null;
       expansion.destroy(); modelView?.destroy(); modelView = null;
       aborter.abort(); stageAborter?.abort();
       styleNode.remove();

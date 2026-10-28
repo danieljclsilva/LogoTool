@@ -23,6 +23,7 @@ for (const twoSided of [false, true]) test(`GLB-only document (${twoSided ? 'fro
     const canvas = b(page, 'product-model').locator('canvas');
     const ms = (name: string) => page.locator(`[data-model-setup-hook="${name}"]`);
     const box = (await canvas.boundingBox())!;
+    await ms('context-measure').click();
     await ms('ref-pick-a').click();
     await page.mouse.click(box.x + box.width * .5, box.y + box.height * .5);
     await page.mouse.click(box.x + box.width * .56, box.y + box.height * .5);
@@ -55,7 +56,9 @@ for (const twoSided of [false, true]) test(`GLB-only document (${twoSided ? 'fro
       return c.toDataURL().split(',')[1]!;
     });
     await b(page, 'logo-file').setInputFiles({ name: 'synthetic-mark.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-    await expect(b(page, 'logo-status')).toContainText('Added'); await b(page, 'job-to-placements').click();
+    await expect(b(page, 'logo-status')).toContainText('Added'); await b(page, 'editor-logos').click();
+    await pw(page, 'pw-model-front').click();
+    await pw(page, 'pw-model-details').click();
     await pw(page, 'pw-add-placement').click(); await pw(page, 'pw-add-width').fill('120'); await pw(page, 'pw-add-height').fill('60');
     await pw(page, 'pw-add-method').selectOption('heat-seal'); await pw(page, 'pw-add-confirm').click();
     await expect(pw(page, 'pw-model-workbench')).toHaveAttribute('data-ready', 'true');

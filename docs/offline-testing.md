@@ -1105,3 +1105,171 @@ Actual Windows Chrome/Edge offline acceptance remains an untested delivery
 release gate; Edge was not run. Established provisional planar/chord
 calibration remains provisional. Undo history is session-local for committed
 changes; native field-text undo and explicit setup staging are preserved.
+
+## Precise polygon setup and compact workspace — 2026-10-28
+
+Photo and 3D setup use point-by-point **Polygon** drawing. Click to add a
+white square corner; activate the first square, Finish or Enter to close.
+Backspace / Undo removes the last draft point; Escape cancels the drawing.
+The 3D editor consumes Escape before the enlarged-workspace dialog, so one
+Escape cancels editing and keeps the work surface open. Focused action buttons
+retain their own Enter behavior, including Undo point.
+
+Rectangle remains a starting outline. Every corner moves independently;
+nonrectangular and reopened rings retain their handles. Smaller edge squares
+insert points; Delete on a focused corner removes it, guarded by the minimum
+three vertices and polygon validator. Photo arrow-key nudges remain physical
+millimetres. Model changes require real surface picks; hidden or occluded
+handles are suppressed. Missed surface releases, invalid/self-crossing polygons,
+Escape and pointer interruption preserve the last valid staged geometry.
+Source assets, production schemas, calibration units and explicit Save behavior
+are unchanged. Curved model outlines retain the existing provisional planar
+projection; this change does not establish a geodesic/curved production map.
+
+The 3D toolbar is compact, the settings rail is 250px, corner-list fallbacks
+sit in a disclosure, and the canvas gets 65vh in ordinary desktop setup.
+Initial framing uses the existing tighter orientation-preserving fit. Enlarging
+or closing a fitted (100%) view measures its new aspect ratio before re-fitting;
+zoomed inspection remains under operator control. Image toolbars and hints are
+also compact. Compared to the baseline, observed canvas-area increases were:
+
+| Viewport | Normal setup | Enlarged setup |
+| --- | --- | --- |
+| 1440×900 | +31.5% | +32.4% |
+| 1280×720 | +32.6% | +45.2% |
+| 390×844 | +3.9% | +39.2% |
+
+The canvas starts about 149–156 CSS pixels earlier in these captures. Codex
+visually inspected the user references and the before/after synthetic-model
+screenshots: toolbar density, white backgrounds/FlexiTog red accents,
+typography, rail width, product framing, white square handles, mobile action
+reachability and horizontal overflow. Intentional copy changes are Freehand →
+Polygon, shorter drawing hints and an accessible name input without a tall
+visible label. No new visual assets or generated design concept were needed
+for this targeted change within the established design system.
+
+Validation environment: macOS/Darwin 27.2.0 arm64; Node 26.10.0; bundled Chromium
+156.0.8078.4; installed Google Chrome 155.0.8059.85. Every browser context uses
+offline `file://`, synthetic fixtures and assertions for zero HTTP(S) requests,
+console errors and page errors. Context offline mode is development evidence;
+host networking is not claimed disabled. Supplementary IAB navigation timed out
+waiting for its webview to attach; required repository Playwright remained the
+primary acceptance path. Actual Windows Chrome/Edge remains untested, and
+installed Edge is absent on this host.
+
+The revised tests check rectangle → independent corner → second independent
+edit, unchanged sibling vertices, insertion/removal, invalid release and
+self-crossing-edit rollback, keyboard/pointer cancellation, no movement-trace
+sampling, point undo, first-square closure, Enter completion, exact coordinates
+after save/reopen, calibrated zoom, mobile controls, canvas space and the
+existing customer/production-document flows. Raw logs, screenshots and a
+separate synthetic rendered proof are retained outside tracked source at
+`/tmp/logotool-polygon-20261028/`. No Odoo calls, uploads, installs, publication,
+commits or pushes were performed.
+
+| Independent Codex check | Result |
+| --- | --- |
+| `npm run typecheck` | Pass across domain, viewer and e2e configurations |
+| `npm test` | 849/849 pass; zero skipped |
+| Full Chromium regression, two workers | 201/202; the only failing assertion still expected the square's fill width without its 1.5px visible border |
+| Corrected high-resolution/narrow marker check | Pass; asserts a 10.5px painted square (9px fill + border), white fill and ≥20px hit targets |
+| Final Chromium affected flows: contextual workspace, product workspace, setup calibration, visual product setup | 28/28 pass, zero retries/skips; includes final hidden-pane fit guard and geometry/keyboard checks |
+| Installed Chrome affected flows | Initial 24/28; four traced focused rechecks pass, covering the corrected marker expectation, self-crossing input and both browser-process closures |
+| Independent rendered model proof | Pass: repeated independent corner edits, insertion, save, Escape cancellation without closing the enlarged workspace; zero console/page errors or HTTP(S) requests |
+| Latest visual review | 1440×900, 1280×720, 390×844; normal/enlarged views; rendered model present and zero horizontal overflow |
+| Actual Windows Chrome/Edge | Untested release gate |
+
+The initial marker test also used a circle-only selector, replaced with a
+rectangle selector. Its original 12px minimum visual circle was replaced with
+an exact small-square check while retaining the original comfortable hit-target
+minimum, including on a 2000px photo and a 480px-wide viewport. The invalid-edit
+check now creates an actual crossing: releasing at a neighbour's fractional
+screen position can leave a valid tiny gap after browser pointer rounding, so
+coincidence is not a reliable invalid-edit fixture.
+
+The full Chromium run preceded the final hidden-pane fit guard, nearest-handle
+resolution and final assertion corrections; the final 28-case affected-flow run passed on the latest
+application source. There is no claim of a fresh green 202-case invocation.
+Two initial Chrome failures closed a page/context/browser during download or
+context cleanup. Their logs contain macOS task-policy/CVDisplayLink diagnostics;
+those diagnostics do not establish a cause. Both pass in the four-case traced
+recheck without application changes. The initial complete 28-case Chrome
+invocation is therefore not reported as green.
+
+Dense-outline regression checks exposed overlapping invisible hit targets: DOM
+stacking could move a neighbouring vertex on a many-point surface ring. Both
+photo and model pointer handlers now choose the nearest visible handle centre.
+This preserves comfortable targets without changing the intended vertex or
+accidentally inserting an edge point. A dense eight-point photo ring and a
+many-point surface-following model ring are exercised with exact checks that only
+the selected native/mm point changes. The dedicated photo/general-model/curved-
+model cases pass on Chromium and installed Chrome (6/6).
+
+After nearest-handle resolution, the final affected-flow Chromium run is
+28/28 green (`complete.log`), the cross-browser dense-outline cases are 6/6
+green (`dense.log`), and the final Chrome contextual/photo/save/reopen cases
+are 5/5 green (`photo-chrome.log`). The latest compiled Node-only suite is
+849/849 green (`complete-unit.log`). Final type checking and diff whitespace
+checks pass. The independent proof and three-viewport captures were regenerated
+from the final built station. No further implementation changes followed.
+
+### 2026-10-29 — Unified product editing workspace
+
+The operator now opens one **Edit product** workspace for measurements, safe
+areas and logo placement. Measurements & areas / Logos are tool modes within
+that workspace. Product/option selection, enlargement and Save job are common
+controls. The persistent right column is removed. Measure, Areas, artwork and
+photo properties use the same dismissible canvas context-panel primitive;
+panels sit inside the unscaled canvas boundary and cannot cover setup Save.
+Calibration picking and drawing dismiss the relevant panel. Escape cancels an
+edit first, then dismisses an open panel, then leaves the enlarged workspace.
+
+The model path borrows the existing canvas, viewer and loaded model across tool
+modes. Navigating between tools does not reload the model or rewrite millimetre
+geometry. The setup adapter suspends its pointer handlers while the placement
+adapter owns the surface. The calibration label is hidden in Logos (it could
+completely obscure a small logo); returning to setup restores the reference.
+Photo setup shares the editor shell and popup primitive with the model tools;
+its existing calibrated SVG adapter remains separate from the 3D renderer.
+
+Independent acceptance uses synthetic inputs and the built
+`dist/station/Logo Station.html` directly through `file://`, with Playwright
+contexts offline and assertions for zero HTTP(S), console and page errors.
+Environment: macOS 27.2 (26B118), arm64; bundled Chromium 156.0.8078.4 and
+installed Google Chrome 155.0.8059.85. Viewports: 1440×900, 1280×900,
+1280×720, 390×844; photo-marker checks additionally resize to 480×900.
+Per-run environment attachments, screenshots, saved package comparisons and
+logs are under `/tmp/logotool-canvas-context-20261028/`.
+
+`e2e/unified-editor.spec.ts` asserts the actual canvas DOM identity across
+calibration → area creation → logo placement → setup, contextual disclosure,
+Escape priority, canvas width/height, retained placements, exact saved product
+geometry, and no horizontal overflow. Existing contextual/photo, setup,
+physical logo manipulation and model-document save/reopen acceptance tests now
+navigate the unified workspace and explicitly disclose contextual fields.
+The Chromium core run also exposed and verified fixes for precision disclosure
+state lost during reparenting and a retained calibration label hiding artwork.
+
+OpenCode v2 Contributor produced the bounded shared-panel/borrowed-viewer
+pieces. Codex integrated the unified shell, independently reviewed ownership
+and lifecycle, corrected integration failures and ran final validation. The
+original dirty polygon changes were preserved; no domain schema, Odoo calls,
+external uploads, commits or publishing are part of this change.
+
+Browser/IAB attachment timed out earlier in this session; the repository's
+explicitly required Playwright offline suite supplies deterministic acceptance.
+Actual Windows Chrome/Edge acceptance remains outstanding. These macOS runs do
+not satisfy that delivery release gate. The complete repository e2e matrix is
+not claimed by this scoped acceptance.
+
+Final results: `npm run typecheck` passes; `npm test` passes 849/849;
+`final-chromium.log` passes all 32 scoped acceptance cases;
+`final-chrome2.log` passes all 11 shared-editor, photo, logo-manipulation and
+model-document cases on installed Chrome. A prior Chrome invocation timed out
+on its first unified-editor case; it is retained as failed evidence in
+`final-chrome.log`, not counted as green. The clean subsequent full 11-case
+invocation passed. After one final CSS change to put status text above (rather
+than over) footer actions, `final-layout.log` passes all 6 three-viewport
+Chromium/Chrome journeys with an added assertion that Review remains inside the
+viewport. Screenshots in `final-layout/` show the final built layout. Build and
+`git diff --check` pass; no further implementation changes followed.

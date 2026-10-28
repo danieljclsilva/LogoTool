@@ -88,6 +88,10 @@ export async function revealBuilderControl(page: Page, name: string): Promise<vo
   // Status assertions can inspect hidden context without changing the journey.
   // Interactive controls and disclosed review content use real step navigation.
   if (!await control.isDisabled() && !name.endsWith('status') && !['builder-next','builder-back','size-estimate','handoff-summary'].includes(name)) {
+    if (!await control.isVisible() && await control.evaluate(element => Boolean(element.closest('.product-editor')))) {
+      await page.locator('[data-builder-hook="job-step-2"]').click();
+      await page.locator('[data-builder-hook="editor-setup"]').click();
+    }
     const step = await control.evaluate(element => element.closest('[data-builder-step]')?.getAttribute('data-builder-step'));
     if (step) {
       // Legacy wizard sections map onto job-shell locations: setup/identity
@@ -95,10 +99,14 @@ export async function revealBuilderControl(page: Page, name: string): Promise<vo
       // by Review document. Legacy send/office/return issue and response
       // sections are superseded by the approval branch: route to placements,
       // where the branch entry lives, and let branch flows drive branch UI.
-      const jobTarget: Record<string, string> = { open: 'prepare', choose: 'prepare', details: 'prepare', send: 'placements', office: 'placements', return: 'placements', check: 'review' };
+      const jobTarget: Record<string, string> = { open: 'prepare', choose: 'editor', details: 'prepare', send: 'placements', office: 'placements', return: 'placements', check: 'review' };
       const target = jobTarget[step];
       if (target && !await page.locator(`[data-builder-step="${step}"]`).isVisible()) {
-        if (target === 'prepare') await page.locator('[data-builder-hook="job-step-1"]').first().click();
+        if (target === 'editor') {
+          await page.locator('[data-builder-hook="job-step-2"]').click();
+          await page.locator('[data-builder-hook="editor-setup"]').click();
+        }
+        else if (target === 'prepare') await page.locator('[data-builder-hook="job-step-1"]').first().click();
         else if (target === 'placements') await page.locator('[data-builder-hook="job-step-2"]').first().click();
         else await page.locator('[data-builder-hook="job-step-3"]').first().click();
       }
@@ -108,6 +116,9 @@ export async function revealBuilderControl(page: Page, name: string): Promise<vo
       const nav: Record<string, string> = { prepare: 'job-step-1', placements: 'job-step-2', review: 'job-step-3' };
       if (nav[jobStep]) await page.locator(`[data-builder-hook="${nav[jobStep]}"]`).first().click();
     }
+  }
+  if (await control.evaluate(element => Boolean(element.closest('#product-options-context')))) {
+    if (!await page.locator('#product-options-context').isVisible()) await page.locator('[data-builder-hook="editor-files"]').click();
   }
   await revealControl(page, selector);
 }

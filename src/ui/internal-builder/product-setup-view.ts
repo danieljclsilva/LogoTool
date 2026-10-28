@@ -1,3 +1,4 @@
+import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
  * Visual product-setup workspace (one staff entry, operation-sheet first).
@@ -5,9 +6,12 @@
  * Tabbed product views (flexible named views in caller order — legacy
  * Front/Back/Left/Right plus any caller-named views — only views present in
  * the input) around a large white photo stage with two explicit tools:
- * **Safe area** (draw a fresh polygon by clicks, close/finish, drag/insert/
- * remove vertices, keyboard throughout) and **Anchor** (click to place named
- * anchors, drag/rename/delete, keyboard throughout).
+ * **Safe area** (Polygon: click square after square, click the first square /
+ * Finish / Enter to close, Backspace undoes, Escape cancels; Rectangle only
+ * stages a four-corner starting outline — every corner then drags
+ * independently, with insert/remove handles and keyboard throughout) and
+ * **Anchor** (click to place named anchors, drag/rename/delete, keyboard
+ * throughout).
  *
  * Each view carries its OWN actual scope (product/variant/region/frame/
  * calibration/side): front and back views genuinely differ, so rendering,
@@ -1093,8 +1097,10 @@ export function fitPhotoBox(
   return { width: photoW * scale, height: photoH * scale };
 }
 
-/** Safe-area drawing mode inside the Safe area tool. */
-export type ProductSetupSafeDrawMode = 'freehand' | 'rectangle';
+/** Safe-area drawing mode inside the Safe area tool: point-by-point Polygon
+ * authoring (click-only, no pointer-move trace sampling) or Rectangle as a
+ * four-corner starting outline only. */
+export type ProductSetupSafeDrawMode = 'polygon' | 'rectangle';
 
 /**
  * Grouped millimetre label for a reference length (`1,300 mm`; decimals
@@ -1205,6 +1211,10 @@ function rdpKeep(
  * tolerance until the ring fits the bound. The result still needs
  * {@link validateSafeAreaPolygon} — simplification never invents validity.
  * Pure; no DOM.
+ *
+ * NOTE: the photo safe-area tool no longer collects pointer-move traces, so
+ * nothing in the UI calls this anymore (drawing is click-by-click Polygon).
+ * It stays exported for backwards unit contracts and any future importer.
  */
 export function simplifyFreehandTrace(
   points: ReadonlyArray<AnchorSetupMm>,
@@ -1248,23 +1258,23 @@ export function simplifyFreehandTrace(
 }
 
 /**
- * True when four finite cyclic millimetre points form a rectangle within the
- * documented tolerance: non-zero area, every interior angle within
- * `angleToleranceDeg` (default 0.5°) of 90°, and opposite sides matching
- * within `sideToleranceRatio` (default 0.5%, floor 1e-6 mm). Either winding
- * is accepted; general quadrilaterals fail. Reopened rectangular geometry
- * passing this check regains side handles; anything else keeps the general
- * vertex/insert handles. Pure; no DOM.
+ * Rectangle recognition for stored 4-corner rings (see
+ * {@link isRectanglePoints} below). Pure geometry; the safe-area UI treats
+ * every staged polygon as a general ring with independent vertices.
  */
 /**
- * Recognize a stored 4-corner ring as a rectangle for side-handle editing.
- * Tolerance is numeric roundoff ONLY (genuinely constructed rectangles share
- * exact coordinate values, so angles are exactly 90° and opposite sides
- * exactly equal up to float error): hand-tapped or traced quads — however
- * close — are general polygons and keep vertex handles, so corner edits
- * never silently snap their other vertices. Callers may pass wider
- * tolerances explicitly for display/classification purposes, but side-handle
- * recognition must stay at roundoff.
+ * Recognize a stored 4-corner ring as a rectangle for display/classification
+ * (pure geometry; no UI branch depends on it anymore). Tolerance is numeric
+ * roundoff ONLY (genuinely constructed rectangles share exact coordinate
+ * values, so angles are exactly 90° and opposite sides exactly equal up to
+ * float error): hand-tapped quads — however close — are general polygons, so
+ * corner edits never silently snap their other vertices. Callers may pass
+ * wider tolerances explicitly for display/classification purposes.
+ *
+ * NOTE: the photo safe-area UI treats every staged polygon as a general
+ * ring — every corner drags independently and every edge keeps its insert
+ * handle — so a rectangle starter becomes editable freeform after its first
+ * edit. This helper stays exported for backwards unit contracts.
  */
 export function isRectanglePoints(
   points: ReadonlyArray<AnchorSetupMm>,
@@ -1417,8 +1427,11 @@ export function createProductSetupView(
   container: HTMLElement,
   getWorkspaceInput: () => ProductSetupWorkspaceInput | ProductSetupWorkspaceInputV2 | { error: string },
   callbacks: ProductSetupCallbacks,
+  options: { contextual?: boolean } = {},
 ): ProductSetupViewHandle {
   let destroyed = false;
+  let properties: ReturnType<typeof createCanvasContextPanel> | null = null;
+  let propertiesOpen = false;
   let tool: ProductSetupTool | null = null;
   let selectedViewId: string | null = null;
   let tabProjectKey: string | null = null;
@@ -1458,9 +1471,10 @@ export function createProductSetupView(
    */
   const zoomByKey = new Map<string, number>();
   /**
-   * Safe-area drawing mode per staged view key. Freehand keeps
-   * press-drag-trace plus click-corners and Finish; rectangle is
-   * press-drag-release only. Pruned with the edit store.
+   * Safe-area drawing mode per staged view key. Polygon is click-only
+   * (click square after square, first square / Finish / Enter closes);
+   * rectangle is a press-drag-release starting outline whose corners then
+   * drag independently. Pruned with the edit store.
    */
   const safeModeByKey = new Map<string, ProductSetupSafeDrawMode>();
   /**
@@ -1474,7 +1488,7 @@ export function createProductSetupView(
   let dragVertex: number | null = null;
   let pendingAnchorMm: AnchorSetupMm | null = null;
   let pendingVertexBase: AnchorSetupMm[] | null = null;
-  let pendingVertexHandle: SVGCircleElement | null = null;
+  let pendingVertexHandle: SVGRectElement | null = null;
   /**
    * Resize observer for constant-CSS-pixel stage markers (Tranche C scale
    * fix, same strategy as the operation pick markers): dots, hit targets
@@ -1671,6 +1685,7 @@ export function createProductSetupView(
   function refresh(): void {
     if (destroyed) return;
     disconnectStageResize();
+    if (properties) { propertiesOpen = properties.isOpen(); properties.destroy(); properties = null; }
     // Preserve the magnified stage's scroll position across re-renders so
     // zoom + pan survive selections and commits.
     const prevStage = container.querySelector('.product-setup-stage');
@@ -1878,18 +1893,20 @@ export function createProductSetupView(
         : upcoming.error);
       refresh();
     });
-    renderToolbar(root, key, activeTool, safeModeByKey.get(key) ?? 'freehand', zoomByKey.get(key) ?? 100, bucket, paintStatus, (next) => {
+    renderToolbar(root, key, activeTool, safeModeByKey.get(key) ?? 'polygon', zoomByKey.get(key) ?? 100, bucket, paintStatus, (next) => {
       tool = next;
+      propertiesOpen = false; properties?.close();
       paintStatus(next === 'safe-area'
-        ? 'Safe-area tool: click the photo to draw, drag corners to edit. Anchor clicks do nothing here.'
+        ? 'Safe-area tool: click the photo to add polygon corners, drag corners to edit. Anchor clicks do nothing here.'
         : 'Anchor tool: click the photo to place a named anchor. Safe-area clicks do nothing here.');
       refresh();
     }, (mode) => {
+      propertiesOpen = false; properties?.close();
       safeModeByKey.set(key, mode);
       if (tool !== 'safe-area') tool = 'safe-area';
-      paintStatus(mode === 'freehand'
-        ? 'Freehand: press, drag to trace and release to close one area — or click corners and Finish. A tap is not a stroke.'
-        : 'Rectangle: press at one corner, drag to the opposite corner, release to commit one four-corner area.');
+      paintStatus(mode === 'polygon'
+        ? 'Polygon: click the photo to add a corner. Click the first square, Finish or Enter to close with 3 or more corners; Backspace undoes, Escape cancels.'
+        : 'Rectangle: press at one corner, drag to the opposite corner, release to stage one four-corner outline. Every corner then drags independently.');
       refresh();
     }, (pct) => {
       // Purely display: no status churn, no mm impact; the readout is the
@@ -1920,11 +1937,23 @@ export function createProductSetupView(
       return;
     }
 
-    renderStage(root, view, side, key, bucket, activeTool, safeModeByKey.get(key) ?? 'freehand', zoomByKey.get(key) ?? 100, paintStatus);
+    renderStage(root, view, side, key, bucket, activeTool, safeModeByKey.get(key) ?? 'polygon', zoomByKey.get(key) ?? 100, paintStatus);
+    let propertyHost: HTMLElement = root;
+    if (options.contextual) {
+      const stage = root.querySelector<HTMLElement>('.product-setup-stage')!;
+      const surface = document.createElement('div'); surface.className = 'photo-editing-surface';
+      stage.before(surface); surface.append(stage);
+      const toolbar = root.querySelector<HTMLElement>('[data-ps-viewbar]')!;
+      properties = createCanvasContextPanel({host:surface,toolbar,id:'photo-context',label:activeTool === 'safe-area' ? 'Area details' : 'Anchor details'});
+      properties.trigger.className = 'product-setup-viewbtn'; properties.trigger.setAttribute('data-fkey','photo-properties');
+      properties.content.classList.add('canvas-context-content');
+      propertyHost = properties.content;
+      if (propertiesOpen) properties.open();
+    }
     if (activeTool === 'safe-area') {
-      renderSafePanel(root, view, side, key, bucket, paintStatus);
+      renderSafePanel(propertyHost, view, side, key, bucket, paintStatus);
     } else {
-      renderAnchorPanel(root, view, key, bucket, paintStatus);
+      renderAnchorPanel(propertyHost, view, key, bucket, paintStatus);
     }
     renderSaveBar(root, tabScope, key, bucket, paintStatus, input.sharedNotice);
     root.append(statusBox);
@@ -1997,7 +2026,7 @@ export function createProductSetupView(
     safeButton.setAttribute('data-fkey', 'psv-tool-safe-area');
     safeButton.textContent = `Safe area${bucket.safeArea.length > 0 ? ` (${bucket.safeArea.length})` : ''}`;
     safeButton.addEventListener('click', () => {
-      if (activeTool !== 'safe-area') onSelect('safe-area');
+      onSelect('safe-area');
     });
     const anchorButton = document.createElement('button');
     anchorButton.type = 'button';
@@ -2006,13 +2035,13 @@ export function createProductSetupView(
     anchorButton.setAttribute('data-fkey', 'psv-tool-anchor');
     anchorButton.textContent = `Anchor${bucket.anchors.length > 0 ? ` (${bucket.anchors.length})` : ''}`;
     anchorButton.addEventListener('click', () => {
-      if (activeTool !== 'anchor') onSelect('anchor');
+      onSelect('anchor');
     });
     bar.append(safeButton, anchorButton);
     if (activeTool === 'safe-area') {
       const modes: Array<{ mode: ProductSetupSafeDrawMode; label: string; hint: string }> = [
-        { mode: 'freehand', label: 'Freehand', hint: 'Freehand: press, drag to trace and release to close one area — or click corners and Finish. A tap is not a stroke.' },
-        { mode: 'rectangle', label: 'Rectangle', hint: 'Rectangle: press at one corner, drag to the opposite corner, release to commit one four-corner area.' },
+        { mode: 'polygon', label: 'Polygon', hint: 'Polygon: click square after square to add corners — click the first square, Finish or Enter to close. Backspace undoes the last corner, Escape cancels.' },
+        { mode: 'rectangle', label: 'Rectangle', hint: 'Rectangle: press at one corner, drag to the opposite corner, release to stage one four-corner outline. Every corner then drags independently.' },
       ];
       for (const entry of modes) {
         const modeButton = document.createElement('button');
@@ -2032,9 +2061,9 @@ export function createProductSetupView(
     const hint = document.createElement('p');
     hint.className = 'muted';
     hint.textContent = activeTool === 'safe-area'
-      ? (safeMode === 'freehand'
-        ? 'Safe-area tool · Freehand: drag to trace a closed area, or click corners and Finish; a tap is not a stroke. Photo clicks never place anchors here; Enter finishes a drawing, Escape cancels.'
-        : 'Safe-area tool · Rectangle: press at one corner and drag to the opposite corner; release commits one area. Photo clicks never place anchors here; Escape cancels a drag.')
+      ? (safeMode === 'polygon'
+        ? 'Polygon: click corners, then the first square to close. Enter finishes · Backspace undoes · Escape cancels.'
+        : 'Rectangle: drag from corner to corner. Drag white squares to reshape; small edge squares add corners.')
       : 'Anchor tool: click the product to place a named anchor; drag, rename or delete it. Photo clicks never touch the safe area here.';
     root.append(hint);
     // View controls: zoom steps plus display-only visibility toggles. The
@@ -2240,21 +2269,17 @@ export function createProductSetupView(
       'aria-label',
       `${shortScopeLabel(scope)} overlay (${activeTool === 'safe-area' ? 'safe-area' : 'anchor'} tool active)`,
     );
-    // In-progress freehand-trace / rectangle gestures (one per render; a
-    // refresh rebuilds the svg, so no gesture survives re-render). Previews
-    // paint directly with no commit; pointerup commits ONE staged area,
-    // pointercancel/Escape roll back with no commit.
-    let trace: {
-      startX: number; startY: number; points: AnchorSetupMm[];
-      outOfScope: boolean; tracing: boolean; preview: SVGPolygonElement | null;
-    } | null = null;
+    // In-progress rectangle-starter drag (one per render; a refresh
+    // rebuilds the svg, so no gesture survives re-render). The preview paints
+    // directly with no commit; pointerup commits ONE staged outline,
+    // pointercancel/Escape rolls back with no commit. Polygon authoring is
+    // click-only — no pointer-move trace sampling here.
     let rectDrag: {
       start: AnchorSetupMm; startX: number; startY: number;
       lastX: number; lastY: number; end: AnchorSetupMm | null;
       preview: SVGPolygonElement | null;
     } | null = null;
     const discardGesture = (message: string): void => {
-      trace = null;
       rectDrag = null;
       paintStatus(message);
       refresh();
@@ -2270,7 +2295,7 @@ export function createProductSetupView(
       }
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (trace !== null || rectDrag !== null) {
+        if (rectDrag !== null) {
           discardGesture('Drawing cancelled; nothing was committed.');
           return;
         }
@@ -2284,6 +2309,22 @@ export function createProductSetupView(
           refresh();
         }
         return;
+      }
+      if (event.key === 'Backspace' && activeTool === 'safe-area') {
+        const draft = store.draftFor(key);
+        if (draft !== undefined && draft.length > 0) {
+          event.preventDefault();
+          const next = draft.slice(0, -1);
+          if (next.length === 0) {
+            store.dropDraft(key);
+            paintStatus('Undid the last corner; the draft is empty. Click the photo to add corners, or Escape to cancel with nothing committed.');
+          } else {
+            store.setDraft(key, next);
+            paintStatus(`Undid the last corner (${next.length} staged). Click the first square, Finish or Enter to close with 3 or more.`);
+          }
+          refresh();
+          return;
+        }
       }
       const step = event.shiftKey ? 10 : 1;
       let dx = 0;
@@ -2566,8 +2607,12 @@ export function createProductSetupView(
         base[index] = mm;
         const px = workspaceMmToPhoto(view, side, mm);
         if (pendingVertexHandle && px) {
+          // White-square vertex handles position via cx/cy (the layout pass
+          // derives x/y/width/height from data-marksquare), so a drag keeps
+          // the square under the pointer at any zoom.
           pendingVertexHandle.setAttribute('cx', String(px.x));
           pendingVertexHandle.setAttribute('cy', String(px.y));
+          layoutStageMarkers(svg);
         }
         const repainted: string[] = [];
         for (const point of base) {
@@ -2590,6 +2635,10 @@ export function createProductSetupView(
       pendingVertexBase = null;
       pendingVertexHandle = null;
       event.preventDefault();
+      const release = eventPhotoPoint(svg, event);
+      if (!workspacePhotoToMm(view, side, release.x, release.y)) {
+        paintStatus('Release is outside the evaluated mapping; previous geometry kept.'); refresh(); return;
+      }
       if (id !== null && mm !== null) {
         const next = bucket.anchors.map((entry) => (
           entry.id === id ? { ...entry, posMm: [mm.x, mm.y] as [number, number] } : entry
@@ -2660,32 +2709,33 @@ export function createProductSetupView(
         bucket.anchors = [...bucket.anchors, created];
         bucket.dirty = true;
         selectedAnchorId = created.id;
+        propertiesOpen = true; properties?.open();
         if (!layerVisible(bucket, 'showAnchors')) {
           bucket.showAnchors = true;
-          paintStatus(`Created “${created.name}”. The anchors layer was hidden, so it is shown again; nothing was deleted. Rename it below if needed.`);
+          paintStatus(`Created “${created.name}”. The anchors layer was hidden, so it is shown again; nothing was deleted. Use Anchor details to rename it.`);
         } else {
-          paintStatus(`Created “${created.name}”. Rename it below if needed.`);
+          paintStatus(`Created “${created.name}”. Use Anchor details to rename it.`);
         }
         refresh();
         return;
       }
       // Safe-area tool: an existing polygon is edited via its handles, so a
-      // bare photo click only ever extends a fresh drawing — either when no
+      // bare photo click only ever extends a Polygon drawing — either when no
       // polygon is staged yet, or while an explicit redraw is in progress.
       // Rectangle mode never invents click corners: taps only restate the
       // drag hint (press at one corner, drag to the opposite corner).
       if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
-        paintStatus('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo clicks never alter the polygon here.');
+        paintStatus('Safe-area tool: drag a corner, use an edge handle to insert, or pick a corner below. Photo clicks never alter the polygon here.');
         return;
       }
       if (activeTool === 'safe-area' && drawMode === 'rectangle') {
-        paintStatus('Rectangle tool: press at one corner and drag to the opposite corner; release commits one area. Taps never alter the polygon here.');
+        paintStatus('Rectangle tool: press at one corner and drag to the opposite corner; release stages one outline. Taps never alter the polygon here.');
         return;
       }
       const draft = store.draftFor(key) ?? [];
       store.setDraft(key, [...draft, mm]);
       paintStatus(
-        `Draft corner ${draft.length + 1}. Finish with Enter, the first corner, or a double-click; Escape cancels with no commit.`,
+        `Draft corner ${draft.length + 1}. Click the first square, Finish or Enter to close with 3 or more; Backspace undoes, Escape cancels with no commit.`,
       );
       refresh();
     });
@@ -2700,11 +2750,13 @@ export function createProductSetupView(
       finishDraft(key, bucket, trimmed, paintStatus);
     });
 
-    // Freehand trace + rectangle drag gestures (safe-area tool only). Taps
-    // (at most 6 CSS px) fall through to the click handler above — a tap is
-    // never a stroke, and rectangle mode never invents click corners. Longer
-    // presses paint a live closed filled preview and commit ONE staged area
-    // on release; Escape/pointercancel roll back with no commit.
+    // Rectangle-starter drag (safe-area tool only): press at one corner and
+    // drag to the opposite corner. Taps (at most 6 CSS px) fall through to
+    // the click handler above — a tap never commits, and taps in rectangle
+    // mode never invent click corners. A real drag paints a live closed
+    // filled preview and commits ONE starting outline on release; every
+    // corner then drags independently. Escape/pointercancel roll back with
+    // no commit. Polygon mode has no pointer gesture at all: clicks only.
     if (activeTool === 'safe-area' && layerVisible(bucket, 'showAreas')) {
       const drawable = bucket.safeArea.length === 0 || redrawKeys.has(key);
       const paintPreview = (
@@ -2728,17 +2780,16 @@ export function createProductSetupView(
         return node;
       };
       svg.addEventListener('pointerdown', (event) => {
-        if (!drawable || trace !== null || rectDrag !== null) return;
+        if (drawMode !== 'rectangle') return;
+        if (!drawable || rectDrag !== null) return;
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         const target = event.target as Element;
-        // Handles own their drags; gestures start on the bare photo only.
+        // Handles own their drags; the starter drag starts on the bare photo only.
         if (target.closest?.('.product-setup-anchor, .product-setup-vertex, .product-setup-midpoint, .product-setup-draw')) return;
         const photo = eventPhotoPoint(svg, event);
         const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
         if (!mm) {
-          paintStatus(drawMode === 'rectangle'
-            ? 'Rectangle not started: the press falls outside the evaluated mapping.'
-            : 'Trace not started: the press falls outside the evaluated mapping.');
+          paintStatus('Rectangle not started: the press falls outside the evaluated mapping.');
           return;
         }
         try {
@@ -2746,14 +2797,7 @@ export function createProductSetupView(
         } catch {
           /* capture is best-effort; the gesture still ends on pointerup */
         }
-        if (drawMode === 'rectangle') {
-          rectDrag = { start: mm, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, end: null, preview: null };
-        } else {
-          trace = {
-            startX: event.clientX, startY: event.clientY,
-            points: [{ ...mm }], outOfScope: false, tracing: false, preview: null,
-          };
-        }
+        rectDrag = { start: mm, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, end: null, preview: null };
       });
       svg.addEventListener('pointermove', (event) => {
         if (!svg.isConnected) return;
@@ -2772,25 +2816,9 @@ export function createProductSetupView(
           ]);
           return;
         }
-        if (trace !== null) {
-          if (Math.hypot(event.clientX - trace.startX, event.clientY - trace.startY) <= 6) return;
-          trace.tracing = true;
-          const photo = eventPhotoPoint(svg, event);
-          const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
-          if (!mm) {
-            trace.outOfScope = true;
-            return;
-          }
-          const last = trace.points[trace.points.length - 1];
-          if (!last || Math.hypot(mm.x - last.x, mm.y - last.y) > 1e-9) {
-            trace.points.push({ ...mm });
-            trace.preview = paintPreview(trace.preview, trace.points);
-          }
-        }
       });
       const commitGesture = (): void => {
         if (!svg.isConnected) {
-          trace = null;
           rectDrag = null;
           return;
         }
@@ -2826,43 +2854,11 @@ export function createProductSetupView(
             return;
           }
           if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
-            paintStatus('Safe-area tool: drag a corner or side handle, use Redraw selected, or pick a corner below. Photo drags never alter the polygon here.');
+            paintStatus('Safe-area tool: drag a corner, use an edge handle to insert, or pick a corner below. Photo drags never alter the polygon here.');
             return;
           }
           finishDraft(key, bucket, corners, paintStatus);
           return;
-        }
-        if (trace !== null) {
-          const gesture = trace;
-          trace = null;
-          gesture.preview?.remove();
-          // A tap falls through to the click handler (freehand corners); only
-          // a real stroke commits.
-          if (!gesture.tracing) return;
-          if (gesture.outOfScope) {
-            paintStatus('Freehand trace left the mapped photo area, so nothing was committed. The previous draft is intact.');
-            return;
-          }
-          if (gesture.points.length < 3) {
-            paintStatus('Freehand trace is too short to close an area — tap to add a corner, or drag a longer trace. The previous draft is intact.');
-            return;
-          }
-          const ring = simplifyFreehandTrace(gesture.points);
-          if (ring.length < 3) {
-            paintStatus('Freehand trace is degenerate (no usable area), so nothing was committed. The previous draft is intact.');
-            return;
-          }
-          const check = validateSafeAreaPolygon(ring);
-          if (!check.ok) {
-            const kind = /cross/.test(check.reason) ? 'self-crossing' : 'degenerate';
-            paintStatus(`Freehand trace ${kind} — not committed: ${check.reason} The previous draft is intact.`);
-            return;
-          }
-          if (bucket.safeArea.length > 0 && !redrawKeys.has(key)) {
-            paintStatus('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo drags never alter the polygon here.');
-            return;
-          }
-          finishDraft(key, bucket, ring, paintStatus);
         }
       };
       svg.addEventListener('pointerup', (event) => {
@@ -2872,12 +2868,11 @@ export function createProductSetupView(
           const photo = eventPhotoPoint(svg, event);
           rectDrag.end = workspacePhotoToMm(view, side, photo.x, photo.y);
         }
-        if (trace === null && rectDrag === null) return;
+        if (rectDrag === null) return;
         commitGesture();
       });
       svg.addEventListener('pointercancel', () => {
-        if (trace === null && rectDrag === null) return;
-        trace = null;
+        if (rectDrag === null) return;
         rectDrag = null;
         // The shared pointercancel listener below refreshes (dropping the
         // preview); only the status is set here so it lands on the new box.
@@ -2896,60 +2891,56 @@ export function createProductSetupView(
     paintStatus: (message: string) => void,
     repaintSafe: (points: ReadonlyArray<AnchorSetupMm>) => void,
   ): void {
-    // Rectangular staged geometry (including reopened saved rectangles that
-    // pass the documented tolerance check) gets corner + side-midpoint
-    // handles that preserve the rectangle while dragging; general polygons
-    // keep the vertex + insert handles. Saved rectangles stay ordinary
-    // polygons — no parallel schema.
-    const rectangular = bucket.safeArea.length === 4 && isRectanglePoints(bucket.safeArea);
-    const cornerDots: Array<{ dot: SVGCircleElement; hit: SVGCircleElement }> = [];
-    const sideDots: Array<{ dot: SVGCircleElement; hit: SVGCircleElement }> = [];
-    /**
-     * Live repaint during rectangle-corner/side drags (no re-render):
-     * polygon plus every handle follows the working ring. Commit happens
-     * once on pointerup; cancel/Escape refresh back to the staged polygon.
-     */
-    const repaintHandles = (working: ReadonlyArray<AnchorSetupMm>): void => {
-      repaintSafe(working);
-      working.forEach((point, index) => {
-        const px = workspaceMmToPhoto(view, side, point);
-        const dot = cornerDots[index];
-        if (!px || !dot) return;
-        dot.dot.setAttribute('cx', String(px.x));
-        dot.dot.setAttribute('cy', String(px.y));
-        dot.hit.setAttribute('cx', String(px.x));
-        dot.hit.setAttribute('cy', String(px.y));
-      });
-      if (rectangular) {
-        working.forEach((point, index) => {
-          const next = working[(index + 1) % working.length]!;
-          const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
-          const px = workspaceMmToPhoto(view, side, mid);
-          const dot = sideDots[index];
-          if (!px || !dot) return;
-          dot.dot.setAttribute('cx', String(px.x));
-          dot.dot.setAttribute('cy', String(px.y));
-          dot.hit.setAttribute('cx', String(px.x));
-          dot.hit.setAttribute('cy', String(px.y));
-        });
-      }
-      layoutStageMarkers(svg);
-    };
-    // Project p onto the line through `from` in direction `from`→`dir`.
-    // Used by rectangle-preserving drags (opposite side/corner fixed).
-    const projectOnto = (from: AnchorSetupMm, dir: AnchorSetupMm, p: AnchorSetupMm): AnchorSetupMm => {
-      const vx = dir.x - from.x;
-      const vy = dir.y - from.y;
-      const len2 = vx * vx + vy * vy;
-      if (!(len2 > 1e-18)) return { ...dir };
-      const t = ((p.x - from.x) * vx + (p.y - from.y) * vy) / len2;
-      return { x: from.x + vx * t, y: from.y + vy * t };
-    };
-    let rectCorner: { index: number; base: AnchorSetupMm[]; working: AnchorSetupMm[] } | null = null;
-    let rectSide: { index: number; working: AnchorSetupMm[] } | null = null;
+    // Every staged ring is a general polygon: each corner is a small white
+    // square with its own larger transparent hit target, and EVERY corner
+    // drags independently (pointer + arrow keys) — including the corners of a
+    // freshly staged rectangle outline or a reopened saved rectangle. There
+    // are no rectangle-preserving side handles: the first edit of a
+    // rectangle starter is an ordinary independent-corner move. Saved
+    // rectangles stay ordinary polygons — no parallel schema. Invalid drags,
+    // nudges and removals keep the previous valid geometry plus a status
+    // message.
     const vertexLayer = document.createElementNS(svgNS, 'g');
     vertexLayer.setAttribute('class', 'product-setup-vertices');
     svg.append(vertexLayer);
+    const insertAtEdge = (index: number): void => {
+      const a = bucket.safeArea[index]!, b = bucket.safeArea[(index + 1) % bucket.safeArea.length]!;
+      const base = bucket.safeArea.map((corner) => ({ ...corner }));
+      base.splice(index + 1, 0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+      const check = validateSafeAreaPolygon(base);
+      if (!check.ok) { paintStatus(`Corner not inserted: ${check.reason}`); return; }
+      bucket.safeArea = base; syncActiveArea(bucket); bucket.dirty = true; selectedCorner = index + 1;
+      paintStatus(`Inserted a corner on edge ${index + 1}.`); refresh();
+    };
+    svg.addEventListener('pointerdown', (event) => {
+      if (!(event.target instanceof Element) || !event.target.closest('[data-ps-handle]')) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const matrix = svg.getScreenCTM(); if (!matrix) return;
+      let nearest: { kind: 'corner' | 'edge'; index: number; distance: number } | null = null;
+      const consider = (kind: 'corner' | 'edge', index: number, mm: AnchorSetupMm): void => {
+        const px = workspaceMmToPhoto(view, side, mm); if (!px) return;
+        const client = new DOMPoint(px.x, px.y).matrixTransform(matrix);
+        const distance = Math.hypot(client.x - event.clientX, client.y - event.clientY);
+        if (nearest === null || distance < nearest.distance) nearest = { kind, index, distance };
+      };
+      bucket.safeArea.forEach((point, index) => consider('corner', index, point));
+      bucket.safeArea.forEach((point, index) => {
+        const next = bucket.safeArea[(index + 1) % bucket.safeArea.length]!;
+        consider('edge', index, { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 });
+      });
+      // Resolve overlapping 24px targets by visible square centres, never by
+      // SVG child order. Corners win ties; physical mm remain authoritative.
+      const chosen = nearest as { kind: 'corner' | 'edge'; index: number; distance: number } | null;
+      if (!chosen) return;
+      event.preventDefault(); event.stopPropagation();
+      if (chosen.kind === 'edge') { insertAtEdge(chosen.index); return; }
+      selectedCorner = chosen.index; dragVertex = chosen.index; pendingVertexBase = null;
+      const group = vertexLayer.querySelector<SVGGElement>(`[data-ps-handle="corner-${chosen.index + 1}"]`);
+      pendingVertexHandle = group?.querySelector<SVGRectElement>('.product-setup-vertex') ?? null;
+      svg.setPointerCapture?.(event.pointerId);
+      (group as unknown as HTMLElement | null)?.focus?.();
+      paintStatus(`Selected safe-area corner ${chosen.index + 1}.`);
+    }, true);
     bucket.safeArea.forEach((point, index) => {
       const px = workspaceMmToPhoto(view, side, point);
       if (!px) return;
@@ -2957,108 +2948,46 @@ export function createProductSetupView(
       group.setAttribute('tabindex', '0');
       group.setAttribute('role', 'button');
       group.setAttribute('data-fkey', `psv-vertex-${key}-${index}`);
+      group.setAttribute('data-ps-handle', `corner-${index + 1}`);
       group.setAttribute(
         'aria-label',
-        rectangular
-          ? `Rectangle corner ${index + 1}. Dragging keeps the rectangle; arrow keys move precisely, Delete removes.`
-          : `Safe-area corner ${index + 1}. Arrow keys move, Delete removes.`,
+        `Safe-area corner ${index + 1}. Arrow keys move, pointer drags, Delete removes.`,
       );
-      if (rectangular) group.setAttribute('data-ps-handle', `corner-${index + 1}`);
-      const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
+      const handle = document.createElementNS(svgNS, 'rect') as SVGRectElement;
       handle.setAttribute('class', selectedCorner === index
         ? 'product-setup-vertex is-selected'
         : 'product-setup-vertex');
       handle.setAttribute('cx', String(px.x));
       handle.setAttribute('cy', String(px.y));
-      handle.setAttribute('r', '7');
-      handle.setAttribute('data-markr', '7');
+      handle.setAttribute('data-marksquare', '9');
+      handle.setAttribute('fill', '#fff');
+      handle.setAttribute('stroke', '#0b6cab');
+      handle.setAttribute('stroke-width', '2');
+      handle.setAttribute('data-markstroke', '2');
       const vhit = document.createElementNS(svgNS, 'circle');
       vhit.setAttribute('cx', String(px.x));
       vhit.setAttribute('cy', String(px.y));
-      vhit.setAttribute('r', '7');
+      vhit.setAttribute('r', '12');
       vhit.setAttribute('data-markhit', '12');
       vhit.setAttribute('fill', '#000');
       vhit.setAttribute('fill-opacity', '0');
       vhit.setAttribute('pointer-events', 'all');
       group.append(vhit, handle);
-      if (rectangular) cornerDots.push({ dot: handle, hit: vhit as SVGCircleElement });
-      group.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        selectedCorner = index;
-        if (rectangular) {
-          // Corner drag preserves the rectangle: the opposite corner stays
-          // fixed while the adjacent corners project onto their edges.
-          rectCorner = {
-            index,
-            base: bucket.safeArea.map((corner) => ({ ...corner })),
-            working: bucket.safeArea.map((corner) => ({ ...corner })),
-          };
-          (group as SVGGElement).setPointerCapture?.(event.pointerId);
-          (group as unknown as HTMLElement).focus?.();
-          return;
-        }
-        dragVertex = index;
-        pendingVertexBase = null;
-        pendingVertexHandle = handle as SVGCircleElement;
-        (handle as SVGCircleElement).setPointerCapture?.(event.pointerId);
-        // preventDefault above suppresses native focus-on-press: focus
-        // explicitly so arrow keys keep working after a pointer selection.
-        (group as unknown as HTMLElement).focus?.();
-      });
-      group.addEventListener('pointermove', (event) => {
-        if (rectCorner === null || rectCorner.index !== index || !rectangular) return;
-        const photo = eventPhotoPoint(svg, event);
-        const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
-        if (!mm || !svg.isConnected) return;
-        // Opposite corner fixed; adjacent corners project so every angle
-        // stays 90° for any rectangle orientation.
-        const base = rectCorner.base;
-        const o = base[(index + 2) % 4]!;
-        const a = projectOnto(o, base[(index + 1) % 4]!, mm);
-        const b = projectOnto(o, base[(index + 3) % 4]!, mm);
-        const working = rectCorner.working;
-        working[(index + 1) % 4] = a;
-        working[(index + 3) % 4] = b;
-        working[index] = { x: a.x + b.x - o.x, y: a.y + b.y - o.y };
-        repaintHandles(working);
-      });
-      const endRectCorner = (commit: boolean): void => {
-        if (rectCorner === null || rectCorner.index !== index) return;
-        const working = rectCorner.working;
-        rectCorner = null;
-        if (!commit || !svg.isConnected) {
-          refresh();
-          return;
-        }
-        const check = validateSafeAreaPolygon(working);
-        if (!check.ok) {
-          paintStatus(`Corner not moved: ${check.reason}`);
-          refresh();
-          return;
-        }
-        bucket.safeArea = working.map((corner) => ({ ...corner }));
-        syncActiveArea(bucket);
-        bucket.dirty = true;
-        selectedCorner = index;
-        paintStatus(`Moved corner ${index + 1} (rectangle kept).`);
-        refresh();
-      };
-      group.addEventListener('pointerup', () => endRectCorner(true));
-      group.addEventListener('pointercancel', () => endRectCorner(false));
-      group.addEventListener('click', (event) => {
-        event.stopPropagation();
-        selectedCorner = index;
-        paintStatus(`Selected safe-area corner ${index + 1}.`);
-        refresh();
-      });
       group.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
-          // Cancel an in-progress rectangle-corner drag, restoring the
-          // previous draft (pointer capture keeps focus on this handle).
-          event.preventDefault();
-          event.stopPropagation();
-          endRectCorner(false);
+          // Cancel an in-progress independent-corner drag: nothing commits
+          // on cancel, so the refresh below restores the previous valid
+          // geometry. Not dragging: let the event bubble to the stage (draft
+          // cancellation) instead of swallowing it.
+          if (dragVertex === index) {
+            event.preventDefault();
+            event.stopPropagation();
+            dragVertex = null;
+            pendingVertexBase = null;
+            pendingVertexHandle = null;
+            paintStatus('Corner drag cancelled; the previous polygon is kept.');
+            refresh();
+          }
           return;
         }
         const step = event.shiftKey ? 10 : 1;
@@ -3081,123 +3010,12 @@ export function createProductSetupView(
       vertexLayer.append(group);
     });
 
-    if (bucket.safeArea.length === 4 && rectangular) {
-      // Side-midpoint handles: dragging a side moves that side's two corners
-      // along the side normal (opposite side fixed), preserving the
-      // rectangle. Keyboard adjustments stay on the existing corner point
-      // controls; Enter here selects the side's first corner instead.
-      const sideLayer = document.createElementNS(svgNS, 'g');
-      sideLayer.setAttribute('class', 'product-setup-midpoints');
-      svg.append(sideLayer);
-      bucket.safeArea.forEach((point, index) => {
-        const next = bucket.safeArea[(index + 1) % 4]!;
-        const mid: AnchorSetupMm = { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 };
-        const px = workspaceMmToPhoto(view, side, mid);
-        if (!px) return;
-        const sideGroup = document.createElementNS(svgNS, 'g') as SVGGElement;
-        sideGroup.setAttribute('tabindex', '0');
-        sideGroup.setAttribute('role', 'button');
-        sideGroup.setAttribute('data-fkey', `psv-side-${key}-${index}`);
-        sideGroup.setAttribute('data-ps-handle', `side-${index + 1}`);
-        sideGroup.setAttribute('aria-label', `Move side ${index + 1} (keeps the rectangle).`);
-        const sideDot = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
-        sideDot.setAttribute('class', 'product-setup-midpoint product-setup-sidehandle');
-        sideDot.setAttribute('cx', String(px.x));
-        sideDot.setAttribute('cy', String(px.y));
-        sideDot.setAttribute('r', '5');
-        sideDot.setAttribute('data-markr', '6');
-        const sideHit = document.createElementNS(svgNS, 'circle');
-        sideHit.setAttribute('cx', String(px.x));
-        sideHit.setAttribute('cy', String(px.y));
-        sideHit.setAttribute('r', '5');
-        sideHit.setAttribute('data-markhit', '12');
-        sideHit.setAttribute('fill', '#000');
-        sideHit.setAttribute('fill-opacity', '0');
-        sideHit.setAttribute('pointer-events', 'all');
-        sideGroup.append(sideHit, sideDot);
-        sideDots.push({ dot: sideDot, hit: sideHit as SVGCircleElement });
-        sideGroup.addEventListener('pointerdown', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          selectedCorner = index;
-          rectSide = {
-            index,
-            working: bucket.safeArea.map((corner) => ({ ...corner })),
-          };
-          (sideGroup as SVGGElement).setPointerCapture?.(event.pointerId);
-          (sideGroup as unknown as HTMLElement).focus?.();
-        });
-        sideGroup.addEventListener('pointermove', (event) => {
-          if (rectSide === null || rectSide.index !== index) return;
-          const photo = eventPhotoPoint(svg, event);
-          const mm = workspacePhotoToMm(view, side, photo.x, photo.y);
-          if (!mm || !svg.isConnected) return;
-          const working = rectSide.working;
-          const edge = working[index]!;
-          const after = working[(index + 1) % 4]!;
-          const dx = after.x - edge.x;
-          const dy = after.y - edge.y;
-          const len = Math.hypot(dx, dy);
-          if (!(len > 1e-9)) return;
-          // Move both side corners along the edge normal; the opposite side
-          // stays fixed so the ring remains a rectangle.
-          const nx = -dy / len;
-          const ny = dx / len;
-          const t = (mm.x - edge.x) * nx + (mm.y - edge.y) * ny;
-          working[index] = { x: edge.x + nx * t, y: edge.y + ny * t };
-          working[(index + 1) % 4] = { x: after.x + nx * t, y: after.y + ny * t };
-          repaintHandles(working);
-        });
-        const endRectSide = (commit: boolean): void => {
-          if (rectSide === null || rectSide.index !== index) return;
-          const working = rectSide.working;
-          rectSide = null;
-          if (!commit || !svg.isConnected) {
-            refresh();
-            return;
-          }
-          const check = validateSafeAreaPolygon(working);
-          if (!check.ok) {
-            paintStatus(`Side not moved: ${check.reason}`);
-            refresh();
-            return;
-          }
-          bucket.safeArea = working.map((corner) => ({ ...corner }));
-          syncActiveArea(bucket);
-          bucket.dirty = true;
-          selectedCorner = index;
-          paintStatus(`Moved side ${index + 1} (rectangle kept).`);
-          refresh();
-        };
-        sideGroup.addEventListener('pointerup', () => endRectSide(true));
-        sideGroup.addEventListener('pointercancel', () => endRectSide(false));
-        sideGroup.addEventListener('click', (event) => {
-          event.stopPropagation();
-          selectedCorner = index;
-          paintStatus(`Selected safe-area corner ${index + 1} (first corner of side ${index + 1}). Adjust it in the corner list below.`);
-          refresh();
-        });
-        sideGroup.addEventListener('keydown', (event) => {
-          if (event.key === 'Escape') {
-            // Cancel an in-progress side drag, restoring the previous draft.
-            event.preventDefault();
-            event.stopPropagation();
-            endRectSide(false);
-            return;
-          }
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            event.stopPropagation();
-            selectedCorner = index;
-            paintStatus(`Selected safe-area corner ${index + 1} (first corner of side ${index + 1}). Adjust it in the corner list below.`);
-            refresh();
-          }
-        });
-        sideLayer.append(sideGroup);
-      });
-    }
-
-    if (bucket.safeArea.length >= 3 && !rectangular) {
+    // Every edge of every staged polygon (3+, including rectangle starters
+    // and reopened saved rings) keeps an insert affordance: a small white
+    // square plus a larger transparent hit target. Activating one inserts a
+    // corner at the edge midpoint, guarded by the polygon validator — an
+    // invalid result keeps the previous geometry plus a status message.
+    if (bucket.safeArea.length >= 3) {
       const midLayer = document.createElementNS(svgNS, 'g');
       midLayer.setAttribute('class', 'product-setup-midpoints');
       svg.append(midLayer);
@@ -3210,37 +3028,27 @@ export function createProductSetupView(
         insertGroup.setAttribute('tabindex', '0');
         insertGroup.setAttribute('role', 'button');
         insertGroup.setAttribute('data-fkey', `psv-insert-${key}-${index}`);
+        insertGroup.setAttribute('data-ps-handle', `edge-${index + 1}`);
         insertGroup.setAttribute('aria-label', `Insert a safe-area corner on edge ${index + 1}.`);
-        const plus = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
+        const plus = document.createElementNS(svgNS, 'rect') as SVGRectElement;
         plus.setAttribute('class', 'product-setup-midpoint');
         plus.setAttribute('cx', String(px.x));
         plus.setAttribute('cy', String(px.y));
-        plus.setAttribute('r', '5');
-        plus.setAttribute('data-markr', '6');
+        plus.setAttribute('data-marksquare', '6');
+        plus.setAttribute('fill', '#fff');
+        plus.setAttribute('stroke', '#0b6cab');
+        plus.setAttribute('stroke-width', '2');
+        plus.setAttribute('data-markstroke', '2');
         const plusHit = document.createElementNS(svgNS, 'circle');
         plusHit.setAttribute('cx', String(px.x));
         plusHit.setAttribute('cy', String(px.y));
-        plusHit.setAttribute('r', '5');
+        plusHit.setAttribute('r', '12');
         plusHit.setAttribute('data-markhit', '12');
         plusHit.setAttribute('fill', '#000');
         plusHit.setAttribute('fill-opacity', '0');
         plusHit.setAttribute('pointer-events', 'all');
         insertGroup.append(plusHit, plus);
-        const insert = (): void => {
-          const base = bucket.safeArea.map((corner) => ({ ...corner }));
-          base.splice(index + 1, 0, { ...mid });
-          const check = validateSafeAreaPolygon(base);
-          if (!check.ok) {
-            paintStatus(`Corner not inserted: ${check.reason}`);
-            return;
-          }
-          bucket.safeArea = base;
-          syncActiveArea(bucket);
-          bucket.dirty = true;
-          selectedCorner = index + 1;
-          paintStatus(`Inserted a corner on edge ${index + 1}.`);
-          refresh();
-        };
+        const insert = (): void => insertAtEdge(index);
         insertGroup.addEventListener('click', (event) => {
           event.stopPropagation();
           insert();
@@ -3278,6 +3086,8 @@ export function createProductSetupView(
     // The draft connects while drawing and fills from 3 points (closed
     // polygon with a translucent fill; fewer than 3 points stay an open
     // polyline). The fill is inline so it holds even before lead CSS lands.
+    // Each staged corner is a small white square; the first square closes the
+    // ring when activated (click / Enter / Space).
     if (draft.length >= 3 && linePts.length === draft.length && linePts[0] !== undefined) {
       const closed = document.createElementNS(svgNS, 'polygon') as SVGPolygonElement;
       closed.setAttribute('class', 'product-setup-draft is-closed');
@@ -3303,16 +3113,20 @@ export function createProductSetupView(
           ? 'First draft corner. Activate to finish the safe area.'
           : `Draft corner ${index + 1}.`,
       );
-      const handle = document.createElementNS(svgNS, 'circle') as SVGCircleElement;
+      const handle = document.createElementNS(svgNS, 'rect') as SVGRectElement;
       handle.setAttribute('class', index === 0 ? 'product-setup-draw product-setup-draw-first' : 'product-setup-draw');
       handle.setAttribute('cx', String(px.x));
       handle.setAttribute('cy', String(px.y));
-      handle.setAttribute('r', index === 0 ? '10' : '7');
-      handle.setAttribute('data-markr', index === 0 ? '8' : '7');
+      handle.setAttribute('data-marksquare', index === 0 ? '10' : '9');
+      // White squares remain readable over both light and dark products.
+      handle.setAttribute('fill', '#fff');
+      handle.setAttribute('stroke', '#0b6cab');
+      handle.setAttribute('stroke-width', '2');
+      handle.setAttribute('data-markstroke', '2');
       const drawHit = document.createElementNS(svgNS, 'circle');
       drawHit.setAttribute('cx', String(px.x));
       drawHit.setAttribute('cy', String(px.y));
-      drawHit.setAttribute('r', '7');
+      drawHit.setAttribute('r', '12');
       drawHit.setAttribute('data-markhit', '12');
       drawHit.setAttribute('fill', '#000');
       drawHit.setAttribute('fill-opacity', '0');
@@ -3382,6 +3196,7 @@ export function createProductSetupView(
       paintStatus(`Safe-area drawing refused: ${check.reason} Press Escape to cancel and redraw.`);
       return;
     }
+    propertiesOpen = true; properties?.open();
     const polygon = draft.map((corner) => ({ ...corner }));
     const mode = drawModes.get(key) ?? { kind: 'new' as const };
     if (mode.kind === 'replace') {
@@ -3611,6 +3426,29 @@ export function createProductSetupView(
         refresh();
       });
       actions.append(finish, cancel);
+      // Pointer/touch alternative to the Backspace key: drops the last staged
+      // corner; an empty draft keeps the redraw session open for re-tapping.
+      if (draft.length > 0) {
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'btn-secondary';
+        undo.textContent = 'Undo last corner';
+        undo.setAttribute('aria-label', 'Undo the last staged draft corner');
+        undo.setAttribute('data-fkey', `psv-draw-undo-${key}`);
+        undo.addEventListener('click', () => {
+          const live = store.draftFor(key) ?? [];
+          const next = live.slice(0, -1);
+          if (next.length === 0) {
+            store.dropDraft(key);
+            paintStatus('Undid the last corner; the draft is empty. Click the photo to add corners, or Cancel drawing to keep the previous polygon.');
+          } else {
+            store.setDraft(key, next);
+            paintStatus(`Undid the last corner (${next.length} staged). Click the first square, Finish or Enter to close with 3 or more.`);
+          }
+          refresh();
+        });
+        actions.append(undo);
+      }
       panel.append(actions);
       root.append(panel);
       return;
@@ -3640,6 +3478,7 @@ export function createProductSetupView(
       return;
     }
     const startDrawing = (mode: { kind: 'new' } | { kind: 'replace'; targetId: string }, message: string): void => {
+      propertiesOpen = false; properties?.close();
       redrawKeys.add(key);
       drawModes.set(key, mode);
       store.setDraft(key, []);
@@ -4133,6 +3972,7 @@ export function createProductSetupView(
 
   function destroy(): void {
     destroyed = true;
+    properties?.destroy(); properties = null;
     disconnectStageResize();
     document.removeEventListener('keydown', cancelOnEscape);
     container.removeEventListener('keydown', cancelDrawingOnEscape);

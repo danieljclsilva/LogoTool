@@ -55,9 +55,17 @@ function approval(page: Page) {
 
 /** Enter the approval branch from placements and issue the current job
  * (branch-scoped buttons only: legacy generate/download hooks are gone). */
+async function photoDetails(workspace: ReturnType<Page['locator']>): Promise<void> {
+  if (!await workspace.isVisible()) {
+    await builder(workspace.page(), 'job-step-2').click();
+    await builder(workspace.page(), 'editor-setup').click();
+  }
+  if (!await workspace.locator('#photo-context').isVisible()) await workspace.locator('[data-fkey="photo-properties"]').click();
+}
+
 async function createBranchIssue(page: Page): Promise<void> {
   await (await shown(page, 'job-to-placements')).click();
-  await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+  await expect(builder(page, 'product-editor')).toHaveAttribute('data-mode', 'logos');
   await builder(page, 'job-placement-host').getByRole('button', { name: 'Send for customer approval' }).click();
   await expect(approval(page)).toBeVisible();
   await (await shown(page, 'job-issue-project-new')).click();
@@ -407,7 +415,7 @@ test('images span setup: two-click reference + drawn area + atomic save creates 
       // No safe polygon was invented: draw one explicitly by clicking the
       // photo, finish it, then save once.
       const stage = workspace.locator('.product-setup-overlay').first();
-      await expect(workspace.getByText('Safe areas (none yet)')).toBeVisible();
+      await expect(workspace.getByRole('button', { name: 'Safe area', exact: true })).toBeVisible();
       // Re-measure and scroll before EVERY corner: each click re-renders and
       // restores focus, which scrolls — stale viewport boxes click thin air.
       const drawClick = async (fx: number, fy: number) => {
@@ -419,7 +427,7 @@ test('images span setup: two-click reference + drawn area + atomic save creates 
       await drawClick(0.7, 0.3);
       await drawClick(0.7, 0.7);
       await drawClick(0.3, 0.7);
-      await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+      await workspace.locator('.product-setup-overlay').first().press('Enter');
       await workspace.getByRole('button', { name: 'Save product setup' }).click();
       await expect(workspace.getByText(/Saved .* \(4 safe-area corners, 0 anchors\)/)).toBeVisible();
 
@@ -464,7 +472,8 @@ test('images span setup: two-click reference + drawn area + atomic save creates 
         await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
         await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
         const freshWorkspace = builder(fresh, 'product-workspace');
-        await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
+        await fresh.getByRole('button', {name:/^Open setup for/}).first().click();
+      await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
       } finally {
         await freshContext.close();
       }
@@ -517,7 +526,7 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
           const box = (await stage.boundingBox())!;
           await stage.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
         }
-        await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+        await workspace.locator('.product-setup-overlay').first().press('Enter');
       };
       const renameActive = async (name: string) => {
         await workspace.locator('[data-fkey^="psv-area-name-"]').fill(name);
@@ -526,6 +535,7 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
       };
       await drawQuad(0.08, 0.28);
       await renameActive('Left chest');
+      await photoDetails(workspace);
       await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
       await drawQuad(0.72, 0.92);
       await renameActive('Right chest');
@@ -577,7 +587,9 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
         await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
         await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
         const freshWorkspace = builder(fresh, 'product-workspace');
+        await fresh.getByRole('button', {name:/^Open setup for/}).first().click();
         await freshWorkspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
+        await photoDetails(freshWorkspace);
         const areaPicks = freshWorkspace.locator('[data-fkey^="psv-area-pick-"]');
         await expect(areaPicks).toHaveCount(2);
         // Scope entry first, then persisted siblings by region id; the active
@@ -727,10 +739,13 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
         await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
         await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
         await expect(await shown(page, 'source-status')).toContainText('.logo-project');
+        await builder(page, 'job-step-2').click(); await builder(page, 'editor-setup').click();
         const returnWorkspace = builder(page, 'product-workspace');
         await returnWorkspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
+        await photoDetails(returnWorkspace);
         await returnWorkspace.getByRole('button', { name: 'Right chest', exact: true }).click();
         const twinDelete = returnWorkspace.locator('[data-fkey^="psv-area-delete-"]');
+        await photoDetails(returnWorkspace);
         await twinDelete.click();
         await expect(returnWorkspace.locator('[data-fkey^="psv-area-pick-"]')).toHaveCount(1);
         await returnWorkspace.getByRole('button', { name: 'Save product setup' }).click();
@@ -792,9 +807,10 @@ test('images delete unreferenced area: region and links gone, customer cannot se
         const box = (await stage.boundingBox())!;
         await stage.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
       }
-      await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+      await workspace.locator('.product-setup-overlay').first().press('Enter');
     };
     await drawQuad(0.08, 0.28);
+    await photoDetails(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     await drawQuad(0.72, 0.92);
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
@@ -803,6 +819,7 @@ test('images delete unreferenced area: region and links gone, customer cannot se
     // Delete the second (sibling) area with no placements anywhere: its
     // region and variant links must vanish — a real delete.
     await workspace.getByRole('button', { name: /Area 2/ }).first().click();
+    await photoDetails(workspace);
     await workspace.locator('[data-fkey^="psv-area-delete-"]').click();
     await expect(workspace.locator('[data-fkey^="psv-area-pick-"]')).toHaveCount(1);
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
@@ -903,7 +920,7 @@ test('images setup edit invalidates generated outputs: download disabled until r
       const box = (await stage.boundingBox())!;
       await stage.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
     }
-    await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+    await workspace.locator('.product-setup-overlay').first().press('Enter');
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
     await expect(workspace.getByText(/Saved .* \(4 safe-area corners, 0 anchors\)/)).toBeVisible();
 
@@ -933,13 +950,14 @@ test('images setup edit invalidates generated outputs: download disabled until r
     // Edit the setup (rename + save commits a new source package): the old
     // generated delivery must go stale — download disabled until regen.
     await (await shown(page, 'job-step-1')).click();
+    await photoDetails(workspace);
     await workspace.locator('[data-fkey^="psv-area-name-"]').fill('Stale chest v2');
     await workspace.locator('[data-fkey^="psv-area-name-"]').press('Tab');
     await expect(workspace.getByText('Renamed area to “Stale chest v2”.')).toBeVisible();
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
     await expect(workspace.getByText(/Saved .* \(4 safe-area corners, 0 anchors\)/)).toBeVisible();
     await (await shown(page, 'job-step-2')).click();
-    await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
+    await expect(builder(page, 'product-editor')).toHaveAttribute('data-mode', 'logos');
     await builder(page, 'job-placement-host').getByRole('button', { name: 'Send for customer approval' }).click();
     await expect(approval(page)).toContainText('Previously saved files are stale');
     await expect(approval(page).getByRole('button', { name: 'Save customer file', exact: true })).toBeDisabled();
@@ -1052,9 +1070,10 @@ test('images span recalibration from sibling-owned mapping resolves the owning s
         const box = (await stage.boundingBox())!;
         await stage.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
       }
-      await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+      await workspace.locator('.product-setup-overlay').first().press('Enter');
     };
     await drawQuad(0.2, 0.4);
+    await photoDetails(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     await drawQuad(0.6, 0.8);
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
@@ -1100,6 +1119,7 @@ test('images span recalibration from sibling-owned mapping resolves the owning s
     await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
     await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('.logo-project');
+    await builder(page, 'job-step-2').click(); await builder(page, 'editor-setup').click();
     // The scope view is honestly unmeasured (sibling mapping rejected as
     // scope) and routes back to setup — not confused into the sibling.
     await expect(workspace.getByText('has no scale mapping yet')).toBeVisible();
@@ -1229,6 +1249,7 @@ test('images shared scope: stale sibling submitter is refused, reset recovers', 
     await writeFile(fixturePath, packageBytes);
     await page.locator('[data-builder-hook="job-open-file"]').setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('.logo-project');
+    await builder(page, 'job-step-2').click(); await builder(page, 'editor-setup').click();
 
     const workspace = builder(page, 'product-workspace');
     const variantSelect = builder(page, 'workspace-variant');
@@ -1239,16 +1260,18 @@ test('images shared scope: stale sibling submitter is refused, reset recovers', 
         const box = (await stage.boundingBox())!;
         await stage.click({ position: { x: Math.round(box.width * fx), y: Math.round(box.height * fy) } });
       }
-      await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+      await workspace.locator('.product-setup-overlay').first().press('Enter');
     };
     // Variant B stages an area FIRST (bucket seeds with no siblings).
     await variantSelect.selectOption('P-SHARED-02-B');
     await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
+    await photoDetails(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     await drawQuad(0.6, 0.9);
     // Variant A stages and SAVES another area meanwhile.
     await variantSelect.selectOption('P-SHARED-02-A');
     await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
+    await photoDetails(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     await drawQuad(0.1, 0.4);
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
@@ -1282,7 +1305,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     // The model pane mounts the 3D setup view: no images anywhere.
     const modelPane = builder(page, 'product-model');
     await expect(modelPane).toBeVisible();
-    await expect(page.getByText('This product uses a 3D model — set it up on the model below (no photos needed). Staged 3D references and areas save to the master with “Save 3D setup”.', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('This product uses a 3D model — set it up on the model below (no photos needed). Staged 3D references and areas save to the master with “Save 3D setup”.', { exact: true })).toHaveCount(0);
     const rectangleButton = (await modelPane.locator('[data-model-setup-hook="tool-rectangle"]').boundingBox())!;
     const freehandButton = (await modelPane.locator('[data-model-setup-hook="tool-freehand"]').boundingBox())!;
     expect(Math.abs(rectangleButton.y - freehandButton.y)).toBeLessThan(1);
@@ -1300,6 +1323,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
     const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
+    await ms('context-measure').click();
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await expect(ms('reference-readout')).toContainText('A (');
@@ -1318,7 +1342,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     await surfaceClick(0.56, 0.44);
     await surfaceClick(0.56, 0.52);
     await surfaceClick(0.44, 0.52);
-    await ms('area-finish').click();
+    await page.keyboard.press('Enter');
     await expect(ms('area-list')).toContainText('Chest');
     await (await shown(page, 'model-setup-save')).click();
     await expect(builder(page, 'model-setup-status')).toContainText('Saved 3D setup');
@@ -1493,7 +1517,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
     const modelPane = builder(page, 'product-model');
     await expect(modelPane).toBeVisible();
     const setupHost = builder(page, 'model-setup');
-    await expect(setupHost.locator('[data-model-setup-hook="pending-banner"]')).toBeVisible();
+    await expect(builder(page, 'product-editor').locator('.editor-provisional')).toBeVisible();
     const canvas = modelPane.locator('canvas');
     const surfaceClick = async (fx: number, fy: number) => {
       await canvas.scrollIntoViewIfNeeded();
@@ -1501,6 +1525,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
     const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
+    await ms('context-measure').click();
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await surfaceClick(0.6, 0.5);
@@ -1512,7 +1537,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
       await ms('area-name').fill(name);
       await ms('tool-freehand').click();
       for (const [fx, fy] of quad) await surfaceClick(fx, fy);
-      await ms('area-finish').click();
+      await page.keyboard.press('Enter');
       await expect(ms('area-list')).toContainText(name);
     };
     await drawArea('Chest', [[0.44, 0.44], [0.56, 0.44], [0.56, 0.52], [0.44, 0.52]]);
@@ -1528,6 +1553,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
 
     // Delete the second area and re-save: with no placements anywhere its
     // region and variant links vanish — a real delete, not retained geometry.
+    await ms('context-areas').click();
     await setupHost.getByRole('button', { name: /Side panel/ }).first().click();
     await setupHost.getByRole('button', { name: /Delete.*Side panel/ }).click();
     await expect(ms('area-list')).not.toContainText('Side panel');
@@ -1546,9 +1572,11 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
 
     // Change the reference (new millimetres): version bumps with a single
     // live region recomputed under the new scale.
+    await ms('context-measure').click();
     await ms('ref-mm').fill('500');
     await ms('ref-fit').click();
     await expect(ms('reference-scale')).toContainText('scale 1 unit =');
+    await ms('context-areas').click();
     await ms('areas-recompute').click();
     await expect(ms('area-list')).not.toContainText('stale');
     await (await shown(page, 'model-setup-save')).click();
@@ -1816,6 +1844,7 @@ test('prepared-master save/reopen retains references, calibration and areas', as
       await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
       await expect(builder(fresh, 'source-status')).toContainText('.logo-project');
       const freshWorkspace = builder(fresh, 'product-workspace');
+      await fresh.getByRole('button', {name:/^Open setup for/}).first().click();
       await expect(freshWorkspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();
       await expect(freshWorkspace.getByRole('button', { name: 'Anchor (1)', exact: true })).toBeVisible();
       const reopened = await parseProjectPackage(new Uint8Array(await readFile(masterPath)), { sha256 });
@@ -1831,7 +1860,7 @@ test('prepared-master save/reopen retains references, calibration and areas', as
   }
 });
 
-test('product-setup tools: dotted reference, rectangle + side edit, rollback, zoom-invariant picking, visibility, freehand', async ({ browser }, info) => {
+test('product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing', async ({ browser }, info) => {
   test.setTimeout(300_000);
   const viewport = { width: 1280, height: 900 };
   const { context, page, probe } = await openStation(browser, viewport);
@@ -1883,9 +1912,10 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
     await dragStage(0.1, 0.1, 0.4, 0.4);
     await expect(workspace.getByText(/Staged a drawn safe area with 4 corners/)).toBeVisible();
     await expect(workspace.getByRole('button', { name: 'Area 1', exact: true })).toBeVisible();
-    await expect(workspace.locator('.product-setup-sidehandle').first()).toBeVisible();
+    await expect(workspace.locator('.product-setup-midpoint').first()).toBeVisible();
 
     const readCorners = async (): Promise<Array<[number, number]>> => {
+      await photoDetails(workspace);
       await workspace.locator('.product-setup-advanced summary').click();
       const text = await workspace.locator('.product-setup-advanced-list').first().textContent() ?? '';
       await workspace.locator('.product-setup-advanced summary').click();
@@ -1893,6 +1923,7 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
       for (const match of text.matchAll(/Corner \d+: (-?[\d.]+), (-?[\d.]+) mm/g)) {
         found.push([Number(match[1]), Number(match[2])]);
       }
+      await workspace.locator('#photo-context [data-canvas-context-dismiss]').click();
       return found;
     };
     const corners100 = await readCorners();
@@ -1948,28 +1979,34 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
     expect(Math.abs(corners200[2]![1] - corners100[2]![1])).toBeLessThan(0.05);
     await workspace.locator('[data-ps-view="zoom"]').selectOption('100');
 
-    // Side drag moves that side's two corners, opposite side fixed, x fixed.
-    const beforeSide = await readCorners();
-    await stage.scrollIntoViewIfNeeded();
-    const sideHandle = workspace.locator('.product-setup-sidehandle').first();
-    const sideBox = (await sideHandle.boundingBox())!;
-    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + sideBox.height / 2);
+    // Once nonrectangular, ALL corners stay independently editable.
+    for (const index of [1, 2, 3]) expect(corners200[index]).toEqual(corners100[index]);
+    const secondHandle = workspace.locator('.product-setup-vertex').first();
+    await secondHandle.scrollIntoViewIfNeeded();
+    const secondBox = (await secondHandle.boundingBox())!;
+    await page.mouse.move(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2);
     await page.mouse.down();
-    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + sideBox.height / 2 + 25, { steps: 5 });
+    await page.mouse.move(secondBox.x + secondBox.width / 2 + 10, secondBox.y + secondBox.height / 2 + 8, { steps: 4 });
     await page.mouse.up();
-    await expect(workspace.getByText(/Moved side 1/)).toBeVisible();
-    const afterSide = await readCorners();
-    const dy0 = afterSide[0]![1] - beforeSide[0]![1];
-    const dy1 = afterSide[1]![1] - beforeSide[1]![1];
-    expect(dy0).toBeLessThan(-5);
-    expect(dy1).toBeLessThan(-5);
-    expect(Math.abs(dy0 - dy1)).toBeLessThan(1);
-    for (const index of [0, 1, 2, 3]) {
-      expect(Math.abs(afterSide[index]![0] - beforeSide[index]![0])).toBeLessThan(0.05);
-    }
-    for (const index of [2, 3]) {
-      expect(Math.abs(afterSide[index]![1] - beforeSide[index]![1])).toBeLessThan(0.05);
-    }
+    const beforeInsert = await readCorners();
+    expect(beforeInsert[0]).not.toEqual(corners200[0]);
+    for (const index of [1, 2, 3]) expect(beforeInsert[index]).toEqual(corners200[index]);
+    await workspace.locator('.product-setup-midpoint').first().click();
+    let afterSide = await readCorners();
+    expect(afterSide).toHaveLength(5);
+    expect(afterSide[0]).toEqual(beforeInsert[0]);
+    expect(afterSide.slice(2)).toEqual(beforeInsert.slice(1));
+
+    // Dense photo rings: enlarged hit targets overlap, but the nearest
+    // visible square owns the edit even when an edge target is painted later.
+    for (let count = 0; count < 3; count += 1) await workspace.locator('.product-setup-midpoint').first().click();
+    const denseBefore = await readCorners(); expect(denseBefore).toHaveLength(8);
+    const denseHandle = workspace.locator('.product-setup-vertex').first();
+    await denseHandle.scrollIntoViewIfNeeded(); const denseBox = (await denseHandle.boundingBox())!;
+    await page.mouse.move(denseBox.x+denseBox.width/2,denseBox.y+denseBox.height/2); await page.mouse.down();
+    await page.mouse.move(denseBox.x+denseBox.width/2-8,denseBox.y+denseBox.height/2-8,{steps:4}); await page.mouse.up();
+    afterSide = await readCorners(); expect(afterSide[0]).not.toEqual(denseBefore[0]);
+    expect(afterSide.slice(1)).toEqual(denseBefore.slice(1));
 
     // Escape mid-drag restores the previous draft exactly.
     const beforeEscape = await readCorners();
@@ -1985,7 +2022,7 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
 
     // Taps do not create rectangles.
     await stage.click({ position: { x: 100, y: 100 } });
-    await expect(workspace.getByText('Safe-area tool: drag a corner, use a side handle, or pick a corner below. Photo clicks never alter the polygon here.')).toBeVisible();
+    await expect(workspace.getByText('Safe-area tool: drag a corner, use an edge handle to insert, or pick a corner below. Photo clicks never alter the polygon here.')).toBeVisible();
     await expect(workspace.getByRole('button', { name: 'Area 2' })).toHaveCount(0);
 
     // Visibility is display-only: hiding layers keeps staged geometry.
@@ -2000,22 +2037,21 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
     await expect(workspace.locator('.product-setup-photo')).toBeVisible();
     expect(await readCorners()).toEqual(afterSide);
 
-    // Reset to the saved (empty) setup, then freehand-trace a second area.
+    // Polygon is click-only; Backspace undoes, first white square closes.
     await workspace.getByRole('button', { name: 'Reset to saved' }).click();
     await expect(workspace.getByRole('button', { name: 'Area 1' })).toHaveCount(0);
-    await workspace.getByRole('button', { name: 'Freehand' }).click();
-    await stage.scrollIntoViewIfNeeded();
-    const traceBox = (await stage.boundingBox())!;
-    const traceTo = (fx: number, fy: number): { x: number; y: number } => ({ x: traceBox.x + traceBox.width * fx, y: traceBox.y + traceBox.height * fy });
-    const start = traceTo(0.55, 0.2);
-    await page.mouse.move(start.x, start.y);
-    await page.mouse.down();
-    for (const [fx, fy] of [[0.75, 0.2], [0.78, 0.5], [0.6, 0.72], [0.55, 0.2]] as const) {
-      const point = traceTo(fx, fy);
-      await page.mouse.move(point.x, point.y, { steps: 4 });
-    }
-    await page.mouse.up();
-    await expect(workspace.getByText(/Staged a drawn safe area with \d+ corners/)).toBeVisible();
+    await workspace.getByRole('button', { name: 'Polygon', exact: true }).click();
+    const tapPolygon = async (fx: number, fy: number) => {
+      await stage.scrollIntoViewIfNeeded(); const box = (await stage.boundingBox())!;
+      await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    };
+    await tapPolygon(.55,.2); await tapPolygon(.75,.2); await tapPolygon(.78,.5);
+    await stage.press('Backspace');
+    await expect(workspace.locator('.product-setup-draw')).toHaveCount(2);
+    await tapPolygon(.78,.5); await tapPolygon(.6,.72);
+    await expect(workspace.locator('.product-setup-draw')).toHaveCount(4);
+    await workspace.locator('.product-setup-draw-first').click();
+    await expect(workspace.getByText(/Staged a drawn safe area with 4 corners/)).toBeVisible();
     await expect(workspace.getByRole('button', { name: 'Area 1', exact: true })).toBeVisible();
 
     // ONE atomic save persists the traced area; screenshot the real overlay.
@@ -2037,7 +2073,7 @@ test('product-setup tools: dotted reference, rectangle + side edit, rollback, zo
   }
 });
 
-test('model tools: dotted reference line, rectangle drag, side edit, interrupted trace rejected, zoom display-only', async ({ browser }, info) => {
+test('model tools: independent polygon corners, insertion, rollback, point drawing and zoom', async ({ browser }, info) => {
   test.setTimeout(300_000);
   const viewport = { width: 1280, height: 900 };
   const { context, page, probe } = await openHarness(browser, viewport, 'setup-harness-model-tools.html');
@@ -2099,147 +2135,85 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     expect(afterRect.areas[0]!.points).toHaveLength(4);
     expect(await hCall<number>(page, 'safeAreaOverlays')).toBeGreaterThan(0);
     expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
+    await page.getByText('Edit individual corners', { exact: true }).click();
     await expect(modelSetup(page, 'area-handles')).toBeVisible();
     const fillShot = info.outputPath('model-tools-rectangle.png');
     await page.screenshot({ path: fillShot });
     await info.attach('model-tools-rectangle', { path: fillShot, contentType: 'image/png' });
 
-    // Side edit DIRECT: drag the visible side-0 midpoint on the model
-    // itself — no form button. Exactly that side's two corners move, the
-    // opposite side stays fixed.
-    const rectBefore = afterRect.areas[0]!.points.map((p) => ({ ...p }));
-    {
-      const handle = modelSetup(page, 'canvas-handle-side-0');
-      await expect(handle).toBeVisible();
-      const handleBox = (await handle.boundingBox())!;
-      const box = await canvasBox();
-      const dx = box.width * 0.02;
-      const dy = box.height * 0.02;
-      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(handleBox.x + handleBox.width / 2 + dx, handleBox.y + handleBox.height / 2 + dy, { steps: 5 });
-      await page.mouse.up();
-    }
-    await expect(modelSetup(page, 'status')).toContainText('Side moved');
-    const afterSide = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
-    assert.ok(afterSide && afterSide.length === 4, 'four points after side edit');
-    const moved = [0, 1, 2, 3].filter((i) => {
-      const a = rectBefore[i]!;
-      const b = afterSide[i]!;
-      return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) > 1e-9;
-    });
-    expect(moved).toHaveLength(2);
-    // The moved pair must be one side (adjacent indices); the other side stays fixed.
-    const gap = (moved[1]! - moved[0]! + 4) % 4;
-    expect([1, 3]).toContain(gap);
-
-    // Escape mid-drag restores the staged polygon exactly.
-    await modelSetup(page, 'handle-corner-0').click();
-    const escapeBox = await canvasBox();
-    await page.mouse.move(escapeBox.x + escapeBox.width * 0.41, escapeBox.y + escapeBox.height * 0.45);
-    await page.mouse.down();
-    await page.mouse.move(escapeBox.x + escapeBox.width * 0.44, escapeBox.y + escapeBox.height * 0.48, { steps: 3 });
-    await page.keyboard.press('Escape');
-    await page.mouse.up();
-    await expect(modelSetup(page, 'status')).toContainText('Edit cancelled');
-    const afterEscape = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
-    assert.ok(afterEscape && afterEscape.length === 4, 'four points after escape');
-    for (let i = 0; i < 4; i += 1) {
-      const a = afterSide[i]!;
-      const b = afterEscape[i]!;
-      expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)).toBeLessThan(1e-12);
-    }
-
-    // Corner edit DIRECT: drag the visible corner-0 dot on the model
-    // itself — no form button. Corner 0 moves, opposite corner 2 stays
-    // fixed, and the ring stays a 4-corner rectangle with side handles.
-    const cornerBefore = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
-    assert.ok(cornerBefore && cornerBefore.length === 4, 'four points before corner edit');
-    {
+    // Drag exactly one white square: rectangle becomes a general polygon.
+    const original = afterRect.areas[0]!.points;
+    const dragCorner = async (dx: number, dy: number) => {
       const handle = modelSetup(page, 'canvas-handle-corner-0');
       await expect(handle).toBeVisible();
-      const handleBox = (await handle.boundingBox())!;
-      const box = await canvasBox();
-      const dx = box.width * 0.02;
-      const dy = box.height * 0.02;
-      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(handleBox.x + handleBox.width / 2 + dx, handleBox.y + handleBox.height / 2 + dy, { steps: 5 });
-      await page.mouse.up();
-    }
+      const hb = (await handle.boundingBox())!;
+      await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2); await page.mouse.down();
+      await page.mouse.move(hb.x + hb.width / 2 + dx, hb.y + hb.height / 2 + dy, { steps: 5 }); await page.mouse.up();
+    };
+    await dragCorner(8, 8);
     await expect(modelSetup(page, 'status')).toContainText('Corner moved');
-    const afterCorner = (await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.points;
-    assert.ok(afterCorner && afterCorner.length === 4, 'four points after corner edit');
-    const cornerMoved = [0, 1, 2, 3].filter((i) => {
-      const a = cornerBefore[i]!;
-      const b = afterCorner[i]!;
-      return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) > 1e-9;
-    });
-    expect(cornerMoved).toContain(0);
-    expect(cornerMoved).not.toContain(2);
-    expect(Math.hypot(
-      afterCorner[2]!.x - cornerBefore[2]!.x,
-      afterCorner[2]!.y - cornerBefore[2]!.y,
-      afterCorner[2]!.z - cornerBefore[2]!.z,
-    )).toBeLessThan(1e-9);
-    expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas[0]?.status).toBe('current');
-    await expect(modelSetup(page, 'area-handles')).toBeVisible();
+    const firstEdit = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points;
+    expect(firstEdit[0]).not.toEqual(original[0]); expect(firstEdit.slice(1)).toEqual(original.slice(1));
+    await dragCorner(7, -3);
+    const secondEdit = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points;
+    expect(secondEdit[0]).not.toEqual(firstEdit[0]); expect(secondEdit.slice(1)).toEqual(original.slice(1));
+    // Invalid surface release cannot replace the valid area.
+    const handle = modelSetup(page, 'canvas-handle-corner-0'); const hb = (await handle.boundingBox())!;
+    const box = await canvasBox();
+    await page.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2); await page.mouse.down();
+    await page.mouse.move(box.x+box.width*.97,box.y+box.height*.95,{steps:4}); await page.mouse.up();
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
+    // Escape rolls back a valid preview as well.
+    const cancelHandle = (await modelSetup(page,'canvas-handle-corner-0').boundingBox())!;
+    await page.mouse.move(cancelHandle.x+cancelHandle.width/2,cancelHandle.y+cancelHandle.height/2); await page.mouse.down();
+    await page.mouse.move(cancelHandle.x+cancelHandle.width/2+10,cancelHandle.y+cancelHandle.height/2+4,{steps:3});
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
+    // Move across the opposite edge to make a true self-crossing polygon.
+    // A neighbour-centre release is unsuitable: fractional pointer rounding
+    // can leave a tiny valid gap in one browser rather than an exact duplicate.
+    const sourceHandle = (await modelSetup(page,'canvas-handle-corner-0').boundingBox())!;
+    const neighbour = (await modelSetup(page,'canvas-handle-corner-1').boundingBox())!;
+    const opposite = (await modelSetup(page,'canvas-handle-corner-2').boundingBox())!;
+    const startX = sourceHandle.x+sourceHandle.width/2, startY = sourceHandle.y+sourceHandle.height/2;
+    const midX = (neighbour.x+neighbour.width/2+opposite.x+opposite.width/2)/2;
+    const midY = (neighbour.y+neighbour.height/2+opposite.y+opposite.height/2)/2;
+    await page.mouse.move(startX,startY); await page.mouse.down();
+    await page.mouse.move(midX+(midX-startX)*.2,midY+(midY-startY)*.2,{steps:4}); await page.mouse.up();
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
+    // Edge square inserts a real surface point and preserves existing points.
+    await modelSetup(page, 'canvas-handle-side-0').click();
+    const inserted = (await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points;
+    expect(inserted).toHaveLength(5); expect(inserted[0]).toEqual(secondEdit[0]); expect(inserted.slice(2)).toEqual(secondEdit.slice(1));
+    await modelSetup(page, 'canvas-handle-corner-1').focus(); await page.keyboard.press('Delete');
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
+    // No pointer-move trace: dragging in Polygon mode adds no points or area.
+    await modelSetup(page,'tool-freehand').click();
+    await dragCanvas(.38,.4,.44,.5);
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas).toHaveLength(1);
+    await expect(modelSetup(page,'live-outline').locator('rect')).toHaveCount(0);
+    await modelSetup(page,'area-name').fill('Clicked polygon');
+    await harnessClick(page,.38,.4); await harnessClick(page,.44,.4); await harnessClick(page,.44,.5);
+    await page.keyboard.press('Backspace');
+    await expect(modelSetup(page,'live-outline').locator('g')).toHaveCount(2);
+    await modelSetup(page,'area-undo').press('Enter');
+    await expect(modelSetup(page,'live-outline').locator('g')).toHaveCount(1);
+    await harnessClick(page,.44,.4); await harnessClick(page,.44,.5); await harnessClick(page,.38,.5);
+    await modelSetup(page,'drawing-close').click();
+    await expect(modelSetup(page,'area-list')).toContainText('Clicked polygon');
+    const clicked = await hCall<HarnessSnapshot>(page,'lastSnapshot');
+    expect(clicked.areas).toHaveLength(2); expect(clicked.areas[1]!.points).toHaveLength(4);
+    // Restore the exact native-coordinate snapshot and keep editing it.
+    await modelSetup(page,'advanced-summary').click();
+    const downloadEvent = page.waitForEvent('download'); await modelSetup(page,'setup-save').click();
+    const savedPath = await (await downloadEvent).path(); assert.ok(savedPath);
+    const savedText = await readFile(savedPath,'utf8');
+    expect(await hCall<boolean>(page,'restore',savedText)).toBe(true);
+    const reopened = await hCall<HarnessSnapshot>(page,'lastSnapshot');
+    for (const area of clicked.areas) expect(reopened.areas.find((item) => item.id === area.id)?.points).toEqual(area.points);
+    await expect(modelSetup(page,'canvas-handle-corner-0')).toBeVisible();
     const handlesShot = info.outputPath('model-tools-handles.png');
     await page.screenshot({ path: handlesShot });
-    await info.attach('model-tools-handles', { path: handlesShot, contentType: 'image/png' });
-
-    // Interrupted freehand trace: leaving the surface discards the whole
-    // stroke and retains the previous draft (gap 2 proof on real canvas).
-    await modelSetup(page, 'tool-freehand').click();
-    await modelSetup(page, 'area-name').fill('Trace1');
-    const traceBox = await canvasBox();
-    await page.mouse.move(traceBox.x + traceBox.width * 0.45, traceBox.y + traceBox.height * 0.45);
-    await page.mouse.down();
-    await page.mouse.move(traceBox.x + traceBox.width * 0.5, traceBox.y + traceBox.height * 0.45, { steps: 2 });
-    // Off the model: across empty stage background (a genuine miss).
-    await page.mouse.move(traceBox.x + traceBox.width * 0.95, traceBox.y + traceBox.height * 0.9, { steps: 4 });
-    await page.mouse.up();
-    await expect(modelSetup(page, 'status')).toContainText('left the model surface');
-    await expect(modelSetup(page, 'status')).toContainText('discarded');
-    const afterTrace = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
-    expect(afterTrace?.areas).toHaveLength(1);
-    expect(afterTrace?.areas[0]?.name).toBe('Rect1');
-    // Nothing was stashed: Finish stays disabled until a clean trace starts.
-    await expect(modelSetup(page, 'area-finish')).toBeDisabled();
-
-    // Valid freehand drag-trace: one press-drag-release loop wholly on the
-    // known planar face (same front-left face as the rectangle above)
-    // stages one closed named valid area on release — the requested
-    // drag-trace success proof on the real WebGL canvas.
-    await modelSetup(page, 'area-name').fill('DragTrace');
-    await modelSetup(page, 'tool-freehand').click();
-    {
-      const box = await canvasBox();
-      const pt = (fx: number, fy: number): { x: number; y: number } => ({
-        x: box.x + box.width * fx,
-        y: box.y + box.height * fy,
-      });
-      const start = pt(0.38, 0.4);
-      await page.mouse.move(start.x, start.y);
-      await page.mouse.down();
-      for (const [fx, fy] of [[0.44, 0.4], [0.44, 0.5], [0.38, 0.5], [0.38, 0.4]] as const) {
-        const p = pt(fx, fy);
-        await page.mouse.move(p.x, p.y, { steps: 4 });
-      }
-      await page.mouse.up();
-    }
-    await expect(modelSetup(page, 'area-list')).toContainText('DragTrace');
-    const afterDrag = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
-    assert.ok(afterDrag, 'snapshot after drag trace');
-    expect(afterDrag.areas).toHaveLength(2);
-    const dragArea = afterDrag.areas.find((area) => area.name === 'DragTrace');
-    assert.ok(dragArea, 'drag trace stages DragTrace');
-    expect(dragArea.points.length).toBeGreaterThanOrEqual(3);
-    expect(dragArea.status).toBe('current');
-    // Release completes the trace: no extra Finish/Cancel step is required.
-    await expect(modelSetup(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
-    await expect(modelSetup(page, 'area-cancel')).toHaveCount(0);
-    await expect(modelSetup(page, 'area-list')).toContainText('DragTrace');
 
     // Zoom is display-only: scale identical, label intact, picks still work.
     expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.mmPerUnit).toBe(fittedScale);
@@ -2258,7 +2232,7 @@ test('model tools: dotted reference line, rectangle drag, side edit, interrupted
     await harnessClick(page, 0.5, 0.48);
     await harnessClick(page, 0.54, 0.48);
     await harnessClick(page, 0.52, 0.54);
-    await modelSetup(page, 'area-finish').click();
+    await page.keyboard.press('Enter');
     await expect(modelSetup(page, 'area-list')).toContainText('Zoomface');
     const zoomed = await hCall<HarnessSnapshot | null>(page, 'lastSnapshot');
     expect(zoomed?.areas).toHaveLength(3);
@@ -2326,6 +2300,7 @@ test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ 
     const narrowPhoto = workspace.locator('.product-setup-photo').first();
     const narrowViewbar = workspace.locator('[data-ps-viewbar]').first();
     const cornersOf = async (): Promise<Array<[number, number]>> => {
+      await photoDetails(workspace);
       await workspace.locator('.product-setup-advanced summary').click();
       const text = await workspace.locator('.product-setup-advanced-list').first().textContent() ?? '';
       await workspace.locator('.product-setup-advanced summary').click();
@@ -2333,6 +2308,7 @@ test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ 
       for (const match of text.matchAll(/Corner \d+: (-?[\d.]+), (-?[\d.]+) mm/g)) {
         found.push([Number(match[1]), Number(match[2])]);
       }
+      await workspace.locator('#photo-context [data-canvas-context-dismiss]').click();
       return found;
     };
     const stageFit = (await narrowStage.boundingBox())!;
@@ -2481,6 +2457,17 @@ test('model rectangle drag on a non-planar surface stages a visible area (perime
     }
     await expect(modelSetup(page, 'status')).toContainText('Release missed');
     expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas).toEqual(snapshot.areas);
+    // Surface-following rings with more than four points remain editable.
+    await modelSetup(page,'tool-rotate').click();
+    const corner = modelSetup(page,'canvas-handle-corner-0'); await expect(corner).toBeVisible();
+    const handle = (await corner.boundingBox())!;
+    await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2); await page.mouse.down();
+    await page.mouse.move(handle.x+handle.width/2+7,handle.y+handle.height/2+2,{steps:4}); await page.mouse.up();
+    await expect(modelSetup(page,'status')).toContainText('Corner moved');
+    const edited = (await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points;
+    expect(edited).toHaveLength(snapshot.areas[0]!.points.length);
+    expect(edited[0]).not.toEqual(snapshot.areas[0]!.points[0]);
+    expect(edited.slice(1)).toEqual(snapshot.areas[0]!.points.slice(1));
     expectOfflineClean(probe);
   } finally {
     await context.close();

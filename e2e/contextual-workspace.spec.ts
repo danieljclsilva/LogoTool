@@ -223,6 +223,7 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-big.logo-project');
+    await page.getByRole('button', { name: /^Open setup for/ }).first().click();
     const workspace = builder(page, 'product-workspace');
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
 
@@ -253,10 +254,13 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     }
     await markerMinimums();
     await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
-    const vertex = workspace.locator('circle.product-setup-vertex').first();
+    const vertex = workspace.locator('rect.product-setup-vertex').first();
     const vertexBox = await vertex.boundingBox();
     assert.ok(vertexBox, 'corner handle has a box');
-    expect(vertexBox.width).toBeGreaterThanOrEqual(12);
+    // Rendered extent includes the 9px square plus its 1.5px non-scaling border.
+    expect(vertexBox.width).toBeCloseTo(10.5, 1);
+    expect(vertexBox.height).toBeCloseTo(10.5, 1);
+    await expect(vertex).toHaveCSS('fill', 'rgb(255, 255, 255)');
     const vertexHit = workspace.locator('.product-setup-vertices circle[data-markhit]').first();
     const vertexHitBox = await vertexHit.boundingBox();
     assert.ok(vertexHitBox, 'corner hit target has a box');
@@ -266,6 +270,7 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     assert.ok(midHitBox, 'midpoint hit target has a box');
     expect(midHitBox.width).toBeGreaterThanOrEqual(20);
     // Drawing handles while a replacement polygon is in progress.
+    await openProperties(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     const live = (await stage.boundingBox())!;
     await stage.click({ position: { x: Math.round(live.width * 0.3), y: Math.round(live.height * 0.3) } });
@@ -287,6 +292,11 @@ test('contextual workspace: markers keep usable sizes on a 2000 px photo, deskto
     await page.setViewportSize({ width: 480, height: 900 });
     await page.waitForTimeout(300);
     await markerMinimums();
+    await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();
+    const narrowCorner = (await workspace.locator('rect.product-setup-vertex').first().boundingBox())!;
+    expect(narrowCorner.width).toBeCloseTo(10.5, 1); expect(narrowCorner.height).toBeCloseTo(10.5, 1);
+    const narrowHit = (await workspace.locator('.product-setup-vertices circle[data-markhit]').first().boundingBox())!;
+    expect(narrowHit.width).toBeGreaterThanOrEqual(20);
     if (info.project.name === 'chromium') {
       await page.screenshot({ path: info.outputPath('context-big-narrow.png') });
     }
@@ -359,7 +369,12 @@ async function sharedVariantFixture(png: Uint8Array): Promise<Uint8Array> {
   }, { sha256 });
 }
 
+async function openProperties(workspace: ReturnType<Page['locator']>): Promise<void> {
+  if (!await workspace.locator('#photo-context').isVisible()) await workspace.locator('[data-fkey="photo-properties"]').click();
+}
+
 async function advancedCoords(workspace: ReturnType<Page['locator']>): Promise<string> {
+  await openProperties(workspace);
   await workspace.locator('.product-setup-advanced summary').click();
   const text = await workspace.locator('.product-setup-advanced-list').first().textContent() ?? '';
   await workspace.locator('.product-setup-advanced summary').click();
@@ -368,6 +383,7 @@ async function advancedCoords(workspace: ReturnType<Page['locator']>): Promise<s
 
 /** Precision inputs live under an opt-in disclosure on the selected row. */
 async function openPrecision(workspace: ReturnType<Page['locator']>): Promise<void> {
+  await openProperties(workspace);
   const summary = workspace.locator('.product-setup-precision > summary');
   if ((await summary.count()) === 0) return;
   const open = await summary.first().evaluate((element) => (element.closest('details') as HTMLDetailsElement).open);
@@ -394,6 +410,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-two-products.logo-project');
+    await page.getByRole('button', { name: /^Open setup for/ }).first().click();
     const workspace = builder(page, 'product-workspace');
     const productSelect = builder(page, 'workspace-product');
 
@@ -406,6 +423,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
     await tapCenter();
     await expect(workspace.getByText('Created “Anchor 1”')).toBeVisible();
+    await openProperties(workspace);
     await expect(workspace.getByText(/staged edits/)).toBeVisible();
     await productSelect.selectOption('P-CTX-B');
     await expect(workspace.locator('figcaption', { hasText: 'Chest B' })).toBeVisible();
@@ -470,6 +488,7 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
     await expect(workspace.getByText('Corner not moved:')).toBeVisible();
 
     // Cancel drawing keeps the staged bucket intact.
+    await openProperties(workspace);
     await workspace.getByRole('button', { name: 'Draw new safe area' }).click();
     const live = (await stage.boundingBox())!;
     await stage.click({ position: { x: Math.round(live.width * 0.3), y: Math.round(live.height * 0.3) } });
@@ -501,6 +520,8 @@ test('contextual workspace: unsaved drafts survive switches, precision, cancel, 
     await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
     await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-two-products.logo-project');
+    await page.getByRole('button', { name: /^Open setup for/ }).first().click();
+    await openProperties(workspace);
     await expect(workspace.getByText('Matches the saved setup.')).toBeVisible();
     await expect(workspace.getByText('Anchors (0)')).toBeVisible();
 
@@ -523,6 +544,7 @@ test('contextual workspace: variant switches restore drafts, shared effect state
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await (await shown(page, 'job-open-file')).setInputFiles(fixturePath);
     await expect(await shown(page, 'source-status')).toContainText('Loaded context-shared.logo-project');
+    await page.getByRole('button', { name: /^Open setup for/ }).first().click();
     const workspace = builder(page, 'product-workspace');
     const variantSelect = builder(page, 'workspace-variant');
 
@@ -644,4 +666,43 @@ test('contextual workspace: variant switches restore drafts, shared effect state
   } finally {
     await context.close();
   }
+});
+
+test('photo setup and logo placement share the product editor and contextual controls', async ({ browser }, info) => {
+  const { context, page, probe } = await openBuilder(browser);
+  try {
+    const path = info.outputPath('photo-unified.logo-project');
+    await writeFile(path, Buffer.from(await bigPhotoFixture(await syntheticPngBytes(page))));
+    await builder(page, 'job-open-file').setInputFiles(path);
+    await expect(builder(page, 'source-status')).toContainText('Loaded photo-unified.logo-project');
+    await builder(page, 'customer-name').fill('Synthetic photo editor');
+    await builder(page, 'job-ref').fill('PHOTO-UNIFIED');
+    await page.getByRole('checkbox', { name: 'Big photo product', exact: true }).check();
+    await builder(page, 'logo-file').setInputFiles({name:'synthetic-mark.png',mimeType:'image/png',buffer:Buffer.from(await syntheticPngBytes(page, '#ff00ff', 80, 40))});
+    await expect(builder(page, 'logo-status')).toContainText('Added');
+    await page.getByRole('button', { name: /^Open setup for/ }).click();
+    const editor = builder(page, 'product-editor');
+    await expect(editor).toBeVisible();
+    const workspace = builder(page, 'product-workspace');
+    await expect(workspace.locator('#photo-context')).toBeHidden();
+    await workspace.locator('[data-fkey="photo-properties"]').click();
+    await expect(workspace.locator('#photo-context')).toBeVisible();
+    await workspace.locator('#photo-context [data-canvas-context-dismiss]').click();
+    await builder(page, 'editor-logos').click();
+    const pw = (name: string) => page.locator(`[data-placement-hook="${name}"]`);
+    await expect(editor).toHaveAttribute('data-mode', 'logos');
+    await pw('pw-model-details').click();
+    await pw('pw-artwork-grid').getByRole('button', {name:/Place .* provisional preview/}).click();
+    await expect(pw('pw-placement-list').getByRole('button')).toHaveCount(1);
+    await page.locator('#placement-context [data-canvas-context-dismiss]').click();
+    await builder(page, 'editor-setup').click();
+    await expect(editor).toHaveAttribute('data-mode', 'setup');
+    await expect(workspace.getByRole('tab', {name:'Front'})).toBeVisible();
+    await builder(page, 'editor-logos').click();
+    await pw('pw-model-details').click();
+    await expect(pw('pw-placement-list').getByRole('button')).toHaveCount(1);
+    await expect(probe.pageErrors).toEqual([]);
+    await expect(probe.consoleErrors).toEqual([]);
+    await expect(probe.networkRequests).toEqual([]);
+  } finally { await context.close(); }
 });
