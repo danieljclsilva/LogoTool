@@ -1273,3 +1273,65 @@ than over) footer actions, `final-layout.log` passes all 6 three-viewport
 Chromium/Chrome journeys with an added assertion that Review remains inside the
 viewport. Screenshots in `final-layout/` show the final built layout. Build and
 `git diff --check` pass; no further implementation changes followed.
+
+### 2026-10-29 — Blank Logos canvas and clipped page top
+
+Reported screenshots showed a loaded 3D product in Measurements, then an empty
+region diagram in Logos before any safe area had been saved. The preceding
+acceptance had entered Logos after saving calibration/areas and missed this
+state. New offline regression tests reproduce the missing model through both
+the mode button and Prepare's Set logo placements action. A separate baseline
+check reproduces the header at y=-20 at 1280×720 (`baseline-top.log`).
+
+Model display now depends on the available asset rather than the existence of
+physical regions. A model with missing, stale or unsupported setup supplies an
+empty display mapping and remains visible on the same canvas/viewer. The stage
+shows the existing Set up product action; placement, anchor, movement, commit
+and drop mapping require a current calibrated region. No pixels, mesh units or
+preview defaults are promoted to physical geometry. Independent saved-package
+checks assert zero regions, calibrations and placements after an attempted
+unconfigured placement. The blocked Place action deliberately opens setup.
+The calibrated and preview states use one adapter and callback set, with
+readiness checked at edit time.
+
+Editor entry and setup routing return the window to the page top. Focus uses
+preventScroll, the normal editor no longer locks the body at a stale scroll
+offset, and canvas height accounts for viewport space. Back retains its
+Prepare-job destination. Header, navigation, editor modes and desktop Save
+bounds are checked after resize, calibration/save, enlargement/close and
+Prepare → Logos → Measurements. Four viewport sizes include the reported
+screenshot's approximate CSS dimensions: 1440×900, 1440×781, 1280×720 and
+390×844; desktop checks additionally resize 40 px shorter and restore.
+
+Independent review also reproduced a texture-loading race: a same-asset UI
+refresh incremented the model generation while its original load was pending,
+so its completion could never mark the shared viewer ready. Generation changes
+now belong to disposal or replacement loads. A self-contained textured GLB
+fixture holds real texture decoding behind a test gate, switches tools, then
+releases it. The old code fails (`load-baseline2.log`); the corrected code
+completes that same model load (`load-fixed.log`). This instrumentation lives
+only in the test, not the shipped application.
+
+OpenCode Contributor lead/worker supplied a bounded initial implementation.
+Codex independently reproduced both reported states, reviewed and simplified
+the shared-adapter integration, tightened edit guards, corrected the loading
+race, and performed final acceptance. Evidence is retained under
+`/tmp/logotool-editor-bugs-20261029/`; fixtures are synthetic, the built station
+opens directly over `file://`, all contexts are offline, and tests assert zero
+HTTP(S), page and console errors. OS is macOS 27.2 (26B118), arm64; browser
+versions and viewports are recorded in each run's environment attachments.
+One earlier Chrome invocation closed its final context with macOS
+CVDisplayLink/GPU errors (`final-chrome.log`, 18 passes/1 failure); it is not
+reported as a clean run. Later focused runs use fresh browser invocations.
+Windows Chrome/Edge release validation and the complete repository e2e matrix
+remain outside this macOS scoped acceptance. No Odoo calls, external asset
+uploads, publication, commits or pushes are part of this repair.
+
+Final validation for this repair: `npm run typecheck` and the production build
+pass; `npm test` passes 849/849. `final-chromium2.log` passes 45/45 cases (the
+previous 32 affected workflows plus 13 new regressions). Installed Chrome
+passes 13/13 new regressions (`final-chrome-regressions.log`) and 7/7 calibrated
+shared-editor/manipulation/document cases (`final-chrome-core.log`) in clean
+fresh invocations. The final screenshot review includes the normal 1280×720
+header and the still-unconfigured Logos model. `git diff --check` passes. No
+further implementation changes followed these checks.

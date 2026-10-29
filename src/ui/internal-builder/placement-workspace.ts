@@ -660,6 +660,8 @@ export function mountPlacementWorkspace(
   let viewOverride: { cx: number; cy: number; span: number } | null = null;
   const aborter = new AbortController();
   let modelView: ModelPlacementView | null = null;
+  /** Current model readiness; callbacks read this on every edit. */
+  let modelViewDisplayOnly = false;
   let stageAborter: AbortController | null = null;
   let stageDropPoint: ((x: number, y: number) => { regionId: string; pos: { xMm: number; yMm: number } } | null) | null = null;
   const expansion = expandableWorkspace(root, () => {
@@ -1202,7 +1204,7 @@ export function mountPlacementWorkspace(
       needsHeader = true;
       const label = el('p', 'pw-muted', 'pw-model-label');
       const scene = deps.getModelScene?.(selection.productId, selection.variantId);
-      label.textContent = scene && scene.regions.length > 0 ? 'Place logos on the product' : 'Measured placement diagram';
+      label.textContent = scene && scene.regions.length > 0 ? 'Place logos on the product' : scene ? 'Model preview — measurements/safe area needed' : 'Measured placement diagram';
       headerRow.append(label);
       if (deps.onViewModel !== undefined && (!scene || scene.regions.length === 0)) {
         const view = el('button', 'pw-tab', 'pw-view-model') as HTMLButtonElement;
@@ -1265,11 +1267,14 @@ export function mountPlacementWorkspace(
     }
     const region = stageRegion();
     const modelScene = deps.getModelScene?.(selection.productId, selection.variantId) ?? null;
-    if (modelScene && region && modelScene.regions.some((entry) => entry.id === region.id)) {
+    const calibrated = modelScene !== null && region !== null && modelScene.regions.some((entry) => entry.id === region.id);
+    if (modelScene) {
       main.parentElement?.classList.add('pw-product-workspace');
+      modelViewDisplayOnly = !calibrated;
       if (!modelView) modelView = createModelPlacementView({
         ...(deps.sharedSurface ? {sharedSurface: deps.sharedSurface} : {}),
         anchor: (regionId, pos, name) => {
+          if (modelViewDisplayOnly) return;
           const context = currentContext(); const config = context.configuration;
           if (!config || !deps.addAnchor) return;
           deps.addAnchor({ name, productId: config.productId, variantId: config.variantId, regionId, posMm: [pos.xMm, pos.yMm] });
@@ -1281,6 +1286,7 @@ export function mountPlacementWorkspace(
           deps.setSelection({ placementId: entry.id ?? `index:${index}` }); update();
         },
         move: (index, pos) => {
+          if (modelViewDisplayOnly) return;
           const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
           if (!config || !entry) return;
           if (Math.abs(pos.xMm - entry.pos.xMm) < 1e-9 && Math.abs(pos.yMm - entry.pos.yMm) < 1e-9) return;
@@ -1300,6 +1306,7 @@ export function mountPlacementWorkspace(
           } catch (error) { announce(`Move blocked: ${error instanceof Error ? error.message : String(error)}`); update(); }
         },
         commit: (index, patch) => {
+          if (modelViewDisplayOnly) return;
           const context = currentContext(); const config = context.configuration; const entry = config?.placements[index];
           if (!config || !entry) return;
           const candidate = candidatePlacement(config.id, entry, index);
@@ -1331,6 +1338,7 @@ export function mountPlacementWorkspace(
         },
         status: (message) => announce(message),
         preview: (index, patch) => {
+          if (modelViewDisplayOnly) return;
           const context = currentContext();
           if (index !== context.placementIndex) return;
           const set = (hook: string, value: number): void => {
@@ -1352,24 +1360,55 @@ export function mountPlacementWorkspace(
         },
         ...(deps.onSaveJob ? { save: () => deps.onSaveJob?.() } : {}),
       });
-      stageDropPoint = (x, y) => modelView?.dropPoint(x, y) ?? null;
+      stageDropPoint = calibrated ? (x, y) => modelView?.dropPoint(x, y) ?? null : null;
       main.append(modelView.element);
-      const modelAnchors = modelScene.regions.flatMap((area) => deps.getAnchors(selection.productId, selection.variantId, area.id).flatMap((anchor) => {
+      const viewScene = calibrated ? modelScene : { ...modelScene, regions: [] };
+      const modelAnchors = viewScene.regions.flatMap((area) => deps.getAnchors(selection.productId, selection.variantId, area.id).flatMap((anchor) => {
         const model = modelPointFromMm(area.frame, anchor.posMm[0], anchor.posMm[1]);
         return model ? [{ id: anchor.id, model, regionId: area.id }] : [];
       }));
-      modelView.update({ scene: modelScene, anchors: modelAnchors, selectedIndex: placementIndex, activeRegionId: region.id, status,
+      modelView.update({ scene: viewScene, anchors: modelAnchors, selectedIndex: placementIndex, activeRegionId: calibrated && region ? region.id : null, status,
         revision: JSON.stringify([modelScene.key, modelScene.regions, configuration.id, project.revision, configuration.placements]),
-        items: configuration.placements.map((entry, index) => {
+        items: (calibrated ? configuration.placements : []).map((entry, index) => {
           const policy = lockFor(configuration.id, entry, index);
           return { index, placement: candidatePlacement(configuration.id, entry, index), imageSrc: deps.getLogoImage(entry.logoId)?.src ?? null,
             fits: product.regions.some((area) => area.id === entry.regionId && evaluatePlacementGeometry(area, entry).ok),
             lock: policy.locked && Number.isFinite(policy.ratio) && policy.ratio > 0 ? { ratio: policy.ratio } : null };
         }),
       });
+      modelView.element.dataset.calibrated = String(calibrated);
+      const moveTool = modelView.element.querySelector<HTMLButtonElement>('[data-placement-hook="pw-model-move"]');
+      if (moveTool) moveTool.disabled = !calibrated;
+      if (!calibrated) {
+        const configured = configuredAreas(product, selection.variantId);
+        const setupRegion = region !== null && configured.some((area) => area.id === region.id) ? region : null;
+        const productName = product.name?.trim() || 'this product';
+        const setupNote = el('p', 'pw-error', 'pw-stage-message');
+        let setupRegionId: string | undefined;
+        if (setupRegion === null) {
+          setupNote.textContent =
+            `Add a safe area for ${productName} before placing a logo.`;
+          setupRegionId = undefined;
+        } else {
+          setupNote.textContent =
+            `Set up measurements for ${productName} before placing a logo.`;
+          setupRegionId = setupRegion.id;
+        }
+        main.append(setupNote);
+        const setupControls = el('div', 'pw-row');
+        const setupButton = el('button', 'pw-secondary', 'pw-stage-setup') as HTMLButtonElement;
+        setupButton.type = 'button';
+        setupButton.textContent = 'Set up product';
+        setupButton.addEventListener('click', () => {
+          if (setupRegionId === undefined) deps.requestProductSetup(selection.productId, selection.variantId);
+          else deps.requestProductSetup(selection.productId, selection.variantId, setupRegionId);
+        });
+        setupControls.append(setupButton);
+        main.append(setupControls);
+      }
       return;
     }
-    modelView?.destroy(); modelView = null;
+    modelView?.destroy(); modelView = null; modelViewDisplayOnly = false;
     const views = deps.getProductViews(selection.productId);
     const viewId = activeViewId(views, selection);
     let overlay: PlacementStageOverlay | null = null;
@@ -3887,7 +3926,7 @@ export function mountPlacementWorkspace(
     destroy() {
       destroyed = true;
       contextPanel?.destroy(); contextPanel = null;
-      expansion.destroy(); modelView?.destroy(); modelView = null;
+      expansion.destroy(); modelView?.destroy(); modelView = null; modelViewDisplayOnly = false;
       aborter.abort(); stageAborter?.abort();
       styleNode.remove();
       root.replaceChildren();

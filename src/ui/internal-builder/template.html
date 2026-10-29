@@ -393,7 +393,7 @@
     @media(max-width:700px) {
       [data-job-shell] .product-model-toolbar > button { min-height:32px;font-size:0!important; }
     }
-    .product-editor { position:relative;min-width:0; }
+    .product-editor { position:relative;min-width:0;scroll-margin-top:0; }
     .product-editor-modes { display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:8px; }
     .product-editor-modes button { min-height:34px!important;padding:6px 10px;font-size:13px; }
     .product-editor-modes [aria-pressed="true"] { border-color:var(--red);color:var(--red);font-weight:700; }
@@ -401,10 +401,10 @@
     .product-editor [data-builder-step="choose"] > .task-sub,
     .product-editor [data-builder-step="choose"] > h3,
     .product-editor [data-builder-step="choose"] > h3 + p { display:none; }
-    .product-editor [data-builder-hook="product-model"] { grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(380px,65vh) auto; }
+    .product-editor [data-builder-hook="product-model"] { grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(320px,min(65vh,calc(100vh - 320px))) auto; }
     .product-editor [data-builder-hook="model-setup"] { grid-column:auto;grid-row:auto;overflow:visible;border:0;padding:0; }
-    .product-editor [data-builder-hook="product-model-stage"] { grid-column:1; }
-    .product-editor [data-builder-hook="product-model"][data-mode="logos"] { grid-template-rows:minmax(380px,65vh);padding:8px;border:1px solid var(--line); }
+    .product-editor [data-builder-hook="product-model-stage"] { grid-column:1;min-height:0; }
+    .product-editor [data-builder-hook="product-model"][data-mode="logos"] { grid-template-rows:minmax(280px,min(65vh,calc(100vh - 260px)));padding:8px;border:1px solid var(--line); }
     .product-editor [data-builder-hook="product-model"][data-mode="logos"] > :not(.product-model-stage):not(.canvas-context-panel) { display:none; }
     .product-editor [data-builder-hook="product-model"][data-mode="logos"] .product-model-stage { grid-row:1; }
     .product-editor.station-expanded-workspace { display:flex;flex-direction:column; }
@@ -460,7 +460,7 @@
     /* The operator placement screen is a viewport workspace with an independent
        secondary inspector scroll area and persistent core actions. */
     @media (min-width: 821px) {
-      body.station-editor-active { overflow:hidden; }
+      body.station-editor-active { overflow:auto; }
       body.station-editor-active > .station-header { height:56px;gap:16px;padding:0 20px;font-size:19px; }
       body.station-editor-active > .station-header img { width:116px;height:40px; }
       body.station-editor-active .builder-modes { gap:16px; }

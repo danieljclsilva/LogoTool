@@ -346,6 +346,7 @@ function openUnifiedEditor(mode: 'setup' | 'logos'): void {
   productOptions.close();
   if (mode === 'logos' && !canEnterPlacements()) {
     editorOpen = true; setJobStep('prepare'); paintEditor(); refreshWorkspace();
+    window.scrollTo(0, 0);
     alertBuilder(jobPrepareGateMessage() || 'Save the measurements and at least one safe area before placing logos.'); return;
   }
   if (mode === 'setup') {
@@ -355,9 +356,8 @@ function openUnifiedEditor(mode: 'setup' | 'logos'): void {
   } else {
     if (workspaceProductId) source.selection = { ...source.selection, productId: workspaceProductId, variantId: workspaceVariantId ?? '' };
     editorOpen = true; setJobStep('placements');
-    void refreshStaffModel().then(() => { if (jobStep === 'placements') placementHandle?.update(); });
   }
-  paintEditor(); productEditor.scrollIntoView({ block: 'start' });
+  paintEditor(); window.scrollTo(0, 0);
 }
 function placeSharedModelSurface(): void {
   if (!editorOpen || jobStep !== 'placements' || productModelBox.hidden) return;
@@ -479,9 +479,15 @@ function setJobStep(next: JobStep): void {
     // Single-product/single-option jobs never render dropdowns: default the
     // selection so the rail is usable immediately (still explicit and visible).
     defaultPlacementSelection();
+    workspaceProductId = source?.selection.productId ?? null;
+    workspaceVariantId = source?.selection.variantId ?? null;
     staffModelSetup?.setActive(false);
+    // Every placements entry keeps the same canvas/viewer/camera: refresh the
+    // shared staff model for the live selection, then re-render placements.
+    void refreshStaffModel().then(() => { if (jobStep === 'placements') placementHandle?.update(); });
     if (placementHandle) placementHandle.update();
     placeSharedModelSurface();
+    window.scrollTo(0, 0);
   }
   if (next === 'review') {
     // The sync candidate export needs a prepared digest for the exact scoped
@@ -512,11 +518,11 @@ function goNext(): void {
     if (!canEnterPlacements()) {
       jobPrepareGate.textContent = jobPrepareGateMessage() || 'Resolve the highlighted product setup before continuing.';
       const target = document.querySelector<HTMLElement>('[data-job-step="prepare"] input, [data-job-step="prepare"] button.btn-primary');
-      if (target instanceof HTMLElement) target.focus();
+      if (target instanceof HTMLElement) target.focus({ preventScroll: true });
       updateControls();
       return;
     }
-    setJobStep('placements');
+    openUnifiedEditor('logos');
   } else if (jobStep === 'placements') {
     setJobStep('review');
   } else if (jobStep === 'approval') {
@@ -525,7 +531,9 @@ function goNext(): void {
 }
 function goBack(): void {
   if (loading || creating || logoImporting || productImporting || photoAttaching) return;
-  if (jobStep === 'placements' || jobStep === 'review') setJobStep('prepare');
+  if (jobStep === 'placements' || jobStep === 'review') {
+    editorOpen = false; modelExpansion.close(); setJobStep('prepare'); window.scrollTo(0, 0);
+  }
   else if (jobStep === 'approval') setJobStep(jobReturnStep);
 }
 function renderSelectionSummary(): void {
@@ -3395,8 +3403,8 @@ jobStep3.addEventListener('click', () => {
     setJobStep('placements');
     alertBuilder('Apply or discard the pending placement edits before review.');
     placementHandle.update();
-    document.querySelector('[data-builder-hook="job-placement-host"] .pw-apply')?.scrollIntoView({ block: 'center' });
-    (document.querySelector('[data-builder-hook="job-placement-host"] .pw-apply') as HTMLElement | null)?.focus();
+    document.querySelector('[data-builder-hook="job-placement-host"] .pw-apply')?.scrollIntoView({ block: 'nearest' });
+    (document.querySelector('[data-builder-hook="job-placement-host"] .pw-apply') as HTMLElement | null)?.focus({ preventScroll: true });
     return;
   }
   setJobStep('review');
@@ -3645,7 +3653,7 @@ function focusProductSetup(productId: string, variantId?: string): void {
   alertBuilder();
   editorOpen = true; setJobStep('prepare');
   refreshWorkspace();
-  productEditor.scrollIntoView({ block: 'start' });
+  window.scrollTo(0, 0);
 }
 let documentModels: ReturnType<typeof createModelDocumentController> | null = null;
 function mountJobModules(): void {
@@ -3742,7 +3750,7 @@ function mountJobModules(): void {
       onAddLogo: () => logoFile.click(),
       onReview: () => setJobStep('review'),
       onApprovalBranch: () => setJobStep('approval'),
-      onBack: () => { editorOpen = false; modelExpansion.close(); setJobStep('prepare'); },
+      onBack: () => { editorOpen = false; modelExpansion.close(); setJobStep('prepare'); window.scrollTo(0, 0); },
       onStatus: (message) => alertBuilder(message),
       onSaveJob: () => void saveJobToFile(),
     });
@@ -5162,12 +5170,12 @@ function openProductWorkspace(productId: string): void {
   guidedScale.hide();
   editorOpen = true; setJobStep('prepare');
   if (!prepareBlocked()) refreshWorkspace();
-  productEditor.scrollIntoView({ block: 'start' });
-  workspaceProduct.focus();
+  window.scrollTo(0, 0);
+  workspaceProduct.focus({ preventScroll: true });
   // Single-product/single-option workspaces hide the chooser selects, leaving
   // them unfocusable: fall back to the workspace mount itself (tabindex -1)
   // so keyboard focus still lands in the opened workspace. (Worker 2 intake.)
-  if (document.activeElement !== workspaceProduct) workspaceBox.focus();
+  if (document.activeElement !== workspaceProduct) workspaceBox.focus({ preventScroll: true });
 }
 
 function refreshWorkspace(): void {
@@ -5213,6 +5221,7 @@ function refreshAddProductDisclosure(): void {
 
 
 function disposeStaffModel(): void {
+  ++staffModelGeneration;
   if (staffModelSetup !== null) {
     try {
       staffModelSetup.destroy();
@@ -5230,7 +5239,9 @@ function disposeStaffModel(): void {
 }
 
 async function refreshStaffModel(): Promise<void> {
-  const generation = ++staffModelGeneration;
+  // Same-asset UI refreshes must not invalidate an in-flight texture load.
+  // Only disposal or a replacement load supersedes its completion.
+  let generation = staffModelGeneration;
   const isCurrent = (): boolean => generation === staffModelGeneration;
   if (source === null) {
     disposeStaffModel();
@@ -5287,6 +5298,7 @@ async function refreshStaffModel(): Promise<void> {
     if (jobStep === 'prepare' && editorOpen) staffModelSetup?.refresh();
     placeSharedModelSurface(); return;
   }
+  generation = ++staffModelGeneration;
   productModelBox.hidden = false;
   staffModelReady = false;
   productModelStatus.textContent = `Showing ${selection.label ?? selection.modelPath} for reference — orbit to inspect.`;
@@ -5299,6 +5311,7 @@ async function refreshStaffModel(): Promise<void> {
       return;
     }
     disposeStaffModel();
+    generation = staffModelGeneration;
     staffModelCanvas = persistentModelCanvas;
     if (!staffModelViewer) {
       const attached = module.ModelViewer.attach({ canvas: persistentModelCanvas, container: productModelStage, background: 0xffffff });
@@ -5539,7 +5552,11 @@ function readModelSetup(
   return null;
 }
 
-/** Reconstruct display mapping only from current, asset-bound setup evidence. */
+/** Reconstruct display mapping only from current, asset-bound setup evidence.
+ * Display-only contract: an imported model always yields a scene, even with
+ * no valid calibrated area. Calibrated regions require saved evidence;
+ * otherwise regions:[] supplies a display-only scene with no physical mapping. Never invents
+ * mm, frames, domain regions or approval. */
 function jobModelPlacementScene(productId: string, variantId: string): ModelPlacementScene | null {
   if (!source) return null;
   const product = source.project.products.find((entry) => entry.id === productId);
@@ -5549,14 +5566,16 @@ function jobModelPlacementScene(productId: string, variantId: string): ModelPlac
   const bytes = sessionAssetMap().get(model.modelPath);
   if (!bytes) return null;
   const key = modelAssetKeyOf(model.modelPath, bytes);
+  const displayKey = `${productId}:${variantId}:${key}`;
+  const displayOnly = (): ModelPlacementScene => ({ key: displayKey, bytes, regions: [] });
   const evidence = readModelSetup(product, model.variantId, key);
-  if (!evidence) return null;
+  if (!evidence) return displayOnly();
   const setup = evidence.sidecar.setup as Record<string, unknown>;
   if (setup['version'] !== '0.1.0-provisional-model-setup' || setup['productId'] !== productId ||
-      (setup['variantId'] ?? null) !== (model.variantId ?? null) || setup['assetKey'] !== key || !Array.isArray(setup['areas']) || setup['areas'].length > 64) return null;
+      (setup['variantId'] ?? null) !== (model.variantId ?? null) || setup['assetKey'] !== key || !Array.isArray(setup['areas']) || setup['areas'].length > 64) return displayOnly();
   const reference = setup['reference'] as ReferenceSpan;
-  if (validateReferenceSpan(reference) !== null || !('z' in reference.a) || !('z' in reference.b)) return null;
-  const fit = fitScaleFromReferences([reference]); if (!fit.ok) return null;
+  if (validateReferenceSpan(reference) !== null || !('z' in reference.a) || !('z' in reference.b)) return displayOnly();
+  const fit = fitScaleFromReferences([reference]); if (!fit.ok) return displayOnly();
   const regions: ModelPlacementScene['regions'] = [];
   for (const value of setup['areas']) {
     if (!value || typeof value !== 'object') continue;
@@ -5571,7 +5590,8 @@ function jobModelPlacementScene(productId: string, variantId: string): ModelPlac
     if (!region.safeArea.every((point, index) => Math.abs(point[0]! - projected.ring[index]!.x) < 1e-6 && Math.abs(point[1]! - projected.ring[index]!.y) < 1e-6)) continue;
     regions.push({ id: regionId, frame: { ...projected.plane, mmPerUnit: fit.mmPerUnit }, pointsModel: points.map((point) => ({ ...point })) });
   }
-  return regions.length > 0 ? { key: `${productId}:${variantId}:${key}`, bytes, regions } : null;
+  if (regions.length > 0) return { key: displayKey, bytes, regions };
+  return displayOnly();
 }
 
 function mountModelSetup(productId: string, modelPath: string): void {
