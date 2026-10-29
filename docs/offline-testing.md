@@ -1335,3 +1335,31 @@ shared-editor/manipulation/document cases (`final-chrome-core.log`) in clean
 fresh invocations. The final screenshot review includes the normal 1280×720
 header and the still-unconfigured Logos model. `git diff --check` passes. No
 further implementation changes followed these checks.
+
+### 2026-10-29 — Finish area label and toolbar alignment
+
+The normal model-toolbar rule painted every button white with greater CSS
+specificity than `.btn-primary`, while the primary button retained white text.
+The baseline test measures a 1:1 contrast ratio (`baseline.log`). Scoped primary
+styles now retain the red fill and white label through normal, hover, disabled
+and keyboard-focus states. The drawing-action group's inherited top margin is
+removed, and buttons, zoom select and area-name input use the same 32px height.
+A first narrow-screen check caught a remaining 30px/32px mismatch (`check.log`);
+that mismatch is corrected. Changes are CSS only; drawing validation is intact.
+
+The new Finish acceptance clicks the actual button (no Enter workaround),
+checks its visible label and at least 4.5:1 contrast in normal/hover/keyboard
+focus, checks matching control heights and same-row alignment, verifies that
+two points cannot finish, then completes and saves two triangular areas in
+normal/enlarged workspaces. Parsed packages contain both three-point regions.
+Screenshots at 1440×781, 1280×720 and 390×844 were independently inspected.
+
+`npm run typecheck`, `npm run build` and `git diff --check` pass. The final
+focused offline suite passes 20/20 across bundled Chromium and installed Chrome
+on macOS 27.2, including header/resize and shared-canvas regression checks.
+The built station is opened directly through `file://` with zero HTTP(S),
+console and page errors asserted; OS/browser/version/viewport are attached by
+the suite. Logs, screenshots and saved synthetic packages are under
+`/tmp/logotool-finish-toolbar-20261029/final/` and `final.log` in its parent.
+Domain code did not change; the Node domain suite was not repeated for this
+CSS repair. Windows Chrome/Edge delivery validation remains outstanding.

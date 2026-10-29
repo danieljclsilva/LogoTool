@@ -285,6 +285,14 @@
       .product-model-footer .btn-secondary { font-size:.85rem;padding:8px 12px; }
       .product-model-footer label { font-size:.75rem; }
     }
+    /* Finish toolbar: keep primary red/white, align compact controls. */
+    [data-model-setup-hook="viewbar"] .btn-primary { background:var(--red);border-color:var(--red);color:#fff;width:auto; }
+    [data-model-setup-hook="viewbar"] .btn-primary:hover:not(:disabled) { background:var(--red-dark);border-color:var(--red-dark);color:#fff; }
+    [data-model-setup-hook="viewbar"] .btn-primary:disabled { background:var(--red);border-color:var(--red);color:#fff;opacity:.48;cursor:default; }
+    [data-model-setup-hook="viewbar"] .btn-primary:focus-visible { outline:3px solid var(--focus);outline-offset:2px; }
+    .product-model-toolbar [data-model-setup-hook="viewbar"] { margin:0; }
+    .product-model-toolbar [data-model-setup-hook="viewbar"] .model-setup-actions { margin-top:0;margin-bottom:0;align-items:center; }
+    .product-model-toolbar [data-model-setup-hook="viewbar"] button,.product-model-toolbar [data-model-setup-hook="viewbar"] select,.product-model-toolbar [data-model-setup-hook="viewbar"] input { box-sizing:border-box;min-height:32px;height:32px;line-height:20px;vertical-align:middle;margin:0; }
     .anchor-setup-drawing .anchor-setup-draw { fill: #fff; stroke: #0b6cab; stroke-width: 2.5; cursor: pointer; }
     /* First-corner distinction is fill-only (see product-setup note above). */
     .anchor-setup-draw-first { fill: #0b6cab; }

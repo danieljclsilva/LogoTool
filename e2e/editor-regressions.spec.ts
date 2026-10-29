@@ -202,3 +202,69 @@ test('switching tools during texture loading completes the same model load', asy
     assertCleanProbe(probe);
   } finally {await context.close();}
 });
+
+for (const viewport of [{width:1440,height:781},{width:1280,height:720},{width:390,height:844}]) {
+  test(`Finish area is readable, aligned and clickable at ${viewport.width}×${viewport.height}`, async ({browser}, info) => {
+    const {context,page,probe} = await openOfflineContext(browser,viewport);
+    try {
+      const canvas = await createUnconfiguredModel(page,cubeGlb(false,false));
+      await ms(page,'view-front').click();
+      await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
+      await ms(page,'context-measure').click(); await ms(page,'ref-pick-a').click();
+      const tap = async (x:number,y:number) => {
+        const box=(await canvas.boundingBox())!;
+        await page.mouse.click(box.x+box.width*x,box.y+box.height*y);
+      };
+      await tap(.45,.5); await tap(.55,.5);
+      await ms(page,'ref-mm').fill('200'); await ms(page,'ref-fit').click();
+      for (const expanded of [false,true]) {
+        if (expanded) await b(page,'product-model-expand').click();
+        await ms(page,'tool-freehand').click();
+        await ms(page,'area-name').fill(expanded ? 'Enlarged triangle' : 'Normal triangle');
+        const finish=ms(page,'area-finish');
+        await expect(finish).toBeVisible(); await expect(finish).toHaveText('Finish area');
+        const contrast = () => finish.evaluate(node => {
+          const style=getComputedStyle(node);
+          const luminance=(css:string) => {
+            const values=css.match(/[\d.]+/g)!.slice(0,3).map(Number).map(value=>{
+              const channel=value/255; return channel<=.04045 ? channel/12.92 : ((channel+.055)/1.055)**2.4;
+            });
+            return .2126*values[0]!+.7152*values[1]!+.0722*values[2]!;
+          };
+          const fg=luminance(style.color),bg=luminance(style.backgroundColor);
+          return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05);
+        });
+        expect(await contrast()).toBeGreaterThanOrEqual(4.5);
+        await finish.hover(); expect(await contrast()).toBeGreaterThanOrEqual(4.5);
+        await ms(page,'area-cancel').focus(); await page.keyboard.press('Shift+Tab');
+        await expect(finish).toBeFocused(); expect(await contrast()).toBeGreaterThanOrEqual(4.5);
+        expect(await finish.evaluate(node=>getComputedStyle(node).outlineStyle)).not.toBe('none');
+        const controls=await page.locator('[data-model-setup-hook="viewbar"]').locator('button,select,input').evaluateAll(nodes=>nodes.filter(n=>n.getClientRects().length).map(n=>{
+          const rect=n.getBoundingClientRect(); return {y:rect.y,h:rect.height};
+        }));
+        expect(Math.max(...controls.map(c=>c.h))-Math.min(...controls.map(c=>c.h))).toBeLessThanOrEqual(1);
+        for (const first of controls) for (const second of controls) {
+          const overlap=Math.min(first.y+first.h,second.y+second.h)-Math.max(first.y,second.y);
+          if (overlap>Math.min(first.h,second.h)*.5) expect(Math.abs(first.y-second.y)).toBeLessThanOrEqual(1);
+        }
+        await tap(.46,.44); await tap(.55,.44);
+        await finish.click();
+        await expect(ms(page,'status')).toContainText('Pick at least 3');
+        await tap(.52,.56);
+        await page.screenshot({path:info.outputPath(expanded?'finish-enlarged.png':'finish-normal.png')});
+        await finish.click();
+        await expect(ms(page,'tool-rotate')).toHaveAttribute('aria-pressed','true');
+        await expect(ms(page,'area-list')).toContainText(expanded?'Enlarged triangle':'Normal triangle');
+        if (expanded) await b(page,'product-model-expand').click();
+      }
+      await b(page,'model-setup-save').click();
+      await expect(b(page,'model-setup-status')).toContainText('Saved 3D setup');
+      const download=page.waitForEvent('download'); await b(page,'job-save').click();
+      const path=info.outputPath('finished-areas.logo-project'); await (await download).saveAs(path);
+      const saved=await parseProjectPackage(new Uint8Array(await readFile(path)),{sha256:async bytes=>createHash('sha256').update(bytes).digest('hex')});
+      expect(saved.project.products[0]!.regions.map(region=>region.safeArea.length)).toEqual([3,3]);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      assertCleanProbe(probe);
+    } finally {await context.close();}
+  });
+}
