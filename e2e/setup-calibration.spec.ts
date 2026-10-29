@@ -2502,3 +2502,43 @@ for (const viewport of VIEWPORTS) {
     } finally { await context.close(); }
   });
 }
+
+// Regression: dense polygons must not raycast every handle on idle frames.
+test('dense model area keeps exact points while idle and zoom avoid repeated picking', async ({ browser }, info) => {
+  const viewport = {width:1280,height:900};
+  const {context,page,probe} = await openHarness(browser,viewport,'dense-points.html');
+  try {
+    await attachEnv(info,browser,viewport,'64-point polygon idle and zoom work');
+    expect(await hCall<string>(page,'loadGlb',Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
+    await hCall(page,'front');
+    const points = Array.from({length:64},(_,i)=>({x:.22*Math.cos(i*Math.PI/32),y:.22*Math.sin(i*Math.PI/32),z:.5}));
+    const setup = {version:'0.1.0-provisional-model-setup',productId:'SYN-BOX',assetKey:'harness-asset-1',reference:null,areas:[{id:'dense',name:'Dense ring',points}]};
+    expect(await hCall<boolean>(page,'restore',JSON.stringify(setup))).toBe(true);
+    await page.locator('#gl').scrollIntoViewIfNeeded();
+    await expect(modelSetup(page,'canvas-handle-corner-0')).toBeVisible();
+    // Let resize/orbit damping settle before counting idle frame work.
+    await hCall(page,'profileFrames','idle');
+    const idle = await hCall<{projections:number;picks:number}>(page,'profileFrames','idle');
+    await info.attach('idle-work',{body:JSON.stringify(idle),contentType:'application/json'});
+    expect(idle.picks).toBe(0);
+    expect(idle.projections).toBeLessThan(5);
+    const before = await hCall<HarnessSnapshot>(page,'lastSnapshot');
+    const zoom = await hCall<{projections:number;picks:number}>(page,'profileFrames','zoom');
+    await info.attach('zoom-work',{body:JSON.stringify(zoom),contentType:'application/json'});
+    // One changed view may check all 128 handles; 20 identical frames may not.
+    expect(zoom.projections).toBeGreaterThan(0);
+    expect(zoom.projections).toBeLessThan(64*2*5);
+    expect(zoom.picks).toBeLessThan(64*2*5);
+    const moving = await hCall<{projections:number;picks:number}>(page,'profileFrames','moving');
+    await info.attach('moving-zoom-work',{body:JSON.stringify(moving),contentType:'application/json'});
+    await writeFile(info.outputPath('point-work.json'),JSON.stringify({idle,zoom,moving},null,2));
+    expect(moving.picks).toBeLessThan(64*2*3);
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas).toEqual(before.areas);
+    await expect(modelSetup(page,'canvas-handle-corner-0')).toBeVisible();
+    await page.screenshot({path:info.outputPath('dense-zoom.png')});
+    await hCall(page,'back');
+    await expect(modelSetup(page,'canvas-handle-corner-0')).toBeHidden();
+    expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(points);
+    expectOfflineClean(probe);
+  } finally {await context.close();}
+});

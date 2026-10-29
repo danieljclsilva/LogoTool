@@ -65,6 +65,24 @@ function base64ToBytes(base64: string): Uint8Array {
 }
 
 window.__setupHarness = {
+  /** Count real projection/pick work, without wall-clock performance thresholds. */
+  async profileFrames(mode: string): Promise<{ projections: number; picks: number }> {
+    if (!viewer) throw new Error('No viewer');
+    const live = viewer;
+    const project = live.projectToClient;
+    const pick = live.pickSurface;
+    let projections = 0, picks = 0;
+    live.projectToClient = function (...args) { projections++; return project.apply(this, args); };
+    live.pickSurface = function (...args) { picks++; return pick.apply(this, args); };
+    try {
+      if (mode === 'zoom') live.setZoomPercent(live.getZoomPercent() === 100 ? 150 : 100);
+      for (let frame = 0; frame < 20; frame++) {
+        if (mode === 'moving') live.setZoomPercent(110 + frame * 2);
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      }
+      return { projections, picks };
+    } finally { live.projectToClient = project; live.pickSurface = pick; }
+  },
   attachKind(): string {
     return attached.status.kind;
   },

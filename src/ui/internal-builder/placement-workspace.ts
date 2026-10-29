@@ -1390,8 +1390,12 @@ export function mountPlacementWorkspace(
             `Add a safe area for ${productName} before placing a logo.`;
           setupRegionId = undefined;
         } else {
+          // A saved area can be present but unusable here (missing or stale
+          // calibration): the setup screen owns Fit and recompute, so name
+          // that route instead of only saying measurements are missing.
           setupNote.textContent =
-            `Set up measurements for ${productName} before placing a logo.`;
+            `Set up measurements for ${productName} before placing a logo. ` +
+            `If a saved area exists, open product setup to fit the scale, then recompute stale areas.`;
           setupRegionId = setupRegion.id;
         }
         main.append(setupNote);
@@ -3811,6 +3815,9 @@ export function mountPlacementWorkspace(
       box.append(line);
     }
     for (const notice of gate.notices) {
+      // The placements list already shows the empty-option note; repeating
+      // the same sentence in validation would duplicate it in the popup.
+      if (notice === 'No logo placements for this option.' && configuration.placements.length === 0) continue;
       const line = el('p', 'pw-muted', 'pw-notice');
       line.textContent = notice;
       box.append(line);

@@ -268,3 +268,72 @@ for (const viewport of [{width:1440,height:781},{width:1280,height:720},{width:3
     } finally {await context.close();}
   });
 }
+
+for (const viewport of [{width:1440,height:781},{width:390,height:844}]) {
+  test(`artwork popup wraps long logo cards without clipping at ${viewport.width}×${viewport.height}`,async({browser},info)=>{
+    const {context,page,probe} = await openOfflineContext(browser,viewport);
+    try {
+      await createUnconfiguredModel(page);
+      const png = await page.evaluate(()=>{const c=document.createElement('canvas');c.width=20;c.height=10;c.getContext('2d')!.fillRect(0,0,20,10);return c.toDataURL().split(',')[1]!;});
+      await b(page,'logo-file').setInputFiles({name:'[LOGO EDEKA RL4 PT] Synthetic long customer artwork name transparent.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
+      await expect(b(page,'logo-status')).toContainText('Added');
+      await b(page,'editor-logos').click();
+      for(const expanded of [false,true]) {
+        if(expanded) await b(page,'product-model-expand').click();
+        await pw(page,'pw-model-details').click();
+        const panel=page.locator('#placement-context');
+        await expect(panel).toBeVisible();
+        await expect(panel.getByText('No logo placements for this option.',{exact:true})).toHaveCount(1);
+        const grid=pw(page,'pw-artwork-grid');
+        await expect(grid.locator('.pw-artwork-card')).toHaveCount(2);
+        expect(await grid.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+        for(const card of await grid.locator('.pw-artwork-card').all()) {
+          expect(await card.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+          const label=card.locator('.pw-artwork-name');
+          expect(await label.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
+          await card.getByRole('button',{name:/Place .* provisional preview/}).scrollIntoViewIfNeeded();
+          const box=(await card.getByRole('button',{name:/Place .* provisional preview/}).boundingBox())!;
+          const bounds=(await panel.boundingBox())!;
+          expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+          expect(box.x+box.width).toBeLessThanOrEqual(bounds.x+bounds.width);
+          expect(box.y+box.height).toBeLessThanOrEqual(bounds.y+bounds.height);
+        }
+        await page.screenshot({path:info.outputPath(`artwork-${expanded?'expanded':'normal'}.png`)});
+        await panel.locator('[data-canvas-context-dismiss]').click();
+      }
+      assertCleanProbe(probe);
+    }finally{await context.close();}
+  });
+}
+
+test('uncalibrated area offers scale fitting then recompute and logo placement',async({browser},info)=>{
+  const {context,page,probe}=await openOfflineContext(browser,{width:1440,height:781});
+  try{
+    const canvas=await createUnconfiguredModel(page,cubeGlb());
+    await b(page,'product-model-expand').click();
+    await ms(page,'view-front').click();
+    await ms(page,'viewbar').locator('[data-ps-view="fit"]').click();
+    const box=(await canvas.boundingBox())!;
+    await ms(page,'tool-freehand').click();
+    await ms(page,'area-name').fill('Retained chest area');
+    for(const [x,y] of [[.44,.44],[.56,.44],[.5,.56]]) await page.mouse.click(box.x+box.width*x!,box.y+box.height*y!);
+    await ms(page,'area-finish').click();
+    await expect(ms(page,'areas-recompute')).toBeDisabled();
+    await ms(page,'areas-fit-scale').click();
+    await expect(ms(page,'ref-pick-a')).toBeVisible();
+    await ms(page,'ref-pick-a').click();
+    await page.mouse.click(box.x+box.width*.45,box.y+box.height*.5);
+    await page.mouse.click(box.x+box.width*.55,box.y+box.height*.5);
+    await ms(page,'ref-mm').fill('200');await ms(page,'ref-fit').click();
+    await expect(ms(page,'areas-fit-scale')).toHaveCount(0);
+    await ms(page,'areas-recompute').click();
+    await b(page,'model-setup-save').click();
+    await expect(b(page,'model-setup-status')).toContainText('Saved 3D setup');
+    await b(page,'editor-logos').click();
+    await pw(page,'pw-model-details').click();
+    await pw(page,'pw-artwork-grid').getByRole('button',{name:/Place .* provisional preview/}).first().click();
+    await expect(pw(page,'pw-model-workbench')).toHaveAttribute('data-artwork-count','1');
+    await page.screenshot({path:info.outputPath('recovered-area-logo.png')});
+    assertCleanProbe(probe);
+  }finally{await context.close();}
+});

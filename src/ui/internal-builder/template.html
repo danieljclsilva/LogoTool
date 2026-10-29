@@ -500,13 +500,13 @@
       body.station-editor-active .pw-step-actions button { min-height:36px;padding:5px 8px;font-size:12px; }
       body.station-editor-active [data-placement-hook="pw-approval"] { font-size:11px; }
       body.station-editor-active [data-placement-hook="pw-review"] { grid-column:1/-1;grid-row:1;font-size:14px; }
-      body.station-editor-active .pw-artwork-grid { display:flex;overflow-x:auto;gap:6px;margin:4px 0; }
-      body.station-editor-active .pw-artwork-card { flex:0 0 168px;min-width:168px;grid-template-columns:minmax(0,1fr) 42px;gap:4px;padding:4px;align-items:center; }
-      body.station-editor-active .pw-artwork-pick { min-width:0;padding:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:4px;text-align:left; }
-      body.station-editor-active .pw-artwork-thumb { width:36px;height:36px; }
-      body.station-editor-active .pw-artwork-name { font-size:11px;line-height:1.2;overflow:hidden;max-height:40px;overflow-wrap:anywhere; }
+      body.station-editor-active .pw-artwork-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:8px;margin:4px 0;overflow:visible; }
+      body.station-editor-active .pw-artwork-card { min-width:0;max-width:100%;gap:6px;padding:8px;align-items:stretch; }
+      body.station-editor-active .pw-artwork-pick { min-width:0;max-width:100%;padding:4px;display:grid;gap:4px;justify-items:center;text-align:center;overflow-wrap:anywhere; }
+      body.station-editor-active .pw-artwork-thumb { width:64px;height:64px; }
+      body.station-editor-active .pw-artwork-name { font-size:12px;line-height:1.3;overflow:visible;max-height:none;overflow-wrap:anywhere;white-space:normal; }
       body.station-editor-active .pw-artwork-state,body.station-editor-active [data-placement-hook="pw-artwork-tray"]>p { display:none; }
-      body.station-editor-active .pw-artwork-place { min-width:0;width:42px;min-height:30px;padding:3px;font-size:11px; }
+      body.station-editor-active .pw-artwork-place { width:100%;min-height:44px;padding:8px 10px;font-size:13px; }
       body.station-editor-active .pw-list { display:flex;gap:5px;max-height:50px;overflow:auto;margin:4px 0; }
       body.station-editor-active .pw-list .pw-item { flex:0 0 170px;min-width:0; }
       body.station-editor-active [data-placement-hook="pw-artwork-tray"] { position:relative;padding-right:28px; }

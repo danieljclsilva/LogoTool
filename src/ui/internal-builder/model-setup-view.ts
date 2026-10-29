@@ -456,6 +456,8 @@ export interface ModelSetupViewerLike {
   getSafeAreasVisible(): boolean;
   setProductVisible(visible: boolean): void;
   getProductVisible(): boolean;
+  /** Monotonic camera/viewport revision for overlay gating (optional). */
+  getViewRevision?(): number;
   /**
    * Additive viewer controls (optional so older satisfies still compile).
    * Reference overlay renders the supplied label verbatim; zoom is
@@ -751,7 +753,13 @@ export function createModelSetupView(
     ] : (points ?? []).map((point) => viewerOf()?.projectToClient?.(point) ?? null)
       .filter((point): point is { x: number; y: number } => point !== null);
     const signature = JSON.stringify([box.width, box.height, projected.map((point) => [point.x - box.left, point.y - box.top])]);
-    if (signature === outlineSignature && drawingOutline?.parentElement === stage) return;
+    if (signature === outlineSignature && drawingOutline?.parentElement === stage) {
+      // Same coordinates, same stage: still restore visibility. The outline
+      // may have been hidden during camera movement, deactivation or a mode
+      // switch, and must reappear when repainted — not wait for new points.
+      if (drawingOutline) drawingOutline.style.display = projected.length === 0 ? 'none' : '';
+      return;
+    }
     outlineSignature = signature;
     if (drawingOutline?.parentElement !== stage) {
       drawingOutline?.remove();
@@ -808,6 +816,16 @@ export function createModelSetupView(
   let handleDots: HTMLDivElement[] = [];
   /** Live viewer currently carrying this view's frame hook (if any). */
   let framedViewer: ModelSetupViewerLike | null = null;
+  /**
+   * Camera-settle gating for the projected handle overlay (perf only).
+   * The overlay hides immediately while the camera moves (no projection or
+   * surface picks) and the expensive occlusion/pick pass runs once after
+   * the camera settles. Stored mm, saved points and curved samples are
+   * untouched; pointerdown still re-verifies against the live surface.
+   */
+  let lastFrameRevision = -1;
+  let lastFrameDraftKey = '';
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
   /** True while orbit is suspended for a draw/edit gesture (restored after). */
   let orbitSuspended = false;
   let panMode = false;
@@ -1144,6 +1162,39 @@ export function createModelSetupView(
     });
   }
 
+  /** Cheap draft identity for frame gating (no projection, no picks). */
+  function frameDraftKey(): string {
+    try {
+      const resolved = currentDraft();
+      if ('error' in resolved) return 'error';
+      const draft = resolved.draft;
+      const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId) ?? null;
+      return `${draft.selectedAreaId ?? ''}:${area?.points.length ?? 0}:${draft.safeAreasVisible}:${draft.productVisible}:${armed ?? ''}:${panMode}:${gesture !== null}:${pendingHandle !== null}`;
+    } catch {
+      return '';
+    }
+  }
+
+  function frameRevision(): number {
+    try {
+      const viewer = viewerOf();
+      const revision = viewer?.getViewRevision?.();
+      return typeof revision === 'number' && Number.isFinite(revision) ? revision : -1;
+    } catch {
+      return -1;
+    }
+  }
+
+  /** Record that handles are settled for the current revision/draft (idle skips). */
+  function noteHandlesSettled(): void {
+    lastFrameRevision = frameRevision();
+    lastFrameDraftKey = frameDraftKey();
+    if (settleTimer !== null) {
+      try { clearTimeout(settleTimer); } catch { /* timer already fired */ }
+      settleTimer = null;
+    }
+  }
+
   /** Keep the frame hook on the live viewer (viewer swaps are lead-owned). */
   function wireHandleFrame(): void {
     const live = viewerOf();
@@ -1154,13 +1205,43 @@ export function createModelSetupView(
         /* best-effort teardown */
       }
       framedViewer = live;
+      // A new live viewer starts unsettled so the next frame lays out once.
+      lastFrameRevision = -1;
+      lastFrameDraftKey = '';
       if (live) {
         try {
           live.onFrame = () => {
-            if (!destroyed && active) {
+            if (destroyed || !active) return;
+            const revision = frameRevision();
+            if (revision < 0) {
+              // Older viewer without a revision: preserve legacy per-frame
+              // behavior (correctness first; no gating possible).
               syncHandleLayer();
               if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
+              return;
             }
+            const draftKey = frameDraftKey();
+            if (revision === lastFrameRevision && draftKey === lastFrameDraftKey) return;
+            // Camera or draft moved: hide immediately (no projection or
+            // surface picks while moving) and run the expensive
+            // occlusion/pick pass once after the camera settles. Pointer
+            // presses still re-verify against the live surface exactly.
+            lastFrameRevision = revision;
+            lastFrameDraftKey = draftKey;
+            if (handleLayer) handleLayer.style.display = 'none';
+            if (drawingOutline) drawingOutline.style.display = 'none';
+            if (settleTimer !== null) {
+              try { clearTimeout(settleTimer); } catch { /* timer already fired */ }
+              settleTimer = null;
+            }
+            settleTimer = setTimeout(() => {
+              settleTimer = null;
+              if (destroyed || !active) return;
+              try { syncHandleLayer(); } catch { /* overlay-only */ }
+              try {
+                if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
+              } catch { /* overlay-only */ }
+            }, 120);
           };
         } catch {
           framedViewer = null;
@@ -1501,6 +1582,7 @@ export function createModelSetupView(
       root.append(note, statusBox);
       wireHandleFrame();
       syncHandleLayer();
+      noteHandlesSettled();
       return;
     }
 
@@ -1512,6 +1594,7 @@ export function createModelSetupView(
       root.append(note, statusBox);
       wireHandleFrame();
       syncHandleLayer();
+      noteHandlesSettled();
       return;
     }
     const { entry, draft } = resolved;
@@ -1527,6 +1610,7 @@ export function createModelSetupView(
     paintViewer(draft);
     wireHandleFrame();
     syncHandleLayer();
+    noteHandlesSettled();
   }
 
   function renderProductRow(
@@ -2019,6 +2103,16 @@ export function createModelSetupView(
       refresh();
     });
     const commitTools = document.querySelector('[data-model-setup-hook="commit-tools"]');
+    if (staleCount > 0 && (!draft.fitted || draft.fitStale)) {
+      const fit = el('button', 'areas-fit-scale', 'btn-secondary');
+      fit.type = 'button';
+      fit.textContent = 'Fit scale to use these areas';
+      fit.addEventListener('click', () => {
+        openContext('measure');
+        paintStatus('Your areas are kept. Pick two reference points and enter their real distance, fit the scale, then recompute and save the setup.');
+      });
+      (commitTools ?? section).append(fit);
+    }
     if (commitTools) { recompute.hidden = staleCount === 0; commitTools.append(recompute); }
     else section.append(recompute);
     root.append(section);
@@ -3031,6 +3125,12 @@ export function createModelSetupView(
       active = next;
       if (!active) {
         cancelGestureSilent(); contextPanel?.close();
+        if (settleTimer !== null) {
+          try { clearTimeout(settleTimer); } catch { /* timer already fired */ }
+          settleTimer = null;
+        }
+        lastFrameRevision = -1;
+        lastFrameDraftKey = '';
         if (handleLayer) handleLayer.style.display = 'none';
         if (drawingOutline) drawingOutline.style.display = 'none';
       } else { framedViewer = null; refresh(); }
@@ -3047,6 +3147,7 @@ export function createModelSetupView(
     },
     destroy(): void {
       destroyed = true;
+      if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null; }
       if (contextPanel) {
         if (originalParent) originalParent.insertBefore(container, originalNext?.parentNode === originalParent ? originalNext : null);
         contextPanel.destroy(); contextPanel = null;

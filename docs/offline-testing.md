@@ -1363,3 +1363,70 @@ the suite. Logs, screenshots and saved synthetic packages are under
 `/tmp/logotool-finish-toolbar-20261029/final/` and `final.log` in its parent.
 Domain code did not change; the Node domain suite was not repeated for this
 CSS repair. Windows Chrome/Edge delivery validation remains outstanding.
+
+### 2026-10-29 — Dense area handles and artwork popup
+
+The reported dense selected area caused `syncHandleLayer` to project and
+surface-pick every corner and edge midpoint on every viewer frame, including
+idle frames. The independent 64-point synthetic baseline performed 2,560
+`pickSurface` calls in 20 idle frames (`baseline.log`). The viewer now exposes
+a camera/viewport revision, and setup handles wait 120 ms after navigation
+settles before running their visibility checks. Idle frames skip this work;
+handles and the drawing guide hide while the camera moves. Exact surface
+verification on handle presses, all stored points and curved boundary samples
+remain intact. Planar rectangle drags already produce four verified corners;
+the 32-point fallback remains necessary for curved patches.
+
+The artwork popup now wraps cards and full-width Place buttons, keeps long
+names readable, and shows the empty-placement message once. An uncalibrated
+stale area offers **Fit scale to use these areas** beside recompute. The tested
+recovery is: draw area → Fit scale action → pick reference A/B → enter mm and
+fit → recompute → save setup → Logos → Place. This preserves the existing area
+and calibration requirements. Missing or stale calibration never becomes a
+usable physical region merely because it is visible on the model.
+
+Codex independently reproduced the defects, reviewed the Contributor lead's
+implementation, added the recovery action, removed unused timer state, cleared
+timers on teardown and hid stale drawing guides during navigation. The helper
+recorded a scope-inventory anomaly because it included concurrent Codex-owned
+tests and an explicitly authorized expansion to `src/viewer/model-viewer.ts`;
+that record is retained, not treated as automatic approval. Final acceptance
+uses the independently reviewed integrated diff and checks below.
+
+Environment: macOS/Darwin 27.2.0 arm64, Node 26.10.0, bundled Chromium
+156.0.8078.4 and installed Google Chrome 155.0.8059.85. Built station and
+self-contained model harnesses run directly over `file://` in offline browser
+contexts, with synthetic assets. Acceptance viewports: 1440×900, 1440×781,
+1280×900, 1280×720 and 390×844; popup checks cover normal and enlarged mode.
+The Browser plugin APIs/skill are not available in this session; project-required
+repo Playwright remains the primary acceptance mechanism.
+
+| Check | Result |
+| --- | --- |
+| Typecheck and station build | Pass |
+| Unit/domain suite (`npm test`) | 849/849 pass |
+| Scoped offline browser acceptance | 20/20 pass, 10 Chromium + 10 Chrome |
+| Page identity, meaningful content, no error overlay | Pass |
+| Console errors, page errors, HTTP(S) requests | Zero |
+| Desktop/phone screenshots and popup bounds | Pass |
+| Area recovery, corner editing, insertion, rollback, curved fill and occlusion | Pass |
+| Shared canvas and saved geometry across mode changes | Pass |
+
+For the 64-point fixture, measured over 20 frames: idle has zero projections
+and zero surface picks; a discrete zoom performs one 128-handle pass; continuous
+zoom performs zero projections/picks while moving. Exact saved coordinates are
+unchanged. These deterministic work counts demonstrate removal of the repeated
+work; they are not a frame-rate benchmark on the user's private jacket model.
+
+Evidence: `/tmp/logotool-points-20261029/`, including baseline failures,
+`unit.log`, `build-final.log`, `typecheck-accepted.log`, `final.log`, and `final/`
+with screenshots, environment attachments, saved synthetic packages and
+`point-work.json`. Final browser command:
+
+```sh
+npx playwright test e2e/editor-regressions.spec.ts e2e/unified-editor.spec.ts e2e/setup-calibration.spec.ts --project=chromium --project=chrome --workers=1 --grep 'artwork popup wraps|uncalibrated area offers|dense model area|model tools: independent|model rectangle drag on a non-planar|model safe-area fill|one editing workspace' --output=/tmp/logotool-points-20261029/final
+```
+
+Windows Chrome/Edge delivery acceptance and performance on the actual private
+jacket model remain unverified. No Odoo calls, external uploads or publication
+were performed for this repair.

@@ -240,6 +240,14 @@ export class ModelViewer {
   /** Monotonic capture token: a newer capture (or model swap) voids older ones. */
   private captureToken = 0;
   private surfaceArtworkItems: SurfaceArtworkItem[] = [];
+  /**
+   * Monotonic camera/viewport revision for overlay gating (overlay-only).
+   * Bumped in the render loop only when the camera position/target or the
+   * canvas size actually changes, so idle frames share one revision and
+   * views can skip projection/raycast work. Never affects mm or history.
+   */
+  private viewRevision = 0;
+  private lastViewKey = '';
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -593,6 +601,20 @@ export class ModelViewer {
       return this.zoomPct;
     } catch {
       return 100;
+    }
+  }
+
+  /**
+   * Monotonic camera/viewport revision (overlay gating only). The render
+   * loop bumps it only when the camera position/target or canvas size
+   * actually changes, so idle frames share one revision and views can skip
+   * projection/raycast work without timers. Camera only; never throws.
+   */
+  getViewRevision(): number {
+    try {
+      return this.disposed ? 0 : this.viewRevision;
+    } catch {
+      return 0;
     }
   }
 
@@ -1980,6 +2002,20 @@ export class ModelViewer {
     if (this.disposed) return;
     this.rafId = requestAnimationFrame(this.loop);
     this.controls.update();
+    try {
+      const canvas = this.renderer.domElement;
+      const w = canvas.clientWidth || 0;
+      const h = canvas.clientHeight || 0;
+      const p = this.camera.position;
+      const t = this.controls.target;
+      const key = `${p.x}|${p.y}|${p.z}|${t.x}|${t.y}|${t.z}|${w}x${h}`;
+      if (key !== this.lastViewKey) {
+        this.lastViewKey = key;
+        this.viewRevision += 1;
+      }
+    } catch {
+      /* revision is advisory; the frame still renders */
+    }
     try {
       this.onFrame?.();
     } catch {
