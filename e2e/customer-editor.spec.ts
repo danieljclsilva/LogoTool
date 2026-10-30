@@ -726,12 +726,15 @@ test('one workspace edits position and size together; review stays a separate co
       await expect(page.locator('[data-customer-hook="step-edit"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="job-choices"]')).not.toHaveAttribute('open', '');
       await expect(page.locator('[data-customer-hook="product"]')).toBeHidden();
-      await expect(page.locator('[data-customer-hook="region"]')).toBeVisible();
-      await expect(page.locator('[data-customer-hook="width-mm"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="logo-chips"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="placement-instructions"]')).toBeVisible();
+      await expect(page.locator('[data-customer-hook="region"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="width-mm"]')).toBeHidden();
       await expect(page.locator('[data-customer-hook="x-mm"]')).toBeHidden();
       await expect(page.locator('[data-customer-hook="height-mm"]')).toBeHidden();
       // Width commits in place (Tab = human commit parity) without leaving
       // the workspace; Review is the separate combined proof step.
+      await revealCustomerControl(page, 'width-mm');
       await page.locator('[data-customer-hook="width-mm"]').fill('64');
       await page.locator('[data-customer-hook="width-mm"]').press('Tab');
       await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(String(revision + 1));

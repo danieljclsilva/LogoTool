@@ -51,6 +51,13 @@ import {
 } from './presentation-photo-mapping.js';
 import type { PhotoMappingContext, PhotoMappingEntry, PhotoMappingsV1, PhotoMappingView } from './presentation-photo-mapping.js';
 import type { ViewerSide } from '../../viewer/model-viewer.js';
+import {
+  hasCustomerModelProof,
+  mountCustomerModelProof,
+  resolveCustomerModelScene,
+} from './model-proof.js';
+import type { ModelPlacementCommitPatch, ModelPlacementView } from '../internal-builder/model-placement-view.js';
+import type { ModelScene } from '../model-placement-scene.js';
 
 interface EditorPackage {
   project: ProjectDocument;
@@ -223,7 +230,34 @@ function stepNeighbor(step: GuideStep, delta: 1 | -1): GuideStep {
 }
 
 function requestStep(target: GuideStep): void {
-  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
+  if (target === 'review' && guideStep !== 'review') {
+    // First Review click after a textarea/field edit commits before
+    // advancing: blur fires change (auto-apply) before click, but a still-
+    // dirty form must not enter review stale. New-placement numbers are
+    // added instead (same as the primary Review layout action).
+    if (projectInstructionsDirty || (placementFormDirty && currentPlacement())) {
+      applyPendingEdits();
+      if (hasUnsavedEdits()) return;
+    }
+    if (placementFormDirty && !currentPlacement()) {
+      addButton.click();
+      if (!currentPlacement() || hasUnsavedEdits()) return;
+    }
+    guideStep = target;
+    if (precisePosition instanceof HTMLDetailsElement) precisePosition.open = false;
+    if (preciseSize instanceof HTMLDetailsElement) preciseSize.open = false;
+    renderGuideStep();
+    updateUnsavedWarning();
+    updateButtons();
+    // Review starts at its heading/all items: a stale page scroll must not
+    // hide the first logo.
+    try {
+      document.querySelector<HTMLElement>('[data-customer-hook="review-heading"]')?.scrollIntoView({ block: 'start' });
+      exactReview.scrollTop = 0;
+    } catch { /* scroll position is best-effort */ }
+    return;
+  }
   guideStep = target;
   // Navigation preserves pending form values. Only Apply/Continue mutates a revision.
   renderGuideStep();
@@ -253,16 +287,18 @@ function renderGuideStep(): void {
   const heading = taskRail?.querySelector('h2') ?? null;
   if (heading) {
     heading.textContent = guideStep === 'edit'
-      ? 'Place and size your logos'
+      ? 'Your logos'
       : 'Review and confirm';
   }
   const lede = taskRail?.querySelector('.lede') ?? null;
   if (lede) {
     lede.textContent = guideStep === 'edit'
-      ? (currentPlacement() ? 'Choose where this logo goes and how big it is.' : 'Choose a logo, its position and size.')
-      : 'Check every number, then confirm and save your return file.';
+      ? (currentPlacement() ? 'Select a logo, then adjust it on the garment.' : 'Choose a logo, its position and size.')
+      : 'Check the garment views and your requests, then confirm this version.';
     if (guideStep === 'edit' && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
   }
+  const hint = document.querySelector<HTMLElement>('[data-customer-hook="proof-hint"]');
+  if (hint) hint.hidden = !loaded?.project;
 }
 
 function setSelectVisibility(select: HTMLSelectElement, visible: boolean): void {
@@ -277,16 +313,71 @@ function renderContextLine(): void {
   const variant = product?.variants.find((item) => item.id === configuration?.variantId);
   const region = regionForSelection();
   const logo = project?.logos.find((item) => item.id === selectedLogoId);
-  if (contextLine) contextLine.textContent = product ? `${product.name ?? product.id} · ${variant?.name ?? variant?.id ?? ''}` : 'Open a project to begin';
+  if (contextLine) contextLine.textContent = product ? `${product.name ?? 'Your product'}${variant?.name ? ` · ${variant.name}` : ''}` : 'Open a project to begin';
   const caption = optionalHook<HTMLElement>('product-caption');
-  if (caption) caption.textContent = product?.name ?? product?.id ?? 'Your product';
+  if (caption) caption.textContent = product?.name ?? 'Your product';
   const artwork = optionalHook<HTMLElement>('artwork-name');
-  if (artwork) artwork.textContent = logo?.name ?? logo?.id ?? 'No artwork supplied';
+  if (artwork) artwork.textContent = logo?.name ?? (logo ? 'Your logo' : 'No artwork supplied');
   const placementContext = optionalHook<HTMLElement>('placement-context');
-  if (placementContext) placementContext.textContent = [region?.name ?? region?.id, methodSelect.value].filter(Boolean).join(' · ');
+  if (placementContext) placementContext.textContent = region?.name ?? (region ? 'Logo area' : 'No logo selected');
   if (prototypeNote) prototypeNote.textContent = project?.synthetic
     ? 'Synthetic draft. Visual reference only. Final checks by Logo Station.'
     : 'Visual reference only. Final checks by Logo Station.';
+}
+
+// ---- Named logo chips (edit + review share one selector) ----
+// Human labels only: area name + logo name, never raw ids or filename-
+// derived sides. The placement <select> hook stays for 0..N/multi-option
+// projects; chips are the readable primary selector.
+function chipLabelFor(project: ProjectDocument, configurationId: string, index: number): string {
+  const configuration = project.configurations.find((item) => item.id === configurationId);
+  const placement = configuration?.placements[index];
+  if (!placement) return `Logo ${index + 1}`;
+  const product = project.products.find((item) => item.id === configuration?.productId);
+  const region = product?.regions.find((item) => item.id === placement.regionId);
+  const logo = project.logos.find((item) => item.id === placement.logoId);
+  const sameArea = configuration?.placements.filter((item) => item.regionId === placement.regionId).length ?? 0;
+  return sameArea > 1
+    ? `${region?.name ?? 'Logo area'} · ${logo?.name ?? `Logo ${index + 1}`}`
+    : region?.name ?? `Logo ${index + 1}`;
+}
+
+function selectPlacementChip(index: number): void {
+  const configuration = selectedConfiguration();
+  if (!loaded || !configuration || index < 0 || index >= configuration.placements.length) return;
+  if (loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
+  if (placementFormDirty || projectInstructionsDirty) {
+    setStatus(unsavedStepMessage());
+    return;
+  }
+  contextChanged();
+  setSelectedPlacement(index);
+}
+
+function renderLogoChips(): void {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const busy = !project || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
+  for (const name of ['logo-chips', 'review-chips'] as const) {
+    const container = document.querySelector<HTMLElement>(`[data-customer-hook="${name}"]`);
+    if (!container) continue;
+    container.replaceChildren();
+    if (!project || !configuration || configuration.placements.length === 0) {
+      container.hidden = true;
+      continue;
+    }
+    container.hidden = false;
+    for (let index = 0; index < configuration.placements.length; index += 1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'logo-chip';
+      button.textContent = chipLabelFor(project, configuration.id, index);
+      button.setAttribute('aria-pressed', index === selectedPlacementIndex ? 'true' : 'false');
+      button.disabled = busy;
+      button.addEventListener('click', () => selectPlacementChip(index));
+      container.append(button);
+    }
+  }
 }
 
 let thumbObjectUrl: string | null = null;
@@ -537,6 +628,148 @@ function revokeArtworkUrls(): void {
   artworkUrls.clear();
 }
 
+// ---- Applied-logo 3D proof (shared workbench, customer mode) ----
+// The workbench mounts once per validated scope and reuses its viewer across
+// edits and selection (same scene key => paint only, no camera reset). All
+// pointer commits route through updatePlacement/installMutation, preserving
+// method, instructions and placement id and invalidating confirmation.
+let modelProofDragging = false;
+let modelProofView: ModelPlacementView | null = null;
+let modelProofScene: ModelScene | null = null;
+/** Validated calibrated regions exist for the current scope. */
+function modelProofReady(): boolean {
+  return hasCustomerModelProof(modelProofScene);
+}
+/** The proof workbench is the visible primary canvas. */
+function modelProofVisible(): boolean {
+  return modelProofReady() && primaryMode === '3d';
+}
+function modelProofHost(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-customer-hook="model-proof-host"]');
+}
+function resolveCurrentProofScene(): ModelScene | null {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) return null;
+  try {
+    return resolveCustomerModelScene(project, loaded.assets, configuration.productId, configuration.variantId);
+  } catch {
+    return null;
+  }
+}
+function modelProofSelect(index: number): void {
+  const configuration = selectedConfiguration();
+  if (!loaded || !configuration || index < 0 || index >= configuration.placements.length) return;
+  if (placementFormDirty || projectInstructionsDirty) {
+    setStatus(unsavedStepMessage());
+    refreshModelProof();
+    return;
+  }
+  contextChanged();
+  setSelectedPlacement(index);
+}
+function modelProofMove(index: number, pos: { xMm: number; yMm: number }): void {
+  modelProofCommit(index, { pos });
+}
+function modelProofCommit(index: number, patch: ModelPlacementCommitPatch): void {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const placement = configuration?.placements[index];
+  if (!loaded || !project || !configuration || !placement) return;
+  if (placementFormDirty || projectInstructionsDirty) {
+    setStatus(unsavedStepMessage());
+    refreshModelProof();
+    return;
+  }
+  const selector = placementSelector(placement, index);
+  const region = project.products.find((product) => product.id === configuration.productId)?.regions.find((area) => area.id === placement.regionId);
+  const candidate = { ...placement, ...patch, pos: patch.pos ?? placement.pos };
+  if (!region || !evaluatePlacementGeometry(region, candidate).ok) {
+    renderAll();
+    setStatus('That change leaves the allowed logo area. Your previous placement is kept; try a smaller move or size.');
+    return;
+  }
+  try {
+    const next = updatePlacement(project, configuration.id, selector, {
+      ...(patch.pos ? { pos: patch.pos } : {}),
+      ...(patch.widthMm !== undefined ? { widthMm: patch.widthMm } : {}),
+      ...(patch.heightMm !== undefined ? { heightMm: patch.heightMm } : {}),
+      ...(patch.rotationDeg !== undefined ? { rotationDeg: patch.rotationDeg } : {}),
+    });
+    installMutation(next, `Updated the logo — saved as version ${next.revision}. All sizes stay in millimetres.`);
+  } catch (error) {
+    renderAll();
+    setStatus(`Could not move the logo: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+function modelProofPreview(index: number, patch: ModelPlacementCommitPatch): void {
+  // Advisory only: mirror the transient pointer geometry into the numeric
+  // form without staging, committing, or rerendering the viewer.
+  if (index < 0) return;
+  if (patch.pos) {
+    xInput.value = String(patch.pos.xMm);
+    yInput.value = String(patch.pos.yMm);
+  }
+  if (patch.widthMm !== undefined) widthInput.value = String(patch.widthMm);
+  if (patch.heightMm !== undefined) heightInput.value = String(patch.heightMm);
+  if (patch.rotationDeg !== undefined) rotationInput.value = String(patch.rotationDeg);
+}
+function refreshModelProof(): void {
+  modelProofScene = resolveCurrentProofScene();
+  root.classList.toggle('customer-model-proof', modelProofVisible());
+  const modes = optionalHook<HTMLElement>('view-toggle');
+  const modesHome = root.querySelector<HTMLElement>('.canvas-foot');
+  const moreActions = root.querySelector<HTMLElement>('.canvas-tools .manage-row');
+  const modesTarget = modelProofVisible() ? moreActions : modesHome;
+  if (modes && modesTarget && modes.parentElement !== modesTarget) modesTarget.append(modes);
+  const host = modelProofHost();
+  if (!modelProofReady() || !host) {
+    if (modelProofView) {
+      try { modelProofView.destroy(); } catch { /* teardown is best-effort */ }
+      modelProofView = null;
+    }
+    if (host) host.replaceChildren();
+    return;
+  }
+  if (!modelProofView) {
+    try {
+      modelProofView = mountCustomerModelProof(host, {
+        select: modelProofSelect,
+        move: modelProofMove,
+        commit: modelProofCommit,
+        preview: modelProofPreview,
+        status: setStatus,
+        interaction: (active) => { modelProofDragging = active; updateButtons(); },
+      });
+    } catch {
+      modelProofView = null;
+      return;
+    }
+  }
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const scene = modelProofScene;
+  if (!project || !configuration || !scene) return;
+  geometryFor(project);
+  const verdicts = geometryLookup?.get(configuration.id);
+  host.hidden = !modelProofVisible();
+  modelProofView.update({
+    scene: { key: scene.key, bytes: scene.bytes, regions: scene.regions },
+    items: configuration.placements.map((placement, index) => ({
+      index,
+      placement,
+      imageSrc: artworkUrlForLogo(placement.logoId),
+      fits: verdicts?.get(index)?.ok ?? true,
+      lock: (index !== selectedPlacementIndex || ratioLock?.checked) && placement.widthMm > 0 && placement.heightMm > 0
+        ? { ratio: placement.widthMm / placement.heightMm } : null,
+    })),
+    selectedIndex: selectedPlacementIndex ?? -1,
+    activeRegionId: selectedRegionId || null,
+    revision: String(project.revision),
+    status: geometryStatus.textContent ?? '',
+  });
+}
+
 function artworkUrlForLogo(logoId: string): string | null {
   if (!loaded) return null;
   const logo = loaded.project.logos.find((item) => item.id === logoId);
@@ -656,8 +889,26 @@ function renderPrimaryMode(): void {
   }
   mappingStatus.textContent = describeMappingStatus();
   mappingStatus.classList.toggle('provisional', activePhoto?.entry.status === 'provisional');
+  const sideTabs = optionalHook<HTMLElement>('side-tabs');
+  if (modelProofVisible()) {
+    // Active calibrated proof: the workbench carries true Front/Back
+    // controls, so the disabled photo-bound side buttons and the
+    // no-photo-mapping notice would mislead here. One concise status line
+    // only; a dead photo toggle stays hidden while diagram/3D fallback
+    // remains available behind the visible toggle.
+    if (sideTabs) sideTabs.hidden = true;
+    mappingStatus.textContent = 'Calibrated 3D proof with your actual logos — drag a logo to move it inside its allowed area.';
+    const proofCaption = optionalHook<HTMLElement>('view-caption');
+    if (proofCaption) proofCaption.textContent = 'Product proof · 3D with your logos';
+    modePhotoButton.hidden = !activePhoto;
+  } else if (sideTabs) {
+    sideTabs.hidden = false;
+    modePhotoButton.hidden = false;
+  }
   if (referenceWarning) {
-    if (photoWarning && !showingPhoto && loaded?.project) {
+    if (modelProofVisible()) {
+      referenceWarning.hidden = true;
+    } else if (photoWarning && !showingPhoto && loaded?.project) {
       referenceWarning.hidden = false;
       referenceWarning.textContent = photoWarning;
     } else {
@@ -689,7 +940,7 @@ function renderPrimaryMode(): void {
       lookup,
     );
     modelAvailability.textContent = model.modelPath
-      ? `Interactive 3D model “${model.label ?? model.modelPath}” is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.`
+      ? 'Interactive 3D model is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.'
       : 'No 3D model supplied in this package — placement decisions use the measured diagram. No geometry is reconstructed.';
   } else {
     modelAvailability.textContent = 'Open a project to check 3D availability.';
@@ -711,6 +962,7 @@ function choosePrimaryMode(mode: PrimaryMode): void {
   cancelDrag('Move cancelled because the view mode changed. Your saved logo is unchanged.');
   cancelPhotoDrag('Move cancelled because the view mode changed. Your saved logo is unchanged.');
   primaryMode = mode;
+  refreshModelProof();
   renderPrimaryMode();
   renderPhotoOverlay();
   // Entering 3D mounts (or re-measures) the pane viewer; leaving it keeps the
@@ -1087,16 +1339,35 @@ async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
   return showcaseViewerPromise;
 }
 
-/** Paint the single primary mode-3d pane: canvas + zoom controls + honest
- * availability/failure text. No logo artwork is ever projected onto the mesh;
- * the measured diagram stays the placement authority. */
+/** Paint the primary 3D pane. A validated mapping uses the applied-logo
+ * workbench; otherwise the legacy reference model remains explicitly limited. */
 function paintMode3d(): void {
+  if (modelProofReady()) {
+    mode3dPane.classList.add('has-model-proof');
+    // Applied-logo proof owns the pane through its own workbench viewer:
+    // the bare-model canvas stays hidden so the proof never renders twice.
+    if (mode3dWrap) mode3dWrap.hidden = true;
+    const legacyControls = mode3dPane.querySelector('.mode-3d-controls');
+    if (legacyControls instanceof HTMLElement) legacyControls.hidden = true;
+    for (const button of [mode3dZoomIn, mode3dZoomOut, mode3dReset]) {
+      if (button) button.disabled = true;
+    }
+    if (!loaded?.project) {
+      modelAvailability.textContent = 'Open a project to check 3D availability.';
+      return;
+    }
+    modelAvailability.textContent = 'Interactive 3D proof with your actual logos — drag a logo to move it inside its allowed area.';
+    return;
+  }
+  mode3dPane.classList.remove('has-model-proof');
   const showing3d = primaryMode === '3d';
   const hasModel = showcaseModelPath !== null;
   const failed = showcaseModelFailed;
   const ready = showing3d && hasModel && !failed;
-  const busy = loading || saving || confirming || drag !== null || photoDrag !== null;
+  const busy = loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
   if (mode3dWrap) mode3dWrap.hidden = !ready;
+  const legacyControls = mode3dPane.querySelector('.mode-3d-controls');
+  if (legacyControls instanceof HTMLElement) legacyControls.hidden = false;
   for (const button of [mode3dZoomIn, mode3dZoomOut, mode3dReset]) {
     if (button) button.disabled = busy || !ready;
   }
@@ -1111,7 +1382,7 @@ function paintMode3d(): void {
     return;
   }
   if (hasModel) {
-    modelAvailability.textContent = `Interactive 3D model “${showcaseModelLabel ?? showcaseModelPath}” is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.`;
+    modelAvailability.textContent = 'Interactive 3D model is supplied in this package. No logo artwork is projected onto it here — placement decisions use the measured diagram.';
     return;
   }
   // Selection-rejected models (corrupt/external-URI) surface their read-boundary
@@ -1125,6 +1396,17 @@ function paintMode3d(): void {
 }
 
 async function refreshMode3dViewer(): Promise<void> {
+  if (modelProofReady()) {
+    // The proof workbench owns the model viewer for this scope; never mount
+    // a second bare-model viewer beside it.
+    showcaseModelFailed = false;
+    showcaseShownModelPath = null;
+    showcaseShownModelBytes = null;
+    showcaseSurface = 'none';
+    try { showcaseViewer?.clear(); } catch { /* viewer teardown is best-effort */ }
+    paintMode3d();
+    return;
+  }
   const generation = ++showcaseGeneration;
   const lookup = (path: string): Uint8Array | undefined =>
     loaded?.assets.find((entry) => entry.path === path)?.bytes;
@@ -1347,23 +1629,23 @@ function updateButtons(): void {
   const hasSelectedPlacement = canEdit && currentPlacement() !== undefined;
   const hasPendingEdits = placementFormDirty || projectInstructionsDirty;
   const structurallyValid = project !== undefined && validateProject(project).ok;
-  saveButton.disabled = !usable || saving || !structurallyValid || hasPendingEdits;
-  submitButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || !structurallyValid || hasPendingEdits || !confirmationFresh || !isGeometryValid(project!);
-  confirmButton.disabled = !usable || confirming || saving || drag !== null || photoDrag !== null || !structurallyValid || hasPendingEdits || !confirmedByInput.value.trim() || !isGeometryValid(project!);
-  updateButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || (!projectInstructionsDirty && (!placementFormDirty || !hasSelectedPlacement));
-  addButton.disabled = !canEdit || saving || confirming || drag !== null || photoDrag !== null || !selectedRegionId || !selectedLogoId;
-  removeButton.disabled = !canEdit || !hasSelectedPlacement || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
-  undoButton.disabled = !canEdit || undoHistory.length === 0 || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
-  resetButton.disabled = !canEdit || baseline === null || saving || confirming || drag !== null || photoDrag !== null || hasPendingEdits;
+  saveButton.disabled = !usable || saving || modelProofDragging || !structurallyValid || hasPendingEdits;
+  submitButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || !structurallyValid || hasPendingEdits || !confirmationFresh || !isGeometryValid(project!);
+  confirmButton.disabled = !usable || confirming || saving || drag !== null || photoDrag !== null || modelProofDragging || !structurallyValid || hasPendingEdits || !confirmedByInput.value.trim() || !isGeometryValid(project!);
+  updateButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || (!projectInstructionsDirty && (!placementFormDirty || !hasSelectedPlacement));
+  addButton.disabled = !canEdit || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || !selectedRegionId || !selectedLogoId;
+  removeButton.disabled = !canEdit || !hasSelectedPlacement || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
+  undoButton.disabled = !canEdit || undoHistory.length === 0 || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
+  resetButton.disabled = !canEdit || baseline === null || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
   for (const control of [configurationSelect, productSelect, variantSelect, regionSelect, logoSelect, placementSelect,
     xInput, yInput, widthInput, heightInput, rotationInput, methodSelect, placementInstructions, projectInstructions,
-    confirmedByInput]) control.disabled = !usable;
+    confirmedByInput]) control.disabled = !usable || modelProofDragging;
   // Guided shell mirrors: top draft button tracks save; step navigation and
   // the primary/back actions stay enabled whenever a project is usable so
   // the Position -> Size -> Review progression never strands the user.
   if (saveDraftTop) saveDraftTop.disabled = saveButton.disabled;
-  if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null;
-  if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || guideStep === 'edit';
+  if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
+  if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || guideStep === 'edit';
   if (addAnotherButton) addAnotherButton.disabled = addButton.disabled;
   modePhotoButton.disabled = !usable || !activePhoto;
   modePhotoButton.title = activePhoto
@@ -1383,7 +1665,7 @@ function updateButtons(): void {
     else if (legacySidePresent(side)) button.title = `${side} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`;
     else button.title = `No ${side} view supplied in this package — no photo invented.`;
   });
-  const stepBlocked = !usable || loading || saving || confirming || drag !== null || photoDrag !== null;
+  const stepBlocked = !usable || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
   if (stepEditButton) stepEditButton.disabled = stepBlocked;
   if (stepReviewButton) stepReviewButton.disabled = stepBlocked;
   if (ratioLock) ratioLock.disabled = !usable || !currentPlacement();
@@ -1393,7 +1675,15 @@ function updateButtons(): void {
   saveButton.hidden = false;
   if (addAnotherButton) addAnotherButton.hidden = !project?.logos.length;
   const jobChoices = optionalHook<HTMLElement>('job-choices');
-  if (jobChoices) jobChoices.hidden = !project || !(project.configurations.length > 1 || project.products.length > 1 || (configuration ? productForConfiguration(project, configuration)?.variants.length ?? 0 : 0) > 1 || project.logos.length > 1);
+  if (jobChoices) jobChoices.hidden = !project || !(project.configurations.length > 1 || project.products.length > 1 || (configuration ? productForConfiguration(project, configuration)?.variants.length ?? 0 : 0) > 1 || (!currentPlacement() && project.logos.length > 1));
+  // Named chips mirror the same busy guards (incl. model-proof dragging) so
+  // Save/confirm/selection stay blocked together during a 3D gesture.
+  const chipsBusy = !usable || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
+  for (const name of ['logo-chips', 'review-chips'] as const) {
+    document.querySelector<HTMLElement>(`[data-customer-hook="${name}"]`)?.querySelectorAll('button').forEach((button) => {
+      (button as HTMLButtonElement).disabled = chipsBusy;
+    });
+  }
 }
 function isGeometryValid(project: ProjectDocument): boolean {
   try {
@@ -1422,8 +1712,8 @@ function updateConfirmationState(): void {
     confirmationFresh = false;
     const prior = project.history?.[project.history.length - 1];
     confirmationSummary.textContent = prior
-      ? `Nothing confirmed for this version yet. An older confirmation from version ${prior.revision} no longer counts — check the sizes above, then confirm again.`
-      : 'Nothing confirmed yet. Check the sizes above, then type your name and confirm.';
+      ? `Nothing confirmed for this version yet. An older confirmation from version ${prior.revision} no longer counts — check the garment and requests above, then confirm again.`
+      : 'Nothing confirmed yet. Check the garment and requests above, then type your name and confirm.';
     return;
   }
   if (!confirmationFresh) {
@@ -1432,7 +1722,7 @@ function updateConfirmationState(): void {
   }
   if (confirmation.revision !== project.revision) {
     confirmationFresh = false;
-    confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision}; this is version ${project.revision}. Check the sizes above, then confirm again.`;
+    confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision}; this is version ${project.revision}. Check the garment and requests above, then confirm again.`;
     return;
   }
   confirmationSummary.textContent = `Confirmed: version ${confirmation.revision}, by ${confirmation.confirmedBy} at ${confirmation.confirmedAt}. This is your own record — not Logo Station approval.`;
@@ -1680,7 +1970,8 @@ function renderReview(): void {
     const group = document.createElement('section');
     group.className = 'review-product';
     exactReview.append(group);
-    line(group, `${displayName(configuration.productId, product?.name)} · ${displayName(configuration.variantId, variant?.name)}`, 'h3');
+    const variantName = variant?.name || ((product?.variants.length ?? 0) <= 1 ? '' : `Option ${(product?.variants.findIndex((item) => item.id === configuration.variantId) ?? 0) + 1}`);
+    line(group, `${product?.name ?? 'Your product'}${variantName ? ` · ${variantName}` : ''}`, 'h3');
     references.push('', `Product set: ${configuration.id}`);
     for (const regionId of variant?.regionIds ?? []) {
       const region = product?.regions.find((item) => item.id === regionId);
@@ -1699,14 +1990,15 @@ function renderReview(): void {
       const item = document.createElement('div');
       item.className = 'review-placement';
       group.append(item);
-      line(item, `${displayName(placement.logoId, logo?.name)} · ${displayName(placement.regionId, region?.name)} · ${placement.method}`, 'h4');
+      line(item, `${region?.name ?? `Logo ${index + 1}`} · ${logo?.name ?? 'Your artwork'}`, 'h4');
       line(item, `Width × height: ${formatMm(placement.widthMm)} mm × ${formatMm(placement.heightMm)} mm`);
       const fitLine = line(item, fit?.ok ? 'Fits: yes — within the logo area.' : `Fits: no — ${fit?.reason ?? 'Size is unavailable.'}`);
       fitLine.className = fit?.ok ? 'review-fit' : 'review-fit invalid';
       const measurements = document.createElement('details');
       measurements.className = 'review-measurements';
       item.append(measurements);
-      line(measurements, 'Position and rotation', 'summary');
+      line(measurements, 'Position, rotation and method', 'summary');
+      line(measurements, `Method: ${placement.method}`);
       line(measurements, `Reference point: ${region?.frame.originDescription ?? 'unknown'}`);
       line(measurements, `Directions: +x ${region?.frame.axes.xPositive ?? 'unknown'}; +y ${region?.frame.axes.yPositive ?? 'unknown'}`);
       line(measurements, `Center: ${formatMm(placement.pos.xMm)} mm, ${formatMm(placement.pos.yMm)} mm (logo middle, offsets along the area's +x and +y from its reference point)`);
@@ -1743,7 +2035,9 @@ function renderAll(): void {
     renderGuideStep();
     renderContextLine();
     renderLogoThumb();
+    renderLogoChips();
     updateUnsavedWarning();
+    refreshModelProof();
     renderPrimaryMode();
     renderPhotoOverlay();
     void refreshShowcase();
@@ -1766,7 +2060,9 @@ function renderAll(): void {
   renderGuideStep();
   renderContextLine();
   renderLogoThumb();
+  renderLogoChips();
   updateUnsavedWarning();
+  refreshModelProof();
   renderPrimaryMode();
   renderPhotoOverlay();
   void refreshShowcase();
@@ -1887,7 +2183,7 @@ function applyPendingEdits(): void {
 // new revision — no separate Apply required. New placements still use Add;
 // invalid edits keep their message and block confirm via pending edits.
 function maybeAutoApply(): void {
-  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
   if (!placementFormDirty && !projectInstructionsDirty) return;
   if (placementFormDirty && !currentPlacement()) {
     // New-placement numbers are added, not applied: keep the guidance on the
@@ -1932,7 +2228,7 @@ async function checkImportedConfirmation(snapshot: { project: ProjectDocument; g
     if (!snapshotIsCurrent(snapshot)) return;
     confirmationFresh = confirmation.revision === snapshot.revision && confirmation.digest === digest;
     if (!confirmationFresh) {
-      confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision} and does not match this version ${snapshot.revision}. Check the sizes above, then confirm again.`;
+      confirmationSummary.textContent = `The recorded confirmation is for older version ${confirmation.revision} and does not match this version ${snapshot.revision}. Check the garment and requests above, then confirm again.`;
     } else {
       updateConfirmationState();
     }
@@ -2001,6 +2297,14 @@ async function loadProjectSource(
     stateGeneration += 1;
     confirmationFresh = false;
     guideStep = 'edit';
+    // Each newly opened package starts on its best validated garment proof.
+    // Never carry a previous project's 3D mode into an unrelated package.
+    resolveActivePhoto();
+    primaryMode = activePhoto ? 'photo' : 'diagram';
+    try {
+      const scene = resolveCurrentProofScene();
+      if (hasCustomerModelProof(scene) && scene.regions.some((region) => region.id === selectedRegionId)) primaryMode = '3d';
+    } catch { /* a missing model mapping keeps the photo/diagram fallback */ }
     renderAll();
     setStatus(`Opened ${fileName}. The file passed its checks.`);
     const snapshot = currentSnapshot();
@@ -2049,8 +2353,8 @@ function safeFilePart(value: string): string {
 async function savePackage(submit = false): Promise<void> {
   const snapshot = currentSnapshot();
   const projectPackage = loaded;
-  if (!snapshot || !projectPackage || loading || saving || confirming) return;
-  if (submit && (drag || photoDrag)) {
+  if (!snapshot || !projectPackage || loading || saving || confirming || modelProofDragging) return;
+  if (submit && (drag || photoDrag || modelProofDragging)) {
     setStatus('Wait until the logo you are dragging is placed or cancelled, then try again.');
     return;
   }
@@ -2108,7 +2412,7 @@ async function confirmCurrentRevision(): Promise<void> {
   const snapshot = currentSnapshot();
   const projectPackage = loaded;
   const confirmedBy = confirmedByInput.value.trim();
-  if (drag || photoDrag) {
+  if (drag || photoDrag || modelProofDragging) {
     setStatus('Wait until the logo you are dragging is placed or cancelled, then confirm.');
     return;
   }
@@ -2723,7 +3027,7 @@ regionSelect.addEventListener('change', () => {
   placementFormDirty = currentPlacement() !== undefined;
   stateGeneration += 1;
   renderCanvas(); renderContextLine(); updateUnsavedWarning(); updateButtons();
-  resolveActivePhoto(); syncPhotoImage(); renderPrimaryMode(); renderPhotoOverlay();
+  resolveActivePhoto(); syncPhotoImage(); refreshModelProof(); renderPrimaryMode(); renderPhotoOverlay();
   maybeAutoApply();
 });
 logoSelect.addEventListener('change', () => {
@@ -2871,7 +3175,7 @@ stepEditButton?.addEventListener('click', () => requestStep('edit'));
 stepReviewButton?.addEventListener('click', () => requestStep('review'));
 backStep?.addEventListener('click', () => requestStep(stepNeighbor(guideStep, -1)));
 primaryNext?.addEventListener('click', () => {
-  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
   if (hasUnsavedEdits() && currentPlacement()) {
     applyPendingEdits();
     if (hasUnsavedEdits()) return;
@@ -2883,7 +3187,7 @@ primaryNext?.addEventListener('click', () => {
   requestStep(stepNeighbor(guideStep, 1));
 });
 addAnotherButton?.addEventListener('click', () => {
-  if (!loaded || loading || saving || confirming || drag || photoDrag) return;
+  if (!loaded || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
   if (hasUnsavedEdits()) { applyPendingEdits(); if (hasUnsavedEdits()) return; }
   selectedPlacementIndex = null;
   guideStep = 'edit';

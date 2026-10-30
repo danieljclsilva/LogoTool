@@ -3,6 +3,8 @@ import { readRasterHeader, MAX_PREVIEW_BYTES, MAX_PREVIEW_PIXELS } from '../../a
 import { parsePhotoMappings, serializePhotoMappings, validatePhotoMapping, PHOTO_MAPPINGS_PATH } from './presentation-photo-mapping.js';
 import { parseGlb } from '../../assets/glb.js';
 import { validateSelfContained } from '../../assets/validate.js';
+import { selectValidModelSetupSidecars } from '../model-placement-scene.js';
+import type { ProjectDocument } from '../../core/types.js';
 /**
  * PROVISIONAL presentation-only adapter for optional reference imagery.
  *
@@ -517,6 +519,7 @@ export function describePresentationInputs(input: {
 export function selectPresentationPackageAssets(
   assets: readonly { path: string; bytes: Uint8Array; kind?: string }[],
   configurations: readonly { productId: string; variantId: string }[],
+  project?: ProjectDocument,
 ): Array<{ path: string; bytes: Uint8Array }> {
   const manifest = parsePresentationManifest(assets.find((asset) => asset.path === PRESENTATION_MANIFEST_PATH && asset.kind === 'additional')?.bytes);
   const mappings = parsePhotoMappings(assets.find((asset) => asset.path === PHOTO_MAPPINGS_PATH && asset.kind === 'additional')?.bytes);
@@ -578,8 +581,13 @@ export function selectPresentationPackageAssets(
     if (sortedReferences.length > 0) rewritten.references = sortedReferences;
     const paths = [...new Set([...sortedViews.map((entry) => entry.image), ...sortedModels.map((entry) => entry.model), ...sortedReferences.map((entry) => entry.image)])].sort();
     const rasterPaths = new Set([...sortedViews.map((entry) => entry.image), ...sortedReferences.map((entry) => entry.image)]);
+    // Scoped model-setup sidecars ride along only when the caller supplies
+    // the issued project for validation; without it the legacy image/model
+    // passthrough is unchanged. Each retained sidecar carries exact bytes.
+    const modelSidecars = project ? selectValidModelSetupSidecars(assets, project, configurations) : [];
     return [{ path: PRESENTATION_MANIFEST_PATH, bytes: new TextEncoder().encode(JSON.stringify(rewritten)) },
       ...selectMappingAssets(rasterPaths),
+      ...modelSidecars,
       ...paths.map((path) => ({ path, bytes: assets.find((asset) => asset.path === path)!.bytes }))];
   }
   const retained = manifest.references.filter((entry) => configurations.some((configuration) =>

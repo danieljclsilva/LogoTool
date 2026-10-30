@@ -55,7 +55,36 @@
     .mode-3d-controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:0; }
     .mode-3d-controls button { font-size:13px; padding:8px 14px; }
     .mode-3d-controls button:disabled { opacity:.45; cursor:default; }
-    @media(max-width:900px) { .mode-3d-wrap { height:58vw; min-height:220px; } }
+    /* Applied-logo proof workbench (shared model-placement view, customer
+    mode): bounded stage so the owned canvas can attach with a stable size. */
+    .model-proof-host { width:100%; }
+    .model-proof-host:empty { display:none; }
+    .model-proof-host .model-placement-stage { height:min(58vw,440px); min-height:280px; min-width:0; overflow:hidden; position:relative; }
+    .model-proof-host .model-placement-stage canvas { display:block; width:100%; height:100%; }
+    .model-proof-host .model-placement-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .model-proof-host .model-placement-toolbar button { font-size:13px; padding:8px 14px; }
+    .mode-3d-pane.has-model-proof { padding:0;border:0;justify-content:flex-start;align-items:stretch;min-height:0; }
+    .has-model-proof .model-proof-host { display:flex;flex:1;min-height:0; }
+    .has-model-proof .model-placement-workbench { display:flex;flex-direction:column;width:100%;min-height:0; }
+    .has-model-proof .model-placement-stage { flex:1;height:auto;min-height:300px; }
+    .has-model-proof .model-placement-workbench > p:not(.pw-status),.has-model-proof [data-customer-hook="model-availability"] { display:none; }
+    .has-model-proof .pw-status { font-size:12px;padding-top:6px; }
+    /* Named logo selectors: named logo chips + compact task rail.
+    Bounded chips (no fixed widths) so a 390px viewport never overflows. */
+    .logo-chips { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; min-width:0; max-width:100%; }
+    .logo-chips[hidden] { display:none; }
+    .logo-chip { min-height:40px; font-size:14px; padding:8px 14px; border:1px solid var(--line); border-radius:16px; background:#fff; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .logo-chip[aria-pressed=true] { background:#192d3d; border-color:#192d3d; color:#fff; font-weight:600; }
+    .proof-hint { font-size:13px; color:var(--muted); margin:0 0 12px; }
+    .review-heading { font-size:18px; margin:0 0 10px; }
+    .task-rail .field-row { margin:12px 0; }
+    .rail-context { min-height:0; margin-bottom:18px; }
+    [data-customer-hook=logo-thumb] { width:120px; height:72px; padding:8px; }
+    .lede { margin-bottom:18px; }
+    .rail-actions { padding-top:24px; }
+    .canvas-foot .view-toggle[hidden] { display:none; }
+
+    @media(max-width:900px) { .mode-3d-wrap { height:58vw; min-height:220px; } .has-model-proof .model-placement-stage { min-height:240px; } [data-customer-hook=logo-thumb] { width:96px; height:60px; } .rail-context { margin-bottom:14px; } }
     .safe-area { fill:#f0f5f2; stroke:#6b9782; stroke-width:1; vector-effect:non-scaling-stroke; } .exclusion-area { fill:#fbe9e8; stroke:#bd716d; stroke-width:1; vector-effect:non-scaling-stroke; }
     .footprint { fill:#d8e8ed; fill-opacity:.9; stroke:#35738a; stroke-width:1.5; vector-effect:non-scaling-stroke; cursor:grab; } .footprint.selected { stroke-width:2.5; } .footprint.invalid { fill:#f3d7d4; stroke:#ab4238; }
     .origin { stroke:#91a4ae; stroke-width:.7; stroke-dasharray:2 2; vector-effect:non-scaling-stroke; pointer-events:none; } .footprint-label { fill:#224555; font-size:4px; text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
@@ -105,6 +134,41 @@
     [data-customer-hook=task-rail] { grid-column:2; grid-row:1; }
     .desk > .canvas-pane { grid-column:1; grid-row:1; }
     @media(max-width:900px) { [data-customer-hook=task-rail] { grid-column:1; grid-row:auto; } .desk > .canvas-pane { grid-column:1; grid-row:auto; } .views-model-wrap { height:58vw; min-height:220px; } }
+
+    /* Keep the visual proof and next action visible together; technical controls
+       remain available inside the existing disclosures. */
+    .task-rail { padding:24px 7%; }
+    .rail-context { min-height:0; gap:12px; margin-bottom:20px; }
+    [data-customer-hook=logo-thumb] { width:56px; height:56px; padding:5px; }
+    .artwork-name { font-size:13px; }
+    .task-rail h2 { font-size:26px; letter-spacing:-.5px; }
+    .task-rail .lede { font-size:14px; margin-bottom:18px; }
+    .task-rail details.precise { padding:12px 0; margin-top:12px; }
+    .rail-actions { padding-top:20px; }
+    .canvas-pane { min-height:560px; }
+    @media(max-width:900px) {
+      .task-rail { padding:20px; }
+      .canvas-pane { min-height:0; }
+      .rail-context { margin-bottom:16px; }
+      .has-model-proof .model-placement-stage { min-height:240px; }
+    }
+
+    .customer-model-proof [data-customer-hook=mapping-status] { display:none; }
+    .customer-model-proof .canvas-tools .view-toggle { flex-basis:100%; width:max-content; max-width:100%; }
+    .customer-model-proof [data-ready=true] .pw-status { display:none; }
+    @media(max-width:900px) {
+      .customer-model-proof .canvas-pane { position:sticky; top:0; z-index:2; background:white; height:350px; padding:8px 16px; }
+      .customer-model-proof [data-customer-hook=context-line] { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px; }
+      .customer-model-proof .has-model-proof .model-placement-stage { min-height:0; }
+      .customer-model-proof .model-placement-toolbar { gap:6px; margin-bottom:4px; }
+      .customer-model-proof .model-placement-toolbar button { min-height:40px; }
+      .customer-model-proof .canvas-foot { display:none; }
+      .customer-model-proof .canvas-foot > div:first-child { display:none; }
+      .customer-model-proof .canvas-tools { margin-top:0; }
+      .customer-model-proof .task-rail :is(input,textarea,select,button,summary,h3) { scroll-margin-top:370px; }
+      .customer-model-proof .task-rail .rail-context { display:none; }
+      .customer-model-proof .task-rail h2 { font-size:22px; }
+    }
   </style>
 </head>
 <body>
@@ -134,7 +198,7 @@
     <div class="desk">
       <section data-customer-hook="canvas-pane" class="canvas-pane" aria-label="Product view">
         <p data-customer-hook="context-line" class="muted">Open a project to see your product context.</p>
-        <div class="side-tabs" role="group" aria-label="Logo area side">
+        <div class="side-tabs" data-customer-hook="side-tabs" role="group" aria-label="Logo area side">
           <button data-customer-hook="side-front" type="button" aria-pressed="false">Front</button>
           <button data-customer-hook="side-back" type="button" aria-pressed="false">Back</button>
           <button data-customer-hook="side-left" type="button" aria-pressed="false">Left</button>
@@ -145,11 +209,11 @@
           <svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Logo-area diagram with logo boxes"><g data-customer-hook="canvas-layer"></g></svg>
         </div>
         <div class="photo-wrap" data-customer-hook="photo-wrap" hidden><img data-customer-hook="reference-img" alt="Mapped product photo" hidden><svg data-customer-hook="photo-overlay" role="img" aria-label="Mapped logo overlay"></svg></div>
-        <div class="mode-3d-pane" data-customer-hook="mode-3d-pane" hidden><p data-customer-hook="model-availability">Open a project to check 3D availability.</p><div class="mode-3d-wrap" data-customer-hook="mode-3d-wrap" hidden><canvas data-customer-hook="mode-3d-canvas"></canvas></div><p class="mode-3d-controls"><button data-customer-hook="mode-3d-zoom-in" type="button">Zoom in</button><button data-customer-hook="mode-3d-zoom-out" type="button">Zoom out</button><button data-customer-hook="mode-3d-reset" type="button">Reset view</button></p></div>
+        <div class="mode-3d-pane" data-customer-hook="mode-3d-pane" hidden><div class="model-proof-host" data-customer-hook="model-proof-host"></div><p data-customer-hook="model-availability">Open a project to check 3D availability.</p><div class="mode-3d-wrap" data-customer-hook="mode-3d-wrap" hidden><canvas data-customer-hook="mode-3d-canvas"></canvas></div><p class="mode-3d-controls"><button data-customer-hook="mode-3d-zoom-in" type="button">Zoom in</button><button data-customer-hook="mode-3d-zoom-out" type="button">Zoom out</button><button data-customer-hook="mode-3d-reset" type="button">Reset view</button></p></div>
         <p data-customer-hook="reference-warning" hidden></p>
         <div class="canvas-foot">
           <div><p class="sku" data-customer-hook="product-caption">Your product</p><p class="view-caption" data-customer-hook="view-caption">Placement diagram</p></div>
-          <div class="view-toggle" role="group" aria-label="Canvas mode">
+          <div class="view-toggle" data-customer-hook="view-toggle" role="group" aria-label="Canvas mode">
             <button data-customer-hook="mode-photo" type="button" aria-pressed="false">Photo</button>
             <button data-customer-hook="mode-diagram" type="button" aria-pressed="true">Diagram</button>
             <button data-customer-hook="mode-3d" type="button" aria-pressed="false">3D</button>
@@ -201,36 +265,33 @@
         <p class="lede">Choose where each logo goes and how big it is.</p>
 
         <div data-step-panel="edit">
-          <div class="field-row">
-            <label>Logo area<select data-customer-hook="region" disabled></select></label>
-          </div>
-          <label data-customer-hook="placement-choice">Placed logos<select data-customer-hook="placement" disabled></select></label>
-
+          <div class="logo-chips" data-customer-hook="logo-chips" role="group" aria-label="Placed logos" hidden></div>
+          <p class="proof-hint" data-customer-hook="proof-hint" hidden>Drag a logo on the garment to move it. Drag a corner to resize — shape stays linked.</p>
+          <label>Placement instructions (optional)<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
           <details class="precise" data-customer-hook="precise-position">
-            <summary>Advanced: exact position</summary>
+            <summary>Advanced: exact position and logo area</summary>
             <div class="field-row">
+              <label>Logo area<select data-customer-hook="region" disabled></select></label>
+              <label data-customer-hook="placement-choice">Placed logos<select data-customer-hook="placement" disabled></select></label>
               <label>Middle of logo, X (mm)<input data-customer-hook="x-mm" type="number" step="any" disabled></label>
               <label>Middle of logo, Y (mm)<input data-customer-hook="y-mm" type="number" step="any" disabled></label>
             </div>
           </details>
-          <div class="field-row">
-            <label>Logo width
-              <span class="mm-field"><input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span>
-            </label>
-          </div>
           <details class="precise" data-customer-hook="precise-size">
-            <summary>Advanced: height, rotation, method, note</summary>
+            <summary>Advanced: size, rotation and method</summary>
+            <div class="field-row"><label>Logo width<span class="mm-field"><input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span></label></div>
             <div class="field-row">
               <label>Logo height (mm)<input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled></label>
               <label>Turn clockwise (degrees)<input data-customer-hook="rotation" type="number" min="-179.999999999" max="180" step="any" disabled></label>
               <label>Method<select data-customer-hook="method" disabled></select></label>
             </div>
             <label class="ratio-row"><input data-customer-hook="ratio-lock" type="checkbox" checked> Keep shape (link width and height)</label>
-            <label style="margin-top:10px">Note about this logo<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
           </details>
         </div>
 
         <div data-step-panel="review">
+          <h3 class="review-heading" data-customer-hook="review-heading" tabindex="-1">Check your layout</h3>
+          <div class="logo-chips" data-customer-hook="review-chips" role="group" aria-label="Check each logo" hidden></div>
           <div class="review" data-customer-hook="review">Open a project to check the exact sizes here.</div>
           <label>Notes for the whole project<textarea data-customer-hook="instructions" disabled></textarea></label>
           <details class="precise">

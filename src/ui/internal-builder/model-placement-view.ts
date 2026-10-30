@@ -68,6 +68,17 @@ export function createModelPlacementView(callbacks: {
   /** Advisory live preview (mm); never staged or committed by the receiver. */
   preview?(index: number, patch: ModelPlacementCommitPatch): void;
   /**
+   * Limited customer proof mode: hide operator-only toolbar controls
+   * (rotate/pan/move-logo/expand/details/save), the fallback precise
+   * numeric toolbar, measurement lines/corner-distance labels and
+   * reference/anchor affordances. Retains Front/Back/Fit/Zoom, on-surface
+   * selection/drag, corner resize handles and keyboard equivalents.
+   * Default false preserves operator behavior.
+   */
+  customer?: boolean;
+  /** Notify consumers while a pointer/keyboard transaction owns the scene. */
+  interaction?(active: boolean): void;
+  /**
    * OPTIONAL borrowed surface (root-owned unified workspace). When provided,
    * use those actual existing DOM canvas/stage and the provided viewer.
    * Never reparent the external stage, never attach another ModelViewer,
@@ -78,6 +89,7 @@ export function createModelPlacementView(callbacks: {
   sharedSurface?: ModelPlacementSharedSurface;
 }): ModelPlacementView {
   const shared = callbacks.sharedSurface ?? null;
+  const customer = callbacks.customer === true;
   const element = document.createElement('section'); element.className = 'model-placement-workbench';
   element.setAttribute('data-placement-hook', 'pw-model-workbench');
   const bar = document.createElement('div'); bar.className = 'model-placement-toolbar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Product placement controls');
@@ -151,6 +163,18 @@ export function createModelPlacementView(callbacks: {
   const details = button('Logo details', () => { details.setAttribute('aria-expanded', String(callbacks.toggleDetails())); }, 'pw-model-details');
   details.classList.add('model-placement-details-button'); details.setAttribute('aria-expanded', 'false');
   if (callbacks.save) button('Save job', () => callbacks.save?.(), 'pw-model-save-job');
+  if (customer) {
+    // Limited proof: operator-only gesture modes and workspace chrome stay
+    // hidden. Auto gestures already default forceRotate=false, so logo drag
+    // versus empty-product orbit keeps working without the mode buttons.
+    for (const node of [rotate, pan, move, expand, details]) node.style.display = 'none';
+    const saveButton = bar.querySelector<HTMLButtonElement>('[data-placement-hook="pw-model-save-job"]');
+    if (saveButton) saveButton.style.display = 'none';
+    hint.textContent = 'Drag a logo to move it inside its allowed area; drag a corner to resize. Hold Shift for fine adjustment.';
+    handles.replaceChildren();
+    handles.hidden = true;
+    overlaySvg.style.display = 'none';
+  }
   function syncTools(): void {
     rotate.setAttribute('aria-pressed', String(forceRotate)); move.setAttribute('aria-pressed', String(placeMode));
     pan.setAttribute('aria-pressed', String(panMode));
@@ -246,6 +270,7 @@ export function createModelPlacementView(callbacks: {
   /** Refresh handle enablement and slider positions from committed geometry (or live preview for idle controls). */
   function syncHandles(): void {
     if (shared) { handles.replaceChildren(); handles.hidden = true; return; }
+    if (customer) { handles.hidden = true; return; }
     const item = selectedItem();
     const region = item ? regionFor(item) : undefined;
     if (!item || !region || (active && active.mode !== 'adjust')) { setHandlesEnabled(false); return; }
@@ -307,6 +332,7 @@ export function createModelPlacementView(callbacks: {
       } else { const out = snapCandidate(safe, raw, unsnapped); geom = out.geom; snapped = out.snapped; guides = out.guides; }
     }
     active = { mode: 'adjust', index: item.index, revision: data?.revision ?? '', safe, base, geom, control };
+    callbacks.interaction?.(true);
     lastGuides = guides;
     artworkSignature = ''; paint({ index: item.index, geom });
     state.textContent = previewStatus(geom, snapped);
@@ -470,7 +496,7 @@ export function createModelPlacementView(callbacks: {
     for (let i = 0; i < 4; i += 1) {
       const point = displayCorners[i]; const node = cornerButtons[i]; const tag = cornerLabels[i];
       if (!point || !node || !tag) continue;
-      node.style.display = ''; tag.style.display = '';
+      node.style.display = ''; tag.style.display = customer ? 'none' : '';
       node.style.left = `${point.x}px`; node.style.top = `${point.y}px`;
       const right = i === 1 || i === 2, upper = i >= 2;
       tag.style.left = `${point.x + (right ? 9 : -9)}px`;
@@ -564,6 +590,7 @@ export function createModelPlacementView(callbacks: {
       active = { mode, index: item.index, pointer: event.pointerId, frame: region.frame, safe, base, geom: { ...base }, corner: cornerIndex,
         grabOffset: { xMm: actual.x - mm.xMm, yMm: actual.y - mm.yMm }, captureEl, revision: data.revision };
     }
+    callbacks.interaction?.(true);
     viewerOf()?.setOrbitEnabled(false);
     try { captureEl.setPointerCapture(event.pointerId); } catch { /* drag continues without capture */ }
     syncHandles();
@@ -695,7 +722,7 @@ export function createModelPlacementView(callbacks: {
     artworkSignature = signature;
   }
   function cancel(): void {
-    const old = active; active = null; fineHeld = false; lastGuides = []; viewerOf()?.setOrbitEnabled(true);
+    const old = active; active = null; callbacks.interaction?.(false); fineHeld = false; lastGuides = []; viewerOf()?.setOrbitEnabled(true);
     if (old && old.mode === 'move') { try { (shared?.canvas ?? canvas).releasePointerCapture(old.pointer); } catch { /* released already */ } }
     else if (old && (old.mode === 'resize-surface' || old.mode === 'spin-surface')) { try { old.captureEl.releasePointerCapture(old.pointer); } catch { /* released already */ } }
     if (frameRequest) cancelAnimationFrame(frameRequest); frameRequest = 0;
@@ -768,6 +795,7 @@ export function createModelPlacementView(callbacks: {
     const surface = activeViewer.pickSurface(event.clientX, event.clientY); if (!surface) return;
     const mm = regionMmFromModel(region.frame, surface.modelPosition); if (!mm) return;
     active = { mode: 'move', index: item.index, pointer: event.pointerId, frame: region.frame, safe: safeMmFor(region), base: committedGeom(item), offset: placeMode ? { xMm: 0, yMm: 0 } : { xMm: item.placement.pos.xMm - mm.xMm, yMm: item.placement.pos.yMm - mm.yMm }, startX: event.clientX, startY: event.clientY, revision: data.revision, geom: null };
+    callbacks.interaction?.(true);
     viewerOf()?.setOrbitEnabled(false);
     try { (event.currentTarget as HTMLCanvasElement | null)?.setPointerCapture(event.pointerId); } catch { /* drag continues without capture */ }
     syncHandles();
@@ -921,6 +949,7 @@ export function createModelPlacementView(callbacks: {
         if (active) cancel();
         data = null;
         ready = false;
+        element.dataset.ready = 'false';
         artworkSignature = '';
         overlay.style.display = 'none';
         syncTools(); syncHandles();
@@ -930,7 +959,7 @@ export function createModelPlacementView(callbacks: {
       data = next;
       for (const src of images.keys()) if (!next.items.some((item) => item.imageSrc === src)) images.delete(src);
       if (key !== next.scene.key) {
-        key = next.scene.key; const token = ++generation; ready = false;
+        key = next.scene.key; const token = ++generation; ready = false; element.dataset.ready = 'false';
         images.clear(); artworkSignature = ''; markerSignature = '';
         if (!viewer) viewer = ModelViewer.attach({ canvas, container: stage, background: 0xffffff }).viewer;
         if (!viewer) { state.textContent = 'The product view needs WebGL. Set up the product or use another supported browser.'; return; }
@@ -940,6 +969,7 @@ export function createModelPlacementView(callbacks: {
           if (disposed || token !== generation) return;
           ready = result.kind === 'ready';
           if (!ready) { state.textContent = 'The product model could not be opened.'; return; }
+          if (customer) { viewer?.setViewSide('front'); viewer?.fitCurrentView(); }
           paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); element.dataset.ready = 'true';
         });
       } else { paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); }

@@ -1430,3 +1430,66 @@ npx playwright test e2e/editor-regressions.spec.ts e2e/unified-editor.spec.ts e2
 Windows Chrome/Edge delivery acceptance and performance on the actual private
 jacket model remain unverified. No Odoo calls, external uploads or publication
 were performed for this repair.
+
+
+## Interactive customer garment proof — 2026-10-30
+
+The customer editor reuses the operator's calibrated model placement renderer.
+A valid packaged model mapping opens the garment with its actual artwork;
+validated photos open in photo mode, while missing or invalid mappings retain
+an explicit diagram/reference fallback. Named logo buttons, placement requests
+and Review are the normal customer controls. Exact position, size, rotation and
+method remain inside optional disclosures. On narrow screens the model stays
+visible while the editing controls scroll.
+
+Issue packages retain the exact, selected, validated model setup evidence.
+Returned evidence must match the issued assets byte for byte. The operator
+comparison shows each logo instruction before and after, including instruction-
+only changes. No production schema, calibration authority or approval semantics
+were changed.
+
+OpenCode Contributor supplied the foundation and customer workspace changes;
+Codex independently integrated, reviewed and refined the UI, added regression
+coverage and performed the private garment walkthrough. No commits, external
+uploads, customer sends or Odoo calls were part of this work.
+
+Acceptance environment: macOS Darwin 27.2.0 arm64, bundled Chromium
+156.0.8078.4 and installed Chrome 155.0.8059.85. Primary customer viewports were
+1440×900 and 390×844; shared operator checks also include 1280×720. All browser
+checks use built files over `file://` with networking disabled. Passing cases
+assert zero HTTP(S) requests, page errors and console errors.
+
+- `npm run typecheck`: pass.
+- `npm test`: 861/861 pass.
+- Customer model/editor/return/photo regression: 38/38 pass across Chromium
+  and Chrome. This includes real mouse movement and resizing, shape locking,
+  rejected out-of-area changes, cancellation and restored fields, zoom without
+  physical changes, busy guards, draft/reopen, literal per-logo instructions,
+  exact-revision confirmation, rejected altered mapping and operator adoption.
+- Broader shared model/document/self-contained/station checks: 34 passed,
+  four failed across the two browsers. The failures are the existing placement
+  tray test and fresh-copied station journey; baseline checks use an unchanged
+  `git archive HEAD` checkout and the same installed dependencies. These are
+  retained failures, not skipped tests or a claim that the complete suite passes.
+- An earlier full Chromium run was stopped after 39 passes, four failures and
+  three interrupted tests; 183 cases did not run. Its customer control-visibility
+  expectation was updated for the new disclosures. The three internal-builder
+  failures also reproduce at the unchanged starting revision.
+
+Run logs, screenshots, environment metadata and synthetic packages are under
+`/tmp/logotool-customer-limited-ui-20261029/`; the unchanged baseline evidence is
+under `/tmp/logotool-customer-proof-baseline-20261030/`. Final affected-path
+smoke checks passed 14/14 and are recorded in `final-smoke.log` and
+`final-smoke/`. Commands:
+
+```sh
+npx playwright test e2e/customer-model-proof.spec.ts e2e/customer-editor.spec.ts e2e/customer-return-review.spec.ts e2e/photo-mapping-workflow.spec.ts --project=chromium --project=chrome --workers=2
+npx playwright test e2e/customer-model-proof.spec.ts e2e/unified-editor.spec.ts --project=chromium --project=chrome --workers=2
+```
+
+A separate private jacket/logo walkthrough covered issue, visual customer edits,
+per-logo requests, confirmation, office comparison, adoption and saved reopen.
+It uses local customer assets and a test-only reference span; it does not
+establish real garment dimensions or production readiness. Real Windows
+Chrome/Edge over `file://` remains the delivery release gate and was not run.
+The mobile checks emulate a viewport on macOS, not a real touch device.

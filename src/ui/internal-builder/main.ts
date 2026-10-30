@@ -76,6 +76,7 @@ import type {
 import { createGuidedScale, guidedCorrespondences, validateImageSpan } from './guided-scale.js';
 import type { GuidedScaleCommit, GuidedScaleRequest, GuidedScaleSpanCommit } from './guided-scale.js';
 import { createModelSetupView, projectAreaToMm } from './model-setup-view.js';
+import { resolveModelPlacementScene } from '../model-placement-scene.js';
 import { expandableWorkspace } from './workspace-expansion.js';
 import { modelAreaRegionId } from '../../core/model-placement/index.js';
 import type { ModelPlacementScene } from './model-placement-view.js';
@@ -5556,42 +5557,19 @@ function readModelSetup(
  * Display-only contract: an imported model always yields a scene, even with
  * no valid calibrated area. Calibrated regions require saved evidence;
  * otherwise regions:[] supplies a display-only scene with no physical mapping. Never invents
- * mm, frames, domain regions or approval. */
+ * mm, frames, domain regions or approval.
+ *
+ * Shared implementation: delegates to the frozen pure resolver in
+ * `src/ui/model-placement-scene.ts` so the operator and (Phase 2) customer
+ * reuse the exact mapping. The builder scopes the resolver key per
+ * product/variant for view caching; the resolver key itself stays asset-bound.
+ */
 function jobModelPlacementScene(productId: string, variantId: string): ModelPlacementScene | null {
   if (!source) return null;
-  const product = source.project.products.find((entry) => entry.id === productId);
-  const variant = product?.variants.find((entry) => entry.id === variantId);
-  const model = modelEntryFor(productId, variantId);
-  if (!product || !variant || !model) return null;
-  const bytes = sessionAssetMap().get(model.modelPath);
-  if (!bytes) return null;
-  const key = modelAssetKeyOf(model.modelPath, bytes);
-  const displayKey = `${productId}:${variantId}:${key}`;
-  const displayOnly = (): ModelPlacementScene => ({ key: displayKey, bytes, regions: [] });
-  const evidence = readModelSetup(product, model.variantId, key);
-  if (!evidence) return displayOnly();
-  const setup = evidence.sidecar.setup as Record<string, unknown>;
-  if (setup['version'] !== '0.1.0-provisional-model-setup' || setup['productId'] !== productId ||
-      (setup['variantId'] ?? null) !== (model.variantId ?? null) || setup['assetKey'] !== key || !Array.isArray(setup['areas']) || setup['areas'].length > 64) return displayOnly();
-  const reference = setup['reference'] as ReferenceSpan;
-  if (validateReferenceSpan(reference) !== null || !('z' in reference.a) || !('z' in reference.b)) return displayOnly();
-  const fit = fitScaleFromReferences([reference]); if (!fit.ok) return displayOnly();
-  const regions: ModelPlacementScene['regions'] = [];
-  for (const value of setup['areas']) {
-    if (!value || typeof value !== 'object') continue;
-    const area = value as Record<string, unknown>;
-    if (typeof area['id'] !== 'string' || area['status'] !== 'current' || !Array.isArray(area['points']) || area['points'].length > 512) continue;
-    const points = area['points'] as Array<{ x: number; y: number; z: number }>;
-    const projected = projectAreaToMm(points, fit.mmPerUnit); if (!projected) continue;
-    const regionId = modelAreaRegionId(area['id'], spanScopeSuffix(model.variantId));
-    const region = product.regions.find((entry) => entry.id === regionId && variant.regionIds.includes(entry.id));
-    if (!region || region.calibrationRef.calibrationId !== evidence.calibration.id || region.calibrationRef.version !== evidence.calibration.version || region.safeArea.length !== projected.ring.length) continue;
-    // A sidecar cannot silently map edited/stale canonical geometry.
-    if (!region.safeArea.every((point, index) => Math.abs(point[0]! - projected.ring[index]!.x) < 1e-6 && Math.abs(point[1]! - projected.ring[index]!.y) < 1e-6)) continue;
-    regions.push({ id: regionId, frame: { ...projected.plane, mmPerUnit: fit.mmPerUnit }, pointsModel: points.map((point) => ({ ...point })) });
-  }
-  if (regions.length > 0) return { key: displayKey, bytes, regions };
-  return displayOnly();
+  const scene = resolveModelPlacementScene(source.project, sessionAssetMap(), productId, variantId);
+  if (!scene) return null;
+  const displayKey = `${productId}:${variantId}:${scene.key}`;
+  return { key: displayKey, bytes: scene.bytes, regions: scene.regions };
 }
 
 function mountModelSetup(productId: string, modelPath: string): void {

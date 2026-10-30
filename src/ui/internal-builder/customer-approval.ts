@@ -136,6 +136,11 @@ function displayMm(value: number): string {
   return (Math.round(value * 10) / 10).toFixed(1);
 }
 
+function displayDeg(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return `${(Math.round(value * 10) / 10).toFixed(1)}°`;
+}
+
 function fail(code: string, path: string, message: string): ValidationError {
   return { code, path, message };
 }
@@ -375,7 +380,8 @@ export function describeApprovalChanges(
         const item = newItem ?? oldItem;
         const logo = returned.logos.find((entry) => entry.id === item?.logoId);
         const region = product?.regions.find((entry) => entry.id === item?.regionId);
-        lines.push(`${logo?.name ?? item?.logoId ?? key}: ` +
+        const logoLabel = logo?.name ?? item?.logoId ?? key;
+        lines.push(`${logoLabel}: ` +
           `${oldItem ? `${displayMm(oldItem.widthMm)} × ${displayMm(oldItem.heightMm)} mm` : '(not placed)'} → ` +
           `${newItem ? `${displayMm(newItem.widthMm)} × ${displayMm(newItem.heightMm)} mm` : '(removed)'}` +
           (oldItem?.regionId !== newItem?.regionId
@@ -383,7 +389,22 @@ export function describeApprovalChanges(
             : `; area ${region?.name ?? item?.regionId ?? ''}`) +
           (oldItem && newItem && (oldItem.pos.xMm !== newItem.pos.xMm || oldItem.pos.yMm !== newItem.pos.yMm)
             ? `; centre (${displayMm(oldItem.pos.xMm)}, ${displayMm(oldItem.pos.yMm)}) → (${displayMm(newItem.pos.xMm)}, ${displayMm(newItem.pos.yMm)}) mm`
+            : '') +
+          (oldItem?.method !== newItem?.method
+            ? `; method ${oldItem?.method ?? '(not placed)'} → ${newItem?.method ?? '(removed)'}`
+            : '') +
+          (oldItem?.rotationDeg !== newItem?.rotationDeg
+            ? `; rotation ${oldItem ? displayDeg(oldItem.rotationDeg) : '(not placed)'} → ${newItem ? displayDeg(newItem.rotationDeg) : '(removed)'}`
             : ''));
+        // Per-logo instructions are customer-supplied context: surface the
+        // exact before/after text inertly (no trimming, no promotion to
+        // production authority) so a note-only change never reads as an
+        // identical size-only line.
+        if ((oldItem?.instructions ?? null) !== (newItem?.instructions ?? null)) {
+          lines.push(`${logoLabel}: instructions changed.`);
+          lines.push(`Before: ${oldItem?.instructions ?? '(none)'}`);
+          lines.push(`After: ${newItem?.instructions ?? '(none)'}`);
+        }
       }
     }
     groups.push({ title, lines });
@@ -709,7 +730,7 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       // pass through byte-identical.
       const rawAdditional = deps.readAdditionalAssets();
       const withKind = rawAdditional.map((asset) => ({ ...asset, kind: 'additional' as const }));
-      const presentationFiltered = selectPresentationPackageAssets(withKind, built.project.configurations);
+      const presentationFiltered = selectPresentationPackageAssets(withKind, built.project.configurations, built.project);
       const additional = [
         ...presentationFiltered,
         ...withKind

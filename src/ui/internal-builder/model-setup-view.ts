@@ -1,3 +1,5 @@
+import { planeFromPolygon, projectAreaToMm } from '../../core/model-placement/area-projection.js';
+export { planeFromPolygon, projectAreaToMm } from '../../core/model-placement/area-projection.js';
 import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
@@ -113,63 +115,7 @@ function norm3(v: SetupVec3): number {
 /* View-local 3D geometry (plane derivation; ring checks stay in core). */
 /* ------------------------------------------------------------------ */
 
-/**
- * Region plane for a safe-area polygon via Newell's method (native units):
- * centroid origin, unit normal, in-plane xDir from the first edge projected
- * perpendicular to the normal, yDir = normal × xDir. Returns null when the
- * points are collinear/coincident (no plane). Pure.
- */
-export function planeFromPolygon(points: readonly SetupVec3[]): SetupRegionPlane | null {
-  if (!Array.isArray(points) || points.length < 3) return null;
-  for (const point of points) {
-    if (!isVec3(point)) return null;
-  }
-  const origin: SetupVec3 = { x: 0, y: 0, z: 0 };
-  for (const point of points) {
-    origin.x += point.x;
-    origin.y += point.y;
-    origin.z += point.z;
-  }
-  origin.x /= points.length;
-  origin.y /= points.length;
-  origin.z /= points.length;
-  const normal: SetupVec3 = { x: 0, y: 0, z: 0 };
-  for (let index = 0; index < points.length; index += 1) {
-    const current = points[index];
-    const next = points[(index + 1) % points.length];
-    if (current === undefined || next === undefined) return null;
-    normal.x += (current.y - next.y) * (current.z + next.z);
-    normal.y += (current.z - next.z) * (current.x + next.x);
-    normal.z += (current.x - next.x) * (current.y + next.y);
-  }
-  const normalLength = norm3(normal);
-  if (!Number.isFinite(normalLength) || !(normalLength > 1e-12)) return null;
-  const unit: SetupVec3 = {
-    x: normal.x / normalLength,
-    y: normal.y / normalLength,
-    z: normal.z / normalLength,
-  };
-  const first = points[0];
-  const second = points[1];
-  if (first === undefined || second === undefined) return null;
-  const edge = sub3(second, first);
-  const along = edge.x * unit.x + edge.y * unit.y + edge.z * unit.z;
-  const inPlane: SetupVec3 = {
-    x: edge.x - along * unit.x,
-    y: edge.y - along * unit.y,
-    z: edge.z - along * unit.z,
-  };
-  const inPlaneLength = norm3(inPlane);
-  if (!Number.isFinite(inPlaneLength) || !(inPlaneLength > 1e-12)) return null;
-  const xDir: SetupVec3 = {
-    x: inPlane.x / inPlaneLength,
-    y: inPlane.y / inPlaneLength,
-    z: inPlane.z / inPlaneLength,
-  };
-  const yDir = cross3(unit, xDir);
-  if (!isVec3(yDir) || !(norm3(yDir) > 1e-12)) return null;
-  return { origin, normal: unit, xDir, yDir };
-}
+
 
 /**
  * Region plane from one verified surface pick plus its real mesh face
@@ -219,39 +165,7 @@ export function planeFromPointNormal(
   return { origin: { ...origin }, normal: unit, xDir, yDir };
 }
 
-/**
- * Project one 3D safe-area polygon onto its region plane and scale to mm
- * under the fitted scale (native units while `mmPerUnit` is null). Returns
- * the plane plus the 2D ring, or null when degenerate. Pure; shared by the
- * ring check below and by station persistence (projected rings become domain
- * region polygons — an explicit planar projection of surface picks, never a
- * curved-surface claim).
- */
-export function projectAreaToMm(
-  points: readonly SetupVec3[],
-  mmPerUnit: number | null,
-): { plane: SetupRegionPlane; ring: Array<{ x: number; y: number }> } | null {
-  if (!Array.isArray(points) || points.length < 3) return null;
-  for (const point of points) {
-    if (!isVec3(point)) return null;
-  }
-  const plane = planeFromPolygon(points);
-  if (plane === null) return null;
-  const scale = mmPerUnit !== null ? mmPerUnit : 1;
-  const ring = points.map((point) => {
-    const dx = point.x - plane.origin.x;
-    const dy = point.y - plane.origin.y;
-    const dz = point.z - plane.origin.z;
-    return {
-      x: (dx * plane.xDir.x + dy * plane.xDir.y + dz * plane.xDir.z) * scale,
-      y: (dx * plane.yDir.x + dy * plane.yDir.y + dz * plane.yDir.z) * scale,
-    };
-  });
-  for (const vertex of ring) {
-    if (!Number.isFinite(vertex.x) || !Number.isFinite(vertex.y)) return null;
-  }
-  return { plane, ring };
-}
+
 
 /**
  * Validate one 3D safe-area polygon through the core contract: derive its
