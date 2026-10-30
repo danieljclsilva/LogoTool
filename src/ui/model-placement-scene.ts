@@ -58,6 +58,8 @@ export interface ModelScene {
   key: string;
   bytes: Uint8Array;
   regions: ModelSceneRegion[];
+  /** Presentation-only lighting multiplier for this scope (default 1 when absent). */
+  lighting?: number;
 }
 
 export interface ModelSetupSidecarFile {
@@ -170,6 +172,11 @@ function parseJsonLenient(bytes: Uint8Array | undefined): unknown {
 interface ModelEntry {
   model: string;
   variantId?: string;
+  lighting?: number;
+}
+
+function isModelLighting(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0.25 && value <= 3;
 }
 
 function modelEntryFor(
@@ -184,7 +191,13 @@ function modelEntryFor(
   const wide = entries.find((entry) => entry.variantId === undefined);
   const chosen = exact ?? wide ?? null;
   if (!chosen) return null;
-  return { model: chosen.model, ...(chosen.variantId === undefined ? {} : { variantId: chosen.variantId }) };
+  return {
+    model: chosen.model,
+    ...(chosen.variantId === undefined ? {} : { variantId: chosen.variantId }),
+    ...(isModelLighting((chosen as { lighting?: unknown }).lighting)
+      ? { lighting: (chosen as { lighting: number }).lighting }
+      : {}),
+  };
 }
 
 function isFiniteVec3(value: unknown): value is { x: number; y: number; z: number } {
@@ -313,7 +326,10 @@ export function resolveModelPlacementScene(
   const bytes = lookup(model.model);
   if (!bytes) return null;
   const key = modelAssetKeyOf(model.model, bytes);
-  const displayOnly = (): ModelScene => ({ key, bytes, regions: [] });
+  const lighting = model.lighting;
+  const withLighting = (scene: ModelScene): ModelScene =>
+    lighting === undefined ? scene : { ...scene, lighting };
+  const displayOnly = (): ModelScene => withLighting({ key, bytes, regions: [] });
   const scopeVariant = model.variantId ?? undefined;
   const candidatePaths = [
     modelSetupSidecarPathFor(product.id, scopeVariant),
@@ -331,7 +347,7 @@ export function resolveModelPlacementScene(
     // to the requested variant render; unlinked scopes stay display-only.
     const linked = validated.regions.filter((region) => variant.regionIds.includes(region.id));
     if (linked.length > 0) {
-      return { key, bytes, regions: linked };
+      return withLighting({ key, bytes, regions: linked });
     }
   }
   // No valid calibrated area: display-only scene with no physical mapping.

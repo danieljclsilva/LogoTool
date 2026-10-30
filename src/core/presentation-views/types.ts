@@ -69,7 +69,18 @@ export interface PresentationModelEntry {
   variantId?: string;
   model: string;
   label?: string;
+  /**
+   * Presentation-only lighting multiplier (0.25..3, default 1 when absent).
+   * Brightens the operator 3D preview only; never affects geometry, mm,
+   * materials, asset bytes or production exports.
+   */
+  lighting?: number;
 }
+
+/** Presentation-only lighting bounds (operator brightness). */
+export const MODEL_LIGHTING_MIN = 0.25;
+export const MODEL_LIGHTING_MAX = 3;
+export const MODEL_LIGHTING_DEFAULT = 1;
 
 /** One legacy single-reference entry (preserved verbatim, never converted). */
 export interface PresentationReferenceEntry {

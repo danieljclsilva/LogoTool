@@ -341,6 +341,7 @@ function paintEditor(): void {
     productModelBox.dataset.mode = 'setup';
   }
   staffModelSetup?.setActive(!logos && active);
+  try { syncLightingControl(); } catch { /* lighting sync is advisory */ }
 }
 function openUnifiedEditor(mode: 'setup' | 'logos'): void {
   if (!source) return;
@@ -4205,6 +4206,215 @@ let workspaceVariantId: string | null = null;
 /** First-tab hint by stable view id (legacy side or slug; used until the operator picks a tab). */
 let workspaceViewHint: string | null = null;
 
+/* ------------------------------------------------------------------ */
+/* Operator 3D lighting (presentation-only, project-persisted).        */
+/* One control in the unified editor header: range 25..300% + readout */
+/* + Reset. Live input updates the shared viewer immediately (no GLB   */
+/* reload, no camera reset); change commits to preview.json via the    */
+/* existing session replacement/dirty bookkeeping. Hidden for          */
+/* photo-only products. No geometry/material/frame changes.            */
+/* ------------------------------------------------------------------ */
+const MODEL_LIGHTING_MIN = 0.25;
+const MODEL_LIGHTING_MAX = 3;
+const MODEL_LIGHTING_DEFAULT = 1;
+
+function normalizeLightingValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= MODEL_LIGHTING_MIN && value <= MODEL_LIGHTING_MAX
+    ? value
+    : MODEL_LIGHTING_DEFAULT;
+}
+
+const lightingWrap = document.createElement('label');
+lightingWrap.setAttribute('data-builder-hook', 'model-lighting-wrap');
+lightingWrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;max-width:100%;';
+const lightingCaption = document.createElement('span');
+lightingCaption.textContent = 'Lighting';
+const lightingInput = document.createElement('input');
+lightingInput.type = 'range';
+lightingInput.min = '25';
+lightingInput.max = '300';
+lightingInput.step = '5';
+lightingInput.value = '100';
+lightingInput.setAttribute('data-builder-hook', 'model-lighting');
+lightingInput.setAttribute('aria-label', 'Lighting');
+const lightingValue = document.createElement('output');
+lightingValue.setAttribute('data-builder-hook', 'model-lighting-value');
+lightingValue.setAttribute('aria-live', 'polite');
+lightingValue.textContent = '100%';
+const lightingReset = document.createElement('button');
+lightingReset.type = 'button';
+lightingReset.className = 'btn-secondary';
+lightingReset.textContent = 'Reset';
+lightingReset.setAttribute('data-builder-hook', 'model-lighting-reset');
+lightingReset.setAttribute('aria-label', 'Reset lighting to 100%');
+lightingWrap.append(lightingCaption, lightingInput, lightingValue, lightingReset);
+editorModes.append(lightingWrap);
+
+/** Current model scope for the unified 3D workspace (mirrors refreshStaffModel). */
+function currentLightingScope(): { productId: string; variantId: string; modelPath: string; lighting: number } | null {
+  if (source === null) return null;
+  const products = source.project.products;
+  const product = products.find((entry) => entry.id === workspaceProductId) ?? products[0] ?? null;
+  if (!product) return null;
+  const variant = product.variants.find((entry) => entry.id === workspaceVariantId) ?? product.variants[0] ?? null;
+  if (!variant) return null;
+  const assets = sessionAssetMap();
+  const manifestBytes = assets.get(PRESENTATION_MANIFEST_PATH);
+  const selection = selectPresentationModel(
+    parsePresentationManifest(manifestBytes),
+    manifestBytes !== undefined,
+    product.id,
+    variant.id,
+    (path) => assets.get(path),
+  );
+  if (selection.modelPath === null) return null;
+  const flexible = parseFlexiblePresentationManifest(parseJsonBytes(manifestBytes));
+  const entries = (flexible?.models ?? []).filter((entry) => entry.productId === product.id);
+  const exact = entries.find((entry) => entry.variantId === variant.id);
+  const wide = entries.find((entry) => entry.variantId === undefined);
+  const chosen = exact ?? wide ?? null;
+  const raw = chosen ? (chosen as { lighting?: unknown }).lighting : undefined;
+  const lighting = typeof raw === 'number' && Number.isFinite(raw) && raw >= MODEL_LIGHTING_MIN && raw <= MODEL_LIGHTING_MAX
+    ? raw
+    : MODEL_LIGHTING_DEFAULT;
+  // Legacy selection carries the same lenient lighting when the flexible
+  // parse is unavailable; prefer the scoped flexible value above.
+  const legacyLighting = typeof (selection as { lighting?: unknown }).lighting === 'number'
+    && Number.isFinite((selection as { lighting?: number }).lighting!)
+    && (selection as { lighting?: number }).lighting! >= MODEL_LIGHTING_MIN
+    && (selection as { lighting?: number }).lighting! <= MODEL_LIGHTING_MAX
+    ? (selection as { lighting: number }).lighting
+    : MODEL_LIGHTING_DEFAULT;
+  return {
+    productId: product.id,
+    variantId: variant.id,
+    modelPath: selection.modelPath,
+    lighting: chosen ? lighting : legacyLighting,
+  };
+}
+
+/** Sync the slider/readout/visibility to the saved scope value (no commit). */
+function syncLightingControl(): void {
+  try {
+    const scope = currentLightingScope();
+    const active = editorOpen && (jobStep === 'prepare' || jobStep === 'placements') && scope !== null;
+    lightingWrap.hidden = !active;
+    if (!scope) return;
+    const percent = Math.round(scope.lighting * 100);
+    const clamped = Math.min(300, Math.max(25, Math.round(percent / 5) * 5));
+    lightingInput.value = String(clamped);
+    lightingValue.textContent = `${clamped}%`;
+    // Keep the live viewer on the saved value when it differs (e.g. after
+    // scope switches with a cached same-asset scene, or a reopened job).
+    // Camera and geometry are untouched; this only scales light intensities.
+    if (staffModelViewer && staffModelReady) {
+      try { staffModelViewer.setLighting(scope.lighting); } catch { /* advisory */ }
+    }
+  } catch {
+    return;
+  }
+}
+
+/** Persist one lighting value to preview.json for the current scope only. */
+function persistLighting(multiplier: number): void {
+  try {
+    if (source === null) return;
+    const scope = currentLightingScope();
+    if (!scope) return;
+    const normalized = normalizeLightingValue(multiplier);
+    const assets = sessionAssetMap();
+    const rawBytes = assets.get(PRESENTATION_MANIFEST_PATH);
+    if (!rawBytes) return;
+    let raw: unknown = null;
+    try {
+      raw = JSON.parse(new TextDecoder().decode(rawBytes));
+    } catch {
+      return;
+    }
+    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>)['models'])) return;
+    const record = raw as Record<string, unknown> & { models: Array<Record<string, unknown>> };
+    const entries = record.models;
+    // Correct scope: exact variant entry wins, else the product-wide entry
+    // for this model path. Never touches another variant's entry.
+    let target: Record<string, unknown> | null = null;
+    for (const entry of entries) {
+      if (entry['productId'] !== scope.productId || entry['model'] !== scope.modelPath) continue;
+      if ((entry['variantId'] ?? undefined) === (modelEntryFor(scope.productId, scope.variantId)?.variantId ?? undefined)) {
+        target = entry;
+        break;
+      }
+    }
+    if (!target) {
+      // Fallback to the same exact-then-wide resolution used for display.
+      const exact = entries.find((entry) =>
+        entry['productId'] === scope.productId && entry['model'] === scope.modelPath &&
+        entry['variantId'] === scope.variantId);
+      const wide = entries.find((entry) =>
+        entry['productId'] === scope.productId && entry['model'] === scope.modelPath &&
+        entry['variantId'] === undefined);
+      target = exact ?? wide ?? null;
+    }
+    if (!target) return;
+    const before = target['lighting'];
+    if (before === normalized || (before === undefined && normalized === MODEL_LIGHTING_DEFAULT)) {
+      // Still sync the viewer/output; no package churn for a no-op.
+      syncLightingControl();
+      return;
+    }
+    target['lighting'] = normalized;
+    const nextBytes = new TextEncoder().encode(JSON.stringify(record));
+    if (nextBytes.length > 64 * 1024) return;
+    const snapshot = source;
+    pushHistoryForEdit('Adjust product lighting');
+    source = replaceSessionProject(snapshot, snapshot.project, [
+      ...snapshot.assets.filter((asset) => asset.path !== PRESENTATION_MANIFEST_PATH),
+      { path: PRESENTATION_MANIFEST_PATH, bytes: nextBytes, kind: 'additional' },
+    ]);
+    markJobDirty();
+    reprepareJobDigest();
+    // Live viewer already shows the value from input; keep it exact and
+    // notify owned/borrowed workbenches without resetting the camera.
+    try { staffModelViewer?.setLighting(normalized); } catch { /* advisory */ }
+    lightingInput.value = String(Math.round(normalized * 100));
+    lightingValue.textContent = `${Math.round(normalized * 100)}%`;
+    try { placementHandle?.update(); } catch { /* refresh is best-effort */ }
+    syncLightingControl();
+  } catch {
+    return;
+  }
+}
+
+lightingInput.addEventListener('input', () => {
+  try {
+    const percent = Number(lightingInput.value);
+    if (!Number.isFinite(percent)) return;
+    const multiplier = normalizeLightingValue(Math.round(percent) / 100);
+    lightingValue.textContent = `${Math.round(percent)}%`;
+    try { staffModelViewer?.setLighting(multiplier); } catch { /* advisory */ }
+  } catch {
+    return;
+  }
+});
+lightingInput.addEventListener('change', () => {
+  try {
+    const percent = Number(lightingInput.value);
+    if (!Number.isFinite(percent)) { syncLightingControl(); return; }
+    persistLighting(Math.round(percent) / 100);
+  } catch {
+    return;
+  }
+});
+lightingReset.addEventListener('click', () => {
+  try {
+    lightingInput.value = '100';
+    lightingValue.textContent = '100%';
+    try { staffModelViewer?.setLighting(MODEL_LIGHTING_DEFAULT); } catch { /* advisory */ }
+    persistLighting(MODEL_LIGHTING_DEFAULT);
+  } catch {
+    return;
+  }
+});
+
 function workspaceSideLabel(side: ProductSetupSide): string {
   return side === 'front' ? 'Front' : side === 'back' ? 'Back' : side === 'left' ? 'Left' : 'Right';
 }
@@ -5247,6 +5457,7 @@ async function refreshStaffModel(): Promise<void> {
   if (source === null) {
     disposeStaffModel();
     productModelBox.hidden = true;
+    try { syncLightingControl(); } catch { /* advisory */ }
     return;
   }
   const products = source.project.products;
@@ -5254,12 +5465,14 @@ async function refreshStaffModel(): Promise<void> {
   if (product === null) {
     disposeStaffModel();
     productModelBox.hidden = true;
+    try { syncLightingControl(); } catch { /* advisory */ }
     return;
   }
   const variant = product.variants.find((entry) => entry.id === workspaceVariantId) ?? product.variants[0] ?? null;
   if (variant === null) {
     disposeStaffModel();
     productModelBox.hidden = true;
+    try { syncLightingControl(); } catch { /* advisory */ }
     return;
   }
   // Photos own the stage when present; the model pane fills the model-only gap.
@@ -5268,6 +5481,7 @@ async function refreshStaffModel(): Promise<void> {
     if (photos.length > 0) {
       disposeStaffModel();
       productModelBox.hidden = true;
+      try { syncLightingControl(); } catch { /* advisory */ }
     }
     return;
   }
@@ -5283,6 +5497,7 @@ async function refreshStaffModel(): Promise<void> {
   if (selection.modelPath === null) {
     disposeStaffModel();
     productModelBox.hidden = true;
+    try { syncLightingControl(); } catch { /* advisory */ }
     return;
   }
   const bytes = assets.get(selection.modelPath);
@@ -5290,14 +5505,23 @@ async function refreshStaffModel(): Promise<void> {
     disposeStaffModel();
     productModelBox.hidden = true;
     productModelStatus.textContent = '';
+    try { syncLightingControl(); } catch { /* advisory */ }
     return;
   }
   const key = `${selection.modelPath}#${bytes.length}:${fnv1a32Hex(bytes)}`;
   if (staffModelViewer !== null && staffModelKey === key) {
     productModelBox.hidden = false;
+    // Cached same asset: honor the saved scope lighting without resetting
+    // the camera or reloading the GLB. Absent settings default to 1.
+    try {
+      const saved = normalizeLightingValue((selection as { lighting?: unknown }).lighting);
+      staffModelViewer.setLighting(saved);
+    } catch { /* lighting is advisory */ }
     staffModelSetup?.setActive(jobStep === 'prepare' && editorOpen);
     if (jobStep === 'prepare' && editorOpen) staffModelSetup?.refresh();
-    placeSharedModelSurface(); return;
+    placeSharedModelSurface();
+    try { syncLightingControl(); } catch { /* advisory */ }
+    return;
   }
   generation = ++staffModelGeneration;
   productModelBox.hidden = false;
@@ -5323,6 +5547,12 @@ async function refreshStaffModel(): Promise<void> {
     const shown = await staffModelViewer.showModel(bytes.slice());
     if (!isCurrent()) return;
     staffModelReady = shown.kind === 'ready';
+    // Saved lighting applies to every fresh load; absent settings default to
+    // 1 so a product with no setting never inherits a prior product's value.
+    try {
+      const saved = normalizeLightingValue((selection as { lighting?: unknown }).lighting);
+      staffModelViewer.setLighting(saved);
+    } catch { /* lighting is advisory */ }
     if (staffModelReady) staffModelViewer.fitCurrentView();
     if (shown.kind !== 'ready' && shown.kind !== 'empty' && shown.kind !== 'loading') {
       productModelStatus.textContent = `3D preview unavailable (${shown.message}). Add a view image above to author measurements.`;
@@ -5330,6 +5560,7 @@ async function refreshStaffModel(): Promise<void> {
     mountModelSetup(product.id, selection.modelPath);
     staffModelSetup?.setActive(jobStep === 'prepare' && editorOpen);
     placeSharedModelSurface();
+    try { syncLightingControl(); } catch { /* advisory */ }
   } catch (error) {
     if (!isCurrent()) return;
     disposeStaffModel();
@@ -5380,7 +5611,7 @@ function modelProductsWithModels(): Array<{ productId: string; productName: stri
     .map((product) => ({ productId: product.id, productName: product.name ?? product.id }));
 }
 
-function modelEntryFor(productId: string, variantId: string | null | undefined): { modelPath: string; variantId: string | undefined } | null {
+function modelEntryFor(productId: string, variantId: string | null | undefined): { modelPath: string; variantId: string | undefined; lighting?: number } | null {
   if (source === null) return null;
   const assets = sessionAssetMap();
   const manifest = parseFlexiblePresentationManifest(parseJsonBytes(assets.get(PRESENTATION_MANIFEST_PATH)));
@@ -5394,7 +5625,15 @@ function modelEntryFor(productId: string, variantId: string | null | undefined):
   const wide = entries.find((entry) => entry.variantId === undefined);
   const chosen = exact ?? wide ?? null;
   if (!chosen) return null;
-  return { modelPath: chosen.model, variantId: chosen.variantId ?? undefined };
+  const rawLighting = (chosen as { lighting?: unknown }).lighting;
+  const lighting = typeof rawLighting === 'number' && Number.isFinite(rawLighting) && rawLighting >= 0.25 && rawLighting <= 3
+    ? rawLighting
+    : undefined;
+  return {
+    modelPath: chosen.model,
+    variantId: chosen.variantId ?? undefined,
+    ...(lighting !== undefined ? { lighting } : {}),
+  };
 }
 
 /** One setup scope per (product, model scope): product-wide models stage once; variant-specific models stage per variant. */
@@ -5569,7 +5808,12 @@ function jobModelPlacementScene(productId: string, variantId: string): ModelPlac
   const scene = resolveModelPlacementScene(source.project, sessionAssetMap(), productId, variantId);
   if (!scene) return null;
   const displayKey = `${productId}:${variantId}:${scene.key}`;
-  return { key: displayKey, bytes: scene.bytes, regions: scene.regions };
+  return {
+    key: displayKey,
+    bytes: scene.bytes,
+    regions: scene.regions,
+    ...(scene.lighting !== undefined ? { lighting: scene.lighting } : {}),
+  };
 }
 
 function mountModelSetup(productId: string, modelPath: string): void {

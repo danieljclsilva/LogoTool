@@ -220,6 +220,32 @@ export function parsePresentationViewEntry(entry: unknown): PresentationViewEntr
   };
 }
 
+/**
+ * Presentation-only lighting multiplier bounds (operator brightness).
+ * Re-exported here so Node tests and UI readers share one authority.
+ */
+export const MODEL_LIGHTING_MIN = 0.25;
+export const MODEL_LIGHTING_MAX = 3;
+export const MODEL_LIGHTING_DEFAULT = 1;
+
+/**
+ * Normalize a persisted lighting multiplier. Valid finite 0.25..3 values
+ * pass through; everything else (absent, NaN, infinite, out-of-range,
+ * strings) normalizes to the default without failing the host entry.
+ * Prefer ignoring only bad lighting so one bad value never poisons an
+ * otherwise valid manifest.
+ */
+export function normalizeModelLighting(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= MODEL_LIGHTING_MIN && value <= MODEL_LIGHTING_MAX
+    ? value
+    : MODEL_LIGHTING_DEFAULT;
+}
+
+/** True for a persisted lighting value that survives verbatim. */
+export function isModelLighting(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= MODEL_LIGHTING_MIN && value <= MODEL_LIGHTING_MAX;
+}
+
 function parseModelEntry(entry: unknown): PresentationModelEntry | null {
   if (!isRecord(entry)) return null;
   if (!isNonEmptyString(entry["productId"])) return null;
@@ -228,11 +254,17 @@ function parseModelEntry(entry: unknown): PresentationModelEntry | null {
   if (!isValidPresentationPath(entry["model"])) return null;
   if (extensionOf(entry["model"]) !== ".glb") return null;
   if (entry["label"] !== undefined && typeof entry["label"] !== "string") return null;
+  // Lenient lighting: a valid multiplier is preserved; an invalid one is
+  // ignored (entry stays valid with the default) so old files and single
+  // bad values never poison the manifest.
+  const rawLighting = entry["lighting"];
+  const lighting = isModelLighting(rawLighting) ? rawLighting : undefined;
   return {
     productId: entry["productId"],
     ...(isNonEmptyString(entry["variantId"]) ? { variantId: entry["variantId"] } : {}),
     model: entry["model"],
     ...(typeof entry["label"] === "string" ? { label: entry["label"] } : {}),
+    ...(lighting !== undefined ? { lighting } : {}),
   };
 }
 
@@ -351,6 +383,7 @@ export function serializePresentationManifest(manifest: AnyPresentationManifest)
       const item: Record<string, unknown> = { model: entry.model, productId: entry.productId };
       if (entry.variantId !== undefined) item["variantId"] = entry.variantId;
       if (entry.label !== undefined) item["label"] = entry.label;
+      if (entry.lighting !== undefined && isModelLighting(entry.lighting)) item["lighting"] = entry.lighting;
       return item;
     });
   }

@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 /** Local model document views. Cameras are presentation metadata; physical mm never change here. */
-import { ModelViewer, type ViewerCameraState, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
+import { ModelViewer, normalizeModelLighting, type ViewerCameraState, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
 import type { ProjectDocument, Configuration, ResultCandidate } from '../../core/types.js';
 import { modelPointFromMm } from '../../core/model-placement/index.js';
 import { matchLogoRef, formatMm1 } from '../../core/operation-document/index.js';
@@ -105,12 +105,17 @@ export function createModelDocumentController(deps: Deps): {
       if (result.kind !== 'ready') throw new Error('The document model could not be opened.');
       renderScene = scene.key;
     }
+    // Presentation-only brightness follows the saved model entry; the cached
+    // model is reused and the camera is never touched here.
+    try { renderViewer.setLighting(normalizeModelLighting(scene.lighting)); } catch { /* lighting is advisory */ }
     return renderViewer;
   }
   function sameSource(project: ProjectDocument, config: Configuration, scene: ModelPlacementScene): boolean {
     const live = deps.project();
+    const liveScene = deps.scene(config.productId, config.variantId);
     return live === (snapshotSources.get(project) ?? project) && live?.projectId === project.projectId && live.revision === project.revision
-      && deps.scene(config.productId, config.variantId)?.key === scene.key;
+      && liveScene?.key === scene.key
+      && normalizeModelLighting(liveScene.lighting) === normalizeModelLighting(scene.lighting);
   }
   function enqueue(key: string, work: () => Promise<void>): void {
     if (pending.has(key)) return;
@@ -195,7 +200,7 @@ export function createModelDocumentController(deps: Deps): {
   }
 
   function capture(project: ProjectDocument, config: Configuration, scene: ModelPlacementScene, view: ModelDocumentView, dimensions: RenderDimension[]): DocumentReviewModelView {
-    const key = JSON.stringify([owner, config.id, modelViewRenderKey(view, project.revision), dimensions]);
+    const key = JSON.stringify([owner, config.id, modelViewRenderKey(view, project.revision), normalizeModelLighting(scene.lighting), dimensions]);
     const cached = renders.get(key);
     if (cached) return cached;
     const result: DocumentReviewModelView = { view, render: null, status: 'pending' }; renders.set(key, result);
@@ -266,6 +271,7 @@ export function createModelDocumentController(deps: Deps): {
     void (async () => {
       try {
         if (!viewer || (await viewer.showModel(scene.bytes.slice())).kind !== 'ready') throw new Error('The model could not be opened.');
+        try { viewer.setLighting(normalizeModelLighting(scene.lighting)); } catch { /* lighting is advisory */ }
         await artwork(viewer, scene, config);
         if (!dialog.isConnected) return;
         if (original) viewer.setCameraState(toViewer(original.camera)); else { viewer.setViewSide('front'); viewer.fitCurrentView(); }

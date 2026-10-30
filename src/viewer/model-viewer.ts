@@ -151,6 +151,22 @@ const FAR_FACTOR = 100;
 /** Product side presets for multiview showcase framing. */
 export type ViewerSide = 'front' | 'back' | 'left' | 'right';
 
+/** Presentation-only lighting multiplier bounds (operator brightness). */
+export const MODEL_LIGHTING_MIN = 0.25;
+export const MODEL_LIGHTING_MAX = 3;
+export const MODEL_LIGHTING_DEFAULT = 1;
+/** Exact pre-lighting base intensities (frozen defaults; never restyled). */
+export const MODEL_LIGHTING_BASE_KEY = 1.2;
+export const MODEL_LIGHTING_BASE_FILL = 0.4;
+export const MODEL_LIGHTING_BASE_AMBIENT = 0.3;
+
+/** Normalize a persisted lighting multiplier; invalid values reset to default. */
+export function normalizeModelLighting(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= MODEL_LIGHTING_MIN && value <= MODEL_LIGHTING_MAX
+    ? value
+    : MODEL_LIGHTING_DEFAULT;
+}
+
 /**
  * Pointer-gesture reservation for the shared camera tools (frozen for A).
  *
@@ -248,6 +264,11 @@ export class ModelViewer {
    */
   private viewRevision = 0;
   private lastViewKey = '';
+  private readonly keyLight: THREE.DirectionalLight;
+  private readonly fillLight: THREE.DirectionalLight;
+  private readonly ambientLight: THREE.AmbientLight;
+  /** Presentation-only brightness multiplier (default 1; never affects mm). */
+  private lighting = MODEL_LIGHTING_DEFAULT;
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -314,13 +335,17 @@ export class ModelViewer {
     this.markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false });
 
     // Simple key/fill lighting; materials come from the GLB itself.
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    const key = new THREE.DirectionalLight(0xffffff, MODEL_LIGHTING_BASE_KEY);
     key.position.set(2, 3, 4);
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+    this.keyLight = key;
+    const fill = new THREE.DirectionalLight(0xffffff, MODEL_LIGHTING_BASE_FILL);
     fill.position.set(-3, -1, -2);
     this.scene.add(fill);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+    this.fillLight = fill;
+    const ambient = new THREE.AmbientLight(0xffffff, MODEL_LIGHTING_BASE_AMBIENT);
+    this.scene.add(ambient);
+    this.ambientLight = ambient;
 
     this.resize();
     if (typeof ResizeObserver !== 'undefined') {
@@ -1566,6 +1591,33 @@ export class ModelViewer {
 
   getWireframe(): boolean {
     return this.wireframe;
+  }
+
+  /**
+   * Presentation-only brightness multiplier (0.25..3, default 1). Scales the
+   * exact default key/fill/ambient intensities (1.2/.4/.3); materials,
+   * textures, background, camera, picking and mm are untouched. Bounded and
+   * finite: invalid values reset to default. Never throws.
+   */
+  setLighting(multiplier: number): void {
+    try {
+      if (this.disposed) return;
+      this.lighting = normalizeModelLighting(multiplier);
+      this.keyLight.intensity = MODEL_LIGHTING_BASE_KEY * this.lighting;
+      this.fillLight.intensity = MODEL_LIGHTING_BASE_FILL * this.lighting;
+      this.ambientLight.intensity = MODEL_LIGHTING_BASE_AMBIENT * this.lighting;
+    } catch {
+      return;
+    }
+  }
+
+  /** Current presentation-only lighting multiplier (1 after attach). */
+  getLighting(): number {
+    try {
+      return this.disposed ? MODEL_LIGHTING_DEFAULT : this.lighting;
+    } catch {
+      return MODEL_LIGHTING_DEFAULT;
+    }
   }
 
   getStatus(): ViewerStatus {

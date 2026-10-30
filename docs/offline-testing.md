@@ -1493,3 +1493,36 @@ It uses local customer assets and a test-only reference span; it does not
 establish real garment dimensions or production readiness. Real Windows
 Chrome/Edge over `file://` remains the delivery release gate and was not run.
 The mobile checks emulate a viewport on macOS, not a real touch device.
+
+
+## Persisted model lighting — 2026-10-30
+
+The unified 3D editor has a Lighting slider (25–300%) and Reset (100%).
+Input previews immediately without reloading the model or moving the camera;
+committed values are stored per model entry in `presentation/preview.json`.
+Old projects default to 100%; invalid saved values safely use that default.
+The setting follows setup, logo placement, save/reopen, issued customer proofs
+and document rendering. Customer controls stay minimal. Lighting changes
+invalidate derived document images, including when the physical revision is
+unchanged. Original materials, GLB bytes, calibration and logo geometry are
+not rewritten.
+
+Independent acceptance: `npm run typecheck` passes; `npm test` passes 866/866.
+Twenty offline browser cases across Chromium and Chrome cover lighting pixels,
+unchanged camera/geometry, persistence, Reset, legacy defaults, customer handoff,
+refreshed document images and existing model workflows. Two further cases verify
+that lighting is available immediately after uncalibrated model intake. The
+22 passing cases use synthetic fixtures over `file://`, networking disabled,
+with zero HTTP(S), page errors or console errors.
+
+Environment: Darwin 27.2.0 arm64, Chromium 156.0.8078.4, Chrome 155.0.8059.85;
+1440×900 and 390×844. Logs and screenshots are local under
+`/tmp/logotool-model-lighting-20261030/` (`unit-root.log`, `typecheck-final.log`,
+`final.log`, `intake.log`). A private real-jacket visual and package comparison
+also verified saved 300% lighting, identical original model bytes, unchanged
+products/calibration, unchanged logo placements and unchanged physical revision.
+Windows Chrome/Edge and actual mobile hardware remain untested.
+
+```sh
+npx playwright test e2e/model-lighting.spec.ts e2e/customer-model-proof.spec.ts e2e/model-document-workflow.spec.ts --project=chromium --project=chrome --workers=2
+```

@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { ModelViewer, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
+import { ModelViewer, normalizeModelLighting, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
 import { modelPointFromMm, regionMmFromModel, type ModelPoint, type ModelRegionFrame } from '../../core/model-placement/index.js';
 import { rotatedFootprintCorners } from '../../core/operation-measurements/index.js';
 import { normalizeDeg, rotationSnapDeg, snapFootprint, cornerSafeMeasurements, type AlignGuide, type MmPolygon } from '../../core/placement-manipulation/index.js';
@@ -15,7 +15,13 @@ import { pointInPolygon } from '../../core/geometry/index.js';
 import type { Placement } from '../../core/types.js';
 
 export interface ModelPlacementRegion { id: string; frame: ModelRegionFrame; pointsModel: ModelPoint[] }
-export interface ModelPlacementScene { key: string; bytes: Uint8Array; regions: ModelPlacementRegion[] }
+export interface ModelPlacementScene {
+  key: string;
+  bytes: Uint8Array;
+  regions: ModelPlacementRegion[];
+  /** Presentation-only lighting multiplier for this scope (default 1 when absent). */
+  lighting?: number;
+}
 export interface ModelPlacementItem {
   index: number;
   placement: Placement;
@@ -929,6 +935,9 @@ export function createModelPlacementView(callbacks: {
           // otherwise hides small logos on the shared surface. Setup restores
           // the staged reference when its tools become active again.
           borrowed.setReferenceOverlay(null);
+          // Presentation-only brightness follows the saved model entry.
+          // Camera and geometry stay exactly as root left them.
+          try { borrowed.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
           ready = true;
           try { borrowed.onFrame = () => positionOverlay(); } catch { /* frame callback is advisory */ }
         } else {
@@ -963,16 +972,21 @@ export function createModelPlacementView(callbacks: {
         images.clear(); artworkSignature = ''; markerSignature = '';
         if (!viewer) viewer = ModelViewer.attach({ canvas, container: stage, background: 0xffffff }).viewer;
         if (!viewer) { state.textContent = 'The product view needs WebGL. Set up the product or use another supported browser.'; return; }
+        try { viewer.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
         viewer.onFrame = () => positionOverlay();
         state.textContent = 'Loading product…';
         void viewer.showModel(next.scene.bytes.slice()).then((result) => {
           if (disposed || token !== generation) return;
           ready = result.kind === 'ready';
           if (!ready) { state.textContent = 'The product model could not be opened.'; return; }
+          try { viewer?.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
           if (customer) { viewer?.setViewSide('front'); viewer?.fitCurrentView(); }
           paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); element.dataset.ready = 'true';
         });
-      } else { paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); }
+      } else {
+        try { viewer?.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
+        paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles();
+      }
     },
     destroy() {
       disposed = true; ++generation;

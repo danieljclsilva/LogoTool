@@ -53,6 +53,23 @@ export interface PresentationModelEntry {
   variantId?: string;
   model: string;
   label?: string;
+  /** Presentation-only lighting multiplier (0.25..3, default 1 when absent). */
+  lighting?: number;
+}
+
+/** Presentation-only lighting bounds (mirrors the core contract). */
+export const MODEL_LIGHTING_MIN = 0.25;
+export const MODEL_LIGHTING_MAX = 3;
+export const MODEL_LIGHTING_DEFAULT = 1;
+
+/** Lenient lighting check: valid multipliers survive, bad values are ignored. */
+function isModelLighting(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= MODEL_LIGHTING_MIN && value <= MODEL_LIGHTING_MAX;
+}
+
+/** Normalize a persisted lighting multiplier; invalid values reset to default. */
+export function normalizeModelLighting(value: unknown): number {
+  return isModelLighting(value) ? value : MODEL_LIGHTING_DEFAULT;
 }
 
 export interface PresentationManifestV1 {
@@ -114,6 +131,8 @@ export interface PresentationModelSelection {
   label: string | null;
   /** Concise warning when the manifest existed but yielded no usable model. */
   warning: string | null;
+  /** Validated presentation-only lighting multiplier for this scope. */
+  lighting?: number;
 }
 
 const MAX_MANIFEST_BYTES = 64 * 1024;
@@ -242,11 +261,15 @@ export function parsePresentationManifest(manifestBytes: Uint8Array | undefined)
       if (item['label'] !== undefined && typeof item['label'] !== 'string') return null;
       if (!isValidPresentationPath(item['model'])) return null;
       if (extensionOf(item['model']) !== '.glb') return null;
+      // Lenient lighting: valid multipliers survive, bad values are ignored
+      // so a single bad value never poisons an otherwise valid manifest.
+      const lighting = isModelLighting(item['lighting']) ? (item['lighting'] as number) : undefined;
       models.push({
         productId: item['productId'],
         ...(typeof item['variantId'] === 'string' ? { variantId: item['variantId'] } : {}),
         model: item['model'],
         ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}),
+        ...(lighting !== undefined ? { lighting } : {}),
       });
     }
     const references: PresentationReferenceEntry[] = [];
@@ -457,7 +480,7 @@ export function selectPresentationModel(
     const external = blocking.some((issue) => issue.code === 'asset-external-uri');
     return { modelPath: null, label: null, warning: `Reference model “${scoped.model}” is not a self-contained model${external ? ' (external reference)' : ''}; showing the measured diagram instead.` };
   }
-  return { modelPath: scoped.model, label: scoped.label ?? null, warning: null };
+  return { modelPath: scoped.model, label: scoped.label ?? null, warning: null, ...(isModelLighting(scoped.lighting) ? { lighting: scoped.lighting } : {}) };
 }
 
 export const PRESENTATION_MANIFEST_PATH = 'presentation/preview.json';

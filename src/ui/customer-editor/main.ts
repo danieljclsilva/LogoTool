@@ -754,7 +754,15 @@ function refreshModelProof(): void {
   const verdicts = geometryLookup?.get(configuration.id);
   host.hidden = !modelProofVisible();
   modelProofView.update({
-    scene: { key: scene.key, bytes: scene.bytes, regions: scene.regions },
+    scene: {
+      key: scene.key,
+      bytes: scene.bytes,
+      regions: scene.regions,
+      ...((scene as { lighting?: unknown }).lighting !== undefined &&
+      typeof (scene as { lighting?: unknown }).lighting === 'number'
+        ? { lighting: (scene as { lighting: number }).lighting }
+        : {}),
+    },
     items: configuration.placements.map((placement, index) => ({
       index,
       placement,
@@ -1043,6 +1051,8 @@ const VIEWS_SIDES: ProductViewSide[] = ['front', 'back', 'left', 'right'];
 let showcaseViews: ShowcaseView[] = [];
 let showcaseModelPath: string | null = null;
 let showcaseModelLabel: string | null = null;
+/** Validated saved lighting for the current scope (default 1 when absent). */
+let showcaseModelLighting = 1;
 let showcaseAvailable = false;
 let showcaseMode: ViewsMode = 'flat';
 /** Current showcase view id (legacy side or flexible slug). */
@@ -1056,6 +1066,8 @@ let showcaseModelFailed = false;
 // Last model handed to the viewer: skip redundant showModel on unchanged bytes.
 let showcaseShownModelPath: string | null = null;
 let showcaseShownModelBytes: Uint8Array | null = null;
+/** Lighting applied to the currently shown model (tracks lighting-only scope switches). */
+let showcaseShownModelLighting = 1;
 // Last successfully painted surface (viewer-ready status for tests/captions).
 let showcaseSurface: 'none' | 'raster' | 'model' | 'proxy' | 'failed' = 'none';
 // Package+configuration scope of the last side snap: the side snaps to the
@@ -1069,6 +1081,8 @@ interface ShowcaseViewer {
   showImageProxy: (bytes: Uint8Array, label: string) => Promise<{ kind: string; message?: string }>;
   clear: () => void;
   refreshSize: () => void;
+  /** Presentation-only brightness (0.25..3, default 1); no reload or camera move. */
+  setLighting: (multiplier: number) => void;
   /** Refit the camera to the current model (Reset view button). */
   resetView: () => void;
   /** Dolly the camera toward (<1) or away (>1) from the target (zoom buttons, Ctrl/Meta+wheel). */
@@ -1116,6 +1130,12 @@ function readShowcaseAssets(): void {
   );
   showcaseModelPath = modelSelection.modelPath;
   showcaseModelLabel = modelSelection.label;
+  showcaseModelLighting = typeof (modelSelection as { lighting?: unknown }).lighting === 'number' &&
+    Number.isFinite((modelSelection as { lighting?: number }).lighting!) &&
+    (modelSelection as { lighting: number }).lighting >= 0.25 &&
+    (modelSelection as { lighting: number }).lighting <= 3
+    ? (modelSelection as { lighting: number }).lighting
+    : 1;
   showcaseWarning = modelSelection.warning ?? viewsSelection.warning ?? '';
   showcaseAvailable = showcaseViews.length > 0 || showcaseModelPath !== null;
   // Side snaps to the first present photo only when a new package or
@@ -1315,6 +1335,9 @@ async function loadShowcaseViewer(): Promise<ShowcaseViewer | null> {
         showImageProxy: (bytes, label) => viewer.showImageProxy(bytes, label),
         clear: () => viewer.clear(),
         refreshSize: () => viewer.refreshSize(),
+        setLighting: (multiplier) => {
+          try { viewer.setLighting(multiplier); } catch { /* advisory */ }
+        },
         resetView: () => viewer.resetView(),
         dolly: zoomBy,
       };
@@ -1423,8 +1446,14 @@ async function refreshMode3dViewer(): Promise<void> {
     return;
   }
   // Stale-model guard: identical bytes already on screen stay untouched (orbit
-  // position preserved); just re-measure the now-visible wrap.
+  // position preserved); just re-measure the now-visible wrap. A lighting-only
+  // scope switch reuses the cached model but still applies the saved value
+  // without resetting the camera.
   if (showcaseShownModelPath === modelPath && showcaseShownModelBytes === bytes && !showcaseModelFailed) {
+    if (showcaseShownModelLighting !== showcaseModelLighting) {
+      try { showcaseViewer?.setLighting(showcaseModelLighting); } catch { /* advisory */ }
+      showcaseShownModelLighting = showcaseModelLighting;
+    }
     paintMode3d();
     try { showcaseViewer?.refreshSize(); } catch { /* sizing is best-effort */ }
     return;
@@ -1452,6 +1481,8 @@ async function refreshMode3dViewer(): Promise<void> {
     showcaseSurface = 'model';
     showcaseShownModelPath = modelPath;
     showcaseShownModelBytes = bytes;
+    showcaseShownModelLighting = showcaseModelLighting;
+    try { viewer.setLighting(showcaseModelLighting); } catch { /* advisory */ }
     try {
       // Camera presets exist only for the legacy four sides; flexible named
       // views keep the current framing (photos gate only the raster itself).
