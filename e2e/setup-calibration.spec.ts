@@ -204,7 +204,7 @@ async function openHarness(browser: Browser, viewport: { width: number; height: 
   });
   const outputPath = test.info().outputPath(fileName);
   await writeFile(outputPath, html);
-  await page.goto(pathToFileURL(outputPath).href);
+  await page.goto(pathToFileURL(outputPath).href + (fileName.includes('contextual-outline') ? '#context' : ''));
   await expect(modelSetup(page, 'pending-banner')).toContainText('pending review');
   return { context, page, probe };
 }
@@ -1344,6 +1344,28 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     await surfaceClick(0.44, 0.52);
     await page.keyboard.press('Enter');
     await expect(ms('area-list')).toContainText('Chest');
+    await ms('context-more').click();
+    await expect(ms('setup-save')).toBeVisible();
+    await modelPane.locator('[data-canvas-context-dismiss]').click();
+    await ms('tool-edit').click();
+    await builder(page, 'product-model-expand').click();
+    await ms('context-areas').click();
+    await expect(ms('area-rename')).toBeVisible();
+    await expect(ms('canvas-handle-corner-0')).toBeVisible();
+    const outlineDesktop = info.outputPath('station-outline-enlarged.png');
+    await page.screenshot({path:outlineDesktop});
+    await info.attach('station-outline-enlarged', {path:outlineDesktop,contentType:'image/png'});
+    await page.setViewportSize({width:390,height:844});
+    await ms('area-rename').scrollIntoViewIfNeeded();
+    await expect(ms('area-rename')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    await modelPane.locator('[data-canvas-context-dismiss]').click();
+    const outlineNarrow = info.outputPath('station-outline-narrow.png');
+    await page.screenshot({path:outlineNarrow});
+    await info.attach('station-outline-narrow', {path:outlineNarrow,contentType:'image/png'});
+    await page.setViewportSize(viewport);
+    await builder(page, 'product-model-expand').click();
+    await ms('tool-rotate').click();
     await (await shown(page, 'model-setup-save')).click();
     await expect(builder(page, 'model-setup-status')).toContainText('Saved 3D setup');
 
@@ -2158,12 +2180,15 @@ test('model tools: independent polygon corners, insertion, rollback, point drawi
     const secondEdit = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points;
     expect(secondEdit[0]).not.toEqual(firstEdit[0]); expect(secondEdit.slice(1)).toEqual(original.slice(1));
     // Invalid surface release cannot replace the valid area.
-    const handle = modelSetup(page, 'canvas-handle-corner-0'); const hb = (await handle.boundingBox())!;
     const box = await canvasBox();
+    const handle = modelSetup(page, 'canvas-handle-corner-0');
+    await expect(handle).toBeVisible();
+    const hb = (await handle.boundingBox())!;
     await page.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2); await page.mouse.down();
     await page.mouse.move(box.x+box.width*.97,box.y+box.height*.95,{steps:4}); await page.mouse.up();
     expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
     // Escape rolls back a valid preview as well.
+    await expect(modelSetup(page,'canvas-handle-corner-0')).toBeVisible();
     const cancelHandle = (await modelSetup(page,'canvas-handle-corner-0').boundingBox())!;
     await page.mouse.move(cancelHandle.x+cancelHandle.width/2,cancelHandle.y+cancelHandle.height/2); await page.mouse.down();
     await page.mouse.move(cancelHandle.x+cancelHandle.width/2+10,cancelHandle.y+cancelHandle.height/2+4,{steps:3});
@@ -2541,4 +2566,79 @@ test('dense model area keeps exact points while idle and zoom avoid repeated pic
     expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(points);
     expectOfflineClean(probe);
   } finally {await context.close();}
+});
+
+
+test('contextual outline editor: More, rename, direct points, bends and persistence', async ({ browser }, info) => {
+  test.setTimeout(180_000);
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openHarness(browser, viewport, 'contextual-outline.html');
+  try {
+    await attachEnv(info, browser, viewport, 'contextual on-model outline editor');
+    expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
+    await modelSetup(page, 'context-more').click();
+    await expect(modelSetup(page, 'setup-save')).toBeVisible();
+    await expect(modelSetup(page, 'reference-readout')).toBeVisible();
+    await modelSetup(page, 'context-measure').click();
+    await modelSetup(page, 'ref-pick-a').click();
+    await harnessClick(page, .5, .5); await harnessClick(page, .58, .5);
+    await modelSetup(page, 'context-measure').click();
+    await modelSetup(page, 'ref-mm').fill('250'); await modelSetup(page, 'ref-fit').click();
+    await page.locator('[data-canvas-context-dismiss]').click();
+    await modelSetup(page, 'area-name').fill('Chest');
+    await modelSetup(page, 'tool-rectangle').click();
+    await page.locator('#gl').scrollIntoViewIfNeeded();
+    const box = (await page.locator('#gl').boundingBox())!;
+    await page.mouse.move(box.x + box.width*.36, box.y + box.height*.38); await page.mouse.down();
+    await page.mouse.move(box.x + box.width*.46, box.y + box.height*.52, {steps:6}); await page.mouse.up();
+    const original = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
+    expect(original.points).toHaveLength(4);
+    await modelSetup(page, 'context-areas').click();
+    await modelSetup(page, 'area-rename').fill('  Left chest  '); await modelSetup(page, 'area-rename-apply').click();
+    const renamed = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
+    expect(renamed.name).toBe('Left chest'); expect(renamed.id).toBe(original.id); expect(renamed.points).toEqual(original.points);
+    await modelSetup(page, 'area-rename').fill('   '); await modelSetup(page, 'area-rename-apply').click();
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.name).toBe('Left chest');
+    await page.locator('[data-canvas-context-dismiss]').click();
+    await modelSetup(page, 'tool-edit').click();
+    await modelSetup(page, 'canvas-handle-side-0').click();
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toHaveLength(5);
+    await modelSetup(page, 'canvas-handle-corner-1').click();
+    await modelSetup(page, 'handle-remove').click();
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toHaveLength(4);
+    await modelSetup(page, 'outline-curve').click();
+    await modelSetup(page, 'canvas-handle-side-0').click();
+    await expect(modelSetup(page, 'curve-bend-handle')).toBeVisible();
+    const diamond = (await modelSetup(page, 'curve-bend-handle').boundingBox())!;
+    await page.mouse.move(diamond.x+diamond.width/2, diamond.y+diamond.height/2); await page.mouse.down();
+    await page.mouse.move(diamond.x+diamond.width/2+8, diamond.y+diamond.height/2+12, {steps:5}); await page.mouse.up();
+    await expect(modelSetup(page, 'live-outline')).toBeVisible();
+    // Editing preview cannot alter a persisted snapshot.
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(renamed.points);
+    await modelSetup(page, 'curve-apply').click();
+    const curved = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
+    expect(curved.points.length).toBeGreaterThan(4); expect(curved.id).toBe(original.id);
+    await modelSetup(page, `canvas-handle-side-${curved.points.length - 1}`).click();
+    await page.keyboard.press('Escape');
+    await expect(modelSetup(page, 'curve-bend-handle')).toBeHidden();
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(curved.points);
+    await modelSetup(page, 'context-more').click();
+    const downloadPromise = page.waitForEvent('download'); await modelSetup(page, 'setup-save').click();
+    const path = await (await downloadPromise).path(); assert.ok(path);
+    expect(await hCall<boolean>(page, 'restore', await readFile(path, 'utf8'))).toBe(true);
+    const restored = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
+    expect(restored.name).toBe('Left chest'); expect(restored.points).toEqual(curved.points);
+    await page.locator('[data-canvas-context-dismiss]').click();
+    await modelSetup(page, 'outline-point').click();
+    const desktopShot = info.outputPath('outline-desktop.png'); await page.screenshot({path:desktopShot});
+    await info.attach('outline-desktop', {path:desktopShot,contentType:'image/png'});
+    await page.setViewportSize({width:390,height:844});
+    await modelSetup(page, 'context-areas').click();
+    await expect(modelSetup(page, 'area-rename')).toBeVisible();
+    await modelSetup(page, 'area-rename').scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    const narrowShot = info.outputPath('outline-narrow.png'); await page.screenshot({path:narrowShot});
+    await info.attach('outline-narrow', {path:narrowShot,contentType:'image/png'});
+    expectOfflineClean(probe);
+  } finally { await context.close(); }
 });

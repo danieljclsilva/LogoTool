@@ -52,6 +52,7 @@ const handle = createModelSetupView(
       lastSnapshot = snapshot;
     },
   },
+  location.hash === '#context' ? { contextHost: stage } : {},
 );
 handle.refresh();
 

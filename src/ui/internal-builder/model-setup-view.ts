@@ -319,6 +319,53 @@ function maxPlaneDeviation(points: readonly SetupVec3[], plane: SetupRegionPlane
   return worst;
 }
 
+/** Screen-space distance from a point to a segment (CSS px). Pure. */
+export function pointSegmentDistancePx(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (!(len2 > 0) || !Number.isFinite(len2)) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+export interface CurveSample2D {
+  x: number;
+  y: number;
+}
+
+/**
+ * Interior points of a screen-space quadratic bezier (endpoints excluded).
+ * Pure: bending happens in screen space, then the caller raycasts every
+ * sample against the live surface — only real surface picks enter stored
+ * geometry, so persisted polygons never contain off-surface control points.
+ */
+export function sampleQuadraticBezier2D(
+  a: CurveSample2D,
+  control: CurveSample2D,
+  b: CurveSample2D,
+  interiorCount: number,
+): CurveSample2D[] {
+  const bounded = Math.max(1, Math.min(32, Math.floor(interiorCount)));
+  const out: CurveSample2D[] = [];
+  for (let i = 1; i <= bounded; i += 1) {
+    const t = i / (bounded + 1);
+    const u = 1 - t;
+    out.push({
+      x: u * u * a.x + 2 * u * t * control.x + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * control.y + t * t * b.y,
+    });
+  }
+  return out;
+}
+
 type AreaHandleRef = { areaId: string; kind: 'corner' | 'side'; index: number };
 
 /**
@@ -472,8 +519,8 @@ export interface ModelSetupViewHandle {
 
 type ArmTarget = 'refA' | 'refB' | 'areaPoint' | null;
 
-/** Polygon uses deliberate point clicks; rectangle creates a starting outline. */
-type AreaTool = 'rotate' | 'freehand' | 'rectangle';
+/** Polygon uses deliberate point clicks; rectangle creates a starting outline; edit reshapes the selected area on the model. */
+type AreaTool = 'rotate' | 'edit' | 'freehand' | 'rectangle';
 
 interface DraftArea {
   id: string;
@@ -495,6 +542,14 @@ interface ProductDraft {
   areaTool: AreaTool;
   /** Armed polygon handle awaiting a surface pick (UI-only, never saved). */
   handleArm: AreaHandleRef | null;
+  /**
+   * Armed curve edge awaiting a bend commit (UI-only, never saved): bending
+   * samples the visible surface and bakes plain polygon points — no curve or
+   * tangent metadata is stored, so save/restore stays a pure point polygon.
+   */
+  curveArm: { areaId: string; edge: number } | null;
+  /** Bend offset for the armed curve edge, in screen px (UI-only, never saved). */
+  curveBendPx: number;
   anchorsVisible: boolean;
   safeAreasVisible: boolean;
   productVisible: boolean;
@@ -513,6 +568,8 @@ function newDraft(): ProductDraft {
     drawingName: '',
     areaTool: 'rotate',
     handleArm: null,
+    curveArm: null,
+    curveBendPx: 28,
     anchorsVisible: true,
     safeAreasVisible: true,
     productVisible: true,
@@ -641,6 +698,8 @@ export function createModelSetupView(
   let armed: ArmTarget = null;
   let advancedOpen = false;
   let handleDetailsOpen = false;
+  let curveDetailsOpen = false;
+  let outlineAction: 'point' | 'curve' = 'point';
   let lastStatus = '';
   const drafts = new Map<string, ProductDraft>();
   let downAt: { x: number; y: number; button: number; pointerId: number } | null = null;
@@ -906,6 +965,11 @@ export function createModelSetupView(
     const tol = Math.max(1e-9, longestChord(area.points) * 0.01);
     if (chordNative(hit, model) > tol) return;
     const ref = areaHandleRefFor(index, area.id, area.points.length);
+    if (ref.kind === 'side' && draft.areaTool === 'edit' && outlineAction === 'curve') {
+      draft.curveArm = { areaId: area.id, edge: ref.index };
+      draft.handleArm = null; draft.curveBendPx = 0;
+      event.preventDefault(); event.stopPropagation(); refresh(); return;
+    }
     if (ref.kind === 'side') {
       const outcome = commitHandlePoint(draft, ref, model);
       lastStatus = outcome.message;
@@ -966,6 +1030,7 @@ export function createModelSetupView(
       dot.style.transform = 'translate(-50%, -50%)';
       const square = document.createElement('span');
       square.style.cssText = `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:${corner ? 9 : 6}px;height:${corner ? 9 : 6}px;background:#fff;border:1.5px solid #0b6cab;box-shadow:0 0 1px #192d3d;pointer-events:none`;
+      if (!corner) { square.textContent = '+'; square.style.cssText += ';width:14px;height:14px;line-height:12px;text-align:center;font-size:14px;color:#0b6cab'; }
       dot.append(square);
       dot.addEventListener('keydown', (event) => {
         const resolved = currentDraft(); if ('error' in resolved) return;
@@ -982,7 +1047,9 @@ export function createModelSetupView(
         }
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault(); event.stopPropagation();
-          if (ref.kind === 'side') {
+          if (ref.kind === 'side' && draft.areaTool === 'edit' && outlineAction === 'curve') {
+            draft.curveArm = { areaId: area.id, edge: ref.index }; draft.handleArm = null; draft.curveBendPx = 0;
+          } else if (ref.kind === 'side') {
             const model = handleModelsCache[index]; if (!model) return;
             const outcome = commitHandlePoint(draft, ref, model); lastStatus = outcome.message;
             if (outcome.ok) emit(entry, draft);
@@ -1067,11 +1134,18 @@ export function createModelSetupView(
       dot.style.left = `${client.x - layerRect.left}px`;
       dot.style.top = `${client.y - layerRect.top}px`;
       const ref = areaHandleRefFor(index, rect.id, rect.points.length);
+      const selected = ref.kind === 'corner' && draft.handleArm?.areaId === rect.id && draft.handleArm.index === ref.index;
+      dot.setAttribute('aria-pressed', String(selected));
+      const square = dot.firstElementChild as HTMLElement | null;
+      if (square) {
+        square.style.background = selected ? '#0072ce' : '#fff';
+        if (ref.kind === 'side') square.textContent = draft.areaTool === 'edit' && outlineAction === 'curve' ? '⌁' : '+';
+      }
       dot.setAttribute(
         'aria-label',
         ref.kind === 'corner'
           ? `Drag corner ${ref.index + 1} of “${rect.name}” on the model. Delete removes.`
-          : `Insert a corner on edge ${ref.index + 1} of “${rect.name}”`,
+          : `${draft.areaTool === 'edit' && outlineAction === 'curve' ? 'Bend' : 'Insert a corner on'} edge ${ref.index + 1} of “${rect.name}”`,
       );
     });
   }
@@ -1083,7 +1157,7 @@ export function createModelSetupView(
       if ('error' in resolved) return 'error';
       const draft = resolved.draft;
       const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId) ?? null;
-      return `${draft.selectedAreaId ?? ''}:${area?.points.length ?? 0}:${draft.safeAreasVisible}:${draft.productVisible}:${armed ?? ''}:${panMode}:${gesture !== null}:${pendingHandle !== null}`;
+      return `${draft.selectedAreaId ?? ''}:${area?.points.length ?? 0}:${draft.safeAreasVisible}:${draft.productVisible}:${armed ?? ''}:${panMode}:${gesture !== null}:${pendingHandle !== null}:${draft.areaTool}:${draft.curveArm ? `${draft.curveArm.edge}@${draft.curveBendPx}` : ''}`;
     } catch {
       return '';
     }
@@ -1131,6 +1205,7 @@ export function createModelSetupView(
               // Older viewer without a revision: preserve legacy per-frame
               // behavior (correctness first; no gating possible).
               syncHandleLayer();
+              syncCurveHandle();
               if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
               return;
             }
@@ -1143,6 +1218,7 @@ export function createModelSetupView(
             lastFrameRevision = revision;
             lastFrameDraftKey = draftKey;
             if (handleLayer) handleLayer.style.display = 'none';
+            if (curveHandleEl) curveHandleEl.style.display = 'none';
             if (drawingOutline) drawingOutline.style.display = 'none';
             if (settleTimer !== null) {
               try { clearTimeout(settleTimer); } catch { /* timer already fired */ }
@@ -1152,6 +1228,7 @@ export function createModelSetupView(
               settleTimer = null;
               if (destroyed || !active) return;
               try { syncHandleLayer(); } catch { /* overlay-only */ }
+              try { syncCurveHandle(); } catch { /* overlay-only */ }
               try {
                 if (gesture === null && outlineDraft?.drawing?.length && outlineDraft.safeAreasVisible && outlineDraft.productVisible && canvasOf()?.getClientRects().length) paintDrawingOutline(outlineDraft.drawing);
               } catch { /* overlay-only */ }
@@ -1162,6 +1239,219 @@ export function createModelSetupView(
         }
       }
     }
+  }
+
+  /** Screen-space endpoints of the armed curve edge (null when unavailable). */
+  function curveEdgeScreen(
+    draft: ProductDraft,
+  ): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    const viewer = viewerOf();
+    const arm = draft.curveArm;
+    if (!viewer || !arm || typeof viewer.projectToClient !== 'function') return null;
+    const area = draft.areas.find((candidate) => candidate.id === arm.areaId);
+    if (!area || area.points.length < 3) return null;
+    const count = area.points.length;
+    const a = area.points[((arm.edge % count) + count) % count]!;
+    const b = area.points[(arm.edge + 1) % count]!;
+    try {
+      const from = viewer.projectToClient(a);
+      const to = viewer.projectToClient(b);
+      if (!from || !to) return null;
+      const tolerance = Math.max(1e-9, longestChord(area.points) * .01);
+      const ah = safePick(viewer, from.x, from.y), bh = safePick(viewer, to.x, to.y);
+      if (!ah || !bh || chordNative(a, ah) > tolerance || chordNative(b, bh) > tolerance) return null;
+      return { from, to };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Screen-space control point for the armed curve edge (null when unavailable). */
+  function curveControlScreen(draft: ProductDraft): { x: number; y: number } | null {
+    const edge = curveEdgeScreen(draft);
+    if (!edge) return null;
+    const dx = edge.to.x - edge.from.x;
+    const dy = edge.to.y - edge.from.y;
+    const len = Math.hypot(dx, dy);
+    if (!Number.isFinite(len) || !(len > 1)) return null;
+    return {
+      x: (edge.from.x + edge.to.x) / 2 + (-dy / len) * draft.curveBendPx,
+      y: (edge.from.y + edge.to.y) / 2 + (dx / len) * draft.curveBendPx,
+    };
+  }
+
+  /** Draggable bend diamond for the armed curve edge (display-only handle). */
+  let curveHandleEl: HTMLDivElement | null = null;
+  let curveDrag: { startX: number; startY: number; startBend: number } | null = null;
+
+  /** Position the bend diamond at the armed edge's screen control point. */
+  function syncCurveHandle(): void {
+    if (destroyed) return;
+    const viewer = viewerOf();
+    const canvas = canvasOf();
+    const stage = canvas?.parentElement ?? null;
+    if (!viewer || !canvas || !stage || canvas.getClientRects().length === 0) {
+      if (curveHandleEl !== null) curveHandleEl.style.display = 'none';
+      return;
+    }
+    const resolved = currentDraft();
+    const draft = 'error' in resolved ? null : resolved.draft;
+    const arm = draft?.curveArm ?? null;
+    const area = arm && draft ? draft.areas.find((candidate) => candidate.id === arm.areaId) ?? null : null;
+    const point = draft && area ? curveControlScreen(draft) : null;
+    const shown =
+      point !== null &&
+      area !== null &&
+      draft !== null &&
+      draft.safeAreasVisible &&
+      draft.productVisible &&
+      armed === null &&
+      !panMode &&
+      gesture === null &&
+      pendingHandle === null;
+    if (!shown || point === null || area === null || draft === null || arm === null) {
+      if (curveHandleEl !== null) curveHandleEl.style.display = 'none';
+      return;
+    }
+    const live: ProductDraft = draft;
+    if (curveHandleEl === null || curveHandleEl.parentElement !== stage) {
+      try {
+        curveHandleEl?.remove();
+      } catch {
+        /* best-effort teardown */
+      }
+      const diamond = document.createElement('div');
+      diamond.setAttribute(HOOK, 'curve-bend-handle');
+      diamond.setAttribute('role', 'slider');
+      diamond.tabIndex = 0;
+      diamond.style.position = 'absolute';
+      diamond.style.pointerEvents = 'auto';
+      diamond.style.touchAction = 'none';
+      diamond.style.cursor = 'grab';
+      diamond.style.width = '26px';
+      diamond.style.height = '26px';
+      diamond.style.transform = 'translate(-50%, -50%) rotate(45deg)';
+      diamond.style.background = '#ffd21f';
+      diamond.style.border = '2px solid #0b6cab';
+      diamond.style.zIndex = '4';
+      diamond.setAttribute('aria-valuemin', String(-CURVE_BEND_LIMIT_PX));
+      diamond.setAttribute('aria-valuemax', String(CURVE_BEND_LIMIT_PX));
+      diamond.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        const resolved = currentDraft(); if ('error' in resolved) return;
+        const live = resolved.draft;
+        event.preventDefault();
+        event.stopPropagation();
+        curveDrag = { startX: event.clientX, startY: event.clientY, startBend: live.curveBendPx };
+        suspendOrbit();
+        try {
+          (event.currentTarget as Element | null)?.setPointerCapture?.(event.pointerId);
+        } catch {
+          /* capture is best-effort */
+        }
+      });
+      diamond.addEventListener('keydown', (event) => {
+        const resolved = currentDraft(); if ('error' in resolved) return;
+        const live = resolved.draft;
+        const step = event.shiftKey ? 12 : 4;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          event.stopPropagation();
+          const delta = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -step : step;
+          live.curveBendPx = Math.max(-CURVE_BEND_LIMIT_PX, Math.min(CURVE_BEND_LIMIT_PX, live.curveBendPx + delta));
+          const slider = document.querySelector<HTMLInputElement>('[data-model-setup-hook="curve-bend"]');
+          if (slider) slider.value = String(live.curveBendPx);
+          lastStatus = `Bend ${Math.round(live.curveBendPx)} px — Apply bend to bake surface points, or Escape to cancel.`;
+          syncCurveHandle();
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          document.querySelector<HTMLButtonElement>('[data-model-setup-hook="curve-apply"]')?.click();
+        }
+      });
+      diamond.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        document.querySelector<HTMLButtonElement>('[data-model-setup-hook="curve-apply"]')?.click();
+      });
+      stage.append(diamond);
+      curveHandleEl = diamond;
+    }
+    const edge = curveEdgeScreen(draft);
+    if (edge) {
+      const samples = sampleQuadraticBezier2D(edge.from, point, edge.to, CURVE_INTERIOR_SAMPLES);
+      const hits = samples.map(sample => safePick(viewer, sample.x, sample.y));
+      if (hits.every((hit): hit is SetupVec3 => hit !== null)) {
+        const preview = area.points.flatMap((vertex, index) => index === arm.edge ? [vertex, ...hits] : [vertex]);
+        paintDrawingOutline(preview);
+      } else paintDrawingOutline(null);
+    }
+    const layerRect = stage.getBoundingClientRect();
+    curveHandleEl.style.display = '';
+    curveHandleEl.style.left = `${point.x - layerRect.left}px`;
+    curveHandleEl.style.top = `${point.y - layerRect.top}px`;
+    curveHandleEl.setAttribute(
+      'aria-label',
+      `Bend handle for edge ${arm.edge + 1} of “${area.name}”. Arrow keys adjust the bend, double-click applies it.`,
+    );
+    curveHandleEl.setAttribute('aria-valuenow', String(Math.round(live.curveBendPx)));
+    curveHandleEl.setAttribute('aria-valuetext', `${Math.round(live.curveBendPx)} pixels`);
+  }
+
+  /**
+   * Double-click an edge of the selected area to insert a real surface point
+   * exactly on the model (no buttons required). Misses and invalid outlines
+   * keep the old geometry.
+   */
+  function onCanvasDoubleClick(event: MouseEvent): void {
+    if (destroyed || !active || panMode) return;
+    if (event.button !== 0) return;
+    if (event.target !== canvasOf()) return;
+    if (armed !== null || gesture !== null || pendingHandle !== null || curveDrag !== null) return;
+    const resolved = currentDraft();
+    if ('error' in resolved) return;
+    const { entry, draft } = resolved;
+    const viewer = viewerOf();
+    if (!viewer || typeof viewer.projectToClient !== 'function') return;
+    const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId);
+    if (!area || area.points.length < 3 || draft.areaTool !== 'edit') return;
+    if (!draft.safeAreasVisible || !draft.productVisible) return;
+    let bestEdge = -1;
+    let bestDist = 28;
+    for (let edge = 0; edge < area.points.length; edge += 1) {
+      const a = area.points[edge]!;
+      const b = area.points[(edge + 1) % area.points.length]!;
+      let from: { x: number; y: number } | null = null;
+      let to: { x: number; y: number } | null = null;
+      try {
+        from = viewer.projectToClient(a);
+        to = viewer.projectToClient(b);
+      } catch {
+        continue;
+      }
+      if (from === null || to === null) continue;
+      const ah = safePick(viewer, from.x, from.y), bh = safePick(viewer, to.x, to.y);
+      const tolerance = Math.max(1e-9, longestChord(area.points) * .01);
+      if (!ah || !bh || chordNative(a, ah) > tolerance || chordNative(b, bh) > tolerance) continue;
+      const distance = pointSegmentDistancePx(event.clientX, event.clientY, from.x, from.y, to.x, to.y);
+      if (distance < bestDist) {
+        bestDist = distance;
+        bestEdge = edge;
+      }
+    }
+    if (bestEdge < 0) return;
+    const hit = safePick(viewer, event.clientX, event.clientY);
+    if (hit === null) {
+      lastStatus = 'That double-click missed the model surface — nothing was inserted. Click the surface itself.';
+      refresh();
+      return;
+    }
+    const outcome = commitHandlePoint(draft, { areaId: area.id, kind: 'side', index: bestEdge }, hit);
+    lastStatus = outcome.message;
+    if (outcome.ok) emit(entry, draft);
+    refresh();
   }
 
   const currentDraft = (): { entry: ModelSetupProduct; draft: ProductDraft } | { error: string } => {
@@ -1193,8 +1483,176 @@ export function createModelSetupView(
     downAt = null;
     gesture = null;
     pendingHandle = null;
+    curveDrag = null;
     livePreview = null;
     restoreOrbit();
+  };
+
+  /** Rename the selected area: trim, reject empty/duplicates, keep id+geometry. */
+  const renameSelectedArea = (
+    draft: ProductDraft,
+    areaId: string,
+    raw: string,
+  ): { ok: boolean; message: string } => {
+    const area = draft.areas.find((candidate) => candidate.id === areaId);
+    if (area === undefined) return { ok: false, message: 'That area is no longer staged — nothing changed.' };
+    const next = typeof raw === 'string' ? raw.trim() : '';
+    if (next === '') {
+      return { ok: false, message: `Enter a name for the selected area — “${area.name}” kept unchanged.` };
+    }
+    if (draft.areas.some((other) => other.id !== area.id && other.name.trim().toLowerCase() === next.toLowerCase())) {
+      return { ok: false, message: `Another area is already called “${next}” — “${area.name}” kept unchanged. Choose a distinct name.` };
+    }
+    if (next === area.name) return { ok: false, message: `Already called “${next}” — nothing changed.` };
+    const others = draft.areas.filter((candidate) => candidate.id !== area.id).map((candidate) => candidate.id);
+    const reason = checkModelSafeArea(
+      area.id,
+      next,
+      area.points,
+      others,
+      draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null,
+    );
+    if (reason !== null) return { ok: false, message: `${reason} “${area.name}” kept unchanged.` };
+    const old = area.name;
+    area.name = next;
+    return {
+      ok: true,
+      message: `Renamed “${old}” to “${next}”. Area id and outline unchanged. Staged; save the setup to keep it.`,
+    };
+  };
+
+  /** Remove one corner of a staged area (minimum 3 vertices kept). */
+  const removeAreaCorner = (
+    draft: ProductDraft,
+    areaId: string,
+    index: number,
+  ): { ok: boolean; message: string } => {
+    const area = draft.areas.find((candidate) => candidate.id === areaId);
+    if (area === undefined) return { ok: false, message: 'That area is no longer staged — nothing changed.' };
+    if (index < 0 || index >= area.points.length) {
+      return { ok: false, message: `That corner is no longer staged — “${area.name}” kept unchanged.` };
+    }
+    if (area.points.length <= 3) {
+      return { ok: false, message: `“${area.name}” already has 3 corners — removal would leave fewer than 3. Outline unchanged.` };
+    }
+    const next = area.points.filter((_, at) => at !== index);
+    const others = draft.areas.filter((candidate) => candidate.id !== area.id).map((candidate) => candidate.id);
+    const reason = checkModelSafeArea(
+      area.id,
+      area.name,
+      next,
+      others,
+      draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null,
+    );
+    if (reason !== null) return { ok: false, message: `${reason} “${area.name}” kept unchanged.` };
+    area.points = next;
+    draft.curveArm = null;
+    if (draft.handleArm?.areaId === area.id) draft.handleArm = null;
+    return {
+      ok: true,
+      message: `Corner ${index + 1} removed — “${area.name}” has ${next.length} corners. Staged; save the setup to keep it.`,
+    };
+  };
+
+  /**
+   * Bend one edge of a staged area: sample a screen-space quadratic curve
+   * (straight endpoints, perpendicular control offset) and raycast every
+   * interior sample against the live surface. Only real surface picks enter
+   * the polygon; a miss, an invisible edge or a failed ring check keeps the
+   * old geometry atomically. Persisted output is plain polygon points — bend
+   * settings are UI-only and never stored.
+   */
+  const CURVE_INTERIOR_SAMPLES = 7;
+  const CURVE_BEND_LIMIT_PX = 160;
+
+  const commitCurveBend = (
+    draft: ProductDraft,
+    areaId: string,
+    edge: number,
+    bendPx: number,
+  ): { ok: boolean; message: string } => {
+    const viewer = viewerOf();
+    const area = draft.areas.find((candidate) => candidate.id === areaId);
+    if (area === undefined) return { ok: false, message: 'That area is no longer staged — nothing changed.' };
+    if (!viewer) return { ok: false, message: `No live preview — “${area.name}” kept unchanged.` };
+    if (typeof viewer.projectToClient !== 'function' || (viewer.pickSurface === undefined && viewer.pickSurfaceFromEvent === undefined)) {
+      return { ok: false, message: `The preview cannot verify the surface here — “${area.name}” kept unchanged.` };
+    }
+    const count = area.points.length;
+    if (count < 3 || edge < 0 || edge >= count) {
+      return { ok: false, message: `That edge is no longer staged — “${area.name}” kept unchanged.` };
+    }
+    const start = area.points[edge]!;
+    const end = area.points[(edge + 1) % count]!;
+    let from: { x: number; y: number } | null = null;
+    let to: { x: number; y: number } | null = null;
+    try {
+      from = viewer.projectToClient(start);
+      to = viewer.projectToClient(end);
+    } catch {
+      from = null;
+      to = null;
+    }
+    const endpointsVisible = curveEdgeScreen({ ...draft, curveArm: { areaId, edge } });
+    if (from === null || to === null || !endpointsVisible || !draft.productVisible || !draft.safeAreasVisible) {
+      return { ok: false, message: `Edge ${edge + 1} is not currently visible — orbit until both corners show, then apply again. “${area.name}” kept unchanged.` };
+    }
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (!Number.isFinite(len) || !(len > 8)) {
+      return { ok: false, message: `Edge ${edge + 1} is too short on screen — zoom in or bend a longer edge. “${area.name}” kept unchanged.` };
+    }
+    const bend = Number.isFinite(bendPx) ? Math.max(-CURVE_BEND_LIMIT_PX, Math.min(CURVE_BEND_LIMIT_PX, bendPx)) : 0;
+    const control = {
+      x: (from.x + to.x) / 2 + (-dy / len) * bend,
+      y: (from.y + to.y) / 2 + (dx / len) * bend,
+    };
+    const layout = sampleQuadraticBezier2D(from, control, to, CURVE_INTERIOR_SAMPLES);
+    const samples: SetupVec3[] = [];
+    for (let i = 0; i < layout.length; i += 1) {
+      const spot = layout[i]!;
+      const hit = safePick(viewer, spot.x, spot.y);
+      if (hit === null) {
+        return {
+          ok: false,
+          message: `Bend sample ${i + 1} of ${layout.length} missed the model surface — keep the whole bent edge on one visible patch. “${area.name}” kept unchanged.`,
+        };
+      }
+      samples.push(hit);
+    }
+    const next: SetupVec3[] = [];
+    for (let i = 0; i < count; i += 1) {
+      next.push({ ...area.points[i]! });
+      if (i === edge) {
+        for (const sample of samples) {
+          const last = next[next.length - 1]!;
+          if (chordNative(last, sample) > 1e-9 && chordNative(sample, end) > 1e-9) next.push({ ...sample });
+        }
+      }
+    }
+    if (next.length <= count) {
+      return { ok: false, message: `That bend produced no distinct surface points — try a larger bend. “${area.name}” kept unchanged.` };
+    }
+    if (next.length > POLYGON_POINT_LIMIT) {
+      return { ok: false, message: `That bend would exceed ${POLYGON_POINT_LIMIT} outline points — “${area.name}” kept unchanged.` };
+    }
+    const others = draft.areas.filter((candidate) => candidate.id !== area.id).map((candidate) => candidate.id);
+    const reason = checkModelSafeArea(
+      area.id,
+      area.name,
+      next,
+      others,
+      draft.fitted && !draft.fitStale ? draft.fitted.mmPerUnit : null,
+    );
+    if (reason !== null) return { ok: false, message: `${reason} “${area.name}” kept unchanged.` };
+    area.points = next;
+    draft.curveArm = null;
+    draft.handleArm = null;
+    return {
+      ok: true,
+      message: `Edge ${edge + 1} of “${area.name}” curved with ${next.length - count} surface points baked in (${next.length} corners). Staged; save the setup to keep it.`,
+    };
   };
 
   const commitHandlePoint = (
@@ -1218,6 +1676,7 @@ export function createModelSetupView(
     );
     if (reason !== null) return { ok: false, message: `${reason} “${area.name}” kept unchanged.` };
     area.points = next;
+    draft.curveArm = null;
     return {
       ok: true,
       message: `${handle.kind === 'corner' ? 'Corner moved' : 'Corner inserted'} — “${area.name}” has ${next.length} independent corners. Staged; save the setup to keep it.`,
@@ -1496,6 +1955,7 @@ export function createModelSetupView(
       root.append(note, statusBox);
       wireHandleFrame();
       syncHandleLayer();
+      syncCurveHandle();
       noteHandlesSettled();
       return;
     }
@@ -1508,6 +1968,7 @@ export function createModelSetupView(
       root.append(note, statusBox);
       wireHandleFrame();
       syncHandleLayer();
+      syncCurveHandle();
       noteHandlesSettled();
       return;
     }
@@ -1524,6 +1985,7 @@ export function createModelSetupView(
     paintViewer(draft);
     wireHandleFrame();
     syncHandleLayer();
+    syncCurveHandle();
     noteHandlesSettled();
   }
 
@@ -1766,10 +2228,10 @@ export function createModelSetupView(
     const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
     toolRow.setAttribute('role', 'group');
     toolRow.setAttribute('aria-label', 'Safe-area authoring tool');
-    for (const tool of ['rotate', 'rectangle', 'freehand'] as const) {
+    for (const tool of ['rotate', 'edit', 'rectangle', 'freehand'] as const) {
       const button = el('button', `tool-${tool}`, 'btn-secondary');
       button.type = 'button';
-      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
+      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'edit' ? 'Edit outline' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
       button.setAttribute('data-ps-tool', tool);
       button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
       if (draft.areaTool === tool) button.classList.add('is-selected');
@@ -1779,28 +2241,50 @@ export function createModelSetupView(
         contextPanel?.close();
         draft.areaTool = tool;
         draft.handleArm = null;
+        draft.curveArm = null;
         draft.drawing = tool === 'freehand' ? [] : null;
         armed = tool === 'freehand' ? 'areaPoint' : null;
         // The persistent mode hint explains this action once. Status is for
         // results/errors, rather than a second copy of the same instruction.
-        paintStatus('');
+        paintStatus(
+          tool === 'edit' && draft.selectedAreaId === null
+            ? 'Edit outline: select an area below first, then drag its white squares on the model.'
+            : '',
+        );
         refresh();
       });
       toolRow.append(button);
     }
     const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
     (authorTools ?? section).append(toolRow);
+    if (draft.areaTool === 'edit') {
+      const modes = el('div', 'outline-actions', 'model-setup-row');
+      for (const mode of ['point', 'curve'] as const) {
+        const button = el('button', `outline-${mode}`, 'btn-secondary'); button.type = 'button';
+        button.textContent = mode === 'point' ? 'Add points' : 'Bend edge';
+        button.setAttribute('aria-pressed', String(outlineAction === mode));
+        button.addEventListener('click', () => { cancelGestureSilent(); draft.curveArm = null; draft.handleArm = null; outlineAction = mode; refresh(); });
+        modes.append(button);
+      }
+      (authorTools ?? section).append(modes);
+    }
     if (draft.areaTool === 'rectangle') {
       const rectHint = el('p', 'areas-rect-hint', 'model-setup-hint muted');
       rectHint.textContent =
         'Rectangle corners resolve on a consistent planar model surface patch (verified from actual surface samples). On curved patches the drag follows the surface as a multi-point ring instead — every point a real surface pick. Misses keep the previous draft with an explanation.';
       section.append(rectHint);
     }
+    if (draft.areaTool === 'edit') {
+      const editHint = el('p', 'areas-edit-hint', 'model-setup-hint muted');
+      editHint.textContent =
+        'Drag points to reshape. Click + to add a point. Choose Bend edge, then click its + to adjust a curve. Select a point to remove it. Escape cancels.';
+      section.append(editHint);
+    }
 
     const form = el('div', 'areas-form', 'model-setup-row');
     const nameLabel = document.createElement('label');
     nameLabel.className = 'model-setup-field';
-    nameLabel.textContent = 'Area name (optional)';
+    nameLabel.textContent = 'New area name (optional)';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.placeholder = 'e.g. Left chest';
@@ -1814,7 +2298,7 @@ export function createModelSetupView(
     });
     nameLabel.append(nameInput);
     form.append(nameLabel);
-    (authorTools ?? section).append(form);
+    if (draft.areaTool !== 'edit') (authorTools ?? section).append(form);
 
     const actions = el('div', 'areas-actions', 'model-setup-actions');
     const finish = el('button', 'area-finish', 'btn-primary');
@@ -1901,6 +2385,7 @@ export function createModelSetupView(
       select.setAttribute('aria-pressed', draft.selectedAreaId === area.id ? 'true' : 'false');
       select.addEventListener('click', () => {
         draft.selectedAreaId = area.id;
+        draft.curveArm = null;
         paintStatus(
           area.status === 'stale'
             ? `Selected “${area.name}” — stale: recompute after the current calibration.`
@@ -1915,6 +2400,8 @@ export function createModelSetupView(
       remove.addEventListener('click', () => {
         draft.areas = draft.areas.filter((a) => a.id !== area.id);
         if (draft.selectedAreaId === area.id) draft.selectedAreaId = null;
+        if (draft.curveArm?.areaId === area.id) draft.curveArm = null;
+        if (draft.handleArm?.areaId === area.id) draft.handleArm = null;
         paintStatus(`Safe area “${area.name}” deleted. Other areas and the reference are untouched.`);
         emit(entry, draft);
         refresh();
@@ -1924,10 +2411,33 @@ export function createModelSetupView(
     }
     section.append(list);
 
-    // Accessible fallback for selecting any polygon corner or inserting a point.
-    // Direct square handles remain the primary controls on the model.
+    // Rename + accessible corner/curve editing for the selected area.
+    // Direct square handles on the model remain the primary controls.
     const selected = draft.areas.find((area) => area.id === draft.selectedAreaId);
     if (selected !== undefined && selected.points.length >= 3) {
+      const renameRow = el('div', 'area-rename-row', 'model-setup-row');
+      const renameLabel = document.createElement('label');
+      renameLabel.className = 'model-setup-field';
+      renameLabel.textContent = 'Rename selected area';
+      const renameInput = document.createElement('input');
+      renameInput.type = 'text';
+      renameInput.value = selected.name;
+      renameInput.autocomplete = 'off';
+      renameInput.setAttribute(HOOK, 'area-rename');
+      renameInput.setAttribute('aria-label', `Rename selected area (currently “${selected.name}”)`);
+      renameLabel.append(renameInput);
+      const renameApply = el('button', 'area-rename-apply', 'btn-secondary');
+      renameApply.type = 'button';
+      renameApply.textContent = 'Rename area';
+      renameApply.addEventListener('click', () => {
+        const outcome = renameSelectedArea(draft, selected.id, renameInput.value);
+        if (outcome.ok) emit(entry, draft);
+        paintStatus(outcome.message);
+        refresh();
+      });
+      renameRow.append(renameLabel, renameApply);
+      section.append(renameRow);
+
       const details = document.createElement('details'); details.open = handleDetailsOpen;
       details.addEventListener('toggle', () => { if (details.isConnected) handleDetailsOpen = details.open; });
       const summary = document.createElement('summary'); summary.textContent = 'Edit individual corners'; details.append(summary);
@@ -1935,7 +2445,7 @@ export function createModelSetupView(
       handles.setAttribute('role', 'group');
       handles.setAttribute('aria-label', `Polygon handles for “${selected.name}”`);
       const hint = el('span', 'area-handles-hint', 'muted');
-      hint.textContent = `Drag white squares independently. Small edge squares insert corners; focus a corner and press Delete to remove it.`;
+      hint.textContent = `Prefer Edit outline on the model: drag large white squares, click small edge squares (or double-click an edge) to insert, click a corner square to select it for removal below. Delete key removes the selected corner too.`;
       handles.append(hint);
       for (let index = 0; index < selected.points.length; index += 1) {
         const corner = el('button', `handle-corner-${index}`, 'btn-secondary');
@@ -1984,6 +2494,114 @@ export function createModelSetupView(
         handles.append(side);
       }
       details.append(handles); section.append(details);
+
+      const armedCornerIndex =
+        draft.handleArm !== null && draft.handleArm.areaId === selected.id && draft.handleArm.kind === 'corner'
+          ? draft.handleArm.index
+          : null;
+      const removeRow = el('div', 'area-remove-row', 'model-setup-row');
+      const removeSelected = el('button', 'handle-remove', 'btn-secondary');
+      removeSelected.type = 'button';
+      removeSelected.textContent = armedCornerIndex === null ? 'Remove selected corner' : `Remove corner ${armedCornerIndex + 1}`;
+      removeSelected.disabled = armedCornerIndex === null;
+      removeSelected.setAttribute(
+        'aria-label',
+        armedCornerIndex === null
+          ? `Remove the selected corner of “${selected.name}” (select a corner first)`
+          : `Remove corner ${armedCornerIndex + 1} of “${selected.name}”`,
+      );
+      removeSelected.addEventListener('click', () => {
+        if (armedCornerIndex === null) return;
+        const outcome = removeAreaCorner(draft, selected.id, armedCornerIndex);
+        if (outcome.ok) emit(entry, draft);
+        paintStatus(outcome.message);
+        refresh();
+      });
+      const removeHint = el('span', 'area-remove-hint', 'muted');
+      removeHint.textContent =
+        armedCornerIndex === null
+          ? ''
+          : `Corner ${armedCornerIndex + 1} selected — removal keeps the outline valid (minimum 3 corners).`;
+      removeRow.append(removeSelected, removeHint);
+      (draft.areaTool === 'edit' ? (authorTools ?? section) : section).append(removeRow);
+
+      const curveDetails = document.createElement('details');
+      curveDetails.open = curveDetailsOpen;
+      curveDetails.addEventListener('toggle', () => {
+        if (curveDetails.isConnected) curveDetailsOpen = curveDetails.open;
+      });
+      const curveSummary = document.createElement('summary');
+      curveSummary.textContent = 'Choose edge by number';
+      curveDetails.append(curveSummary);
+      const curveHint = el('p', 'curve-hint', 'muted');
+      curveHint.textContent = 'Or choose Bend edge above and click its + on the model. Drag the yellow diamond, then Apply bend.';
+      curveDetails.append(curveHint);
+      const edgeRow = el('div', 'curve-edge-row', 'model-setup-row');
+      edgeRow.setAttribute('role', 'group');
+      edgeRow.setAttribute('aria-label', `Curve edges of “${selected.name}”`);
+      for (let edge = 0; edge < selected.points.length; edge += 1) {
+        const bendButton = el('button', `curve-arm-${edge}`, 'btn-secondary');
+        bendButton.type = 'button';
+        bendButton.textContent = `Bend edge ${edge + 1}`;
+        const isArmed =
+          draft.curveArm !== null && draft.curveArm.areaId === selected.id && draft.curveArm.edge === edge;
+        bendButton.setAttribute('aria-pressed', isArmed ? 'true' : 'false');
+        if (isArmed) bendButton.classList.add('is-selected');
+        bendButton.addEventListener('click', () => {
+          armed = null;
+          draft.handleArm = null;
+          cancelGestureSilent();
+          draft.curveArm = isArmed ? null : { areaId: selected.id, edge };
+          lastStatus = isArmed
+            ? 'Bend disarmed — outline unchanged.'
+            : `Edge ${edge + 1} armed: drag the diamond handle on the model or move the slider, then Apply bend. Escape cancels.`;
+          refresh();
+        });
+        edgeRow.append(bendButton);
+      }
+      curveDetails.append(edgeRow);
+      const armedCurveEdge =
+        draft.curveArm !== null && draft.curveArm.areaId === selected.id ? draft.curveArm.edge : null;
+      if (armedCurveEdge !== null) {
+        const bendRow = el('div', 'curve-bend-row', 'model-setup-row');
+        const bendLabel = document.createElement('label');
+        bendLabel.className = 'model-setup-field';
+        bendLabel.textContent = 'Curvature';
+        const bendInput = document.createElement('input');
+        bendInput.type = 'range';
+        bendInput.min = String(-CURVE_BEND_LIMIT_PX);
+        bendInput.max = String(CURVE_BEND_LIMIT_PX);
+        bendInput.step = '1';
+        bendInput.value = String(draft.curveBendPx);
+        bendInput.setAttribute(HOOK, 'curve-bend');
+        bendInput.setAttribute('aria-label', `Bend amount for edge ${armedCurveEdge + 1} in screen pixels`);
+        bendInput.addEventListener('input', () => {
+          const value = Number(bendInput.value);
+          if (Number.isFinite(value)) draft.curveBendPx = value;
+          syncCurveHandle();
+        });
+        bendLabel.append(bendInput);
+        const bendApply = el('button', 'curve-apply', 'btn-primary');
+        bendApply.type = 'button';
+        bendApply.textContent = 'Apply bend';
+        bendApply.addEventListener('click', () => {
+          const outcome = commitCurveBend(draft, selected.id, armedCurveEdge, draft.curveBendPx);
+          if (outcome.ok) emit(entry, draft);
+          paintStatus(outcome.message);
+          refresh();
+        });
+        const bendCancel = el('button', 'curve-cancel', 'btn-secondary');
+        bendCancel.type = 'button';
+        bendCancel.textContent = 'Cancel bend';
+        bendCancel.addEventListener('click', () => {
+          draft.curveArm = null;
+          lastStatus = 'Bend cancelled — outline unchanged.';
+          refresh();
+        });
+        bendRow.append(bendLabel, bendApply, bendCancel);
+        (authorTools ?? section).append(bendRow);
+      }
+      section.append(curveDetails);
     }
 
     const recompute = el('button', 'areas-recompute', 'btn-secondary');
@@ -2068,7 +2686,8 @@ export function createModelSetupView(
     mount.append(tools);
     const modeHint = el('p', 'mode-hint', 'muted');
     const tool = scope?.draft.areaTool ?? 'rotate';
-    modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Rectangle or Polygon to draw.'
+    modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Edit outline to reshape the selected area, Rectangle or Polygon to draw.'
+      : tool === 'edit' ? 'Drag points to reshape. Click + to add, or choose Bend edge. Select a point to remove it.'
       : tool === 'rectangle' ? 'Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.'
       : 'Polygon: click to add corners; click the first square or Enter to close. Backspace undoes; Escape cancels.';
     modeHint.hidden = tool === 'rotate' && !panMode;
@@ -2283,7 +2902,10 @@ export function createModelSetupView(
     paintStatus: (message: string) => void,
   ): void {
     const details = document.createElement('details');
-    details.setAttribute(HOOK, 'advanced-setup');
+    // Hook MUST stay `advanced`: the enlarged-workspace More task shows only
+    // the child whose hook is exactly `advanced` (see applyContextTask), so a
+    // different hook here renders an empty More panel.
+    details.setAttribute(HOOK, 'advanced');
     // Refreshes rebuild this panel: keep the operator's open/closed choice.
     details.open = advancedOpen;
     details.addEventListener('toggle', () => {
@@ -2555,6 +3177,7 @@ export function createModelSetupView(
     draft.fitStale = false;
     draft.areas = areas;
     draft.selectedAreaId = areas.length > 0 && areas[0] !== undefined ? areas[0].id : null;
+    cancelGestureSilent(); draft.handleArm = null; draft.curveArm = null;
     draft.drawing = null;
     draft.drawingName = '';
     armed = null;
@@ -2780,6 +3403,34 @@ export function createModelSetupView(
   function onCanvasMove(event: PointerEvent): void {
     if (!active || panMode) return;
     if (destroyed) return;
+    // A dragged bend diamond adjusts the armed edge's screen-space offset.
+    // Commits happen only through Apply bend (atomic, surface-verified).
+    if (curveDrag !== null) {
+      const resolved = currentDraft();
+      if ('error' in resolved) {
+        curveDrag = null;
+        restoreOrbit();
+        return;
+      }
+      const edge = curveEdgeScreen(resolved.draft);
+      if (edge !== null) {
+        const dx = edge.to.x - edge.from.x;
+        const dy = edge.to.y - edge.from.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1) {
+          const along =
+            (event.clientX - curveDrag.startX) * (-dy / len) + (event.clientY - curveDrag.startY) * (dx / len);
+          resolved.draft.curveBendPx = Math.max(
+            -CURVE_BEND_LIMIT_PX,
+            Math.min(CURVE_BEND_LIMIT_PX, curveDrag.startBend + along),
+          );
+          const slider = document.querySelector<HTMLInputElement>('[data-model-setup-hook="curve-bend"]');
+          if (slider) slider.value = String(Math.round(resolved.draft.curveBendPx));
+        }
+      }
+      syncCurveHandle();
+      return;
+    }
     // A pressed direct handle turns into a handle gesture past the travel
     // threshold; orbit was already suspended at press, so the camera cannot
     // rotate under the drag.
@@ -2810,11 +3461,12 @@ export function createModelSetupView(
   }
 
   function onPointerCancel(event: PointerEvent): void {
-    if (destroyed || (gesture === null && pendingHandle === null && downAt === null)) return;
+    if (destroyed || (gesture === null && pendingHandle === null && downAt === null && curveDrag === null)) return;
     void event;
     gesture = null;
     pendingHandle = null;
     downAt = null;
+    curveDrag = null;
     livePreview = null;
     restoreOrbit();
     lastStatus = 'Edit cancelled (pointer interrupted) — staged data unchanged.';
@@ -2824,6 +3476,17 @@ export function createModelSetupView(
   function onCanvasUp(event: PointerEvent): void {
     if (!active || panMode) return;
     if (destroyed) return;
+    // A dragged bend diamond ends as a preview value: Apply bend commits.
+    if (curveDrag !== null) {
+      curveDrag = null;
+      restoreOrbit();
+      const resolved = currentDraft();
+      if (!('error' in resolved)) {
+        lastStatus = `Bend ${Math.round(resolved.draft.curveBendPx)} px — Apply bend to bake surface points, or Cancel bend.`;
+      }
+      refresh();
+      return;
+    }
     if (gesture === null && pendingHandle === null) {
       restoreOrbit();
       try { canvasOf()?.releasePointerCapture(event.pointerId); } catch { /* no capture */ }
@@ -2892,9 +3555,9 @@ export function createModelSetupView(
       }
       const hit = safePick(viewer, event.clientX, event.clientY);
       if (hit === null) {
-        // Taps off the surface are orbit intent — stay silent unless a handle
-        // or rectangle tap expected a pick.
-        if (draft.handleArm !== null || draft.areaTool === 'rectangle') {
+        // Taps off the surface are orbit intent — stay silent unless a handle,
+        // a rectangle tap or an edit tap expected a pick.
+        if (draft.handleArm !== null || draft.areaTool === 'rectangle' || draft.areaTool === 'edit') {
           lastStatus = 'That click missed the model surface — nothing was recorded. Orbit and click the surface itself.';
           refresh();
         }
@@ -2910,6 +3573,10 @@ export function createModelSetupView(
       }
       if (draft.areaTool === 'rectangle') {
         lastStatus = 'Taps do not create rectangles — press at one corner, drag to the opposite corner, release.';
+        refresh();
+      }
+      if (draft.areaTool === 'edit') {
+        lastStatus = 'Edit outline: drag a white square, or double-click an edge to insert a corner on the model.';
         refresh();
       }
       return;
@@ -2992,8 +3659,27 @@ export function createModelSetupView(
         lastStatus = 'Drawing cancelled; nothing was committed.'; refresh(); return;
       }
     }
+    // Delete/Backspace removes the selected (armed) corner anywhere outside
+    // text fields — the same action as the visible Remove button. Polygon
+    // drawing keeps Backspace for undo, so it is excluded here.
+    if ((event.key === 'Delete' || event.key === 'Backspace') && drawing !== null) {
+      const leavingDrawingAlone = drawing.areaTool === 'freehand' && drawing.drawing !== null;
+      const arm = drawing.handleArm;
+      if (!leavingDrawingAlone && arm !== null && arm.kind === 'corner') {
+        const area = drawing.areas.find((candidate) => candidate.id === arm.areaId);
+        if (area !== undefined && 'entry' in resolvedDrawing) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          const outcome = removeAreaCorner(drawing, arm.areaId, arm.index);
+          if (outcome.ok) emit(resolvedDrawing.entry, drawing);
+          lastStatus = outcome.message;
+          refresh();
+          return;
+        }
+      }
+    }
     if (event.key !== 'Escape') return;
-    if (gesture !== null || pendingHandle !== null || downAt !== null || armed !== null || drawing?.handleArm) {
+    if (gesture !== null || pendingHandle !== null || downAt !== null || armed !== null || drawing?.handleArm || drawing?.curveArm || curveDrag !== null) {
       event.preventDefault(); event.stopImmediatePropagation();
     }
     // Escape/pointercancel rolls back any draw/edit gesture: staged data is
@@ -3002,7 +3688,7 @@ export function createModelSetupView(
       cancelGestureSilent();
       armed = null;
       const current = currentDraft();
-      if (!('error' in current)) current.draft.areaTool = 'rotate';
+      if (!('error' in current) && current.draft.areaTool !== 'edit') current.draft.areaTool = 'rotate';
       restoreOrbit();
       lastStatus = 'Edit cancelled — staged data unchanged.';
       refresh();
@@ -3011,16 +3697,27 @@ export function createModelSetupView(
     if (armed !== null) {
       armed = null;
       const current = currentDraft();
-      if (!('error' in current)) current.draft.areaTool = 'rotate';
+      if (!('error' in current) && current.draft.areaTool !== 'edit') current.draft.areaTool = 'rotate';
       lastStatus = 'Pick cancelled — staged data unchanged.';
       refresh();
       return;
     }
     const resolved = currentDraft();
-    if (!('error' in resolved) && resolved.draft.handleArm !== null) {
-      resolved.draft.handleArm = null;
-      lastStatus = 'Handle disarmed — staged data unchanged.';
-      refresh();
+    if (!('error' in resolved)) {
+      let cleared: string | null = null;
+      if (resolved.draft.curveArm !== null) {
+        cancelGestureSilent();
+        resolved.draft.curveArm = null;
+        cleared = 'Bend cancelled — outline unchanged.';
+      }
+      if (resolved.draft.handleArm !== null) {
+        resolved.draft.handleArm = null;
+        cleared = cleared ?? 'Handle disarmed — staged data unchanged.';
+      }
+      if (cleared !== null) {
+        lastStatus = cleared;
+        refresh();
+      }
     }
   }
 
@@ -3030,6 +3727,7 @@ export function createModelSetupView(
   document.addEventListener('pointermove', onCanvasMove);
   document.addEventListener('pointerup', onCanvasUp);
   document.addEventListener('pointercancel', onPointerCancel);
+  document.addEventListener('dblclick', onCanvasDoubleClick);
   document.addEventListener('keydown', onKeyDown, true);
 
   return {
@@ -3046,6 +3744,7 @@ export function createModelSetupView(
         lastFrameRevision = -1;
         lastFrameDraftKey = '';
         if (handleLayer) handleLayer.style.display = 'none';
+        if (curveHandleEl) curveHandleEl.style.display = 'none';
         if (drawingOutline) drawingOutline.style.display = 'none';
       } else { framedViewer = null; refresh(); }
     },
@@ -3086,6 +3785,8 @@ export function createModelSetupView(
       drawingOutline?.remove(); drawingOutline = null;
       handleDots = [];
       handleModelsCache = [];
+      document.removeEventListener('dblclick', onCanvasDoubleClick);
+      curveHandleEl?.remove(); curveHandleEl = null;
       document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('pointerdown', onCanvasDown, true);
       document.removeEventListener('pointermove', onCanvasMove);

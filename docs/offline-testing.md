@@ -1,5 +1,29 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Outline editing merge acceptance — 2026-11-01
+
+Codex reviewed the pending outline editor and its synthetic acceptance tests.
+Verification: `npm run typecheck`, `npm test` (866/866), and
+`npm run build:demo` passed. The isolated setup suite passed 23/23 with
+`npx playwright test e2e/setup-calibration.spec.ts --project=chromium --workers=1 --output=/tmp/logotool-merge-chromium-final`.
+Installed Chrome initially passed 21/23 setup tests; two browser-closure
+failures both passed in an isolated rerun together with the new outline journey
+(3/3). The new journey covers More, renaming, insertion/removal, bend preview,
+apply/cancel, and save/reopen. Desktop and narrow screenshots were inspected.
+
+The broad Chromium run was interrupted after a stale tab-label assertion
+failed in `internal-builder.spec.ts` (expected “Set logo placements”, actual
+“Edit product”). An isolated clean build of unchanged source commit `f3f7060`
+reproduced that exact failure; the broad suite is not recorded as passing.
+
+Environment: macOS Darwin 27.2.0 arm64, Chromium 156.0.8078.4 and installed
+Chrome 155.0.8059.85. Setup acceptance uses offline `file://` contexts with
+synthetic fixtures and checks zero HTTP(S) requests, console errors and page
+errors. New outline coverage uses 1280×900 and 390×844; other setup cases
+retain their attached per-test viewport/environment records. Logs and isolated
+artifacts are under `/tmp/logotool-merge-*`; initial screenshots are in ignored
+`test-results/`. Windows Chrome/Edge and physical calibration remain unverified.
+
 ## Visual placement controls — 2026-10-27
 
 The operator can move, resize and rotate a selected logo directly on the
