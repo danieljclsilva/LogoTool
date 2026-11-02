@@ -1612,3 +1612,70 @@ Windows Chrome/Edge and actual mobile hardware remain untested.
 ```sh
 npx playwright test e2e/model-lighting.spec.ts e2e/customer-model-proof.spec.ts e2e/model-document-workflow.spec.ts --project=chromium --project=chrome --workers=2
 ```
+
+## Focus-this-area and customer area UX pass — 2026-11-02
+
+Implemented camera-only **Focus this area** in the setup and shared placement /
+customer model toolbars. Polygon points and winding-dependent normals are
+resolved against the loaded mesh, including back areas. Missing, collinear,
+nonfinite, remote or unavailable inputs refuse safely; active orbit-suspending
+gestures cannot focus. Whole-product Fit remains available, and the zoom readout
+reports the actual percentage against its Fit baseline. Setup focus stays
+accessible after dismissing Areas; toolbar labels wrap without shrinking into
+each other.
+
+New customer placements show named area choices outside Advanced. Choices
+preserve typed size and placement notes, use aria-pressed, and honor busy/drag
+locks. Existing placements keep their original selectors; zero-area products
+show an explicit empty state. Fit warnings use short guidance, with the exact
+validator verdict in collapsed technical details. Geometry, confirmation rules,
+production schemas and original assets were not changed.
+
+OpenCode Contributor lead and two bounded workers handed off at 06:22 Amsterdam.
+Codex independently reviewed the integrated diff and corrected focus visibility,
+truthful zoom, collinear/remote input validation, normal transformation, draft
+preservation and the unfinished synthetic specs. All delegated writers stopped;
+no commits, pushes, Odoo calls, uploads or dependency changes were made.
+
+Development environment: macOS 27.2 (26B123), arm64, Node 26.10.0,
+Playwright 1.64.0, bundled Chromium 156.0.8078.4 and installed Chrome
+156.0.8078.74. Every browser context used offline `file://`; test attachments
+record each browser version, viewport and environment. Viewports include
+1280×900, 1440×900/1000 and 390×844.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed all three configurations |
+| `npm test` | Build and all 866 Node tests passed |
+| Customer editor, customer model proof, setup calibration — Chromium | 40 passed |
+| Same three files — installed Chrome, one worker | 39 passed; one browser-close failure |
+| Chrome image-regeneration failure, isolated rerun | Passed |
+| Final changed-feature checks, Chromium + Chrome | 14 passed (7 per browser) |
+| `git diff --check` | Passed |
+
+The Chrome broad run is **not** recorded as a clean full pass. An initial
+parallel run had two browser-close failures; the single-worker run retained
+one, with macOS display/GPU diagnostics. Its isolated rerun passed. The final
+focused checks cover both viewport sizes, camera focus, draft preservation,
+short warnings and shared customer placement focus. No retry setting or test
+was weakened to hide the hiccup.
+
+Private real-jacket acceptance (installed Chrome, offline, 1440×1000): Pocket
+focus increased the projected six-corner bounds from about 67×65 to 343×328 px;
+Fit returned them to about 80×76 px. Upper Back was visually inspected from the
+back. Deterministic setup JSON was exactly equal before/after camera operations.
+A fresh self-contained customer file retained the original model/artwork bytes,
+product definitions and placements. All four area choices were selected outside
+Advanced; the 390×844 page had no horizontal overflow. Zero page/console errors
+and zero HTTP(S) requests were observed in these private checks.
+
+A short 40-cycle focus/Fit sample left the project revision unchanged. After
+explicit garbage collection, JS heap went from 6.77 to 7.24 MiB (+0.47 MiB),
+with backing storage essentially unchanged. This is a bounded observation,
+not proof of leak freedom; GPU memory and process RSS were not profiled here.
+Private files, screenshots and logs remain outside the repository under
+`/tmp/logotool-next-ux-20261102/`.
+
+Actual Windows Chrome/Edge offline acceptance, Edge on this machine, actual
+mobile hardware and the complete repository browser matrix remain untested.
+These results are macOS development evidence, not the Windows delivery gate.

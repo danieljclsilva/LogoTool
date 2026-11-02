@@ -433,6 +433,16 @@ export interface ModelSetupViewerLike {
   setOrbitEnabled?(enabled: boolean): void;
   setInteractionMode?(mode: 'select' | 'pan'): void;
   /**
+   * Camera-only focus for the selected safe area (optional): frames the
+   * supplied wrapper-local polygon without touching mm, fit or history.
+   * Returns false when unavailable (no model, degenerate points, or an
+   * active gesture suspending orbit). Never throws.
+   */
+  focusSurfacePoints?(
+    pointsModel: Array<{ x: number; y: number; z: number }>,
+    normalModel?: { x: number; y: number; z: number },
+  ): boolean;
+  /**
    * Optional per-frame hook for projected HTML overlays (overlay-only).
    * The view sets/clears it as the live viewer attaches; the viewer never
    * depends on it.
@@ -2507,6 +2517,64 @@ export function createModelSetupView(
     }
     section.append(list);
 
+    // Camera-only focus for the selected safe area (user button only: no
+    // auto-focus on selection; mm/geometry/revisions untouched).
+    const focusRow = el('div', 'area-focus-row', 'model-setup-row');
+    const focusButton = el('button', 'focus-area', 'btn-secondary');
+    focusButton.type = 'button';
+    focusButton.textContent = 'Focus this area';
+    focusButton.setAttribute('aria-label', 'Focus this area in the 3D preview (camera only)');
+    focusButton.title = 'Focus this area in the 3D preview (camera only)';
+    const focusBlocked = gesture !== null || pendingHandle !== null || curveDrag !== null;
+    const focusSelected = draft.areas.find((area) => area.id === draft.selectedAreaId);
+    focusButton.disabled = focusSelected === undefined || focusBlocked || !draft.productVisible || !viewerOf()?.focusSurfacePoints;
+    focusButton.addEventListener('click', () => {
+      const current = draft.areas.find((area) => area.id === draft.selectedAreaId);
+      if (current === undefined) {
+        paintStatus('Select a safe area first — then Focus this area.');
+        refresh();
+        return;
+      }
+      if (gesture !== null || pendingHandle !== null || curveDrag !== null) {
+        paintStatus('Finish the active drag first — then Focus this area.');
+        refresh();
+        return;
+      }
+      const viewer = viewerOf();
+      if (!viewer || typeof viewer.focusSurfacePoints !== 'function') {
+        paintStatus('No live preview — show the product, then Focus this area.');
+        refresh();
+        return;
+      }
+      let normal: SetupVec3 | undefined;
+      try {
+        const plane = planeFromPolygon(current.points);
+        if (plane && isVec3(plane.normal)) normal = { ...plane.normal };
+      } catch {
+        normal = undefined;
+      }
+      let moved = false;
+      try {
+        moved =
+          normal !== undefined
+            ? viewer.focusSurfacePoints(
+                current.points.map((point) => ({ ...point })),
+                { ...normal },
+              )
+            : viewer.focusSurfacePoints(current.points.map((point) => ({ ...point })));
+      } catch {
+        moved = false;
+      }
+      paintStatus(
+        moved
+          ? `Focused “${current.name}” — camera only; measurements unchanged. Fit restores the product view.`
+          : 'Could not focus that area — show the product and pick a spanning patch.',
+      );
+      refresh();
+    });
+    focusRow.append(focusButton);
+    (authorTools ?? section).append(focusRow);
+
     // Rename + accessible corner/curve editing for the selected area.
     // Direct square handles on the model remain the primary controls.
     const selected = draft.areas.find((area) => area.id === draft.selectedAreaId);
@@ -2991,7 +3059,11 @@ export function createModelSetupView(
       const select = mount.querySelector<HTMLSelectElement>('[data-ps-view="zoom"]');
       if (select !== null) {
         if (!Array.from(select.options).some((option) => option.value === String(zoom))) {
-          zoom = 100;
+          const current = document.createElement('option');
+          current.value = String(zoom); current.textContent = `${zoom}%`;
+          current.dataset.currentZoom = 'true';
+          select.querySelectorAll('[data-current-zoom]').forEach((option) => option.remove());
+          select.append(current);
         }
         select.value = String(zoom);
       }

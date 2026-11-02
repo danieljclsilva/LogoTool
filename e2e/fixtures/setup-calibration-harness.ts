@@ -11,6 +11,7 @@
 import { ModelViewer } from '../../src/viewer/model-viewer.js';
 import { createModelSetupView } from '../../src/ui/internal-builder/model-setup-view.js';
 import type { ModelSetupSnapshot } from '../../src/ui/internal-builder/model-setup-view.js';
+import { planeFromPolygon } from '../../src/core/model-placement/area-projection.js';
 
 declare global {
   // eslint-disable-next-line no-unused-vars
@@ -179,5 +180,80 @@ window.__setupHarness = {
   canvasBox(): { x: number; y: number; width: number; height: number } | null {
     const rect = canvas.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  },
+  /** Points of the first staged area (the selected one in single-area tests). */
+  selectedPoints(): Array<{ x: number; y: number; z: number }> | null {
+    const areas = lastSnapshot?.areas;
+    if (!areas || areas.length === 0) return null;
+    return areas[0]!.points.map((point) => ({ ...point }));
+  },
+  snapshotJson(): string {
+    return JSON.stringify(lastSnapshot);
+  },
+  cameraState(): { position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number }; zoom: number } | null {
+    if (!viewer) return null;
+    const state = viewer.getCameraState();
+    if (!state) return null;
+    return { position: { ...state.position }, target: { ...state.target }, zoom: state.zoomPct };
+  },
+  /** Max pairwise client-space spread of the selected area's projection; -1 when any corner is unprojectable. */
+  projectedSpan(): number {
+    if (!viewer || !lastSnapshot?.areas?.length) return -1;
+    const points = lastSnapshot.areas[0]!.points;
+    const projected: Array<{ x: number; y: number }> = [];
+    for (const point of points) {
+      const client = viewer.projectToClient(point);
+      if (!client) return -1;
+      projected.push({ x: client.x, y: client.y });
+    }
+    let best = 0;
+    for (let i = 0; i < projected.length; i += 1) {
+      for (let j = i + 1; j < projected.length; j += 1) {
+        best = Math.max(best, Math.hypot(projected[i]!.x - projected[j]!.x, projected[i]!.y - projected[j]!.y));
+      }
+    }
+    return best;
+  },
+  /** Camera-only focus of the selected area (mirrors the view button: points + plane normal when available). */
+  focusSelected(): boolean {
+    if (!viewer || !lastSnapshot?.areas?.length) return false;
+    const points = lastSnapshot.areas[0]!.points.map((point) => ({ ...point }));
+    let normal: { x: number; y: number; z: number } | undefined;
+    try {
+      const plane = planeFromPolygon(lastSnapshot.areas[0]!.points);
+      if (plane) normal = { ...plane.normal };
+    } catch {
+      normal = undefined;
+    }
+    try {
+      return normal ? viewer.focusSurfacePoints(points, normal) : viewer.focusSurfacePoints(points);
+    } catch {
+      return false;
+    }
+  },
+  /** Direct viewer focus with caller-supplied JSON points (degenerate/missing-input safety tests). */
+  focusRaw(pointsJson: string): boolean {
+    if (!viewer) return false;
+    try {
+      const parsed: unknown = JSON.parse(pointsJson);
+      return viewer.focusSurfacePoints(parsed as Array<{ x: number; y: number; z: number }>);
+    } catch {
+      return false;
+    }
+  },
+  fitProduct(): void {
+    try {
+      if (viewer?.fitCurrentView) viewer.fitCurrentView();
+      else viewer?.resetZoom();
+    } catch {
+      /* camera-only; test asserts state */
+    }
+  },
+  setOrbitEnabled(enabledJson: string): void {
+    try {
+      viewer?.setOrbitEnabled(JSON.parse(enabledJson) === true);
+    } catch {
+      /* best-effort gesture simulation */
+    }
   },
 };

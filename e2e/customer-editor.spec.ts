@@ -372,7 +372,14 @@ test('drop accepts a geometric-invalid editable draft but blocks confirmation an
     await setNumber(page, 'y-mm', 0);
     // The invalid-fit numbers auto-apply as a new revision; confirmation and
     // submit stay blocked by the fit verdict (no Apply click needed).
-    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('Fits: no');
+    // Normal copy is short and human; the exact validator verdict stays
+    // Advanced-only.
+    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('This logo extends beyond');
+    await expect(page.locator('[data-customer-hook="geometry"]')).not.toContainText('footprint');
+    await expect(page.locator('[data-customer-hook="geometry-technical-wrap"]')).toBeVisible();
+    await expect(page.locator('[data-customer-hook="geometry-technical"]')).toContainText('Fits: no');
+    const geometryTitle = await page.locator('[data-customer-hook="geometry"]').getAttribute('title');
+    expect(geometryTitle ?? '').not.toMatch(/vertex|\(.*,/);
     await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
     await expect(page.locator('[data-customer-hook="confirm"]')).toBeDisabled();
     await expect(page.locator('[data-customer-hook="submit"]')).toBeDisabled();
@@ -768,5 +775,109 @@ test('one workspace edits position and size together; review stays a separate co
       await page.screenshot({ path: info.outputPath(`guided-${viewport.width}.png`) });
       expectOfflineClean(probe);
     } finally { await context.close(); await fs.rm(prototype.directory, { recursive: true, force: true }); }
+  }
+});
+
+test('visible area chips select each named area without opening Advanced', async ({ browser }, info) => {
+  const prototype = await unpackPrototype();
+  const { context, page, probe } = await openOfflineEditor(browser);
+  try {
+    await openPage(page, prototype);
+    await choosePackage(page, prototype.projectPath);
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
+    await expect(page.locator('[data-customer-hook="area-chips"]')).toBeHidden();
+    await revealCustomerControl(page, 'add-another');
+    await page.locator('[data-customer-hook="add-another"]').click();
+    // Two named areas in this synthetic option; no duplicate region selects.
+    await expect(page.locator('[data-customer-hook="area-chips"]')).toBeVisible();
+    await expect(page.locator('[data-customer-hook="area-chips"] button')).toHaveCount(2);
+    await expect(page.locator('[data-customer-hook="area-chips"] button').first()).toContainText('Chest');
+    await expect(page.locator('[data-customer-hook="region"]')).toHaveCount(1);
+    await expect(page.locator('[data-customer-hook="precise-position"]')).not.toHaveAttribute('open', '');
+    const placementsBefore = await page.locator('[data-customer-hook="placement"] option').count();
+    // Each named area is selectable outside Advanced through the same guarded
+    // transition as the region select (aria-pressed + select identity follow).
+    await page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Back' }).click();
+    await expect(page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Back' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Chest' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('[data-customer-hook="region"]')).toHaveValue('SYN-TEE-BACK');
+    await expect(page.locator('[data-customer-hook="precise-position"]')).not.toHaveAttribute('open', '');
+    await page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Chest' }).click();
+    await expect(page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Chest' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-customer-hook="region"]')).toHaveValue('SYN-TEE-CHEST');
+    // Committed placements survive area-chip navigation.
+    await expect(page.locator('[data-customer-hook="placement"] option')).toHaveCount(placementsBefore);
+    // Area changes preserve the typed new-placement draft.
+    await revealCustomerControl(page, 'width-mm');
+    await page.locator('[data-customer-hook="width-mm"]').fill('77');
+    await revealCustomerControl(page, 'placement-instructions');
+    await page.locator('[data-customer-hook="placement-instructions"]').fill('Keep the seam clear.');
+    await page.locator('[data-customer-hook="area-chips"] button', { hasText: 'Back' }).click();
+    await expect(page.locator('[data-customer-hook="region"]')).toHaveValue('SYN-TEE-BACK');
+    await expect(page.locator('[data-customer-hook="width-mm"]')).toHaveValue('77');
+    await expect(page.locator('[data-customer-hook="placement-instructions"]')).toHaveValue('Keep the seam clear.');
+    await expect(page.locator('[data-customer-hook="placement"] option')).toHaveCount(placementsBefore);
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+    await fs.rm(prototype.directory, { recursive: true, force: true });
+  }
+});
+
+test('short fit warning, invalid numeric draft, and no-area honesty', async ({ browser }, info) => {
+  const prototype = await unpackPrototype();
+  const { context, page, probe } = await openOfflineEditor(browser);
+  try {
+    await openPage(page, prototype);
+    await choosePackage(page, prototype.projectPath);
+    await selectCustomerOption(page, 'configuration', 'SYN-CFG-TEE-M');
+    // Oversize the selected logo so it leaves the Chest area.
+    await setNumber(page, 'width-mm', 500);
+    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('This logo extends beyond Chest');
+    await expect(page.locator('[data-customer-hook="geometry"]')).toContainText('Reduce its size or move it inside the area');
+    await expect(page.locator('[data-customer-hook="geometry"]')).not.toContainText('footprint vertex');
+    await expect(page.locator('[data-customer-hook="geometry-technical"]')).toContainText('Fits: no');
+    await expect(page.locator('[data-customer-hook="geometry-technical-wrap"]')).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-customer-hook="geometry-technical"]')).toBeHidden();
+    await expect(page.locator('[data-customer-hook="review"]')).not.toBeVisible();
+    await page.locator('[data-customer-hook="primary-next"]').click();
+    await expect(page.locator('[data-step-panel="review"]')).toBeVisible();
+    await expect(page.locator('[data-customer-hook="review"]')).toContainText('This logo extends beyond Chest');
+    expect(await page.locator('[data-customer-hook="review"]').innerText()).not.toContain('footprint vertex');
+    await expect(page.locator('[data-customer-hook="review"] .review-technical').first()).toContainText('Fits: no');
+    await expect(page.locator('[data-customer-hook="confirm"]')).toBeDisabled();
+    await page.locator('[data-customer-hook="step-edit"]').click();
+    // Invalid numeric draft cannot confirm: non-finite width stays pending.
+    await revealCustomerControl(page, 'width-mm');
+    await page.locator('[data-customer-hook="width-mm"]').fill('');
+    await page.locator('[data-customer-hook="width-mm"]').press('Tab');
+    await expect(page.locator('[data-customer-hook="confirm"]')).toBeDisabled();
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText(/Could not save|not applied yet|numbers/);
+    // No-area job stays honest: empty regions hide chips and disable Add.
+    const parsed = await parseProjectPackage(new Uint8Array(prototype.projectBytes), { sha256 });
+    const emptied = structuredClone(parsed.project) as ProjectDocument;
+    for (const product of emptied.products) {
+      product.regions = [];
+      (product as { calibrations?: unknown }).calibrations = [];
+      for (const variant of product.variants) { variant.regionIds = []; delete variant.placementOverrides; }
+    }
+    for (const configuration of emptied.configurations) configuration.placements = [];
+    delete emptied.confirmation;
+    delete emptied.review;
+    const assets = parsed.assets.filter((asset) => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes }));
+    const additionalAssets = parsed.assets.filter((asset) => asset.kind === 'additional').map(({ path, bytes }) => ({ path, bytes }));
+    const emptyBytes = await createProjectPackage({ project: emptied, assets, additionalAssets }, { sha256 });
+    await page.locator('[data-customer-hook="file-input"]').setInputFiles({
+      name: 'synthetic-no-area.logo-project',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(emptyBytes),
+    });
+    await expect(page.locator('[data-customer-hook="area-chips"]')).toBeHidden();
+    await expect(page.locator('[data-customer-hook="area-empty"]')).toBeVisible();
+    await expect(page.locator('[data-customer-hook="add"]')).toBeDisabled();
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+    await fs.rm(prototype.directory, { recursive: true, force: true });
   }
 });

@@ -163,6 +163,26 @@ export function createModelPlacementView(callbacks: {
   button('Front', () => { if (sharedActive()) viewerOf()?.setViewSide('front'); }, 'pw-model-front');
   button('Back', () => { if (sharedActive()) viewerOf()?.setViewSide('back'); }, 'pw-model-back');
   button('Fit', () => { if (sharedActive()) viewerOf()?.fitCurrentView(); }, 'pw-model-fit');
+  const focusArea = button('Focus this area', () => {
+    if (!sharedActive()) return;
+    const activeViewer = viewerOf();
+    if (!activeViewer || !data || !ready) { state.textContent = 'No live preview — show the product, then Focus this area.'; return; }
+    if (active) { state.textContent = 'Finish the active drag first — then Focus this area.'; return; }
+    const region = data.scene.regions.find((entry) => entry.id === data?.activeRegionId);
+    if (!region) { state.textContent = 'Select a placement area first — then Focus this area.'; return; }
+    try {
+      const focus = activeViewer.focusSurfacePoints;
+      if (typeof focus !== 'function') { state.textContent = 'No live preview — show the product, then Focus this area.'; return; }
+      const points = region.pointsModel.map((point) => ({ ...point }));
+      const moved = focus.call(activeViewer, points, { ...region.frame.normal });
+      state.textContent = moved
+        ? 'Focused the active area — camera only; measurements unchanged. Fit restores the product view.'
+        : 'Could not focus that area — show the product and pick a spanning patch.';
+    } catch {
+      state.textContent = 'Could not focus that area — show the product and pick a spanning patch.';
+    }
+  }, 'pw-model-focus-area');
+  focusArea.title = 'Focus this area in the 3D preview (camera only)';
   button('−', () => zoom(-1), 'pw-model-zoom-out').setAttribute('aria-label', 'Zoom out product');
   button('+', () => zoom(1), 'pw-model-zoom-in').setAttribute('aria-label', 'Zoom in product');
   const expand = button('Enlarge workspace', () => { callbacks.expand(); syncTools(); }, 'pw-model-expand');
@@ -186,6 +206,12 @@ export function createModelPlacementView(callbacks: {
     pan.setAttribute('aria-pressed', String(panMode));
     viewerOf()?.setInteractionMode(panMode ? 'pan' : 'select');
     move.disabled = data === null || data.selectedIndex < 0;
+    try {
+      const region = data?.scene.regions.find((entry) => entry.id === data?.activeRegionId) ?? null;
+      focusArea.disabled = data === null || region === null || active !== null || !ready;
+    } catch {
+      /* focus gating is advisory */
+    }
     expand.textContent = callbacks.isExpanded() ? 'Close enlarged view' : 'Enlarge workspace';
     expand.setAttribute('aria-expanded', String(callbacks.isExpanded()));
     if (!active) {

@@ -2701,3 +2701,77 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     } finally { await context.close(); }
   });
 }
+
+test('focus this area: camera-only focus grows the selected patch, fit restores, data unchanged', async ({ browser }, info) => {
+  test.setTimeout(180_000);
+  const viewport = { width: 1280, height: 900 };
+  const { context, page, probe } = await openHarness(browser, viewport, 'setup-focus-harness.html');
+  try {
+    await attachEnv(info, browser, viewport, 'focus-this-area camera-only');
+    await assertHarness(page);
+    const glbBase64 = Buffer.from(cubeGlb()).toString('base64');
+    expect(await hCall<string>(page, 'loadGlb', glbBase64)).toBe('ready');
+    await modelSetup(page, 'area-name').fill('Focus chest');
+    await modelSetup(page, 'tool-freehand').click();
+    await harnessClick(page, 0.42, 0.42);
+    await harnessClick(page, 0.58, 0.42);
+    await harnessClick(page, 0.58, 0.58);
+    await harnessClick(page, 0.42, 0.58);
+    await modelSetup(page, 'area-finish').click();
+    await expect(modelSetup(page, 'area-list')).toContainText('Focus chest');
+
+    // Focus control is a user button only: present, labelled, no auto-focus.
+    const focusButton = modelSetup(page, 'focus-area');
+    await expect(focusButton).toBeVisible();
+    await expect(focusButton).toHaveText('Focus this area');
+    await expect(focusButton).toBeEnabled();
+
+    const beforeJson = await hCall<string>(page, 'snapshotJson');
+    const beforeSpan = await hCall<number>(page, 'projectedSpan');
+    assert.ok(beforeSpan > 0, 'selected patch projects before focus');
+    const beforeCam = await hCall<{ target: { x: number; y: number; z: number }; zoom: number } | null>(page, 'cameraState');
+    assert.ok(beforeCam, 'camera state readable before focus');
+
+    await focusButton.click();
+    await expect(modelSetup(page, 'status')).toContainText('Focused');
+    const afterSpan = await hCall<number>(page, 'projectedSpan');
+    expect(afterSpan).toBeGreaterThan(beforeSpan);
+    const afterJson = await hCall<string>(page, 'snapshotJson');
+    expect(afterJson).toBe(beforeJson);
+    const afterCam = await hCall<{ target: { x: number; y: number; z: number }; zoom: number } | null>(page, 'cameraState');
+    assert.ok(afterCam, 'camera state readable after focus');
+    expect(afterCam!.zoom).toBeGreaterThan(beforeCam!.zoom);
+
+    // Fit restores the whole product; serialized data still unchanged.
+    await page.locator('[data-ps-view="fit"]').click();
+    const fitCam = await hCall<{ target: { x: number; y: number; z: number }; zoom: number } | null>(page, 'cameraState');
+    assert.ok(fitCam, 'camera state readable after fit');
+    expect(Math.hypot(fitCam!.target.x, fitCam!.target.y, fitCam!.target.z)).toBeLessThan(1e-6);
+    expect(await hCall<string>(page, 'snapshotJson')).toBe(beforeJson);
+
+    // Safe no-ops: missing / degenerate / nonfinite input all return false.
+    expect(await hCall<boolean>(page, 'focusRaw', JSON.stringify([]))).toBe(false);
+    expect(await hCall<boolean>(page, 'focusRaw', JSON.stringify([{ x: 0, y: 0, z: 0 }]))).toBe(false);
+    const coincident = JSON.stringify([{ x: 0.1, y: 0.1, z: 0.5 }, { x: 0.1, y: 0.1, z: 0.5 }, { x: 0.1, y: 0.1, z: 0.5 }]);
+    expect(await hCall<boolean>(page, 'focusRaw', coincident)).toBe(false);
+    expect(await hCall<boolean>(page, 'focusRaw', JSON.stringify([{x:1e6,y:0,z:0},{x:1e6,y:1,z:0},{x:1e6,y:0,z:1}]))).toBe(false);
+    expect(await hCall<boolean>(page, 'focusRaw', JSON.stringify([{x:0,y:0,z:0},{x:1,y:0,z:0},{x:2,y:0,z:0}]))).toBe(false);
+    expect(await hCall<boolean>(page, 'focusRaw', JSON.stringify([{ x: NaN, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }]))).toBe(false);
+    // Active gesture (orbit suspended) refuses safely; data untouched.
+    await hCall<string>(page, 'setOrbitEnabled', JSON.stringify(false));
+    expect(await hCall<boolean>(page, 'focusSelected')).toBe(false);
+    await hCall<string>(page, 'setOrbitEnabled', JSON.stringify(true));
+    expect(await hCall<boolean>(page, 'focusSelected')).toBe(true);
+    expect(await hCall<string>(page, 'snapshotJson')).toBe(beforeJson);
+
+    // Viewport controls stay adjacent and usable offline.
+    await expect(page.locator('[data-ps-view="zoom"]')).toBeVisible();
+    await expect(page.locator('[data-ps-view="fit"]')).toBeVisible();
+    const shotPath = info.outputPath('model-focus-desktop.png');
+    await page.screenshot({ path: shotPath });
+    await info.attach('model-focus-desktop', { path: shotPath, contentType: 'image/png' });
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+  }
+});

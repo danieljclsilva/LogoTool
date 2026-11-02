@@ -316,7 +316,7 @@ export class ModelViewer {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     // Keep the % readout consistent when the operator dollies with the
-    // wheel: snap the stored step to the nearest supported value without
+    // wheel: report the actual percentage relative to whole-product Fit without
     // moving the camera. Programmatic zoom applies set their own echo guard.
     this.controls.addEventListener('change', () => {
       try {
@@ -325,16 +325,7 @@ export class ModelViewer {
         if (!Number.isFinite(dist) || dist <= 0) return;
         const implied = (this.fitDistance / dist) * 100;
         if (!Number.isFinite(implied)) return;
-        let best: number = VIEW_ZOOM_STEPS[2] ?? 100;
-        let bestErr = Infinity;
-        for (const step of VIEW_ZOOM_STEPS) {
-          const err = Math.abs(step - implied);
-          if (err < bestErr) {
-            bestErr = err;
-            best = step;
-          }
-        }
-        this.zoomPct = best;
+        this.zoomPct = Math.max(1, Math.round(implied));
       } catch {
         return;
       }
@@ -542,6 +533,169 @@ export class ModelViewer {
   }
 
   /**
+   * Focus the camera on one selected surface polygon (camera only).
+   *
+   * Camera-only helper for "Focus this area": frames the supplied
+   * wrapper-local surface points by moving the camera/target along a view
+   * direction, leaving the wrapper transform, stored mm, fitDistance and the
+   * zoom baseline untouched (Fit/reset still frame the whole product at
+   * 100%). Input is never mutated. Returns false (no-op) when the model is
+   * unloaded, the points are missing/degenerate/nonfinite, the resolved
+   * distance is unusable, orbit is suspended for an active gesture, or the
+   * viewer is disposed. Never throws.
+   *
+   * Direction: when a wrapper-local outward region normal is supplied, the
+   * camera moves to the outward side (resolved against the nearest mesh
+   * face, so a back-side patch actually faces the viewer); otherwise the
+   * current camera direction is kept.
+   */
+  focusSurfacePoints(
+    pointsModel: Array<{ x: number; y: number; z: number }>,
+    normalModel?: { x: number; y: number; z: number },
+  ): boolean {
+    try {
+      if (this.disposed) return false;
+      // An active draw/edit gesture suspends orbit (controls disabled): a
+      // focus then would fight the gesture, so refuse safely.
+      try {
+        if (this.controls.enabled === false) return false;
+      } catch {
+        return false;
+      }
+      if (!Array.isArray(pointsModel) || pointsModel.length < 3) return false;
+      if (pointsModel.length > 512) return false;
+      const local: THREE.Vector3[] = [];
+      for (const point of pointsModel) {
+        if (!isVec3(point)) return false;
+        local.push(new THREE.Vector3(point.x, point.y, point.z));
+      }
+      let longest = 0;
+      for (let i = 0; i < local.length; i += 1) {
+        for (let j = i + 1; j < local.length; j += 1) {
+          const distance = local[i]!.distanceTo(local[j]!);
+          if (Number.isFinite(distance) && distance > longest) longest = distance;
+        }
+      }
+      if (!Number.isFinite(longest) || !(longest > 1e-9)) return false;
+      const areaNormal = new THREE.Vector3();
+      const origin = local[0]!;
+      for (let i = 1; i + 1 < local.length; i += 1) {
+        areaNormal.add(new THREE.Vector3().crossVectors(
+          local[i]!.clone().sub(origin), local[i + 1]!.clone().sub(origin),
+        ));
+      }
+      if (areaNormal.length() <= longest * longest * 1e-8) return false;
+      const box = this.modelBBox();
+      if (box.isEmpty()) return false;
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld();
+      const modelDiag = box.getSize(new THREE.Vector3()).length();
+      if (!Number.isFinite(modelDiag) || !(modelDiag > 0)) return false;
+      // View direction: outward normal when supplied, else current direction.
+      let direction: THREE.Vector3;
+      if (normalModel !== undefined && normalModel !== null) {
+        if (!isVec3(normalModel)) return false;
+        const candidate = new THREE.Vector3(normalModel.x, normalModel.y, normalModel.z);
+        if (!Number.isFinite(candidate.length()) || candidate.lengthSq() < 1e-12) return false;
+        candidate.normalize();
+        let worldNormal: THREE.Vector3;
+        try {
+          worldNormal = candidate.applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(this.wrapper.matrixWorld)).normalize();
+        } catch {
+          return false;
+        }
+        if (!Number.isFinite(worldNormal.length()) || worldNormal.lengthSq() < 1e-12) return false;
+        // Resolve winding against the closest real mesh face: the stored
+        // frame normal may point into the product. Probe both sides from the
+        // polygon centre along the supplied axis and adopt the nearest face
+        // normal so back areas land on the outward side.
+        try {
+          const reach = Math.max(1e-6, modelDiag * 2);
+          const worldPoints = local.map((point) => this.wrapper.localToWorld(point.clone()));
+          const probeCenter = new THREE.Box3().setFromPoints(worldPoints).getCenter(new THREE.Vector3());
+          const probe = new THREE.Raycaster();
+          let closest = Infinity;
+          let outward: THREE.Vector3 | null = null;
+          for (const sign of [1, -1]) {
+            probe.set(
+              probeCenter.clone().addScaledVector(worldNormal, reach * sign),
+              worldNormal.clone().multiplyScalar(-sign),
+            );
+            for (const hit of probe.intersectObjects(this.modelTargets(), true)) {
+              if (!(hit.object instanceof THREE.Mesh) || !hit.face) continue;
+              const gap = hit.point.distanceToSquared(probeCenter);
+              if (gap < closest) {
+                closest = gap;
+                outward = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld));
+              }
+            }
+          }
+          if (outward !== null && outward.lengthSq() > 1e-12) {
+            outward.normalize();
+            worldNormal = outward;
+          }
+        } catch {
+          /* keep the supplied world normal */
+        }
+        direction = worldNormal;
+      } else {
+        direction = this.camera.position.clone().sub(this.controls.target);
+        if (!Number.isFinite(direction.length()) || direction.lengthSq() < 1e-12) {
+          direction = new THREE.Vector3(0, 0, 1);
+        } else {
+          direction.normalize();
+        }
+      }
+      const worldPoints = local.map((point) => this.wrapper.localToWorld(point.clone()));
+      const focusBox = new THREE.Box3().setFromPoints(worldPoints);
+      if (focusBox.isEmpty()) return false;
+      const center = focusBox.getCenter(new THREE.Vector3());
+      const size = focusBox.getSize(new THREE.Vector3());
+      if (![center.x, center.y, center.z, size.x, size.y, size.z].every(Number.isFinite)) return false;
+      // A surface patch belongs near the loaded product. Refuse corrupt
+      // remote coordinates before moving the camera or changing its target.
+      if (box.distanceToPoint(center) > modelDiag) return false;
+      const radius = size.length() / 2;
+      if (!Number.isFinite(radius) || !(radius > 1e-9)) return false;
+      const halfVertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
+      if (!Number.isFinite(halfVertical) || !(halfVertical > 0)) return false;
+      const halfHorizontal = Math.atan(Math.tan(halfVertical) * this.camera.aspect);
+      if (!Number.isFinite(halfHorizontal) || !(halfHorizontal > 0)) return false;
+      // Padding so the whole polygon plus its outline sits inside the view.
+      const padded = radius * 1.35;
+      const distance = padded / Math.sin(Math.min(halfVertical, halfHorizontal));
+      if (!Number.isFinite(distance) || !(distance > 0)) return false;
+      // Bound the dolly so degenerate/oversized input cannot strand the
+      // camera or collapse the depth range. Wrapper/mm untouched.
+      const clamped = Math.min(Math.max(distance, modelDiag * 0.05), modelDiag * 20);
+      if (!Number.isFinite(clamped) || !(clamped > 0)) return false;
+      const savedFit = this.fitDistance;
+
+      this.applyingZoom = true;
+      try {
+        this.camera.position.copy(center).addScaledVector(direction.clone().normalize(), clamped);
+        this.controls.target.copy(center);
+        this.camera.near = Math.max(clamped * NEAR_FACTOR, 0.001);
+        this.camera.far = clamped * FAR_FACTOR;
+        this.camera.updateProjectionMatrix();
+        this.controls.update();
+      } finally {
+        this.applyingZoom = false;
+        this.fitDistance = savedFit;
+        this.zoomPct = Math.max(1, Math.round((savedFit / clamped) * 100));
+      }
+      return true;
+    } catch {
+      try {
+        this.applyingZoom = false;
+      } catch {
+        /* guard restore is best-effort */
+      }
+      return false;
+    }
+  }
+
+  /**
    * Replace the reference measurement overlay: a dashed straight chord
    * between two wrapper-local surface points plus a midpoint label with a
    * white backing. The label text arrives from the embedding view (never
@@ -660,7 +814,7 @@ export class ModelViewer {
     }
   }
 
-  /** Current display-zoom step (100 after fit/reset; never throws). */
+  /** Current camera zoom percentage relative to whole-product Fit. */
   getZoomPercent(): number {
     try {
       return this.zoomPct;

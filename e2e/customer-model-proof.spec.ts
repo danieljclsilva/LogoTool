@@ -45,6 +45,9 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(`cus
     await expect(c(page,'save-draft-top')).toBeEnabled();
     // Camera zoom is a view operation; it must not store a new physical size.
     await m(page,'pw-model-zoom-in').click();await m(page,'pw-model-zoom-out').click();
+    await m(page,'pw-model-focus-area').click();
+    await expect(m(page,'pw-model-status')).toContainText('Focused');
+    await m(page,'pw-model-fit').click();
     const unchanged=await saveDraft(page,info.outputPath('cancelled.logo-project'));
     expect(unchanged.project.configurations).toEqual(draft.project.configurations);
     const bad=(await m(page,'pw-model-corner-0').boundingBox())!;await page.mouse.move(bad.x+bad.width/2,bad.y+bad.height/2);await page.mouse.down();await page.mouse.move(bad.x+bad.width/2-150,bad.y+bad.height/2+150,{steps:6});await page.mouse.up();

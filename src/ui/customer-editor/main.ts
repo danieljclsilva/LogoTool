@@ -186,6 +186,10 @@ const backStep = optionalHook<HTMLButtonElement>('back-step');
 const addAnotherButton = optionalHook<HTMLButtonElement>('add-another');
 const prototypeNote = optionalHook<HTMLElement>('prototype-note');
 const unsavedWarning = optionalHook<HTMLElement>('unsaved-warning');
+const areaChipsHost = optionalHook<HTMLElement>('area-chips');
+const areaEmpty = optionalHook<HTMLElement>('area-empty');
+const geometryTechnicalWrap = optionalHook<HTMLElement>('geometry-technical-wrap');
+const geometryTechnical = optionalHook<HTMLElement>('geometry-technical');
 // Owned by the template/build only; queried above so a missing hook can
 // never throw here.
 void brandMark; void stepNav; void canvasPane; void precisePosition; void preciseSize; void prototypeNote;
@@ -283,19 +287,23 @@ function renderGuideStep(): void {
     primaryNext.textContent = 'Review layout';
   }
   const panel = root.querySelector<HTMLElement>(`[data-step-panel="${guideStep}"]`);
-  if (panel) panel.insertBefore(geometryStatus, panel.querySelector(':scope > details') ?? null);
+  if (panel) {
+    panel.insertBefore(geometryStatus, panel.querySelector(':scope > details') ?? null);
+    const technicalWrap = geometryTechnicalWrap ?? document.querySelector<HTMLElement>('[data-customer-hook="geometry-technical-wrap"]');
+    if (technicalWrap) panel.insertBefore(technicalWrap, panel.querySelector(':scope > button[data-customer-hook="update"]') ?? null);
+  }
   const heading = taskRail?.querySelector('h2') ?? null;
   if (heading) {
     heading.textContent = guideStep === 'edit'
-      ? 'Your logos'
+      ? (currentPlacement() ? 'Your logos' : 'Add a logo')
       : 'Review and confirm';
   }
   const lede = taskRail?.querySelector('.lede') ?? null;
   if (lede) {
     lede.textContent = guideStep === 'edit'
-      ? (currentPlacement() ? 'Select a logo, then adjust it on the garment.' : 'Choose a logo, its position and size.')
+      ? (currentPlacement() ? 'Select a logo, then adjust it on the garment.' : 'Choose an area, then set the logo position and size.')
       : 'Check the garment views and your requests, then confirm this version.';
-    if (guideStep === 'edit' && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
+    if (guideStep === 'edit' && currentPlacement() && ratioLock && !ratioLock.checked) lede.textContent = 'Set the width. Height can be adjusted separately.';
   }
   const hint = document.querySelector<HTMLElement>('[data-customer-hook="proof-hint"]');
   if (hint) hint.hidden = !loaded?.project;
@@ -377,6 +385,89 @@ function renderLogoChips(): void {
       button.addEventListener('click', () => selectPlacementChip(index));
       container.append(button);
     }
+  }
+}
+
+// ---- Visible logo-area choices (new-placement state, outside Advanced) ----
+// Named safe-area buttons for the active product option. Selection reuses the
+// same guarded transition as the Advanced region <select> (cancel gestures,
+// preserve committed placements and typed draft fields, full view
+// update). The Advanced select keeps its hook/identity for exact editing; no
+// duplicate region select is introduced.
+function availableRegionsForChips(): Region[] {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  const product = project && configuration && productForConfiguration(project, configuration);
+  const variant = product?.variants.find((item) => item.id === configuration?.variantId);
+  if (!project || !configuration || !product || !variant) return [];
+  return variant.regionIds
+    .map((id) => product.regions.find((region) => region.id === id))
+    .filter((region): region is Region => region !== undefined);
+}
+
+function applyRegionSelection(regionId: string): void {
+  cancelDrag('Move cancelled because the logo area changed.');
+  cancelPhotoDrag('Move cancelled because the logo area changed.');
+  selectedRegionId = regionId;
+  if (regionSelect.value !== regionId && [...regionSelect.options].some((option) => option.value === regionId)) {
+    regionSelect.value = regionId;
+  }
+  const methods = regionForSelection()?.allowedMethods ?? [];
+  const method = methods.includes(methodSelect.value) ? methodSelect.value : methods[0] ?? '';
+  replaceOptions(methodSelect, methods.map((value) => ({ value, label: value })), method);
+  placementFormDirty = currentPlacement() !== undefined || placementFormDirty;
+  stateGeneration += 1;
+  renderCanvas(); renderContextLine(); renderAreaChips(); updateUnsavedWarning(); updateButtons();
+  resolveActivePhoto(); syncPhotoImage(); refreshModelProof(); renderPrimaryMode(); renderPhotoOverlay();
+  maybeAutoApply();
+}
+
+function selectAreaChip(regionId: string): void {
+  const project = loaded?.project;
+  if (!loaded || !project || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
+  if (!availableRegionsForChips().some((region) => region.id === regionId)) return;
+  if (regionId === selectedRegionId) return;
+  applyRegionSelection(regionId);
+}
+
+function renderAreaChips(): void {
+  const host = areaChipsHost ?? document.querySelector<HTMLElement>('[data-customer-hook="area-chips"]');
+  const empty = areaEmpty ?? document.querySelector<HTMLElement>('[data-customer-hook="area-empty"]');
+  if (!host) return;
+  const project = loaded?.project;
+  const regions = project ? availableRegionsForChips() : [];
+  const busy = !project || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
+  host.replaceChildren();
+  if (!project || currentPlacement() !== undefined) {
+    host.hidden = true;
+    if (empty) empty.hidden = true;
+    return;
+  }
+  if (regions.length === 0) {
+    host.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = 'No logo areas supplied in this product option — open the project file that defines them.';
+    }
+    return;
+  }
+  if (empty) empty.hidden = true;
+  host.hidden = false;
+  const label = document.createElement('p');
+  label.className = 'proof-hint';
+  label.style.flexBasis = '100%';
+  label.textContent = 'Choose an area for this logo';
+  host.append(label);
+  for (const region of regions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'area-chip';
+    button.textContent = region.name?.trim() || `Area ${regions.indexOf(region) + 1}`;
+    button.setAttribute('aria-pressed', region.id === selectedRegionId ? 'true' : 'false');
+    button.disabled = busy;
+    button.title = region.id === selectedRegionId ? `Selected logo area: ${button.textContent}` : `Use ${button.textContent} for this logo`;
+    button.addEventListener('click', () => selectAreaChip(region.id));
+    host.append(button);
   }
 }
 
@@ -1715,6 +1806,9 @@ function updateButtons(): void {
       (button as HTMLButtonElement).disabled = chipsBusy;
     });
   }
+  document.querySelector<HTMLElement>('[data-customer-hook="area-chips"]')?.querySelectorAll('button').forEach((button) => {
+    (button as HTMLButtonElement).disabled = chipsBusy;
+  });
 }
 function isGeometryValid(project: ProjectDocument): boolean {
   try {
@@ -1724,11 +1818,33 @@ function isGeometryValid(project: ProjectDocument): boolean {
   }
 }
 
-function setGeometry(message: string, valid: boolean): void {
-  geometryStatus.textContent = message.startsWith('Fits: yes') ? 'Fits: yes — within the logo area.' : message;
-  geometryStatus.title = message;
+// ---- Short fit warnings (normal UI) + exact verdict (Advanced only) ----
+// Normal copy never carries raw coordinates: short human guidance names the
+// area only. The exact validator verdict stays available textContent-only
+// inside the Advanced technical disclosure.
+function shortFitMessage(areaName: string, ok: boolean): string {
+  if (ok) return 'Fits: yes — within the logo area.';
+  const area = areaName.trim() ? areaName : 'the logo area';
+  return `This logo extends beyond ${area}. Reduce its size or move it inside the area.`;
+}
+
+function setGeometry(message: string, valid: boolean, exactTechnical = ''): void {
+  const short = message.startsWith('Fits: yes') ? 'Fits: yes — within the logo area.' : message;
+  geometryStatus.textContent = short;
+  geometryStatus.title = short;
   geometryStatus.classList.toggle('invalid', !valid);
   geometryStatus.classList.toggle('ok', valid);
+  const wrap = geometryTechnicalWrap ?? document.querySelector<HTMLElement>('[data-customer-hook="geometry-technical-wrap"]');
+  const technical = geometryTechnical ?? document.querySelector<HTMLElement>('[data-customer-hook="geometry-technical"]');
+  if (wrap && technical) {
+    if (exactTechnical && exactTechnical !== short) {
+      technical.textContent = exactTechnical;
+      wrap.hidden = false;
+    } else {
+      technical.textContent = '';
+      wrap.hidden = true;
+    }
+  }
 }
 
 function updateConfirmationState(): void {
@@ -1976,7 +2092,9 @@ function renderCanvas(): void {
     setGeometry(`${configuration.placements.length} placed logo(s) in this product set. Choose a logo area and logo to add one.`, true);
   } else {
     const verdict = selectedPlacementGeometry(project, configuration.id, selectedPlacementIndex!);
-    setGeometry(verdict?.ok ? `Fits: yes — ${verdict.reason}` : `Fits: no — ${verdict?.reason ?? 'Size is unavailable.'}`, verdict?.ok === true);
+    const areaName = displayName(region.id, region.name);
+    const exact = verdict?.ok ? `Fits: yes — ${verdict.reason}` : `Fits: no — ${verdict?.reason ?? 'Size is unavailable.'}`;
+    setGeometry(verdict?.ok ? 'Fits: yes — within the logo area.' : shortFitMessage(areaName, false), verdict?.ok === true, exact);
   }
 }
 
@@ -2023,7 +2141,9 @@ function renderReview(): void {
       group.append(item);
       line(item, `${region?.name ?? `Logo ${index + 1}`} · ${logo?.name ?? 'Your artwork'}`, 'h4');
       line(item, `Width × height: ${formatMm(placement.widthMm)} mm × ${formatMm(placement.heightMm)} mm`);
-      const fitLine = line(item, fit?.ok ? 'Fits: yes — within the logo area.' : `Fits: no — ${fit?.reason ?? 'Size is unavailable.'}`);
+      const areaName = displayName(region?.id ?? placement.regionId, region?.name);
+      const exactFit = fit?.ok ? `Fits: yes — ${fit.reason}` : `Fits: no — ${fit?.reason ?? 'Size is unavailable.'}`;
+      const fitLine = line(item, fit?.ok ? 'Fits: yes — within the logo area.' : shortFitMessage(areaName, false));
       fitLine.className = fit?.ok ? 'review-fit' : 'review-fit invalid';
       const measurements = document.createElement('details');
       measurements.className = 'review-measurements';
@@ -2034,6 +2154,8 @@ function renderReview(): void {
       line(measurements, `Directions: +x ${region?.frame.axes.xPositive ?? 'unknown'}; +y ${region?.frame.axes.yPositive ?? 'unknown'}`);
       line(measurements, `Center: ${formatMm(placement.pos.xMm)} mm, ${formatMm(placement.pos.yMm)} mm (logo middle, offsets along the area's +x and +y from its reference point)`);
       line(measurements, `Turn clockwise: ${formatMm(placement.rotationDeg)}°`);
+      const technical = line(measurements, `Technical details: ${exactFit}`);
+      technical.className = 'review-technical';
       if (placement.instructions) line(item, `Note about this logo: ${placement.instructions}`);
       references.push(`Logo ${placementLabel(configuration, index)}: ${placement.logoId}; area ${placement.regionId}`);
     }
@@ -2067,6 +2189,7 @@ function renderAll(): void {
     renderContextLine();
     renderLogoThumb();
     renderLogoChips();
+    renderAreaChips();
     updateUnsavedWarning();
     refreshModelProof();
     renderPrimaryMode();
@@ -2092,6 +2215,7 @@ function renderAll(): void {
   renderContextLine();
   renderLogoThumb();
   renderLogoChips();
+  renderAreaChips();
   updateUnsavedWarning();
   refreshModelProof();
   renderPrimaryMode();
@@ -2557,7 +2681,10 @@ function renderDragPreview(current: DragState): void {
     if (label) { label.setAttribute('x', String(current.previewX)); label.setAttribute('y', String(-current.previewY)); }
     xInput.value = String(current.previewX);
     yInput.value = String(current.previewY);
-    setGeometry(`Moving… fits: ${verdict.ok ? 'yes' : 'no'}; ${verdict.reason}. Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok);
+    const areaName = displayName(region.id, region.name);
+    const short = verdict.ok ? 'Fits: yes — within the logo area.' : shortFitMessage(areaName, false);
+    const exact = verdict.ok ? `Fits: yes — ${verdict.reason}` : `Fits: no — ${verdict.reason}`;
+    setGeometry(`Moving… ${short} Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok, exact);
   } catch (error) {
     polygon.classList.add('invalid');
     setGeometry(`That spot was rejected: ${error instanceof Error ? error.message : String(error)}`, false);
@@ -2748,7 +2875,10 @@ function renderPhotoDragPreview(current: PhotoDragState): void {
     }
     xInput.value = String(current.previewX);
     yInput.value = String(current.previewY);
-    setGeometry(`Moving… fits: ${verdict.ok ? 'yes' : 'no'}; ${verdict.reason}. Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok);
+    const areaName = displayName(region.id, region.name);
+    const short = verdict.ok ? 'Fits: yes — within the logo area.' : shortFitMessage(areaName, false);
+    const exact = verdict.ok ? `Fits: yes — ${verdict.reason}` : `Fits: no — ${verdict.reason}`;
+    setGeometry(`Moving… ${short} Let go to save this spot as a new version; press Escape to drop it.`, verdict.ok, exact);
   } catch (error) {
     polygon.classList.add('invalid');
     setGeometry(`That spot was rejected: ${error instanceof Error ? error.message : String(error)}`, false);
@@ -3049,17 +3179,7 @@ variantSelect.addEventListener('change', () => {
   if (configuration) chooseProductOrVariant(configuration.productId, variantSelect.value);
 });
 regionSelect.addEventListener('change', () => {
-  cancelDrag('Move cancelled because the logo area changed.');
-  cancelPhotoDrag('Move cancelled because the logo area changed.');
-  selectedRegionId = regionSelect.value;
-  const methods = regionForSelection()?.allowedMethods ?? [];
-  const method = methods.includes(methodSelect.value) ? methodSelect.value : methods[0] ?? '';
-  replaceOptions(methodSelect, methods.map((value) => ({ value, label: value })), method);
-  placementFormDirty = currentPlacement() !== undefined;
-  stateGeneration += 1;
-  renderCanvas(); renderContextLine(); updateUnsavedWarning(); updateButtons();
-  resolveActivePhoto(); syncPhotoImage(); refreshModelProof(); renderPrimaryMode(); renderPhotoOverlay();
-  maybeAutoApply();
+  applyRegionSelection(regionSelect.value);
 });
 logoSelect.addEventListener('change', () => {
   // Switching logos never loses applied edits: block the switch while

@@ -75,6 +75,10 @@
     .logo-chips[hidden] { display:none; }
     .logo-chip { min-height:40px; font-size:14px; padding:8px 14px; border:1px solid var(--line); border-radius:16px; background:#fff; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .logo-chip[aria-pressed=true] { background:#192d3d; border-color:#192d3d; color:#fff; font-weight:600; }
+    .area-chips { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; min-width:0; max-width:100%; }
+    .area-chips[hidden] { display:none; }
+    .area-chip { min-height:40px; font-size:14px; padding:8px 14px; border:1px solid var(--line); border-radius:16px; background:#fff; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .area-chip[aria-pressed=true] { background:#192d3d; border-color:#192d3d; color:#fff; font-weight:600; }
     .proof-hint { font-size:13px; color:var(--muted); margin:0 0 12px; }
     .review-heading { font-size:18px; margin:0 0 10px; }
     .task-rail .field-row { margin:12px 0; }
@@ -266,6 +270,8 @@
 
         <div data-step-panel="edit">
           <div class="logo-chips" data-customer-hook="logo-chips" role="group" aria-label="Placed logos" hidden></div>
+          <div class="area-chips" data-customer-hook="area-chips" role="group" aria-label="Choose a logo area" hidden></div>
+          <p class="muted small" data-customer-hook="area-empty" hidden>No logo areas supplied in this product option — open the project file that defines them.</p>
           <p class="proof-hint" data-customer-hook="proof-hint" hidden>Drag a logo on the garment to move it. Drag a corner to resize — shape stays linked.</p>
           <label>Placement instructions (optional)<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
           <details class="precise" data-customer-hook="precise-position">
@@ -306,6 +312,7 @@
         </div>
 
         <p data-customer-hook="geometry" class="geometry">Open a project to see whether your logo fits.</p>
+        <details class="precise" data-customer-hook="geometry-technical-wrap" hidden><summary>Technical details (advanced)</summary><p class="muted small" data-customer-hook="geometry-technical"></p></details>
         <button data-customer-hook="update" type="button" disabled hidden>Apply my changes</button>
 
         <p data-customer-hook="unsaved-warning" hidden></p>
