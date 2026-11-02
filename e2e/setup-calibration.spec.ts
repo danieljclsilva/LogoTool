@@ -2601,6 +2601,10 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.name).toBe('Left chest');
     await page.locator('[data-canvas-context-dismiss]').click();
     await modelSetup(page, 'tool-edit').click();
+    const beforeSelection = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points;
+    expect(await hCall(page, 'profileCornerSelection')).toEqual({ projections: 0, picks: 0 });
+    expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(beforeSelection);
+    await page.keyboard.press('Escape');
     await modelSetup(page, 'canvas-handle-side-0').click();
     expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toHaveLength(5);
     await modelSetup(page, 'canvas-handle-corner-1').click();
@@ -2642,3 +2646,58 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     expectOfflineClean(probe);
   } finally { await context.close(); }
 });
+
+for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  test(`station polygon tools keep the picking canvas fixed at ${viewport.width}x${viewport.height}`, async ({ browser }, info) => {
+    test.setTimeout(90_000);
+    const { context, page, probe } = await openStation(browser, viewport);
+    try {
+      await attachEnv(info, browser, viewport, 'stable polygon authoring controls');
+      await stageIntakeModel(page, 'stable-box.glb', cubeGlb());
+      await (await shown(page, 'product-name')).fill('Stable polygon box');
+      await (await shown(page, 'product-add')).click();
+      const pane = builder(page, 'product-model');
+      const ms = (name: string) => pane.locator(`[data-model-setup-hook="${name}"]`);
+      await ms('view-front').click();
+      const canvas = pane.locator('canvas');
+      const documentBox = async () => {
+        const box = (await canvas.boundingBox())!;
+        const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
+        return { ...box, x: box.x + scroll.x, y: box.y + scroll.y };
+      };
+      const original = await documentBox();
+      const expectStable = async () => {
+        const current = await documentBox();
+        for (const key of ['x', 'y', 'width', 'height'] as const) {
+          expect(Math.abs(current[key] - original[key]), `canvas ${key}`).toBeLessThanOrEqual(1);
+        }
+      };
+      await ms('tool-freehand').click();
+      await expect(ms('area-name')).toBeVisible();
+      await expect(ms('area-finish')).toBeVisible();
+      await expectStable();
+      await ms('area-name').fill('Chest');
+      for (const [x, y] of [[.46, .43], [.54, .43], [.54, .53], [.46, .53]]) {
+        await canvas.scrollIntoViewIfNeeded();
+        const box = (await canvas.boundingBox())!;
+        await page.mouse.click(box.x + box.width * x!, box.y + box.height * y!);
+        await expectStable();
+      }
+      await expect(ms('status')).toContainText('Area point 4');
+      await ms('area-finish').click();
+      await expect(ms('area-list')).toContainText('Chest');
+      await expectStable();
+      await ms('tool-edit').click();
+      await expect(ms('outline-point')).toBeVisible();
+      await expect(ms('outline-curve')).toBeVisible();
+      await expectStable();
+      await ms('tool-rotate').click();
+      await expectStable();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+      const screenshot = info.outputPath('stable-authoring.png');
+      await page.screenshot({ path: screenshot });
+      await info.attach('stable-authoring', { path: screenshot, contentType: 'image/png' });
+      expectOfflineClean(probe);
+    } finally { await context.close(); }
+  });
+}

@@ -213,6 +213,15 @@ export interface PlacementWorkspaceHandle {
   applyPendingEdits(): { applied: number; blocked: number };
   /** Discard every staged placement edit without committing. */
   discardPendingEdits(): number;
+  /**
+   * Rebase derived drafts after an external project swap (e.g. adopting a
+   * validated customer response). Auto-created mirrors that matched the
+   * previous committed values are stale by definition and are dropped, so
+   * the swap never manufactures "unapplied" edits; real operator drafts
+   * that already differed keep their guard. Drafts whose scope vanished
+   * are invalidated. Never commits.
+   */
+  rebaseAfterProjectSwap(previous: ProjectDocument): void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3889,6 +3898,62 @@ export function mountPlacementWorkspace(
     return count;
   }
 
+  function rebaseAfterProjectSwap(previous: ProjectDocument): void {
+    let current: ProjectDocument;
+    try {
+      current = deps.getProject();
+    } catch { return; }
+    const liveKeys = new Set<string>();
+    for (const configuration of current.configurations) {
+      configuration.placements.forEach((placement, index) => {
+        liveKeys.add(placementKeyOf(configuration.id, placement, index));
+      });
+    }
+    const previousByKey = new Map<string, Placement>();
+    for (const configuration of previous.configurations) {
+      configuration.placements.forEach((placement, index) => {
+        const key = placementKeyOf(configuration.id, placement, index);
+        if (!previousByKey.has(key)) previousByKey.set(key, placement);
+      });
+    }
+    for (const [key, edit] of [...staged]) {
+      const old = previousByKey.get(key);
+      if (old !== undefined && !stagedDiffers(old, edit)) {
+        // Merely mirrored the pre-swap committed values (render-created):
+        // the swap changed the geometry, so this is stale, not a user edit.
+        staged.delete(key);
+        continue;
+      }
+      if (!liveKeys.has(key)) {
+        // Scope is gone; nothing left to apply to.
+        staged.delete(key);
+        ratioLocks.delete(key);
+      }
+    }
+    for (const key of [...ratioLocks.keys()]) {
+      if (!liveKeys.has(key)) ratioLocks.delete(key);
+    }
+    // A dirty add draft whose artwork or safe area vanished cannot apply:
+    // clear it. Valid drafts stay guarded (they still block save/review).
+    if (addDraft !== null && isAddDirty(addDraft)) {
+      const logoGone = addDraft.logoId !== '' &&
+        !current.logos.some((logo) => logo.id === addDraft?.logoId);
+      const regionGone = addDraft.regionId !== '' &&
+        !current.products.some((product) => product.regions.some((region) => region.id === addDraft?.regionId));
+      if (logoGone || regionGone) {
+        addDraft = null;
+        addOpen = false;
+      }
+    }
+    // Diagram picks/previews are transient canvas state bound to the previous
+    // geometry: drop them, keep the chosen anchor/edge/convention.
+    if (measureDraft !== null) {
+      measureDraft.picking = null;
+      measureDraft.preview = null;
+    }
+    update();
+  }
+
   update();
 
   // Native tray drops use the existing calibrated surface/diagram inverse.
@@ -3929,6 +3994,7 @@ export function mountPlacementWorkspace(
     pendingEdits: collectPendingEdits,
     applyPendingEdits,
     discardPendingEdits,
+    rebaseAfterProjectSwap,
     update,
     destroy() {
       destroyed = true;

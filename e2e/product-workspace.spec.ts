@@ -57,7 +57,9 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       }
       const stageBox = (await canvas.boundingBox())!;
       expect(stageBox.height).toBeGreaterThanOrEqual(180);
-      if (viewport.width >= 700) expect(stageBox.y).toBeLessThan(150);
+      // The fixed command row remains available across drawing modes. The
+      // enlarged product must still fit fully inside the viewport.
+      expect(stageBox.y + stageBox.height).toBeLessThan(viewport.height);
       // Polygon cancellation belongs to the editor, not the enclosing dialog.
 
       await ms(page, 'tool-freehand').click();

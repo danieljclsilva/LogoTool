@@ -909,6 +909,9 @@ export function createModelSetupView(
   /** Client-space press tolerance (CSS px) for direct canvas handles. */
   const CANVAS_HANDLE_HIT_PX = 11;
 
+  /** Layout-affecting handle state (positions/visibility; selection excluded). */
+  let lastHandleLayoutSig = '';
+
   /** Last laid-out handle models (null = hidden that pass); press-checked. */
   let handleModelsCache: Array<SetupVec3 | null> = [];
 
@@ -1005,6 +1008,7 @@ export function createModelSetupView(
     handleLayer = null;
     handleDots = [];
     handleModelsCache = [];
+    lastHandleLayoutSig = '';
     const layer = document.createElement('div');
     layer.setAttribute(HOOK, 'canvas-handles');
     layer.style.position = 'absolute';
@@ -1075,7 +1079,50 @@ export function createModelSetupView(
    * point both projects and re-picks within tolerance — occluded, backface
    * or missed handles hide instead of guessing. Display-only; stored
    * polygons change only through the existing handle-gesture commit.
+   *
+   * Exact view/geometry signatures reuse layout on selection-only refreshes;
+   * all real presses still verify the live surface.
    */
+  function handleLayoutSig(
+    revision: number,
+    draft: ProductDraft,
+    area: { id: string; points: SetupVec3[] },
+  ): string {
+    return [
+      revision,
+      area.id,
+      JSON.stringify(area.points),
+      draft.safeAreasVisible,
+      draft.productVisible,
+      armed ?? '',
+      panMode,
+      gesture !== null,
+      pendingHandle !== null,
+    ].join('|');
+  }
+
+  /** Selection/text-only repaint for laid-out dots: no projection, no picks. */
+  function paintHandleSelection(draft: ProductDraft, rect: { id: string; name: string; points: SetupVec3[] }): void {
+    for (let index = 0; index < handleDots.length; index += 1) {
+      const dot = handleDots[index];
+      if (!dot) continue;
+      const ref = areaHandleRefFor(index, rect.id, rect.points.length);
+      const selected = ref.kind === 'corner' && draft.handleArm?.areaId === rect.id && draft.handleArm.index === ref.index;
+      dot.setAttribute('aria-pressed', String(selected));
+      const square = dot.firstElementChild as HTMLElement | null;
+      if (square) {
+        square.style.background = selected ? '#0072ce' : '#fff';
+        if (ref.kind === 'side') square.textContent = draft.areaTool === 'edit' && outlineAction === 'curve' ? '⌁' : '+';
+      }
+      dot.setAttribute(
+        'aria-label',
+        ref.kind === 'corner'
+          ? `Drag corner ${ref.index + 1} of “${rect.name}” on the model. Delete removes.`
+          : `${draft.areaTool === 'edit' && outlineAction === 'curve' ? 'Bend' : 'Insert a corner on'} edge ${ref.index + 1} of “${rect.name}”`,
+      );
+    }
+  }
+
   function syncHandleLayer(): void {
     if (destroyed) {
       return;
@@ -1085,6 +1132,7 @@ export function createModelSetupView(
     const stage = canvas?.parentElement ?? null;
     if (!viewer || !canvas || !stage || canvas.getClientRects().length === 0) {
       if (handleLayer !== null) handleLayer.style.display = 'none';
+      lastHandleLayoutSig = '';
       return;
     }
     const resolved = currentDraft();
@@ -1104,6 +1152,14 @@ export function createModelSetupView(
       typeof viewer.projectToClient === 'function';
     layer.style.display = shown ? '' : 'none';
     if (!shown || rect === null || draft === null) {
+      lastHandleLayoutSig = '';
+      return;
+    }
+    const revision = frameRevision();
+    const layoutSig = handleLayoutSig(revision, draft, rect);
+    // Legacy adapters without a revision retain exact per-frame layout.
+    if (revision >= 0 && layoutSig === lastHandleLayoutSig) {
+      paintHandleSelection(draft, rect);
       return;
     }
     const models = areaHandleModels(rect.points);
@@ -1148,6 +1204,7 @@ export function createModelSetupView(
           : `${draft.areaTool === 'edit' && outlineAction === 'curve' ? 'Bend' : 'Insert a corner on'} edge ${ref.index + 1} of “${rect.name}”`,
       );
     });
+    lastHandleLayoutSig = layoutSig;
   }
 
   /** Cheap draft identity for frame gating (no projection, no picks). */
@@ -1193,6 +1250,7 @@ export function createModelSetupView(
         /* best-effort teardown */
       }
       framedViewer = live;
+      lastHandleLayoutSig = '';
       // A new live viewer starts unsettled so the next frame lays out once.
       lastFrameRevision = -1;
       lastFrameDraftKey = '';
@@ -1418,8 +1476,13 @@ export function createModelSetupView(
     const area = draft.areas.find((candidate) => candidate.id === draft.selectedAreaId);
     if (!area || area.points.length < 3 || draft.areaTool !== 'edit') return;
     if (!draft.safeAreasVisible || !draft.productVisible) return;
-    let bestEdge = -1;
-    let bestDist = 28;
+    // Projection-first pass (no surface picks): rank edges by screen
+    // distance, then verify the nearest verifying edge only. Press-time
+    // verification is unchanged — an edge still commits only when both of
+    // its corners re-pick within tolerance and the click itself hits the
+    // live surface — but a dense ring no longer raycasts every endpoint.
+    const tolerance = Math.max(1e-9, longestChord(area.points) * .01);
+    const candidates: Array<{ edge: number; dist: number; from: { x: number; y: number }; to: { x: number; y: number } }> = [];
     for (let edge = 0; edge < area.points.length; edge += 1) {
       const a = area.points[edge]!;
       const b = area.points[(edge + 1) % area.points.length]!;
@@ -1432,14 +1495,24 @@ export function createModelSetupView(
         continue;
       }
       if (from === null || to === null) continue;
-      const ah = safePick(viewer, from.x, from.y), bh = safePick(viewer, to.x, to.y);
-      const tolerance = Math.max(1e-9, longestChord(area.points) * .01);
+      candidates.push({
+        edge,
+        dist: pointSegmentDistancePx(event.clientX, event.clientY, from.x, from.y, to.x, to.y),
+        from,
+        to,
+      });
+    }
+    candidates.sort((x, y) => x.dist - y.dist);
+    let bestEdge = -1;
+    for (const candidate of candidates) {
+      if (candidate.dist >= 28) break;
+      const a = area.points[candidate.edge]!;
+      const b = area.points[(candidate.edge + 1) % area.points.length]!;
+      const ah = safePick(viewer, candidate.from.x, candidate.from.y);
+      const bh = safePick(viewer, candidate.to.x, candidate.to.y);
       if (!ah || !bh || chordNative(a, ah) > tolerance || chordNative(b, bh) > tolerance) continue;
-      const distance = pointSegmentDistancePx(event.clientX, event.clientY, from.x, from.y, to.x, to.y);
-      if (distance < bestDist) {
-        bestDist = distance;
-        bestEdge = edge;
-      }
+      bestEdge = candidate.edge;
+      break;
     }
     if (bestEdge < 0) return;
     const hit = safePick(viewer, event.clientX, event.clientY);
@@ -1941,6 +2014,9 @@ export function createModelSetupView(
     const paintStatus = (message: string): void => {
       lastStatus = message;
       statusBox.textContent = message;
+      statusBox.hidden = message.length === 0;
+      const hint = document.querySelector<HTMLElement>('[data-model-setup-hook="mode-hint"]');
+      if (hint) hint.hidden = message.length > 0;
       try {
         callbacks.onStatus(message);
       } catch {
@@ -1978,8 +2054,10 @@ export function createModelSetupView(
     renderAreas(root, entry, draft, paintStatus);
     renderAdvanced(root, entry, draft, paintStatus);
     mountContext();
-    const controls = document.querySelector('[data-model-setup-hook="author-tools"]');
+    const controls = document.querySelector('[data-model-setup-hook="feedback"]') ??
+      document.querySelector('[data-model-setup-hook="author-tools"]');
     // Keep action feedback beside the surface, rather than below long lists.
+    statusBox.hidden = lastStatus.length === 0;
     if (controls) controls.append(statusBox);
     else root.append(statusBox);
     paintViewer(draft);
@@ -2222,9 +2300,8 @@ export function createModelSetupView(
     intro.textContent = 'Name areas for different logo positions. Select an area to edit it; save the setup when you are done.';
     section.append(intro);
 
-    // Authoring tool (point polygon, or press-drag rectangle starter). The
-    // switch lives here with the area actions; the viewbar above the preview
-    // carries only zoom and visibility.
+    // Keep primary authoring actions beside the model. Inactive groups
+    // retain their layout footprint so changing tools cannot shift a pick.
     const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
     toolRow.setAttribute('role', 'group');
     toolRow.setAttribute('aria-label', 'Safe-area authoring tool');
@@ -2232,6 +2309,8 @@ export function createModelSetupView(
       const button = el('button', `tool-${tool}`, 'btn-secondary');
       button.type = 'button';
       button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'edit' ? 'Edit outline' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
+      button.setAttribute('aria-label', button.textContent);
+      button.title = button.textContent;
       button.setAttribute('data-ps-tool', tool);
       button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
       if (draft.areaTool === tool) button.classList.add('is-selected');
@@ -2255,19 +2334,26 @@ export function createModelSetupView(
       });
       toolRow.append(button);
     }
-    const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
-    (authorTools ?? section).append(toolRow);
-    if (draft.areaTool === 'edit') {
-      const modes = el('div', 'outline-actions', 'model-setup-row');
-      for (const mode of ['point', 'curve'] as const) {
-        const button = el('button', `outline-${mode}`, 'btn-secondary'); button.type = 'button';
-        button.textContent = mode === 'point' ? 'Add points' : 'Bend edge';
-        button.setAttribute('aria-pressed', String(outlineAction === mode));
-        button.addEventListener('click', () => { cancelGestureSilent(); draft.curveArm = null; draft.handleArm = null; outlineAction = mode; refresh(); });
-        modes.append(button);
-      }
-      (authorTools ?? section).append(modes);
+    const modes = el('div', 'outline-actions', 'model-setup-row');
+    modes.setAttribute('role', 'group');
+    modes.setAttribute('aria-label', 'Outline editing mode (Edit outline tool)');
+    const outlineEnabled = draft.areaTool === 'edit';
+    for (const mode of ['point', 'curve'] as const) {
+      const button = el('button', `outline-${mode}`, 'btn-secondary'); button.type = 'button';
+      button.textContent = mode === 'point' ? 'Add points' : 'Bend edge';
+      button.setAttribute('aria-label', button.textContent);
+      button.title = button.textContent;
+      button.setAttribute('aria-pressed', String(outlineEnabled && outlineAction === mode));
+      button.disabled = !outlineEnabled;
+      if (outlineEnabled && outlineAction === mode) button.classList.add('is-selected');
+      button.addEventListener('click', () => { cancelGestureSilent(); draft.curveArm = null; draft.handleArm = null; outlineAction = mode; refresh(); });
+      modes.append(button);
     }
+    const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
+    const commands = el('div', 'command-strip', 'model-setup-command-strip');
+    (authorTools ?? section).append(toolRow, commands);
+    commands.append(modes);
+    modes.style.visibility = outlineEnabled ? '' : 'hidden';
     if (draft.areaTool === 'rectangle') {
       const rectHint = el('p', 'areas-rect-hint', 'model-setup-hint muted');
       rectHint.textContent =
@@ -2293,12 +2379,16 @@ export function createModelSetupView(
     nameInput.value = draft.drawingName;
     nameInput.setAttribute(HOOK, 'area-name');
     nameInput.setAttribute('aria-label', 'Safe-area name');
+    // Fixed layout: the name field stays mounted for every tool and is only
+    // disabled while Edit outline owns the panel (it names new drawings).
+    nameInput.disabled = draft.areaTool === 'edit';
     nameInput.addEventListener('input', () => {
       draft.drawingName = nameInput.value;
     });
     nameLabel.append(nameInput);
     form.append(nameLabel);
-    if (draft.areaTool !== 'edit') (authorTools ?? section).append(form);
+    form.style.visibility = outlineEnabled ? 'hidden' : '';
+    commands.append(form);
 
     const actions = el('div', 'areas-actions', 'model-setup-actions');
     const finish = el('button', 'area-finish', 'btn-primary');
@@ -2354,6 +2444,8 @@ export function createModelSetupView(
     const cancel = el('button', 'area-cancel', 'btn-secondary');
     cancel.type = 'button';
     cancel.textContent = 'Cancel drawing';
+    cancel.setAttribute('aria-label', cancel.textContent);
+    cancel.title = cancel.textContent;
     cancel.disabled = draft.drawing === null;
     cancel.addEventListener('click', () => {
       draft.drawing = null;
@@ -2363,9 +2455,13 @@ export function createModelSetupView(
       refresh();
     });
     const undo = el('button', 'area-undo', 'btn-secondary'); undo.type = 'button'; undo.textContent = 'Undo point'; undo.disabled = !draft.drawing?.length;
+    undo.setAttribute('aria-label', undo.textContent); undo.title = undo.textContent;
     undo.addEventListener('click', () => { draft.drawing?.pop(); lastStatus = 'Last corner undone.'; refresh(); });
     actions.append(finish, undo, cancel);
-    if (draft.areaTool === 'freehand') (authorTools ?? section).append(actions);
+    // Fixed layout: drawing actions stay mounted for every tool; the buttons
+    // already disable themselves outside an active drawing.
+    actions.style.visibility = draft.areaTool === 'freehand' ? '' : 'hidden';
+    commands.append(actions);
 
     const list = el('div', 'area-list', 'model-setup-list');
     if (draft.areas.length === 0) {
@@ -2414,6 +2510,14 @@ export function createModelSetupView(
     // Rename + accessible corner/curve editing for the selected area.
     // Direct square handles on the model remain the primary controls.
     const selected = draft.areas.find((area) => area.id === draft.selectedAreaId);
+    const editSlot = el('div', 'edit-actions-slot', 'model-setup-edit-slot');
+    commands.append(editSlot);
+    editSlot.style.visibility = draft.areaTool === 'edit' ? '' : 'hidden';
+    if (selected === undefined) {
+      const placeholder = el('button', 'handle-remove', 'btn-secondary');
+      placeholder.type = 'button'; placeholder.textContent = 'Remove selected corner'; placeholder.disabled = true;
+      editSlot.append(placeholder);
+    }
     if (selected !== undefined && selected.points.length >= 3) {
       const renameRow = el('div', 'area-rename-row', 'model-setup-row');
       const renameLabel = document.createElement('label');
@@ -2504,6 +2608,7 @@ export function createModelSetupView(
       removeSelected.type = 'button';
       removeSelected.textContent = armedCornerIndex === null ? 'Remove selected corner' : `Remove corner ${armedCornerIndex + 1}`;
       removeSelected.disabled = armedCornerIndex === null;
+      removeSelected.hidden = draft.curveArm !== null;
       removeSelected.setAttribute(
         'aria-label',
         armedCornerIndex === null
@@ -2523,7 +2628,9 @@ export function createModelSetupView(
           ? ''
           : `Corner ${armedCornerIndex + 1} selected — removal keeps the outline valid (minimum 3 corners).`;
       removeRow.append(removeSelected, removeHint);
-      (draft.areaTool === 'edit' ? (authorTools ?? section) : section).append(removeRow);
+      // Reuse the fixed toolbar slot; explanatory text stays in Areas.
+      editSlot.append(removeSelected);
+      section.append(removeHint);
 
       const curveDetails = document.createElement('details');
       curveDetails.open = curveDetailsOpen;
@@ -2593,13 +2700,18 @@ export function createModelSetupView(
         const bendCancel = el('button', 'curve-cancel', 'btn-secondary');
         bendCancel.type = 'button';
         bendCancel.textContent = 'Cancel bend';
+        bendCancel.setAttribute('aria-label', bendCancel.textContent);
+        bendCancel.title = bendCancel.textContent;
         bendCancel.addEventListener('click', () => {
           draft.curveArm = null;
           lastStatus = 'Bend cancelled — outline unchanged.';
           refresh();
         });
         bendRow.append(bendLabel, bendApply, bendCancel);
-        (authorTools ?? section).append(bendRow);
+        // Reuse the reserved edit row instead of moving the model when
+        // the bend preview exposes its Apply and Cancel actions.
+        bendRow.classList.add('model-setup-bend-actions');
+        editSlot.append(bendRow);
       }
       section.append(curveDetails);
     }
@@ -2607,7 +2719,8 @@ export function createModelSetupView(
     const recompute = el('button', 'areas-recompute', 'btn-secondary');
     recompute.type = 'button';
     const staleCount = draft.areas.filter((a) => a.status === 'stale').length;
-    recompute.textContent = `Recompute ${staleCount} stale area(s) under current calibration`;
+    recompute.textContent = `Recompute ${staleCount} stale area(s)`;
+    recompute.title = 'Recompute these areas under the current calibration';
     recompute.disabled = staleCount === 0 || draft.fitted === null || draft.fitStale;
     recompute.addEventListener('click', () => {
       if (!draft.fitted || draft.fitStale) {
@@ -2690,8 +2803,12 @@ export function createModelSetupView(
       : tool === 'edit' ? 'Drag points to reshape. Click + to add, or choose Bend edge. Select a point to remove it.'
       : tool === 'rectangle' ? 'Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.'
       : 'Polygon: click to add corners; click the first square or Enter to close. Backspace undoes; Escape cancels.';
-    modeHint.hidden = tool === 'rotate' && !panMode;
-    tools.append(modeHint);
+    // Hint and action feedback share one fixed row. A status message takes
+    // priority without adding a second row or moving the model.
+    const feedback = el('div', 'feedback', 'model-setup-feedback');
+    modeHint.hidden = lastStatus.length > 0;
+    feedback.append(modeHint);
+    tools.append(feedback);
     const viewer = viewerOf();
     const zoomOf = (): number => {
       try {

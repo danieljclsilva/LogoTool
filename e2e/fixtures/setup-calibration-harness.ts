@@ -66,6 +66,23 @@ function base64ToBytes(base64: string): Uint8Array {
 }
 
 window.__setupHarness = {
+  /** Count real viewer work while selecting existing corners, without
+   * changing the polygon or depending on wall-clock thresholds. */
+  profileCornerSelection(): { projections: number; picks: number } {
+    if (!viewer) throw new Error('No viewer');
+    const live = viewer, project = live.projectToClient, pick = live.pickSurface;
+    let projections = 0, picks = 0;
+    live.projectToClient = function (...args) { projections++; return project.apply(this, args); };
+    live.pickSurface = function (...args) { picks++; return pick.apply(this, args); };
+    try {
+      for (const index of [0, 1]) {
+        const button = host.querySelector<HTMLButtonElement>(`[data-model-setup-hook="handle-corner-${index}"]`);
+        if (!button) throw new Error('Missing corner control');
+        button.click();
+      }
+      return { projections, picks };
+    } finally { live.projectToClient = project; live.pickSurface = pick; }
+  },
   /** Count real projection/pick work, without wall-clock performance thresholds. */
   async profileFrames(mode: string): Promise<{ projections: number; picks: number }> {
     if (!viewer) throw new Error('No viewer');

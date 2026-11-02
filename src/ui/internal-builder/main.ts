@@ -3975,6 +3975,10 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
   suppressJobDirty = true;
   try {
     assertProjectEditorLimits(project);
+    const priorFocus = source === null ? null : { ...source.selection };
+    const priorTouched = configurationsTouched;
+    const priorLogoIds = new Set(readSelection().logoIds);
+    const previousProject = source?.project ?? null;
     // Preserve office-authored definitions that still resolve in the
     // validated response (decision 14): carry the live authoring across the
     // project swap, then prune dead scope. Identity inputs reset below.
@@ -4003,8 +4007,29 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
       source.logoTechnique = carried.logoTechnique;
       source.anchors = carried.anchors;
     }
-    configurationsTouched = false;
-    renderSelectionLists(source.summary);
+    configurationsTouched = priorTouched;
+    // Reuse exact checkbox preservation, including explicit empty variant
+    // subsets. Adoption must never broaden an operator's chosen scope.
+    renderSelectionLists(source.summary, true);
+    for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      box.checked = priorLogoIds.has(box.value);
+    }
+    if (priorFocus !== null && source.project.products.some((product) =>
+      product.id === priorFocus.productId && product.variants.some((variant) => variant.id === priorFocus.variantId))) {
+      const configuration = source.project.configurations.find((entry) =>
+        entry.productId === priorFocus.productId && entry.variantId === priorFocus.variantId);
+      const placementResolves = configuration?.placements.some((placement, index) =>
+        (placement.id ?? `index:${index}`) === priorFocus.placementId) ?? false;
+      source.selection = { ...priorFocus, placementId: placementResolves ? priorFocus.placementId : null };
+    }
+    defaultPlacementSelection();
+    workspaceProductId = source.selection.productId || null;
+    workspaceVariantId = source.selection.variantId || null;
+    if (placementHandle !== null && previousProject !== null) {
+      try {
+        placementHandle.rebaseAfterProjectSwap(previousProject);
+      } catch { /* rebase is best-effort; surviving drafts stay visibly guarded */ }
+    }
     stagedPhotoMappings = [];
     guidedScale.hide();
     refreshWorkspace();

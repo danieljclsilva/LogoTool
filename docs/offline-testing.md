@@ -1,5 +1,67 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Polygon authoring and return-adoption repair — 2026-11-02
+
+The operator drawing toolbar keeps a persistent command strip and a single
+feedback row. Switching Rotate/Polygon/Edit, adding points and showing action
+feedback no longer changes the picking canvas position or size. Finish, point
+removal and bend actions stay beside the model. Phone controls use labelled,
+keyboard-accessible compact icons; the normal view reserves space for Save,
+and the enlarged phone controls remain accessible. Long private setup-status
+text can still leave less model height than the normal scrollable phone view;
+collapsing those technical details is a remaining UX opportunity. The
+workspace acceptance assertion checks the complete enlarged canvas fits the
+viewport rather than retaining an old toolbar pixel offset.
+
+Adopting a checked return preserves valid product, option, setup and artwork
+inclusion. Exact checkbox preservation also retains empty/narrowed choices.
+Render-created placement-field mirrors are rebased against the prior project;
+real operator drafts retain their apply/discard guard. Immediate save and
+reissue no longer require manual reselection or a stale-edit dismissal.
+
+Model setup caches exact handle layout by viewer, view revision and polygon
+coordinates. Layer/viewer replacement invalidates it; adapters without a view
+revision keep their uncached fallback. Reference/anchor overlays reuse identical
+data, and selection-only safe-area styling reuses the existing surface geometry.
+Actual presses still verify the live surface. A synthetic work counter checks
+that selecting two existing corners does zero additional projections/surface
+picks and preserves every point. Real insertion/removal, drag, bend, cancellation,
+visibility and save/reopen acceptance remain in place.
+
+The original private 100% handle-overlap report was corrected: native pointer
+input already resolved the nearest handle and inserted correctly. Playwright's
+locator overlap refusal was not a broken native insertion action. No crowded
+edge is now hidden merely to satisfy that locator check. A baseline archive of
+unchanged HEAD reproduces the old phone enlargement failure; the current
+phone workspace test passes.
+
+OpenCode Contributor workers supplied the initial implementation. Codex stopped
+the delegated pass at its bounded handoff, independently reviewed and corrected
+layout/control accessibility, cache invalidation and inclusion restoration, then
+performed final verification. No domain schemas, calibration authority, physical
+geometry, original assets, dependencies or Odoo behavior changed. No external
+uploads or Odoo calls were performed during validation.
+
+Final verification: typecheck passes; Node tests pass 866/866; affected-path
+Chromium acceptance passes 59/59; installed Chrome acceptance passes 14/14.
+The complete repository browser suite and Edge were not run. Acceptance opens
+built files directly through offline file:// contexts and asserts zero HTTP(S),
+page errors and console errors. Tested viewports include 1440×1000, 1440×900,
+1440×781, 1280×900, 1280×720 and 390×844. Environment: Darwin 27.2.0 arm64,
+Chromium 156.0.8078.4 and Chrome 156.0.8078.74. Artifacts and before/after
+private jacket checks are under /tmp/logotool-ux-repair-20261102/.
+
+The jacket's four safe areas and both Edeka artworks remain test evidence:
+its 300 mm reference is provisional, not a physical calibration certificate.
+Real Windows Chrome/Edge and actual touch-device release checks remain open.
+The repeated private-jacket edit-cycle sample improved from a 2.50 s median
+to 2.23 s (three cycles per run on the same Chrome build); this is a small
+development sample, not a general benchmark. Collected heap was 8.47→8.55 MB
+with stable 31.96 MB backing storage. Short heap samples cannot establish
+long-term or GPU leak absence. Point edits on a dense real mesh still require
+geometry work; the caching change is not a
+claim of instant editing or a general frame-rate guarantee.
+
 ## Outline editing merge acceptance — 2026-11-01
 
 Codex reviewed the pending outline editor and its synthetic acceptance tests.

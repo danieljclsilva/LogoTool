@@ -213,13 +213,41 @@ export class ModelViewer {
   private readonly markerGroup: THREE.Group;
   private readonly markerGeometry: THREE.PlaneGeometry;
   private readonly markerMaterial: THREE.MeshBasicMaterial;
+  /**
+   * Exact last-mounted anchor set (perf only): identical re-sends skip the
+   * marker rebuild. Positions ride wrapper transforms, so no per-refresh
+   * work is needed. Never affects mm.
+   */
+  private anchorSignature = '';
   private readonly axesGroup: THREE.Group;
   private readonly placementGroup: THREE.Group;
   private readonly safeAreaGroup: THREE.Group;
   private safeAreaSignature = '';
+  /**
+   * Split overlay identity (perf only): geometry (ids + 3D points) vs
+   * selection styling. A selection-only change repaints material color and
+   * the baked 2D outline in place — no mesh raycasts, no DecalGeometry
+   * rebuild, no stored-geometry change. Never affects mm or history.
+   */
+  private safeAreaGeoSignature = '';
+  private safeAreaSelSignature = '';
+  private safeAreaBuilt: Array<{
+    id: string;
+    selected: boolean;
+    material: THREE.MeshBasicMaterial;
+    texture: THREE.CanvasTexture;
+    repaint: (selected: boolean) => void;
+  }> = [];
   private readonly referenceGroup: THREE.Group;
   /** Midpoint label sprite for the reference overlay (null when cleared). */
   private referenceLabel: THREE.Sprite | null = null;
+  /**
+   * Exact last-built reference overlay (endpoints + verbatim label). A
+   * refresh that re-sends identical data skips the line/label rebuild
+   * (perf only); visibility still follows the anchors layer. Never
+   * affects mm.
+   */
+  private referenceSignature = '';
   /**
    * Fitted camera distance backing the % zoom readout: 100% is the fitted
    * product view. Zoom only moves the camera — native coords and mm values
@@ -525,11 +553,21 @@ export class ModelViewer {
    */
   setReferenceOverlay(ref: ReferenceOverlay | null): void {
     try {
+      if (this.disposed) return;
+      if (ref === null || typeof ref !== 'object' || !isVec3(ref.a) || !isVec3(ref.b) || typeof ref.label !== 'string') {
+        this.referenceSignature = '';
+        this.clearReference();
+        return;
+      }
+      const signature = JSON.stringify({ a: ref.a, b: ref.b, label: ref.label });
+      if (signature === this.referenceSignature && this.referenceLabel !== null) {
+        // Identical endpoints + label: keep the mounted line/label, only
+        // re-sync layer visibility (display-only, no rebuild).
+        this.referenceGroup.visible = this.markerGroup.visible;
+        return;
+      }
       this.clearReference();
       if (this.disposed) return;
-      if (ref === null || typeof ref !== 'object') return;
-      if (!isVec3(ref.a) || !isVec3(ref.b)) return;
-      if (typeof ref.label !== 'string') return;
       const a = new THREE.Vector3(ref.a.x, ref.a.y, ref.a.z);
       const b = new THREE.Vector3(ref.b.x, ref.b.y, ref.b.z);
       const chord = a.distanceTo(b);
@@ -553,6 +591,7 @@ export class ModelViewer {
       sprite.position.copy(a).add(b).multiplyScalar(0.5);
       this.referenceGroup.add(sprite);
       this.referenceLabel = sprite;
+      this.referenceSignature = signature;
       this.updateReferenceLabelScale();
       // The connecting measurement belongs to the anchors layer.
       this.referenceGroup.visible = this.markerGroup.visible;
@@ -564,6 +603,7 @@ export class ModelViewer {
   /** Remove the reference line/label and dispose their GPU resources. */
   private clearReference(): void {
     this.referenceLabel = null;
+    this.referenceSignature = '';
     for (let i = this.referenceGroup.children.length - 1; i >= 0; i--) {
       const child = this.referenceGroup.children[i];
       if (child === undefined) continue;
@@ -1204,7 +1244,10 @@ export class ModelViewer {
    */
   setAnchorMarkers(anchors: Array<{ id: string; model: { x: number; y: number; z: number } }>): void {
     try {
+      const signature = JSON.stringify(Array.isArray(anchors) ? anchors : []);
+      if (signature === this.anchorSignature && !this.disposed) return;
       this.clearMarkers();
+      this.anchorSignature = signature;
       if (this.disposed) return;
       if (!Array.isArray(anchors) || anchors.length === 0) return;
       const size = this.modelBBox().getSize(new THREE.Vector3()).length();
@@ -1429,6 +1472,37 @@ export class ModelViewer {
    */
   setSafeAreaOverlays(items: SafeAreaOverlayItem[]): void {
     try {
+      const geoSig = JSON.stringify(
+        (Array.isArray(items) ? items : []).map((item) => ({
+          id: item !== null && typeof item === 'object' ? (item as { id: unknown }).id ?? null : null,
+          pointsModel: item !== null && typeof item === 'object' ? (item as { pointsModel: unknown }).pointsModel ?? null : null,
+        })),
+      );
+      const selSig = JSON.stringify(
+        (Array.isArray(items) ? items : []).map((item) => [
+          item !== null && typeof item === 'object' ? (item as { id: unknown }).id ?? null : null,
+          item !== null && typeof item === 'object' && (item as { selected: unknown }).selected === true,
+        ]),
+      );
+      if (!this.disposed && geoSig === this.safeAreaGeoSignature && this.safeAreaBuilt.length > 0) {
+        // Geometry identical (exact signature match): selection-only styling.
+        if (selSig === this.safeAreaSelSignature) return;
+        const byId = new Map<string, boolean>();
+        for (const item of items) {
+          if (item !== null && typeof item === 'object' && typeof item.id === 'string') byId.set(item.id, item.selected === true);
+        }
+        for (const built of this.safeAreaBuilt) {
+          const selected = byId.get(built.id) === true;
+          if (built.selected === selected) continue;
+          built.selected = selected;
+          built.material.color.set(selected ? 0x0072ce : 0x0b6cab);
+          built.repaint(selected);
+          built.texture.needsUpdate = true;
+        }
+        this.safeAreaSelSignature = selSig;
+        this.safeAreaSignature = JSON.stringify(items);
+        return;
+      }
       const signature = JSON.stringify(items);
       if (signature === this.safeAreaSignature) return;
       this.clearSafeAreas();
@@ -1454,9 +1528,14 @@ export class ModelViewer {
           points.push(new THREE.Vector3(corner.x, corner.y, corner.z));
         }
         if (!valid || points.length < 3) continue;
-        this.addSurfaceArea(points, item.selected === true, meshes);
+        const built = this.addSurfaceArea(points, item.selected === true, meshes);
+        if (built !== null && typeof item.id === 'string') {
+          this.safeAreaBuilt.push({ id: item.id, selected: item.selected === true, ...built });
+        }
       }
       this.safeAreaSignature = signature;
+      this.safeAreaGeoSignature = geoSig;
+      this.safeAreaSelSignature = selSig;
     } catch {
       return;
     }
@@ -1467,7 +1546,11 @@ export class ModelViewer {
    * triangle fan cuts through garment folds; a decal follows those triangles
    * instead. This never edits picked points, region planes or millimetres.
    */
-  private addSurfaceArea(native: THREE.Vector3[], selected: boolean, meshes: THREE.Mesh[]): void {
+  private addSurfaceArea(
+    native: THREE.Vector3[],
+    selected: boolean,
+    meshes: THREE.Mesh[],
+  ): { material: THREE.MeshBasicMaterial; texture: THREE.CanvasTexture; repaint: (selected: boolean) => void } | null {
     const points = native.map((point) => point.clone().applyMatrix4(this.wrapper.matrixWorld));
     const origin = points[0]!;
     const u = points[1]!.clone().sub(origin).normalize();
@@ -1475,10 +1558,10 @@ export class ModelViewer {
     for (let i = 1; i + 1 < points.length; i += 1) {
       normal.add(new THREE.Vector3().crossVectors(points[i]!.clone().sub(origin), points[i + 1]!.clone().sub(origin)));
     }
-    if (normal.lengthSq() < 1e-16) return;
+    if (normal.lengthSq() < 1e-16) return null;
     normal.normalize();
     const reach = new THREE.Box3().setFromPoints(points).getSize(new THREE.Vector3()).length();
-    if (!(reach > 0)) return;
+    if (!(reach > 0)) return null;
     // Orient toward the mesh's own outward face, not the camera or polygon
     // winding. Search both directions so saved back-side areas stay back-side.
     const ray = new THREE.Raycaster();
@@ -1499,7 +1582,7 @@ export class ModelViewer {
         }
       }
     }
-    if (outward === null || nearest > (reach * 0.02) ** 2) return;
+    if (outward === null || nearest > (reach * 0.02) ** 2) return null;
     if (normal.dot(outward) < 0) normal.negate();
     // Keep the first edge as x, but make the basis exactly orthonormal.
     u.addScaledVector(normal, -u.dot(normal)).normalize();
@@ -1510,7 +1593,7 @@ export class ModelViewer {
     });
     const bounds = new THREE.Box3().setFromPoints(local);
     const size = bounds.getSize(new THREE.Vector3());
-    if (!(size.x > 0 && size.y > 0)) return;
+    if (!(size.x > 0 && size.y > 0)) return null;
     size.x *= 1.02; size.y *= 1.02;
     size.z = Math.max(size.x, size.y, size.z * 2);
     const center = bounds.getCenter(new THREE.Vector3());
@@ -1519,17 +1602,21 @@ export class ModelViewer {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const context = canvas.getContext('2d');
-    if (!context) return;
-    context.beginPath();
-    local.forEach((point, index) => {
-      const x = ((point.x - center.x) / size.x + 0.5) * canvas.width;
-      const y = (0.5 - (point.y - center.y) / size.y) * canvas.height;
-      if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-    });
-    context.closePath();
-    context.fillStyle = selected ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.18)';
-    context.fill();
-    context.strokeStyle = '#ffffff'; context.lineWidth = selected ? 4 : 3; context.stroke();
+    if (!context) return null;
+    const repaint = (isSelected: boolean): void => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.beginPath();
+      local.forEach((point, index) => {
+        const x = ((point.x - center.x) / size.x + 0.5) * canvas.width;
+        const y = (0.5 - (point.y - center.y) / size.y) * canvas.height;
+        if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      });
+      context.closePath();
+      context.fillStyle = isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.18)';
+      context.fill();
+      context.strokeStyle = '#ffffff'; context.lineWidth = isSelected ? 4 : 3; context.stroke();
+    };
+    repaint(selected);
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({
       color: selected ? 0x0072ce : 0x0b6cab, map: texture,
@@ -1556,12 +1643,16 @@ export class ModelViewer {
       this.safeAreaGroup.add(new THREE.Mesh(geometry, material));
       used = true;
     }
-    if (!used) { texture.dispose(); material.dispose(); }
+    if (!used) { texture.dispose(); material.dispose(); return null; }
+    return { material, texture, repaint };
   }
 
   /** Remove safe-area overlay lines/meshes and dispose their geometries/materials. */
   private clearSafeAreas(): void {
     this.safeAreaSignature = '';
+    this.safeAreaGeoSignature = '';
+    this.safeAreaSelSignature = '';
+    this.safeAreaBuilt = [];
     const disposed = new Set<THREE.Material>();
     for (let i = this.safeAreaGroup.children.length - 1; i >= 0; i--) {
       const child = this.safeAreaGroup.children[i];
@@ -1678,6 +1769,7 @@ export class ModelViewer {
 
   /** Remove marker meshes; shared geometry/material are retained. */
   private clearMarkers(): void {
+    this.anchorSignature = '';
     for (let i = this.markerGroup.children.length - 1; i >= 0; i--) {
       const child = this.markerGroup.children[i];
       if (child === undefined) continue;

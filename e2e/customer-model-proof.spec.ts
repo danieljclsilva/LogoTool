@@ -1,9 +1,9 @@
-import {expect,test,type Page} from '@playwright/test';
+import {expect,test,type Page,type TestInfo} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {openOfflineContext,assertCleanProbe,gotoBuilder} from './helpers.js';
+import {openOfflineContext,assertCleanProbe,gotoBuilder,revealCustomerControl} from './helpers.js';
 import {customerModelPackage} from './fixtures/customer-model-package.js';
 import {createSelfContainedHtml} from '../src/packaging/self-contained-html/index.js';
 import {parseProjectPackage} from '../src/packaging/project-package/index.js';
@@ -63,71 +63,146 @@ test('model without mapping stays honest and does not invent a customer edit sur
   try{const fixture=await customerModelPackage(await artwork(page),false);await page.goto(pathToFileURL(resolve('dist/dev/customer-configurator.html')).href);await c(page,'file-input').setInputFiles({name:'without-mapping.logo-project',mimeType:'application/zip',buffer:Buffer.from(fixture.bytes)});await expect(c(page,'width-mm')).toHaveValue('40');await expect(m(page,'pw-model-workbench')).toHaveCount(0);await expect(c(page,'mode-diagram')).toHaveAttribute('aria-pressed','true');assertCleanProbe(probe);}finally{await context.close();}
 });
 
-test('issued model proof returns instructions and mapping to the operator; changed mapping is rejected',async({browser},info)=>{
-  test.setTimeout(60_000);
-  const staff=await openOfflineContext(browser,{width:1440,height:900});
-  const customer=await openOfflineContext(browser,{width:1440,height:900});
-  const page=staff.page,editor=customer.page;
-  const download=async(p:Page,label:string,name:string)=>{
-    const event=p.waitForEvent('download');await p.getByRole('button',{name:label,exact:true}).click();
-    const path=info.outputPath(name);await(await event).saveAs(path);return path;
+type ParsedPackage = Awaited<ReturnType<typeof parseProjectPackage>>;
+
+/** Shared issue → customer mutate → confirm → return → adopt → save flow.
+ * `preselectPlacement` populates a Step 2 field draft before adoption (the
+ * stale-draft trigger); false covers the empty-selection adoption path. */
+async function runAdoptionFlow(
+  staffPage: Page,
+  editorPage: Page,
+  info: TestInfo,
+  tag: string,
+  preselectPlacement: boolean,
+): Promise<{ office: ParsedPackage; returned: ParsedPackage; adopted: ParsedPackage }> {
+  const page = staffPage, editor = editorPage;
+  const download = async (p: Page, label: string, name: string) => {
+    const event = p.waitForEvent('download');
+    await p.getByRole('button', { name: label, exact: true }).click();
+    const path = info.outputPath(`${tag}-${name}`);
+    await (await event).saveAs(path);
+    return path;
   };
-  try{
-    const fixture=await customerModelPackage(await artwork(page));
-    await gotoBuilder(page);
-    await page.locator('[data-builder-hook=job-open-file]').setInputFiles({name:'prepared.logo-project',mimeType:'application/zip',buffer:Buffer.from(fixture.bytes)});
-    await expect(page.locator('[data-builder-hook=source-status]')).toContainText('Loaded prepared.logo-project');
-    await page.locator('[data-builder-hook=customer-name]').fill('Synthetic customer');
-    await page.locator('[data-builder-hook=job-ref]').fill('SYN-MODEL-PROOF');
-    await page.locator('[data-builder-hook=issued-by]').fill('Synthetic operator');
-    for (const box of await page.locator('[data-job-step=prepare] input[type=checkbox]:visible').all()) await box.check();
-    await page.locator('[data-builder-hook=job-to-placements]').click();
-    await page.getByRole('button',{name:'Send for customer approval',exact:true}).click();
-    const branch=page.locator('[data-job-branch=approval]');
-    await branch.getByText('More options',{exact:true}).click();
-    await page.locator('[data-builder-hook=job-issue-project-new]').click();
-    await branch.getByRole('button',{name:'Create customer file',exact:true}).click();
+  const fixture = await customerModelPackage(await artwork(page));
+  await gotoBuilder(page);
+  await page.locator('[data-builder-hook=job-open-file]').setInputFiles({ name: 'prepared.logo-project', mimeType: 'application/zip', buffer: Buffer.from(fixture.bytes) });
+  await expect(page.locator('[data-builder-hook=source-status]')).toContainText('Loaded prepared.logo-project');
+  await page.locator('[data-builder-hook=customer-name]').fill('Synthetic customer');
+  await page.locator('[data-builder-hook=job-ref]').fill('SYN-MODEL-PROOF');
+  await page.locator('[data-builder-hook=issued-by]').fill('Synthetic operator');
+  for (const box of await page.locator('[data-job-step=prepare] input[type=checkbox]:visible').all()) await box.check();
+  await page.locator('[data-builder-hook=job-to-placements]').click();
+  if (preselectPlacement) {
+    // Populate a Step 2 field draft for placement-0 (chest): viewing it
+    // mirrors the committed values locally without creating pending edits.
+    await m(page, 'pw-model-details').click();
+    await page.locator('[data-placement-hook="pw-placement-row-placement-0"]').click();
+    await expect(page.locator('[data-placement-hook="pw-width"]')).toHaveValue('40');
+    await page.locator('[data-canvas-context-dismiss]').filter({ visible: true }).click();
+  }
+  await page.getByRole('button', { name: 'Send for customer approval', exact: true }).click();
+  const branch = page.locator('[data-job-branch=approval]');
+  await branch.getByText('More options', { exact: true }).click();
+  await page.locator('[data-builder-hook=job-issue-project-new]').click();
+  await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
+  await expect(branch).toContainText('Customer file created');
+  const officePath = await download(page, 'Save office copy', 'issued-office.logo-project');
+  const htmlPath = await download(page, 'Save customer file', 'issued-customer.html');
+  const office = await parseProjectPackage(new Uint8Array(await readFile(officePath)), { sha256 });
+  await editor.goto(pathToFileURL(htmlPath).href);
+  await expect(m(editor, 'pw-model-workbench')).toHaveAttribute('data-artwork-count', '2');
+  // Mutate the SAME placement the operator viewed (placement-0): numeric
+  // width plus instructions, so adoption must rebase the mirrored draft.
+  await revealCustomerControl(editor, 'width-mm');
+  await expect(c(editor, 'width-mm')).toHaveValue('40');
+  await c(editor, 'placement-instructions').fill('Placeholder');
+  await c(editor, 'width-mm').fill('48');
+  await c(editor, 'width-mm').press('Tab');
+  const note = 'Please align the chest artwork with the seam. <test> remains literal.';
+  await c(editor, 'placement-instructions').fill(note);
+  // One click commits the focused textarea and opens review.
+  await editor.getByRole('button', { name: 'Review layout', exact: true }).click();
+  await expect(editor.locator('[data-step-panel=review]')).toBeVisible();
+  await expect(c(editor, 'review')).toContainText(note);
+  await expect(c(editor, 'review')).not.toContainText(office.project.configurations[0]!.variantId);
+  await c(editor, 'confirmed-by').fill('Synthetic customer');
+  await c(editor, 'confirm').click();
+  const returnPath = await download(editor, 'Save confirmed return file', 'customer-return.logo-project');
+  const returned = await parseProjectPackage(new Uint8Array(await readFile(returnPath)), { sha256 });
+  expect(returned.project.products).toEqual(office.project.products);
+  expect(returned.project.configurations[0]!.placements[0]!.instructions).toBe(note);
+  expect(returned.project.configurations[0]!.placements[0]!.widthMm).toBe(48);
+  const originalMapping = office.assets.find(a => a.path.includes('setup-calibration'))!;
+  expect(returned.assets.find(a => a.path === originalMapping.path)?.bytes).toEqual(originalMapping.bytes);
+  const alteredAssets = returned.assets.map(a => a.path === originalMapping.path ? { ...a, bytes: new TextEncoder().encode('{}') } : a);
+  const forged = await createProjectPackage({ project: returned.project, assets: alteredAssets.filter(a => a.kind === 'referenced'), additionalAssets: alteredAssets.filter(a => a.kind !== 'referenced') }, { sha256 });
+  await branch.getByLabel('Choose the saved office copy for this job', { exact: true }).setInputFiles(officePath);
+  const response = branch.locator('section[aria-label="Customer response"]');
+  await expect(response).toContainText('Office copy loaded');
+  await branch.getByLabel('Choose the returned customer file', { exact: true }).setInputFiles({ name: 'altered.logo-project', mimeType: 'application/zip', buffer: Buffer.from(forged) });
+  await expect(response).toContainText('asset comparison differs');
+  await expect(branch.getByRole('button', { name: 'Use customer changes', exact: true })).toBeHidden();
+  await branch.getByLabel('Choose the returned customer file', { exact: true }).setInputFiles(returnPath);
+  await expect(response).toContainText('Response checked against the office copy');
+  await expect(response).toContainText('Before: Prepared chest instruction.');
+  await expect(response).toContainText('After: ' + note);
+  await branch.getByRole('button', { name: 'Use customer changes', exact: true }).click();
+  await expect(m(page, 'pw-model-workbench')).toHaveAttribute('data-artwork-count', '2');
+  // Adoption preserves the issued inclusion: 1 product + 2 logos + 1 setup.
+  const boxes = page.locator('[data-job-step=prepare] input[type=checkbox]');
+  expect(await boxes.count()).toBe(4);
+  expect(await boxes.evaluateAll((list) => list.filter((node) => node instanceof HTMLInputElement && node.checked).length)).toBe(4);
+  // Adoption must not manufacture pending edits: Save job downloads directly
+  // instead of raising the unapplied-placement guard.
+  const saveEvent = page.waitForEvent('download', { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Save job', exact: true }).click();
+  const adoptedPath = info.outputPath(`${tag}-adopted.logo-project`);
+  await (await saveEvent).saveAs(adoptedPath);
+  const adopted = await parseProjectPackage(new Uint8Array(await readFile(adoptedPath)), { sha256 });
+  const cfg = adopted.project.configurations[0]!;
+  const scene = resolveModelPlacementScene(adopted.project, new Map(adopted.assets.map(a => [a.path, a.bytes])), cfg.productId, cfg.variantId);
+  expect(scene?.regions).toHaveLength(2);
+  expect(adopted.project.configurations).toEqual(returned.project.configurations);
+  expect(adopted.project.products).toEqual(returned.project.products);
+  expect(adopted.project.logos).toEqual(returned.project.logos);
+  return { office, returned, adopted };
+}
+
+test('adopted return with a populated field draft keeps inclusion and saves cleanly', async ({ browser }, info) => {
+  test.setTimeout(180_000);
+  const staff = await openOfflineContext(browser, { width: 1440, height: 900 });
+  const customer = await openOfflineContext(browser, { width: 1440, height: 900 });
+  const page = staff.page, editor = customer.page;
+  try {
+    const { adopted } = await runAdoptionFlow(page, editor, info, 'draft', true);
+    // Legitimate dirty-draft protection: a real operator edit must still guard.
+    await m(page, 'pw-model-details').click();
+    await page.locator('[data-placement-hook="pw-placement-row-placement-0"]').click();
+    await page.locator('[data-placement-hook="pw-width"]').fill('44');
+    await page.locator('[data-placement-hook="pw-width"]').press('Tab');
+    await page.getByRole('button', { name: 'Save job', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Discard pending edits' })).toBeVisible();
+    const retry = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Discard pending edits' }).click();
+    const discardedPath = info.outputPath('draft-discarded.logo-project');
+    await (await retry).saveAs(discardedPath);
+    const discarded = await parseProjectPackage(new Uint8Array(await readFile(discardedPath)), { sha256 });
+    expect(discarded.project.configurations).toEqual(adopted.project.configurations);
+    // Reissue works without manual reselection after adoption.
+    await page.getByRole('button', { name: 'Send for customer approval', exact: true }).click();
+    const branch = page.locator('[data-job-branch=approval]');
+    await branch.getByRole('button', { name: 'Create customer file', exact: true }).click();
     await expect(branch).toContainText('Customer file created');
-    const officePath=await download(page,'Save office copy','issued-office.logo-project');
-    const htmlPath=await download(page,'Save customer file','issued-customer.html');
-    const office=await parseProjectPackage(new Uint8Array(await readFile(officePath)),{sha256});
-    await editor.goto(pathToFileURL(htmlPath).href);
-    await expect(m(editor,'pw-model-workbench')).toHaveAttribute('data-artwork-count','2');
-    const note='Please align the chest artwork with the seam. <test> remains literal.';
-    await c(editor,'placement-instructions').fill(note);
-    // One click commits the focused textarea and opens review.
-    await editor.getByRole('button',{name:'Review layout',exact:true}).click();
-    await expect(editor.locator('[data-step-panel=review]')).toBeVisible();
-    await expect(c(editor,'review')).toContainText(note);
-    await expect(c(editor,'review')).not.toContainText(office.project.configurations[0]!.variantId);
-    await c(editor,'confirmed-by').fill('Synthetic customer');
-    await c(editor,'confirm').click();
-    const returnPath=await download(editor,'Save confirmed return file','customer-return.logo-project');
-    const returned=await parseProjectPackage(new Uint8Array(await readFile(returnPath)),{sha256});
-    expect(returned.project.products).toEqual(office.project.products);
-    expect(returned.project.configurations[0]!.placements[0]!.instructions).toBe(note);
-    const originalMapping=office.assets.find(a=>a.path.includes('setup-calibration'))!;
-    expect(returned.assets.find(a=>a.path===originalMapping.path)?.bytes).toEqual(originalMapping.bytes);
-    const alteredAssets=returned.assets.map(a=>a.path===originalMapping.path?{...a,bytes:new TextEncoder().encode('{}')}:a);
-    const forged=await createProjectPackage({project:returned.project,assets:alteredAssets.filter(a=>a.kind==='referenced'),additionalAssets:alteredAssets.filter(a=>a.kind!=='referenced')},{sha256});
-    await branch.getByLabel('Choose the saved office copy for this job',{exact:true}).setInputFiles(officePath);
-    const response=branch.locator('section[aria-label="Customer response"]');
-    await expect(response).toContainText('Office copy loaded');
-    await branch.getByLabel('Choose the returned customer file',{exact:true}).setInputFiles({name:'altered.logo-project',mimeType:'application/zip',buffer:Buffer.from(forged)});
-    await expect(response).toContainText('asset comparison differs');
-    await expect(branch.getByRole('button',{name:'Use customer changes',exact:true})).toBeHidden();
-    await branch.getByLabel('Choose the returned customer file',{exact:true}).setInputFiles(returnPath);
-    await expect(response).toContainText('Response checked against the office copy');
-    await expect(response).toContainText('Before: Prepared chest instruction.');
-    await expect(response).toContainText('After: '+note);
-    await branch.getByRole('button',{name:'Use customer changes',exact:true}).click();
-    await expect(m(page,'pw-model-workbench')).toHaveAttribute('data-artwork-count','2');
-    const adoptedPath=await download(page,'Save job','adopted.logo-project');
-    const adopted=await parseProjectPackage(new Uint8Array(await readFile(adoptedPath)),{sha256});
-    const cfg=adopted.project.configurations[0]!;
-    const scene=resolveModelPlacementScene(adopted.project,new Map(adopted.assets.map(a=>[a.path,a.bytes])),cfg.productId,cfg.variantId);
-    expect(scene?.regions).toHaveLength(2);
-    expect(adopted.project.configurations).toEqual(returned.project.configurations);
-    assertCleanProbe(staff.probe);assertCleanProbe(customer.probe);
-  }finally{await customer.context.close();await staff.context.close();}
+    assertCleanProbe(staff.probe); assertCleanProbe(customer.probe);
+  } finally { await customer.context.close(); await staff.context.close(); }
+});
+
+test('adopted return without a prior field draft keeps inclusion and saves cleanly', async ({ browser }, info) => {
+  test.setTimeout(120_000);
+  const staff = await openOfflineContext(browser, { width: 1440, height: 900 });
+  const customer = await openOfflineContext(browser, { width: 1440, height: 900 });
+  try {
+    await runAdoptionFlow(staff.page, customer.page, info, 'nodraft', false);
+    assertCleanProbe(staff.probe); assertCleanProbe(customer.probe);
+  } finally { await customer.context.close(); await staff.context.close(); }
 });
