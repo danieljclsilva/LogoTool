@@ -237,6 +237,7 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     // include state; only its Open button moves the workspace.
     await multiCard.getByRole('button', { name: 'Open setup for Multi Jacket' }).click();
     await expect(builder(page, 'workspace-product')).toHaveValue('CARD-MULTI');
+    await builder(page, 'job-step-1').click();
     await soloCard.locator('input[type="checkbox"]').check();
     await expect(soloCard.locator('input[type="checkbox"]').first()).toBeChecked();
     await expect(await shown(page, 'selection-summary')).toContainText('2 products');
@@ -244,6 +245,7 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     await soloCard.getByRole('button', { name: 'Open setup for Solo Jacket' }).click();
     await expect(builder(page, 'workspace-product')).toHaveValue('CARD-SOLO');
 
+    await builder(page, 'job-step-1').click();
     // Narrow to Size M only (Size L stays out); add one logo for counts.
     // (Multi is already included above, so its options are visible.)
     await multiCard.getByRole('checkbox', { name: 'Size M' }).check();
@@ -259,14 +261,13 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     await page.locator('details', { has: page.locator('[data-builder-hook="configuration-list"]') }).locator('summary').click();
     await page.locator('[data-builder-hook="configuration-list"] input[type="checkbox"][value="cfg-multi-l"]').uncheck();
 
-    // Step 2 shows only the included scope: Solo plus Multi. Size L was
-    // unticked in Step 1 and stays out of the placement scope.
+    // The shared editor keeps catalogue choices available. Output inclusion
+    // remains narrowed to the checked products/options.
     await expect(await shown(page, 'job-prepare-gate')).toHaveText('');
     await (await shown(page, 'job-to-placements')).click();
     await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
-    const host = builder(page, 'job-placement-host');
-    await expect(host).toContainText('Solo Jacket');
-    await expect(host).toContainText('Multi Jacket');
+    await expect(builder(page, 'workspace-product')).toContainText('Solo Jacket');
+    await expect(builder(page, 'workspace-product')).toContainText('Multi Jacket');
     // Untick Solo: the editable catalogue keeps it (Step 2 still lists it
     // for editing), but scoped outputs must omit it — proven at review.
     await (await shown(page, 'job-step-1')).click();
@@ -274,8 +275,8 @@ test('product cards: thumbnails, independent open, single-option default, narrow
     await expect(soloCard.locator('input[type="checkbox"]').first()).not.toBeChecked();
     await (await shown(page, 'job-step-2')).click();
     await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
-    await expect(builder(page, 'job-placement-host')).toContainText('Solo Jacket');
-    await expect(builder(page, 'job-placement-host')).toContainText('Multi Jacket');
+    await expect(builder(page, 'workspace-product')).toContainText('Solo Jacket');
+    await expect(builder(page, 'workspace-product')).toContainText('Multi Jacket');
 
     // Review carries the narrowed job: one product, one option, and zero
     // placements stay present with the explicit no-placement statement.

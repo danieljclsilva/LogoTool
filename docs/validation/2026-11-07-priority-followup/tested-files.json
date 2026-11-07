@@ -1,0 +1,19 @@
+{
+  "e2e/editor-guidance.spec.ts": "97afbcd0c720ec9831432d96f4c8b730c86f0b580609503404e088d9c8bb07a9",
+  "e2e/editor-regressions.spec.ts": "699449d8aa4eda08fdcf6776aeffcae550ac80302a35a26404355ff57705b9fe",
+  "e2e/helpers.ts": "3647b9422bc737a48f8a73c3c665d25743fc76d1d61214c8e0c1ef87d9c25564",
+  "e2e/internal-builder.spec.ts": "5240ff6e6aa84ba26d0b0df344ec43240c86b1f02176330e046b633bf21c6492",
+  "e2e/operator-workflow.spec.ts": "be7927ed6b777edca6f0318873ca7381144362fff6f914b12501734a9bfabf81",
+  "e2e/prepared-product-import.spec.ts": "b4515c8b54da3a10675e9874fa5688b1d1323d719f2c97e10a19fda88cac6f59",
+  "e2e/product-cards.spec.ts": "ae3fc163d3da988d6dc887962a70360ef55b5ebae2a9ec97f5998099bec0ab2a",
+  "e2e/product-inclusion.spec.ts": "6602e39d22fd2e315e31cc6fc9149488f956cf7314d8bb7af513b9ef02fcbcba",
+  "e2e/product-workspace.spec.ts": "6495580d65f1e8bc7477d400091b98d4b119fff249be8b12a2d65e6efcd3bb3a",
+  "e2e/setup-calibration.spec.ts": "a84768715d251ed4b2015f24f681e6daa283b73a22b1a9adb5461c8a646c1809",
+  "e2e/unified-editor.spec.ts": "ee0253d3e31e222e3a50d90ad895708c07fe6da96f5161025a3ea20b536b2b8b",
+  "e2e/user-workflow.spec.ts": "a60f5d8e7acf31bdb1ad4b4baca0ac4578b9b2bced12a298851fa0f3e8a4c415",
+  "e2e/workspace-layout-audit.spec.ts": "200767a6930972678f48a040b2c3be7a6835abdd10a0d407fbece0b558e2ad11",
+  "src/ui/internal-builder/main.ts": "f71233226bdb2b6f523626ee572a70568c3681b6b35d315ae363b7ab12efcba3",
+  "src/ui/internal-builder/model-setup-view.ts": "3e9339094d07db4d2885bf67a6fb43a2bebb1a3a13b837d0d4e841c129969f2d",
+  "src/ui/internal-builder/placement-workspace.ts": "6f0a552331d3a36c6376e4999a7da1dd1a0616454d18160ad78fac502c3052e1",
+  "src/ui/internal-builder/template.html": "0ca41d25f7a72668aceabc8f4c6bc745e8b06a4eb84fa0083c5e96378bf3fcce"
+}

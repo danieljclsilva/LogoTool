@@ -282,21 +282,26 @@
       .product-model-footer p { max-height:48px;overflow:auto; }
       .product-model-toolbar .model-setup-status { font-size:11px;min-height:30px;max-height:30px;overflow:auto; }
       .product-model-toolbar .model-setup-command-strip { grid-template-columns:110px minmax(0,1fr);height:44px;gap:4px; }
-      .product-model-toolbar [data-model-setup-hook="areas-tool-row"] { display:contents; }
-      .product-model-toolbar [data-ps-tool],.product-model-toolbar [data-model-setup-hook="outline-actions"] button,
+      .product-model-toolbar [data-model-setup-hook="areas-tool-row"] { display:flex;flex-basis:100%;flex-wrap:nowrap;gap:4px;overflow-x:auto;max-width:100%;padding-bottom:4px; }
+      .product-model-toolbar [data-model-setup-hook="areas-tool-row"] > * { flex:none; }
+      .product-model-toolbar [data-ps-tool] { width:auto!important;min-width:44px;min-height:44px;font-size:14px!important;line-height:20px;padding:8px 3px;white-space:nowrap; }
+      .product-model-toolbar [data-model-setup-hook="outline-actions"] button,
       .product-model-toolbar [data-model-setup-hook="area-undo"],.product-model-toolbar [data-model-setup-hook="area-cancel"],
-      .product-model-toolbar [data-model-setup-hook="curve-cancel"] { width:32px;min-width:32px;font-size:0!important; }
-      .product-model-toolbar [data-ps-tool]::before,.product-model-toolbar [data-model-setup-hook="outline-actions"] button::before,
-      .product-model-toolbar [data-model-setup-hook="area-undo"]::before,.product-model-toolbar [data-model-setup-hook="area-cancel"]::before,
-      .product-model-toolbar [data-model-setup-hook="curve-cancel"]::before { font-size:18px; }
-      .product-model-toolbar [data-ps-tool="rotate"]::before { content:'⟳'; }
-      .product-model-toolbar [data-ps-tool="edit"]::before { content:'✎'; }
-      .product-model-toolbar [data-ps-tool="rectangle"]::before { content:'□'; }
-      .product-model-toolbar [data-ps-tool="freehand"]::before { content:'⬠'; }
-      .product-model-toolbar [data-model-setup-hook="outline-point"]::before { content:'+'; }
-      .product-model-toolbar [data-model-setup-hook="outline-curve"]::before { content:'⌁'; }
-      .product-model-toolbar [data-model-setup-hook="area-undo"]::before { content:'↶'; }
-      .product-model-toolbar [data-model-setup-hook="area-cancel"]::before,.product-model-toolbar [data-model-setup-hook="curve-cancel"]::before { content:'×'; }
+      .product-model-toolbar [data-model-setup-hook="curve-cancel"] { width:auto;min-width:44px;min-height:44px;font-size:14px!important;line-height:20px;padding:8px 10px;white-space:nowrap; }
+      .product-model-toolbar .model-setup-command-strip {
+        display:flex;flex-wrap:nowrap;flex-basis:100%;width:100%;max-width:100%;overflow-x:auto;align-items:center;
+      }
+      .product-model-toolbar .model-setup-command-strip > * { flex:none; }
+      .product-model-toolbar .model-setup-command-strip .model-setup-edit-slot { flex-basis:auto; }
+      .product-model-toolbar .model-setup-command-strip .model-setup-row,
+      .product-model-toolbar .model-setup-command-strip .model-setup-actions { flex-wrap:nowrap; }
+      .product-model-toolbar [data-model-setup-hook="areas-actions"] button { flex:none;padding:8px 6px; }
+      .product-model-toolbar [data-model-setup-hook="handle-remove"]:disabled { display:none; }
+      .product-model-toolbar .model-setup-command-strip[data-tool="rotate"],
+      .product-model-toolbar .model-setup-command-strip:not([data-tool="edit"]) > [data-model-setup-hook="outline-actions"],
+      .product-model-toolbar .model-setup-command-strip:not([data-tool="edit"]) > [data-model-setup-hook="edit-actions-slot"],
+      .product-model-toolbar .model-setup-command-strip[data-tool="edit"] > [data-model-setup-hook="areas-form"],
+      .product-model-toolbar .model-setup-command-strip:not([data-tool="freehand"]) > [data-model-setup-hook="areas-actions"] { display:none; }
       .product-model-toolbar .model-setup-bend-actions input { width:60px;min-height:44px; }
       .product-model-toolbar .model-setup-hint { display:none; }
       .product-model-toolbar > button { max-width:110px; }
@@ -525,7 +530,7 @@
     .product-editor .product-setup-chooser select { min-height:44px;padding:8px 10px;font-size:14px; }
     .product-editor [data-builder-hook="editor-product-name"] { font-size:13px;margin-right:8px; }
     @media(max-width:700px) {
-      .product-editor-modes { gap:4px;padding:4px 0; }
+      .product-editor-modes { gap:4px;padding:2px 0; }
       .product-editor-modes > *, .product-editor-tool-scroll > * { order:1; }
       .product-editor-modes [data-builder-hook="editor-product-name"] { order:0;flex:1 1 calc(100% - 90px);min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px; }
       .product-editor-modes [data-builder-hook="job-save"] { order:0; }
@@ -537,22 +542,59 @@
       .product-editor.station-expanded-workspace .product-model-footer p { max-height:32px;font-size:11px; }
     }
     @media(max-width:700px) {
-      /* Keep camera/display actions in one touch-scrollable row so enlarged
-         authoring retains its canvas. Keyboard focus scrolls each action into
-         view; the complete labels and 44px targets stay available. */
+      .product-editor [data-builder-hook="product-model"] { padding:4px;gap:4px; }
+      .product-editor.station-expanded-workspace { padding:6px!important; }
+      .product-editor.station-expanded-workspace .product-model-footer { padding-top:2px; }
+      /* Keep header editing/lighting and camera/display actions in single
+         touch-scrollable rows in normal and enlarged phones. Keyboard focus
+         scrolls each action into view; complete labels and 44px targets stay. */
+      .product-editor .product-editor-tool-scroll,
       .product-editor.station-expanded-workspace .product-editor-tool-scroll {
         display:flex;flex-wrap:nowrap;flex-basis:100%;min-width:0;max-width:100%;
         align-items:center;gap:4px;overflow-x:auto;padding-bottom:4px;
       }
+      .product-editor-tool-scroll [data-builder-hook="product-model-expand"],
+      .product-editor-tool-scroll [data-builder-hook="editor-files"] { width:auto!important;font-size:14px!important;white-space:nowrap; }
+      .product-editor-tool-scroll [data-builder-hook="product-model-expand"]::before,
+      .product-editor-tool-scroll [data-builder-hook="editor-files"]::before { content:none; }
+      .product-editor .product-editor-tool-scroll > *,
       .product-editor.station-expanded-workspace .product-editor-tool-scroll > * { flex:none; }
-      .product-editor.station-expanded-workspace .model-setup-camera-controls {
+      .product-editor .model-setup-camera-controls,
+      .product-editor.station-expanded-workspace .model-setup-camera-controls,
+      .product-model-toolbar .model-setup-camera-controls {
         display:flex;flex-wrap:nowrap;flex-basis:100%;min-width:0;max-width:100%;
         gap:4px;overflow-x:auto;padding:0 0 4px;
       }
-      .product-editor.station-expanded-workspace .model-setup-camera-controls > * { flex:none; }
+      .product-editor .model-setup-camera-controls > *,
+      .product-editor.station-expanded-workspace .model-setup-camera-controls > *,
+      .product-model-toolbar .model-setup-camera-controls > * { flex:none; }
+      .product-editor .model-setup-camera-controls button,
+      .product-editor .model-setup-camera-controls select,
+      .product-editor .product-editor-tool-scroll button,
+      .product-editor .product-editor-tool-scroll select { min-height:44px;min-width:44px;font-size:14px;line-height:20px; }
+      .product-model-toolbar { position:relative; }
+      .product-model-toolbar [data-model-setup-hook="areas-tool-row"] { display:none; }
+      .product-model-toolbar .model-setup-tool-picker-label {
+        display:inline-flex!important;align-items:center;gap:4px;margin:0;font-size:14px;white-space:nowrap;
+      }
+      .product-model-toolbar [data-model-setup-hook="tool-picker"] { width:138px;min-width:0; }
+      .product-model-toolbar [data-model-setup-hook="areas-form"] { order:0; }
+      .product-model-toolbar [data-model-setup-hook="areas-actions"] { order:1; }
+      .product-model-toolbar [data-model-setup-hook="areas-actions"] > button { padding:8px 4px; }
+      .product-model-toolbar .model-setup-view-toggle { display:inline-flex!important;align-items:center; }
+      .product-model-toolbar .model-setup-view-toggle[aria-expanded="true"] { border-color:var(--red);color:var(--red); }
+      .product-editor .model-setup-camera-controls,
+      .product-editor.station-expanded-workspace .model-setup-camera-controls {
+        display:none;position:absolute;top:48px;left:0;right:0;width:auto;max-width:100%;
+        z-index:30;flex-wrap:wrap;flex-basis:auto;align-items:center;gap:4px;padding:8px;
+        background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 16px #192d3d26;
+      }
+      .product-editor .model-setup-camera-controls.is-open { display:flex; }
+
     }
     @media(min-width:821px) {
-      .product-editor-modes { padding:2px 0;margin-bottom:4px; }
+      .product-editor-modes { padding:0;margin-bottom:2px; }
+      .product-editor [data-builder-hook="product-model"] { padding:6px;gap:4px 10px; }
       .product-model-toolbar .model-setup-camera-controls {
         display:flex;flex:1 1 0;min-width:160px;max-width:100%;gap:4px;overflow-x:auto;
       }
@@ -562,9 +604,14 @@
       .product-model-toolbar .model-setup-command-strip {
         flex-basis:580px;flex-shrink:0;order:0;grid-template-columns:220px minmax(0,1fr);
       }
-      .product-model-toolbar .model-setup-feedback { height:16px; }
-      .product-model-toolbar [data-model-setup-hook="mode-hint"] { height:16px; }
-      .product-model-toolbar .model-setup-status { min-height:16px;max-height:16px; }
+      /* Stable 48px guidance row: hint and status share one fixed row, status
+         takes priority; three 16px lines stay readable at 1280x720 without
+         moving the canvas mid-gesture. Longer text scrolls via keyboard. */
+      .product-model-toolbar .model-setup-feedback { height:48px; }
+      .product-model-toolbar [data-model-setup-hook="mode-hint"],
+      .product-model-toolbar .model-setup-status { font-size:12px;line-height:16px;min-height:48px;max-height:48px;height:48px;overflow:auto;margin:0; }
+      .product-model-toolbar [data-model-setup-hook="mode-hint"]:focus-visible,
+      .product-model-toolbar .model-setup-status:focus-visible { outline:3px solid var(--focus);outline-offset:2px; }
     }
     /* The operator placement screen is a viewport workspace with an independent
        secondary inspector scroll area and persistent core actions. */

@@ -1,0 +1,974 @@
+[
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "guidance-1280-normal-rect-hint",
+    "data": {
+      "hintMetrics": {
+        "text": "Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.",
+        "textLength": 127,
+        "fontSize": "12px",
+        "lineHeight": "16px",
+        "height": 48,
+        "clientHeight": 48,
+        "scrollHeight": 48,
+        "overflowY": "auto",
+        "tabindex": 0,
+        "hidden": false,
+        "fits": true,
+        "textTop": 234.296875,
+        "textBottom": 249.296875,
+        "paraTop": 234.296875,
+        "paraBottom": 282.296875,
+        "textInside": true
+      },
+      "canvasRect": {
+        "x": 23,
+        "y": 286.296875,
+        "width": 1234,
+        "height": 364
+      }
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "guidance-1280-normal-long-status",
+    "data": {
+      "statusMetrics": {
+        "text": "Pick at least 3 surface points for \u201cUpper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel\u201d (have 2).",
+        "textLength": 460,
+        "fontSize": "12px",
+        "lineHeight": "16px",
+        "height": 48,
+        "clientHeight": 48,
+        "scrollHeight": 48,
+        "overflowY": "auto",
+        "tabindex": 0,
+        "hidden": false,
+        "fits": true,
+        "textTop": 234.296875,
+        "textBottom": 281.296875,
+        "paraTop": 234.296875,
+        "paraBottom": 282.296875,
+        "textInside": true
+      },
+      "canvasBefore": {
+        "x": 23,
+        "y": 286.296875,
+        "width": 1234,
+        "height": 364
+      },
+      "canvasAfter": {
+        "x": 23,
+        "y": 286.296875,
+        "width": 1234,
+        "height": 364
+      }
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "guidance-1280-enlarged-long-status",
+    "data": {
+      "text": "Pick at least 3 surface points for \u201cUpper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel\u201d (have 2).",
+      "textLength": 460,
+      "fontSize": "12px",
+      "lineHeight": "16px",
+      "height": 48,
+      "clientHeight": 48,
+      "scrollHeight": 48,
+      "overflowY": "auto",
+      "tabindex": 0,
+      "hidden": false,
+      "fits": true,
+      "textTop": 145.296875,
+      "textBottom": 192.296875,
+      "paraTop": 145.296875,
+      "paraBottom": 193.296875,
+      "textInside": true
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "guidance-1280-enlarged",
+    "data": {
+      "enlargedHint": {
+        "text": "Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.",
+        "textLength": 127,
+        "fontSize": "12px",
+        "lineHeight": "16px",
+        "height": 48,
+        "clientHeight": 48,
+        "scrollHeight": 48,
+        "overflowY": "auto",
+        "tabindex": 0,
+        "hidden": false,
+        "fits": true,
+        "textTop": 145.296875,
+        "textBottom": 160.296875,
+        "paraTop": 145.296875,
+        "paraBottom": 193.296875,
+        "textInside": true
+      },
+      "enlargedCanvas": {
+        "x": 24,
+        "y": 197.296875,
+        "width": 1232,
+        "height": 441.703125
+      }
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+    "name": "guidance-keyboard-overflow",
+    "data": {
+      "text": "Pick at least 3 surface points for \u201cUpper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Uppe",
+      "textLength": 1196,
+      "fontSize": "12px",
+      "lineHeight": "16px",
+      "height": 48,
+      "clientHeight": 48,
+      "scrollHeight": 96,
+      "overflowY": "auto",
+      "tabindex": 0,
+      "hidden": false,
+      "fits": false,
+      "textTop": 98.296875,
+      "textBottom": 193.296875,
+      "paraTop": 145.296875,
+      "paraBottom": 193.296875,
+      "textInside": false
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+    "name": "phone-390-normal-idle",
+    "data": {
+      "idleVisible": 338.109375
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+    "name": "phone-390-normal-drawing",
+    "data": {
+      "drawingVisible": 290.109375
+    }
+  },
+  {
+    "file": "editor-guidance.spec.ts",
+    "case": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+    "name": "phone-390-enlarged",
+    "data": {
+      "enlargedHeight": 491.703125
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-normal-idle",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "normal",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 23,
+        "y": 263.8125,
+        "width": 1394,
+        "height": 567
+      },
+      "canvasCssHeight": 567,
+      "canvasVisibleHeight": 567,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 23,
+        "y": 843.8125,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1071.4375,
+        "y": 107.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 903,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-normal-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-normal-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "normal",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 23,
+        "y": 263.8125,
+        "width": 1394,
+        "height": 567
+      },
+      "canvasCssHeight": 567,
+      "canvasVisibleHeight": 567,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 23,
+        "y": 843.8125,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1071.4375,
+        "y": 107.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 903,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-normal-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-enlarged-idle",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "enlarged",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 24,
+        "y": 174.8125,
+        "width": 1392,
+        "height": 644.1875
+      },
+      "canvasCssHeight": 644.1875,
+      "canvasVisibleHeight": 644.1875,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 24,
+        "y": 832,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1070.4375,
+        "y": 18.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 900,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-enlarged-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-enlarged-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "enlarged",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 24,
+        "y": 174.8125,
+        "width": 1392,
+        "height": 644.1875
+      },
+      "canvasCssHeight": 644.1875,
+      "canvasVisibleHeight": 644.1875,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 24,
+        "y": 832,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1070.4375,
+        "y": 18.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 900,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-enlarged-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+    "name": "layout-768x1024-normal-idle",
+    "data": {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "mode": "normal",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 37,
+        "y": 546.09375,
+        "width": 694,
+        "height": 665.59375
+      },
+      "canvasCssHeight": 665.59375,
+      "canvasVisibleHeight": 477.90625,
+      "canvasBottomBelowViewport": true,
+      "toolbarRect": {
+        "x": 37,
+        "y": 364.09375,
+        "width": 694,
+        "height": 176
+      },
+      "toolbarHeight": 176,
+      "topBarRect": {
+        "x": 37,
+        "y": 364.09375,
+        "width": 694,
+        "height": 176
+      },
+      "saveSetupRect": {
+        "x": 37,
+        "y": 1226.6875,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 659.25,
+        "y": 269.796875,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 1370,
+      "documentScrollWidth": 768,
+      "viewportWidth": 768,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "768x1024-normal-idle-initial-viewport.png",
+        "fullPageShot": "768x1024-normal-idle-full-page.png"
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+    "name": "layout-768x1024-normal-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "mode": "normal",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 37,
+        "y": 546.09375,
+        "width": 694,
+        "height": 665.59375
+      },
+      "canvasCssHeight": 665.59375,
+      "canvasVisibleHeight": 477.90625,
+      "canvasBottomBelowViewport": true,
+      "toolbarRect": {
+        "x": 37,
+        "y": 364.09375,
+        "width": 694,
+        "height": 176
+      },
+      "toolbarHeight": 176,
+      "topBarRect": {
+        "x": 37,
+        "y": 364.09375,
+        "width": 694,
+        "height": 176
+      },
+      "saveSetupRect": {
+        "x": 37,
+        "y": 1226.6875,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 659.25,
+        "y": 269.796875,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 1370,
+      "documentScrollWidth": 768,
+      "viewportWidth": 768,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "768x1024-normal-active-drawing-initial-viewport.png",
+        "fullPageShot": "768x1024-normal-active-drawing-full-page.png"
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+    "name": "layout-768x1024-enlarged-idle",
+    "data": {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "mode": "enlarged",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 26,
+        "y": 349.296875,
+        "width": 716,
+        "height": 589.703125
+      },
+      "canvasCssHeight": 589.703125,
+      "canvasVisibleHeight": 589.703125,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 26,
+        "y": 167.296875,
+        "width": 716,
+        "height": 176
+      },
+      "toolbarHeight": 176,
+      "topBarRect": {
+        "x": 26,
+        "y": 167.296875,
+        "width": 716,
+        "height": 176
+      },
+      "saveSetupRect": {
+        "x": 26,
+        "y": 954,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 670.25,
+        "y": 73,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 1024,
+      "documentScrollWidth": 768,
+      "viewportWidth": 768,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "768x1024-enlarged-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+    "name": "layout-768x1024-enlarged-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "mode": "enlarged",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 26,
+        "y": 349.296875,
+        "width": 716,
+        "height": 589.703125
+      },
+      "canvasCssHeight": 589.703125,
+      "canvasVisibleHeight": 589.703125,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 26,
+        "y": 167.296875,
+        "width": 716,
+        "height": 176
+      },
+      "toolbarHeight": 176,
+      "topBarRect": {
+        "x": 26,
+        "y": 167.296875,
+        "width": 716,
+        "height": 176
+      },
+      "saveSetupRect": {
+        "x": 26,
+        "y": 954,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 670.25,
+        "y": 73,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 1024,
+      "documentScrollWidth": 768,
+      "viewportWidth": 768,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "768x1024-enlarged-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+    "name": "layout-390x844-normal-idle",
+    "data": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "mode": "normal",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 33,
+        "y": 505.890625,
+        "width": 324,
+        "height": 394
+      },
+      "canvasCssHeight": 394,
+      "canvasVisibleHeight": 338.109375,
+      "canvasBottomBelowViewport": true,
+      "toolbarRect": {
+        "x": 33,
+        "y": 421.890625,
+        "width": 324,
+        "height": 80
+      },
+      "toolbarHeight": 80,
+      "topBarRect": {
+        "x": 33,
+        "y": 421.890625,
+        "width": 324,
+        "height": 80
+      },
+      "saveSetupRect": {
+        "x": 33,
+        "y": 912.890625,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 281.25,
+        "y": 277.59375,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 3,
+      "documentScrollHeight": 1104,
+      "documentScrollWidth": 390,
+      "viewportWidth": 390,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "390x844-normal-idle-initial-viewport.png",
+        "fullPageShot": "390x844-normal-idle-full-page.png"
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+    "name": "layout-390x844-normal-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "mode": "normal",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 33,
+        "y": 553.890625,
+        "width": 324,
+        "height": 394
+      },
+      "canvasCssHeight": 394,
+      "canvasVisibleHeight": 290.109375,
+      "canvasBottomBelowViewport": true,
+      "toolbarRect": {
+        "x": 33,
+        "y": 421.890625,
+        "width": 324,
+        "height": 128
+      },
+      "toolbarHeight": 128,
+      "topBarRect": {
+        "x": 33,
+        "y": 421.890625,
+        "width": 324,
+        "height": 128
+      },
+      "saveSetupRect": {
+        "x": 33,
+        "y": 960.890625,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 281.25,
+        "y": 277.59375,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 7,
+      "documentScrollHeight": 1152,
+      "documentScrollWidth": 390,
+      "viewportWidth": 390,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "390x844-normal-active-drawing-initial-viewport.png",
+        "fullPageShot": "390x844-normal-active-drawing-full-page.png"
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+    "name": "layout-390x844-enlarged-idle",
+    "data": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "mode": "enlarged",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 16,
+        "y": 237.296875,
+        "width": 358,
+        "height": 539.703125
+      },
+      "canvasCssHeight": 539.703125,
+      "canvasVisibleHeight": 539.703125,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 16,
+        "y": 153.296875,
+        "width": 358,
+        "height": 80
+      },
+      "toolbarHeight": 80,
+      "topBarRect": {
+        "x": 16,
+        "y": 153.296875,
+        "width": 358,
+        "height": 80
+      },
+      "saveSetupRect": {
+        "x": 16,
+        "y": 784,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 298.25,
+        "y": 13,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 3,
+      "documentScrollHeight": 844,
+      "documentScrollWidth": 390,
+      "viewportWidth": 390,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "390x844-enlarged-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+    "name": "layout-390x844-enlarged-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "mode": "enlarged",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 16,
+        "y": 285.296875,
+        "width": 358,
+        "height": 491.703125
+      },
+      "canvasCssHeight": 491.703125,
+      "canvasVisibleHeight": 491.703125,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 16,
+        "y": 153.296875,
+        "width": 358,
+        "height": 128
+      },
+      "toolbarHeight": 128,
+      "topBarRect": {
+        "x": 16,
+        "y": 153.296875,
+        "width": 358,
+        "height": 128
+      },
+      "saveSetupRect": {
+        "x": 16,
+        "y": 784,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 298.25,
+        "y": 13,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 7,
+      "documentScrollHeight": 844,
+      "documentScrollWidth": 390,
+      "viewportWidth": 390,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "390x844-enlarged-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  }
+]

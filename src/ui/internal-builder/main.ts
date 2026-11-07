@@ -3670,6 +3670,16 @@ function commitPlacementProject(label: string, next: ProjectDocument): { ok: tru
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+  const inclusion = currentInclusion();
+  const includedProducts = new Set(inclusion.includedProducts);
+  const includedConfigurations = new Set(inclusion.includedConfigurations);
+  const previousCounts = new Map(source.project.configurations.map(entry => [entry.id, entry.placements.length]));
+  for (const configuration of next.configurations) {
+    const addsPlacement = configuration.placements.length > (previousCounts.get(configuration.id) ?? 0);
+    if (addsPlacement && (!includedProducts.has(configuration.productId) || !includedConfigurations.has(configuration.id))) {
+      return { ok: false, error: 'Include this product and option in Prepare job before adding a logo placement.' };
+    }
+  }
   pushHistoryForEdit(label);
   source = replaceSessionProject(source, next);
   markJobDirty();

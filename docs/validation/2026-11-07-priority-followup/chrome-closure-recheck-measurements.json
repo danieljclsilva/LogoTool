@@ -1,0 +1,257 @@
+[
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "offline-environment",
+    "data": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chrome",
+      "browserVersion": "156.0.8078.80",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-normal-idle",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "normal",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 23,
+        "y": 263.8125,
+        "width": 1394,
+        "height": 567
+      },
+      "canvasCssHeight": 567,
+      "canvasVisibleHeight": 567,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 23,
+        "y": 843.8125,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1071.4375,
+        "y": 107.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 903,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-normal-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-normal-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "normal",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 23,
+        "y": 263.8125,
+        "width": 1394,
+        "height": 567
+      },
+      "canvasCssHeight": 567,
+      "canvasVisibleHeight": 567,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 23,
+        "y": 163.8125,
+        "width": 1394,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 23,
+        "y": 843.8125,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1071.4375,
+        "y": 107.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 903,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-normal-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-enlarged-idle",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "enlarged",
+      "toolbar": "idle",
+      "canvasRect": {
+        "x": 24,
+        "y": 174.8125,
+        "width": 1392,
+        "height": 644.1875
+      },
+      "canvasCssHeight": 644.1875,
+      "canvasVisibleHeight": 644.1875,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 24,
+        "y": 832,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1070.4375,
+        "y": 18.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 19,
+      "documentScrollHeight": 900,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-enlarged-idle-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  },
+  {
+    "file": "workspace-layout-audit.spec.ts",
+    "case": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+    "name": "layout-1440x900-enlarged-active-drawing",
+    "data": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "mode": "enlarged",
+      "toolbar": "active-drawing",
+      "canvasRect": {
+        "x": 24,
+        "y": 174.8125,
+        "width": 1392,
+        "height": 644.1875
+      },
+      "canvasCssHeight": 644.1875,
+      "canvasVisibleHeight": 644.1875,
+      "canvasBottomBelowViewport": false,
+      "toolbarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "toolbarHeight": 96,
+      "topBarRect": {
+        "x": 24,
+        "y": 74.8125,
+        "width": 1392,
+        "height": 96
+      },
+      "saveSetupRect": {
+        "x": 24,
+        "y": 832,
+        "width": 189.546875,
+        "height": 44
+      },
+      "saveSetupVisible": true,
+      "saveSetupEnabled": true,
+      "jobSaveRect": {
+        "x": 1070.4375,
+        "y": 18.90625,
+        "width": 80.75,
+        "height": 44
+      },
+      "toolbarControlCount": 22,
+      "documentScrollHeight": 900,
+      "documentScrollWidth": 1440,
+      "viewportWidth": 1440,
+      "entryPoint": "file://<repo>/dist/station/Logo%20Station.html",
+      "scrollY": 0,
+      "evidence": {
+        "initialViewportShot": "1440x900-enlarged-active-drawing-initial-viewport.png",
+        "fullPageShot": null
+      }
+    }
+  }
+]

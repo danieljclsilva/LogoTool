@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -46,6 +46,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
         const r = node.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
       });
       await b(page, 'product-model-expand').click();
+      await revealModelViewControls(page);
       await ms(page, 'view-front').click();
       await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
       await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
@@ -58,7 +59,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
 
       await ms(page, 'context-measure').click();
       for (const hook of ['ref-pick-a', 'ref-pick-b', 'ref-mm', 'ref-fit', 'tool-rectangle']) {
-        const control = ms(page, hook);
+        const control = hook === 'tool-rectangle' && await ms(page, 'tool-picker').isVisible() ? ms(page, 'tool-picker') : ms(page, hook);
         expect(await setup.locator(`[data-model-setup-hook="${hook}"]`).count()).toBe(1);
         await expect(control).toBeVisible();
       }
@@ -69,7 +70,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
       expect(stageBox.y + stageBox.height).toBeLessThan(viewport.height);
       // Polygon cancellation belongs to the editor, not the enclosing dialog.
 
-      await ms(page, 'tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       await clickSurface(.48,.48); await clickSurface(.52,.48);
       await page.keyboard.press('Escape');
       await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
@@ -83,7 +84,8 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
       await ms(page, 'ref-mm').fill('300'); await ms(page, 'ref-fit').click();
       await expect(ms(page, 'reference-scale')).toContainText('scale 1 unit =');
 
-      await ms(page, 'area-name').fill('Chest'); await ms(page, 'tool-rectangle').click();
+      await chooseModelTool(page, 'rectangle');
+      await ms(page, 'area-name').fill('Chest');
       const box = (await canvas.boundingBox())!;
       await page.mouse.move(box.x + box.width * .44, box.y + box.height * .42); await page.mouse.down();
       await page.mouse.move(box.x + box.width * .55, box.y + box.height * .55, { steps: 4 });

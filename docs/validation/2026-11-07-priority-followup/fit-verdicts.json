@@ -1,0 +1,139 @@
+{
+  "fixture": "e2e/fixtures/prepared-bridge-product.json",
+  "region": {
+    "id": "SYN-BRIDGE-CHEST",
+    "frame": {
+      "frameId": "FRAME-SYN-BRIDGE",
+      "originDescription": "Synthetic bridge datum at chest centre; +x right, +y up; mm.",
+      "axes": {
+        "xPositive": "right",
+        "yPositive": "up"
+      }
+    },
+    "calibrationRef": {
+      "calibrationId": "CAL-SYN-B1",
+      "version": "v1"
+    },
+    "safeArea": [
+      [
+        -100,
+        -80
+      ],
+      [
+        100,
+        -80
+      ],
+      [
+        100,
+        80
+      ],
+      [
+        -100,
+        80
+      ]
+    ],
+    "exclusions": [
+      [
+        [
+          10,
+          10
+        ],
+        [
+          20,
+          10
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          10,
+          20
+        ]
+      ]
+    ],
+    "allowedMethods": [
+      "embroidery",
+      "print"
+    ],
+    "name": "Chest"
+  },
+  "cases": [
+    {
+      "label": "exclusion overlap",
+      "placement": {
+        "id": "synthetic-fit-probe",
+        "logoId": "synthetic",
+        "regionId": "SYN-BRIDGE-CHEST",
+        "method": "embroidery",
+        "widthMm": 50,
+        "heightMm": 30,
+        "rotationDeg": 0,
+        "pos": {
+          "xMm": 15,
+          "yMm": 15
+        }
+      },
+      "verdict": {
+        "ok": false,
+        "reason": "footprint overlaps exclusions[0]",
+        "footprint": [
+          [
+            -10,
+            0
+          ],
+          [
+            40,
+            0
+          ],
+          [
+            40,
+            30
+          ],
+          [
+            -10,
+            30
+          ]
+        ]
+      }
+    },
+    {
+      "label": "clear safe area",
+      "placement": {
+        "id": "synthetic-fit-probe",
+        "logoId": "synthetic",
+        "regionId": "SYN-BRIDGE-CHEST",
+        "method": "embroidery",
+        "widthMm": 50,
+        "heightMm": 30,
+        "rotationDeg": 0,
+        "pos": {
+          "xMm": -40,
+          "yMm": -30
+        }
+      },
+      "verdict": {
+        "ok": true,
+        "reason": "footprint fits inside the safe region with all exclusion regions avoided",
+        "footprint": [
+          [
+            -65,
+            -45
+          ],
+          [
+            -15,
+            -45
+          ],
+          [
+            -15,
+            -15
+          ],
+          [
+            -65,
+            -15
+          ]
+        ]
+      }
+    }
+  ]
+}

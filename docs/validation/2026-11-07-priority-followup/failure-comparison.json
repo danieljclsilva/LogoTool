@@ -1,0 +1,1049 @@
+{
+  "reviewedCommit": "c180a416fbecd6f6329ca68f1386b19b5b4dc7bd",
+  "reviewedEvidence": "../2026-11-07-ux/final-chromium-results.json",
+  "reviewedStats": {
+    "startTime": "2026-11-07T18:07:36.253Z",
+    "duration": 1484519.165,
+    "expected": 231,
+    "skipped": 0,
+    "unexpected": 27,
+    "flaky": 0
+  },
+  "followupStats": {
+    "startTime": "2026-11-07T20:39:29.374Z",
+    "duration": 1174094.969,
+    "expected": 245,
+    "skipped": 0,
+    "unexpected": 18,
+    "flaky": 0
+  },
+  "settings": {
+    "workers": 2,
+    "retries": 1,
+    "offline": true,
+    "entryPoint": "file://"
+  },
+  "failureRows": [
+    {
+      "id": "F12",
+      "file": "internal-builder.spec.ts",
+      "title": "issues a subset hybrid package at revision 1 with approvals cleared",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Test adds a logo while authoring focus remains on the excluded second product; issued subset has zero placements. Supplemental baseline UI replay with visible-panel navigation helpers reproduces the same zero-placement assertion. This source behavior predates the UX patch.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 2279
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 2271
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2514,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Creation on excluded scope is blocked, then the test selects an included product and verifies issued placement count.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F19",
+      "file": "multiview-viewer.spec.ts",
+      "title": "model-only package offers honest 3D with a rendered model and side-tab availability",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Assertion expects the internal presentation/model.glb path in availability text; UI supplies a plain availability explanation.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10478
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10596
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10412,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n\n\n  191 |     await expect(hook(page, 'mode-3d-wrap')).toBeVisible();\n  192 |     await expect.poll(() => mode3dCanvasRendered(page)).toBe(true);\n> 193 |     await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');\n      |                                                    ^\n  194 |     await expect(hook(page, 'model-availability')).toContainText('No logo artwork is projected');\n  195 |     await expect(hook(page, 'mode-3d-zoom-in')).toBeEnabled();\n  196 |     await expect(hook(page, 'mode-3d-zoom-out')).toBeEnabled();\n    at <repo>/e2e/multiview-viewer.spec.ts:193:52"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10306,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n\n\n  191 |     await expect(hook(page, 'mode-3d-wrap')).toBeVisible();\n  192 |     await expect.poll(() => mode3dCanvasRendered(page)).toBe(true);\n> 193 |     await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');\n      |                                                    ^\n  194 |     await expect(hook(page, 'model-availability')).toContainText('No logo artwork is projected');\n  195 |     await expect(hook(page, 'mode-3d-zoom-in')).toBeEnabled();\n  196 |     await expect(hook(page, 'mode-3d-zoom-out')).toBeEnabled();\n    at <repo>/e2e/multiview-viewer.spec.ts:193:52"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Availability assertion expects presentation/model.glb. The actual explanation omits that internal path.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F20",
+      "file": "multiview-viewer.spec.ts",
+      "title": "replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Assertion expects the internal presentation/model.glb path in availability text; UI supplies a plain availability explanation.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10456
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10521
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10408,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n\n\n  455 |     await expect(hook(page, 'mode-3d-canvas')).toBeVisible();\n  456 |     await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);\n> 457 |     await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');\n      |                                                    ^\n  458 |     // A red model with identical container bytes replaces the pane content;\n  459 |     // an intervening model-less package clears it (never a stale blue canvas).\n  460 |     await load(page, proxyPackage, 'proxy.logo-project');\n    at <repo>/e2e/multiview-viewer.spec.ts:457:52"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10446,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n\n\n  455 |     await expect(hook(page, 'mode-3d-canvas')).toBeVisible();\n  456 |     await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);\n> 457 |     await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');\n      |                                                    ^\n  458 |     // A red model with identical container bytes replaces the pane content;\n  459 |     // an intervening model-less package clears it (never a stale blue canvas).\n  460 |     await load(page, proxyPackage, 'proxy.logo-project');\n    at <repo>/e2e/multiview-viewer.spec.ts:457:52"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Availability assertion expects presentation/model.glb. The actual explanation omits that internal path.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F21",
+      "file": "new-project.spec.ts",
+      "title": "create customer journey adds a new raster logo and reviews the return",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Customer width-mm input stays hidden; trace ends in fill(60) without selecting/revealing a placement.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30004
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30007
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 30002,
+          "errors": [
+            "Test timeout of 30000ms exceeded."
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 30006,
+          "errors": [
+            "Test timeout of 30000ms exceeded."
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts reach the 30-second test timeout. The prior hidden customer-width cause remains a hypothesis for this run.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F29",
+      "file": "operator-workflow.spec.ts",
+      "title": "calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Two expected legacy pw-view-tab controls are absent in the shared workspace; contract/feature gap remains unresolved.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11067
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11146
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 11045,
+          "errors": [
+            "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\nExpected: 2\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\n    24 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\"\n\n\n  847 |     // Exactly one of the two view tabs carries the calibrated overlay.\n  848 |     const tabs = host.locator('[data-placement-hook^=\"pw-view-tab-\"]');\n> 849 |     await expect(tabs).toHaveCount(2);\n      |                        ^\n  850 |     const overlayStates: boolean[] = [];\n  851 |     for (let index = 0; index < 2; index += 1) {\n  852 |       await tabs.nth(index).click();\n    at <repo>/e2e/operator-workflow.spec.ts:849:24"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 11117,
+          "errors": [
+            "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\nExpected: 2\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\n    24 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\"\n\n\n  847 |     // Exactly one of the two view tabs carries the calibrated overlay.\n  848 |     const tabs = host.locator('[data-placement-hook^=\"pw-view-tab-\"]');\n> 849 |     await expect(tabs).toHaveCount(2);\n      |                        ^\n  850 |     const overlayStates: boolean[] = [];\n  851 |     for (let index = 0; index < 2; index += 1) {\n  852 |       await tabs.nth(index).click();\n    at <repo>/e2e/operator-workflow.spec.ts:849:24"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Expected two legacy pw-view-tab controls, received zero. Shared-workspace view contract remains unresolved.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F30",
+      "file": "operator-workflow.spec.ts",
+      "title": "direct images job: intake, setup, placements, measurement, technique, review, save, reopen",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Expected crest placement is absent in the active option. Product/option focus and inclusion interaction remains unresolved.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11288
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11444
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 7756,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "The test selects the included jacket and enters the visible placement panel before row actions.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F31",
+      "file": "operator-workflow.spec.ts",
+      "title": "direct model-only job: calibrated diagram placement without any photo",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Test clicks ref-pick-a while its Measure context panel is closed.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15973
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16159
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 15840,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-model\"]').locator('[data-model-setup-hook=\"ref-pick-a\"]')\n    - locator resolved to <button type=\"button\" aria-pressed=\"false\" class=\"btn-secondary\" data-model-setup-hook=\"ref-pick-a\">Pick A on model</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    28 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n\n\n  1073 |     };\n  1074 |     const ms = (name: string) => modelPane.locator(`[data-model-setup-hook=\"${name}\"]`);\n> 1075 |     await ms('ref-pick-a').click();\n       |                            ^\n  1076 |     await surfaceClick(0.5, 0.5);\n  1077 |     await expect(ms('reference-readout')).toContainText('A (');\n  1078 |     await surfaceClick(0.6, 0.5);\n    at <repo>/e2e/operator-workflow.spec.ts:1075:28"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 15855,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-model\"]').locator('[data-model-setup-hook=\"ref-pick-a\"]')\n    - locator resolved to <button type=\"button\" aria-pressed=\"false\" class=\"btn-secondary\" data-model-setup-hook=\"ref-pick-a\">Pick A on model</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    28 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n\n\n  1073 |     };\n  1074 |     const ms = (name: string) => modelPane.locator(`[data-model-setup-hook=\"${name}\"]`);\n> 1075 |     await ms('ref-pick-a').click();\n       |                            ^\n  1076 |     await surfaceClick(0.5, 0.5);\n  1077 |     await expect(ms('reference-readout')).toContainText('A (');\n  1078 |     await surfaceClick(0.6, 0.5);\n    at <repo>/e2e/operator-workflow.spec.ts:1075:28"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Pick A on model exists but is hidden when clicked. The Measure panel has not been opened.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F32",
+      "file": "operator-workflow.spec.ts",
+      "title": "invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Test clicks a placement row after review navigation while the placement workspace is hidden.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 16289
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16292
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 16203,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-placement-row-\"]').first()\n    - locator resolved to <button type=\"button\" class=\"pw-item is-selected\" data-placement-hook=\"pw-placement-row-a1832d35-d7ba-4e6b-97c1-a67d3cac8b52\">\u2026</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n\n\n  699 |     // Print draft with DRAFT markings, complete print still disabled.\n  700 |     await reviewHost.getByRole('button', { name: 'Back to placements' }).click();\n> 701 |     await host.locator('[data-placement-hook^=\"pw-placement-row-\"]').first().click();\n      |                                                                              ^\n  702 |     await host.getByRole('button', { name: 'Remove placement' }).click();\n  703 |     await ensurePlacementPanel(page);\n  704 |     await host.getByRole('button', { name: 'Add logo placement' }).click();\n    at <repo>/e2e/operator-workflow.spec.ts:701:78"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 16270,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-placement-row-\"]').first()\n    - locator resolved to <button type=\"button\" class=\"pw-item is-selected\" data-placement-hook=\"pw-placement-row-f9553118-527f-4332-8129-55f8ac25fdc4\">\u2026</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n\n\n  699 |     // Print draft with DRAFT markings, complete print still disabled.\n  700 |     await reviewHost.getByRole('button', { name: 'Back to placements' }).click();\n> 701 |     await host.locator('[data-placement-hook^=\"pw-placement-row-\"]').first().click();\n      |                                                                              ^\n  702 |     await host.getByRole('button', { name: 'Remove placement' }).click();\n  703 |     await ensurePlacementPanel(page);\n  704 |     await host.getByRole('button', { name: 'Add logo placement' }).click();\n    at <repo>/e2e/operator-workflow.spec.ts:701:78"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Placement row exists but is hidden after Back to placements.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F33",
+      "file": "operator-workflow.spec.ts",
+      "title": "primary span calibration drives the photo overlay with no Advanced mapping",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Test waits for the obsolete Finish safe area action in the photo workflow.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15866
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 15862
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 15844,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Finish safe area' })\n\n\n  961 |       await stage.click({ position: { x: Math.round(stageBox.width * fx), y: Math.round(stageBox.height * fy) } });\n  962 |     }\n> 963 |     await workspace.getByRole('button', { name: 'Finish safe area' }).click();\n      |                                                                       ^\n  964 |     await workspace.getByRole('button', { name: 'Save product setup' }).click();\n  965 |     await expect(workspace.getByText(/Saved .* \\([0-9]+ safe-area corners, [0-9]+ anchors?\\)/)).toBeVisible();\n  966 |     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);\n    at <repo>/e2e/operator-workflow.spec.ts:963:71"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 15975,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Finish safe area' })\n\n\n  961 |       await stage.click({ position: { x: Math.round(stageBox.width * fx), y: Math.round(stageBox.height * fy) } });\n  962 |     }\n> 963 |     await workspace.getByRole('button', { name: 'Finish safe area' }).click();\n      |                                                                       ^\n  964 |     await workspace.getByRole('button', { name: 'Save product setup' }).click();\n  965 |     await expect(workspace.getByText(/Saved .* \\([0-9]+ safe-area corners, [0-9]+ anchors?\\)/)).toBeVisible();\n  966 |     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);\n    at <repo>/e2e/operator-workflow.spec.ts:963:71"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Finish safe area button cannot be found in the current photo workflow.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F34",
+      "file": "operator-workflow.spec.ts",
+      "title": "zero-placement option stays present and prints its explicit statement",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Test expects the product card after Add has automatically opened the editor; it has not returned to Prepare.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10947
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10969
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10960,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first() with timeout 10000ms\n  - waiting for locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\n    24 \u00d7 locator resolved to <div class=\"product-card\" data-product-card=\"provisional-product-team-jacket-1-8d5d96ee\">\u2026</div>\n       - unexpected value \"hidden\"\n\n\n  176 | async function checkProductCard(page: Page, title: string): Promise<void> {\n  177 |   const card = page.locator('[data-product-card]', { hasText: title }).first();\n> 178 |   await expect(card).toBeVisible();\n      |                      ^\n  179 |   await card.locator('input[type=\"checkbox\"]').first().check();\n  180 | }\n  181 |\n    at checkProductCard (<repo>/e2e/operator-workflow.spec.ts:178:22)\n    at <repo>/e2e/operator-workflow.spec.ts:748:11"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10937,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first() with timeout 10000ms\n  - waiting for locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\n    24 \u00d7 locator resolved to <div class=\"product-card\" data-product-card=\"provisional-product-team-jacket-1-7a374f71\">\u2026</div>\n       - unexpected value \"hidden\"\n\n\n  176 | async function checkProductCard(page: Page, title: string): Promise<void> {\n  177 |   const card = page.locator('[data-product-card]', { hasText: title }).first();\n> 178 |   await expect(card).toBeVisible();\n      |                      ^\n  179 |   await card.locator('input[type=\"checkbox\"]').first().check();\n  180 | }\n  181 |\n    at checkProductCard (<repo>/e2e/operator-workflow.spec.ts:178:22)\n    at <repo>/e2e/operator-workflow.spec.ts:748:11"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Expected product card remains hidden after Add opens the product editor.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F36",
+      "file": "placement-ux-regression-a.spec.ts",
+      "title": "placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Trace ends clicking ref-pick-a with Measure closed; timeout masks the hidden context control.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 120005
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 120004
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 120003,
+          "errors": [
+            "Test timeout of 120000ms exceeded."
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 120002,
+          "errors": [
+            "Test timeout of 120000ms exceeded.",
+            "Error: browserContext.close: Target page, context or browser has been closed\n\n  173 |     await assertCleanProbe(probe);\n  174 |   } finally {\n> 175 |     await context.close();\n      |     ^\n  176 |   }\n  177 | });\n  178 |\n    at <repo>/e2e/placement-ux-regression-a.spec.ts:175:5"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts time out at 120 seconds. Retry also reports context-close teardown failure. Earlier hidden Measure-control cause is not independently re-established by this run.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F38",
+      "file": "prepared-product-import.spec.ts",
+      "title": "baseline review of the prepared-product return yields a consistent candidate",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12026
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11949
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2855,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F39",
+      "file": "prepared-product-import.spec.ts",
+      "title": "customer places in the prepared mm region, confirms, saves and reopens",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11938
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12168
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2077,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F40",
+      "file": "presentation-assets.spec.ts",
+      "title": "Builder prunes unselected reference images and preserves the selected image through delivery and return",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Trace ends filling hidden customer width-mm(60) without revealing the placement details.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30008
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30005
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 30003,
+          "errors": [
+            "Test timeout of 30000ms exceeded.",
+            "Error: locator.fill: Test ended.\nBrowser logs:\n\n<launching> <home>/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,NetworkTimeServiceQuerying,AimEnabled,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --disable-updater-scheduler --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/var/folders/7b/xkc7l1ld0lnd_mrlrlv08ym80000gn/T/playwright_chromiumdev_profile-2w0zHA --remote-debugging-pipe --no-startup-window\n<launched> pid=16135\n[pid=16135][err] [1107/214609.835853:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16135][err] [1107/214609.877170:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16135][err] [1107/214611.227570:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16135][err] [1107/214611.288624:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16135] <gracefully close start>\nCall log:\n  - waiting for locator('[data-customer-hook=\"width-mm\"]')\n    - locator resolved to <input step=\"any\" type=\"number\" min=\"0.000000001\" data-customer-hook=\"width-mm\"/>\n    - fill(\"60\")\n  - attempting fill action\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n      - waiting 100ms\n    56 \u00d7 waiting for element to be visible, enabled and editable\n       - element is not visible\n     - retrying fill action\n       - waiting 500ms\n    - waiting for element to be visible, enabled and editable\n\n\n  178 |     await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeHidden();\n  179 |     await expect(hook(customer,'mapping-status')).toContainText('Reference only');\n> 180 |     await hook(customer,'width-mm').fill('60'); await hook(customer,'width-mm').press('Tab');\n      |                                     ^\n  181 |     await hook(customer,'primary-next').click();\n  182 |     await hook(customer,'confirmed-by').fill('Synthetic reviewer'); await hook(customer,'confirm').click();\n  183 |     const returned = await downloadBytes(customer,() => hook(customer,'submit').click());\n    at <repo>/e2e/presentation-assets.spec.ts:180:37"
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 30003,
+          "errors": [
+            "Test timeout of 30000ms exceeded."
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts time out at 30 seconds while filling hidden customer width-mm. The fill call log identifies the hidden control.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F41",
+      "file": "presentation-assets.spec.ts",
+      "title": "fixed product, artwork, area and method do not become redundant selectors",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Customer width-mm field is hidden without an active placement/visible details context.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10298
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10556
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10264,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-customer-hook=\"width-mm\"]')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-customer-hook=\"width-mm\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"width-mm\"]')\n    24 \u00d7 locator resolved to <input step=\"any\" type=\"number\" min=\"0.000000001\" data-customer-hook=\"width-mm\"/>\n       - unexpected value \"hidden\"\n\n\n  117 |     await expect(page.locator('[data-step-panel=\"edit\"]')).toBeVisible();\n  118 |     for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();\n> 119 |     await expect(hook(page,'width-mm')).toBeVisible(); await expect(hook(page,'height-mm')).toBeHidden();\n      |                                         ^\n  120 |     await expect(hook(page,'job-choices')).toBeHidden(); assertCleanProbe(probe);\n  121 |   } finally { await context.close(); }\n  122 | });\n    at <repo>/e2e/presentation-assets.spec.ts:119:41"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10339,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-customer-hook=\"width-mm\"]')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-customer-hook=\"width-mm\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"width-mm\"]')\n    24 \u00d7 locator resolved to <input step=\"any\" type=\"number\" min=\"0.000000001\" data-customer-hook=\"width-mm\"/>\n       - unexpected value \"hidden\"\n\n\n  117 |     await expect(page.locator('[data-step-panel=\"edit\"]')).toBeVisible();\n  118 |     for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();\n> 119 |     await expect(hook(page,'width-mm')).toBeVisible(); await expect(hook(page,'height-mm')).toBeHidden();\n      |                                         ^\n  120 |     await expect(hook(page,'job-choices')).toBeHidden(); assertCleanProbe(probe);\n  121 |   } finally { await context.close(); }\n  122 | });\n    at <repo>/e2e/presentation-assets.spec.ts:119:41"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Customer width-mm remains hidden when the test expects it visible.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F42",
+      "file": "presentation-assets.spec.ts",
+      "title": "guided primary actions create zero and repeated placements without duplicates",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Trace ends filling hidden customer width-mm(40) without revealing the placement details.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30003
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30006
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 30001,
+          "errors": [
+            "Test timeout of 30000ms exceeded."
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 30003,
+          "errors": [
+            "Test timeout of 30000ms exceeded."
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts reach the 30-second test timeout. Prior hidden width-mm navigation cause remains a hypothesis for this run.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F43",
+      "file": "product-cards.spec.ts",
+      "title": "product cards: thumbnails, independent open, single-option default, narrowed subset",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Trace ends expecting workspace-product=CARD-MULTI after opening Multi Jacket; product focus remains unresolved.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 240005
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 240007
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1149,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Open focus passes. Later actions now enter Prepare and use the current shared product chooser.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F44",
+      "file": "product-photo-intake.spec.ts",
+      "title": "five named views calibrate, save, reopen, issue, customer places, review agrees",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Existing-view rename input is hidden inside the unopened product files/details context.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 16808
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16900
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 16829,
+          "errors": [
+            "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-in-place-view=\"view-1\"]').locator('input[type=\"text\"]')\n    - locator resolved to <input type=\"text\" maxlength=\"80\" autocomplete=\"off\" class=\"view-row-name\" aria-label=\"Name for existing view Crown\"/>\n    - fill(\"Crown front\")\n  - attempting fill action\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n      - waiting 100ms\n    30 \u00d7 waiting for element to be visible, enabled and editable\n       - element is not visible\n     - retrying fill action\n       - waiting 500ms\n\n\n  688 |     await (await shown(page, 'job-step-1')).click();\n  689 |     const crownRow = page.locator('[data-in-place-view=\"view-1\"]');\n> 690 |     await crownRow.locator('input[type=\"text\"]').fill('Crown front');\n      |                                                  ^\n  691 |     await crownRow.getByRole('button', { name: 'Rename view Crown' }).click();\n  692 |     await expect(await shown(page, 'product-photo-status')).toContainText('Renamed view image to \\u201cCrown front\\u201d');\n  693 |     // Manifest-only change: the filed issue is retained, not invalidated.\n    at <repo>/e2e/product-photo-intake.spec.ts:690:50"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 17021,
+          "errors": [
+            "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-in-place-view=\"view-1\"]').locator('input[type=\"text\"]')\n    - locator resolved to <input type=\"text\" maxlength=\"80\" autocomplete=\"off\" class=\"view-row-name\" aria-label=\"Name for existing view Crown\"/>\n    - fill(\"Crown front\")\n  - attempting fill action\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n      - waiting 100ms\n    30 \u00d7 waiting for element to be visible, enabled and editable\n       - element is not visible\n     - retrying fill action\n       - waiting 500ms\n\n\n  688 |     await (await shown(page, 'job-step-1')).click();\n  689 |     const crownRow = page.locator('[data-in-place-view=\"view-1\"]');\n> 690 |     await crownRow.locator('input[type=\"text\"]').fill('Crown front');\n      |                                                  ^\n  691 |     await crownRow.getByRole('button', { name: 'Rename view Crown' }).click();\n  692 |     await expect(await shown(page, 'product-photo-status')).toContainText('Renamed view image to \\u201cCrown front\\u201d');\n  693 |     // Manifest-only change: the filed issue is retained, not invalidated.\n    at <repo>/e2e/product-photo-intake.spec.ts:690:50"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing-view rename input is hidden when filled.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F45",
+      "file": "product-photo-intake.spec.ts",
+      "title": "in-place named rows: legacy views keep working, slug views at byte level",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Open photo-properties context intercepts a click on the Front view tab. Test navigation does not dismiss the overlay.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15459
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 15515
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 15430,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('tab', { name: 'Front' })\n    - locator resolved to <button role=\"tab\" type=\"button\" aria-selected=\"true\" data-fkey=\"psv-tab-front\" class=\"product-setup-tab is-active\">Front view</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n\n\n  401 |     // Measure the front and save one anchor: the replace below must retire\n  402 |     // exactly this mapping while the superseded bytes stay as evidence.\n> 403 |     await workspace.getByRole('tab', { name: 'Front' }).click();\n      |                                                         ^\n  404 |     await workspace.getByRole('button', { name: 'Set up scale' }).click();\n  405 |     const guided = builder(page, 'guided-scale');\n  406 |     await expect(guided).toBeVisible();\n    at <repo>/e2e/product-photo-intake.spec.ts:403:57"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 15492,
+          "errors": [
+            "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('tab', { name: 'Front' })\n    - locator resolved to <button role=\"tab\" type=\"button\" aria-selected=\"true\" data-fkey=\"psv-tab-front\" class=\"product-setup-tab is-active\">Front view</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div>\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n\n\n  401 |     // Measure the front and save one anchor: the replace below must retire\n  402 |     // exactly this mapping while the superseded bytes stay as evidence.\n> 403 |     await workspace.getByRole('tab', { name: 'Front' }).click();\n      |                                                         ^\n  404 |     await workspace.getByRole('button', { name: 'Set up scale' }).click();\n  405 |     const guided = builder(page, 'guided-scale');\n  406 |     await expect(guided).toBeVisible();\n    at <repo>/e2e/product-photo-intake.spec.ts:403:57"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Product files context panel intercepts the Front view tab click.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F51",
+      "file": "station-entry.spec.ts",
+      "title": "fresh-copied station issues both customer formats offline with no repo dependency",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Trace ends after job-to-placements while waiting for the placements host to become visible; entry/focus state remains unresolved.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30003
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30004
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 30001,
+          "errors": [
+            "Test timeout of 30000ms exceeded.",
+            "Error: browserContext.close: Target page, context or browser has been closed\n\n  359 |     expect(probe.httpRequests).toEqual([]);\n  360 |   } finally {\n> 361 |     if (context) await context.close();\n      |                  ^\n  362 |     if (stationCopy) await rm(stationCopy, { recursive: true, force: true });\n  363 |   }\n  364 | });\n    at <repo>/e2e/station-entry.spec.ts:361:18"
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 30003,
+          "errors": [
+            "Test timeout of 30000ms exceeded.",
+            "Error: browserContext.close: Target page, context or browser has been closed\n\n  359 |     expect(probe.httpRequests).toEqual([]);\n  360 |   } finally {\n> 361 |     if (context) await context.close();\n      |                  ^\n  362 |     if (stationCopy) await rm(stationCopy, { recursive: true, force: true });\n  363 |   }\n  364 | });\n    at <repo>/e2e/station-entry.spec.ts:361:18"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts time out at 30 seconds and report context-close teardown errors. Fresh-copy entry/focus state remains unresolved.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F54",
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (hybrid customer file)",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12286
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12247
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3703,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F55",
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (self customer file)",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12060
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12053
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3498,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F56",
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the hybrid ZIP customer file",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12277
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12273
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3695,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F57",
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the self-contained customer file",
+      "reviewed": "unexpected",
+      "followup": "expected",
+      "classification": "Previously failing case now passes",
+      "priorRecordedCause": "Assertion expects Fits: no; actual geometry verdict says the logo extends beyond Chest and explains recovery.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11966
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12047
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3544,
+          "errors": []
+        }
+      ],
+      "currentObservedFailureOrResolution": "Existing geometry correctly rejects the exclusion overlap. Updated verdict assertion and current product/option chooser preserve the whole-workflow physical checks.",
+      "causeStatus": "Resolved within requested scope"
+    },
+    {
+      "id": "F58",
+      "file": "visual-operation-dimensions.spec.ts",
+      "title": "four select-based measurements across two logos print and export",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Trace ends clicking the crest placement row while the active scope has no matching visible row; focus/selection issue remains unresolved.",
+      "reviewedAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 240004
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 240010
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "durationMs": 240003,
+          "errors": [
+            "Test timeout of 240000ms exceeded."
+          ]
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "durationMs": 240004,
+          "errors": [
+            "Test timeout of 240000ms exceeded."
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Both attempts time out at 240 seconds. The earlier placement-row scope explanation remains unresolved.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F60",
+      "file": "visual-product-setup.spec.ts",
+      "title": "shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Expected Safe area (4) action is absent in the current named-area workflow.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10358
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10369
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10354,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator: locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' }) with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\n\n\n  474 |\n  475 |     const workspace = builder(page, 'product-workspace');\n> 476 |     await expect(workspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();\n      |                                                                            ^\n  477 |     await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();\n  478 |\n  479 |     // Edit under variant A: select corner 1, nudge +1mm in x via keyboard.\n    at <repo>/e2e/visual-product-setup.spec.ts:476:76"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10344,
+          "errors": [
+            "Error: expect(locator).toBeVisible() failed\n\nLocator: locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' }) with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\n\n\n  474 |\n  475 |     const workspace = builder(page, 'product-workspace');\n> 476 |     await expect(workspace.getByRole('button', { name: 'Safe area (4)' })).toBeVisible();\n      |                                                                            ^\n  477 |     await workspace.getByRole('button', { name: 'Safe area (4)', exact: true }).click();\n  478 |\n  479 |     // Edit under variant A: select corner 1, nudge +1mm in x via keyboard.\n    at <repo>/e2e/visual-product-setup.spec.ts:476:76"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Safe area (4) button cannot be found in the current named-area workflow.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    },
+    {
+      "id": "F61",
+      "file": "visual-product-setup.spec.ts",
+      "title": "visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+      "reviewed": "unexpected",
+      "followup": "unexpected",
+      "classification": "Shared failure; cause not inferred from shared outcome",
+      "priorRecordedCause": "Initial workspace-status text is empty rather than the expected No product yet wording.",
+      "reviewedAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10287
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10352
+        }
+      ],
+      "followupAttempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 10293,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"workspace-status\"]')\nExpected substring: \"No product yet\"\nReceived string:    \"\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"workspace-status\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"workspace-status\"]')\n    24 \u00d7 locator resolved to <p class=\"muted\" role=\"status\" aria-live=\"polite\" data-builder-hook=\"workspace-status\"></p>\n       - unexpected value \"\"\n\n\n  84 |     // Clean empty draft: no demo, workspace waits for a real product.\n  85 |     await expect(builder(page, 'demo-create')).toHaveCount(0);\n> 86 |     await expect(await shown(page, 'workspace-status')).toContainText('No product yet');\n     |                                                         ^\n  87 |\n  88 |     // Real fresh upload: two named view images staged through real rows, product added.\n  89 |     const frontPng = await syntheticPngBytes(page, '#1d6f3a');\n    at <repo>/e2e/visual-product-setup.spec.ts:86:57"
+          ]
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "durationMs": 10332,
+          "errors": [
+            "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"workspace-status\"]')\nExpected substring: \"No product yet\"\nReceived string:    \"\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"workspace-status\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"workspace-status\"]')\n    23 \u00d7 locator resolved to <p class=\"muted\" role=\"status\" aria-live=\"polite\" data-builder-hook=\"workspace-status\"></p>\n       - unexpected value \"\"\n\n\n  84 |     // Clean empty draft: no demo, workspace waits for a real product.\n  85 |     await expect(builder(page, 'demo-create')).toHaveCount(0);\n> 86 |     await expect(await shown(page, 'workspace-status')).toContainText('No product yet');\n     |                                                         ^\n  87 |\n  88 |     // Real fresh upload: two named view images staged through real rows, product added.\n  89 |     const frontPng = await syntheticPngBytes(page, '#1d6f3a');\n    at <repo>/e2e/visual-product-setup.spec.ts:86:57"
+          ]
+        }
+      ],
+      "currentObservedFailureOrResolution": "Workspace status is empty when the test expects No product yet.",
+      "causeStatus": "Observed blocking symptom recorded; broader defect versus test-contract triage remains open"
+    }
+  ]
+}

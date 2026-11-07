@@ -137,6 +137,17 @@ export async function ingestGlb(page: Page, glb: Buffer): Promise<void> {
   );
 }
 
+export async function chooseModelTool(page: Page, tool: 'rotate' | 'edit' | 'rectangle' | 'freehand'): Promise<void> {
+  const picker = page.locator('[data-model-setup-hook="tool-picker"]');
+  if (await picker.isVisible()) await picker.selectOption(tool);
+  else await page.locator(`[data-model-setup-hook="tool-${tool}"]`).click();
+}
+
+export async function revealModelViewControls(page: Page): Promise<void> {
+  const toggle = page.locator('[data-model-setup-hook="view-toggle"]');
+  if (await toggle.isVisible() && await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+}
+
 /** Open only the disclosures that contain the control this flow needs. */
 export async function revealControl(page: Page, selector: string): Promise<void> {
   const ancestors = page.locator(selector).locator('xpath=ancestor::details');

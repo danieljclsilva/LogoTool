@@ -133,3 +133,17 @@ The supplementary browser rejected file URLs; repository Playwright provides
 required offline `file://` checks. Edge is absent and failed its launch check.
 Windows Chrome/Edge, native print dialogs and physical calibration remain open.
 No further main push is included; follow-up work is on the review branch.
+
+## Product inclusion follow-up — 7 November 2026
+
+Review branch `codex/product-inclusion-followup` blocks creation of placements
+on excluded product/options and tests inclusion recovery through the issued
+file. It also adds readable three-line desktop guidance and contextual phone
+authoring controls. The synthetic exclusion geometry verdict was confirmed and
+six workflow checks now assert its retained technical verdict. A 90-execution
+installed-Chrome comparison reproduced no browser closures. The earlier
+intermittent cause remains unresolved.
+
+Final validation and every remaining full-suite failure are recorded in
+[the follow-up audit](product-inclusion-followup-2026-11-07.md). Windows
+Chrome/Edge offline delivery validation remains open before customer use.

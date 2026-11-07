@@ -1,0 +1,14 @@
+{
+  "baseCommit": "c180a416fbecd6f6329ca68f1386b19b5b4dc7bd",
+  "branch": "codex/product-inclusion-followup",
+  "commands": {
+    "fullChromium": "npx playwright test --project=chromium --workers=2 --retries=1 --reporter=line,json --output=<local-evidence>/acceptance-full-artifacts",
+    "focusedChrome": "npx playwright test e2e/product-inclusion.spec.ts e2e/editor-guidance.spec.ts e2e/editor-regressions.spec.ts e2e/workspace-layout-audit.spec.ts e2e/product-workspace.spec.ts e2e/unified-editor.spec.ts e2e/station-ux.spec.ts e2e/internal-builder.spec.ts e2e/operator-workflow.spec.ts e2e/product-cards.spec.ts e2e/prepared-product-import.spec.ts e2e/user-workflow.spec.ts e2e/setup-calibration.spec.ts --project=chrome --workers=1 --retries=1 --grep '(product-inclusion|editor-guidance|editor-regressions|workspace-layout-audit|product-workspace|unified-editor|station-ux|prepared-product-import|user-workflow)\\.spec\\.ts|issues a subset hybrid package|direct images job:|product cards:|station polygon tools keep' --reporter=line,json --output=<local-evidence>/acceptance-chrome-artifacts > <local-evidence>/acceptance-chrome.log 2>&1",
+    "closureRecheck": "npx playwright test e2e/operator-workflow.spec.ts e2e/setup-calibration.spec.ts e2e/workspace-layout-audit.spec.ts --project=chrome --workers=1 --retries=0 --grep \"direct images job:|station polygon tools keep the picking canvas fixed at 1440x1000|workspace layout audit at 1440x900\" --trace=on --reporter=line,json --output=<local-evidence>/chrome-closure-recheck-artifacts",
+    "static": "npm run typecheck",
+    "node": "npm test"
+  },
+  "rawEvidence": "Complete runner JSON, stdout logs and traced recheck ZIPs retained in the local task evidence directory. Tracked summaries preserve per-case results and errors.",
+  "windowsChromeEdge": "Untested, remains customer-delivery release gate",
+  "coreSchemasAndPhysicalRules": "Unchanged"
+}

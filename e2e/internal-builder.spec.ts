@@ -323,6 +323,9 @@ test('issues a subset hybrid package at revision 1 with approvals cleared', asyn
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
     await ensurePlacementPanel(page);
+    await expect(pw(page, 'pw-add-placement')).toBeDisabled();
+    await builder(page, 'workspace-product').selectOption({ label: 'Synthetic Tee' });
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'marka' });
     const addMethod = pw(page, 'pw-add-method');

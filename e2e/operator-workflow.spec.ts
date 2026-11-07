@@ -251,6 +251,9 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
 
       // Same artwork placed twice; stable IDs differ.
       const host = builder(page, 'job-placement-host');
+      await expect(pw(page, 'pw-add-blocked')).toContainText('Promo cap');
+      await builder(page, 'workspace-product').selectOption({ label: 'Team jacket' });
+      await ensurePlacementPanel(page);
       // Choosers hide by included scope: one included product and one option
       // need no selectors, while the exact selection keeps working underneath.
       await expect(host.locator('[data-placement-hook="pw-product-select"]')).toHaveCount(0);
@@ -266,6 +269,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       await pw(page, 'pw-add-height').fill('40');
       await pw(page, 'pw-add-confirm').click();
       await expect(host.locator('[data-placement-hook="pw-placement-list"]')).toContainText('crest');
+      await ensurePlacementPanel(page);
       await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
       await host.getByRole('button', { name: 'Duplicate placement' }).click();
       expect(await host.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(2);
@@ -286,6 +290,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
 
       // Bound operational measurement from the real setup anchor (each
       // placement carries its own binding).
+      await ensurePlacementPanel(page);
       await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
       await host.getByRole('button', { name: 'Add measurement' }).click();
       await pw(page, 'pw-measure-anchor').selectOption({ label: 'Chest center' });
@@ -295,6 +300,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       const measureText = await host.locator('[data-placement-hook="pw-measurements"]').innerText();
       expect(measureText).toMatch(/Chest center to left edge, horizontal/);
       expect(measureText).toMatch(/\d+(\.\d)? mm/);
+      await ensurePlacementPanel(page);
       await host.locator('[data-placement-hook^="pw-placement-row-"]').nth(1).click();
       await host.getByRole('button', { name: 'Add measurement' }).click();
       await pw(page, 'pw-measure-anchor').selectOption({ label: 'Chest center' });
@@ -303,6 +309,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       await pw(page, 'pw-measure-save').click();
 
       // Per-logo technique data under Production details (first placement).
+      await ensurePlacementPanel(page);
       await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
       await host.locator('summary', { hasText: 'Production details' }).click();
       await pw(page, 'pw-tech-code-input').fill('CR-01');
@@ -436,6 +443,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
         await fresh.locator('[data-builder-hook="job-to-placements"]').click();
         const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
         expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(2);
+        await ensurePlacementPanel(fresh);
         await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
         const freshMeasure = await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText();
         expect(freshMeasure).toBe(measureText);
@@ -498,11 +506,13 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
         // unique issue ID is allocated automatically with the new geometry.
         await expect(branchMore).not.toHaveAttribute('open', '');
         await fresh.locator('[data-builder-hook="job-step-2"]').click();
+        await ensurePlacementPanel(fresh);
         await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
         await fresh.locator('[data-placement-hook="pw-width"]').fill('95');
         await fresh.locator('[data-placement-hook="pw-apply"]').first().click();
         await expect(fresh.locator('[data-placement-hook="pw-apply"]')).toHaveCount(0);
         // Post-edit measurement text: distances recompute for the new width.
+        await ensurePlacementPanel(fresh);
         await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
         const editedMeasureText = await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText();
         await freshHost.getByRole('button', { name: 'Send for customer approval' }).click();
@@ -557,6 +567,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
         await fresh.getByRole('button', { name: 'Use customer changes' }).click();
         await expect(fresh.locator('[data-job-step="placements"]')).toBeVisible();
         expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(2);
+        await ensurePlacementPanel(fresh);
         await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
         expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText()).toBe(editedMeasureText);
         // Installing lands unselected: re-include the job exactly, then the
@@ -645,7 +656,6 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
     }
   }
 });
-
 test('invalid footprint stays scoped: actionable issue, complete print blocked, draft marked', async ({ browser }, info) => {
   test.setTimeout(180_000);
   const viewport = VIEWPORTS[0]!;

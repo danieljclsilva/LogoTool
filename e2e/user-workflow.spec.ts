@@ -162,14 +162,15 @@ async function setChecked(box: import('@playwright/test').Locator, checked: bool
 
 /** Pick the workspace product/option context on Step 2 (real selects). */
 async function selectWorkspaceOption(page: Page, productId: string, variantId?: string): Promise<void> {
-  const productSelect = await pshown(page, 'pw-product-select');
-  if (await productSelect.count() > 0) {
-    await productSelect.selectOption(productId);
-  }
-  const optionSelect = placement(page, 'pw-option-select');
-  if (await optionSelect.count() > 0) {
-    if (variantId !== undefined) await optionSelect.selectOption(variantId);
-    else await optionSelect.selectOption({ index: 0 });
+  if (await page.locator('[data-job-step="placements"]').isHidden()) await builder(page, 'job-step-2').click();
+  const productSelect = builder(page, 'workspace-product');
+  await productSelect.selectOption(productId);
+  await expect(productSelect).toHaveValue(productId);
+  const optionSelect = builder(page, 'workspace-variant');
+  if (await optionSelect.isVisible()) {
+    await optionSelect.selectOption(variantId ?? { index: 0 });
+  } else if (variantId !== undefined) {
+    await expect(optionSelect).toHaveValue(variantId);
   }
 }
 
@@ -586,7 +587,8 @@ async function runUserWorkflow(
     // unsafe position is saved but flagged by fit feedback, blocking confirm.
     await expect(customer(editor, 'status')).toContainText('Applied your changes as version');
     await expect(customer(editor, 'unsaved-warning')).toBeHidden();
-    await expect(customer(editor, 'geometry')).toContainText('Fits: no');
+    await expect(customer(editor, 'geometry')).toHaveClass(/\binvalid\b/);
+    await expect(customer(editor, 'geometry-technical')).toContainText('Fits: no — footprint overlaps exclusions[0]');
     await expect(customer(editor, 'confirm')).toBeDisabled();
     await shoot(editor, `${format}-05-unsafe`);
     await setCustomerNumber(editor, 'x-mm', p1x);

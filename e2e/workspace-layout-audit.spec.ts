@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { assertCleanProbe, gotoBuilder, openOfflineContext } from './helpers.js';
+import { chooseModelTool, revealModelViewControls, assertCleanProbe, gotoBuilder, openOfflineContext } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 
 const VIEWPORTS = [
@@ -62,6 +62,7 @@ async function stageModelProduct(page: Page): Promise<void> {
 /** Fit a synthetic provisional reference through the actual surface controls. */
 async function measureSyntheticReference(page: Page): Promise<void> {
   const canvas = b(page, 'product-model-canvas');
+  await revealModelViewControls(page);
   await ms(page, 'view-front').click();
   await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
   await ms(page, 'context-measure').click();
@@ -105,10 +106,17 @@ async function assertNoToolbarOverlap(page: Page): Promise<Rect[]> {
     nodes
       .filter((node) => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden')
       .filter(node => {
-        const strip = node.closest('.model-setup-camera-controls');
-        if (!strip || getComputedStyle(strip).display !== 'flex') return true;
-        const clip = strip.getBoundingClientRect(), rect = node.getBoundingClientRect();
-        return rect.left >= clip.left - 1 && rect.right <= clip.right + 1;
+        let parent = node.parentElement;
+        const rect = node.getBoundingClientRect();
+        while (parent && !parent.classList.contains('product-model-toolbar')) {
+          const style = getComputedStyle(parent);
+          if (style.overflowX === 'auto' || style.overflowX === 'scroll') {
+            const clip = parent.getBoundingClientRect();
+            if (rect.left < clip.left - 1 || rect.right > clip.right + 1) return false;
+          }
+          parent = parent.parentElement;
+        }
+        return true;
       })
       .map((node) => {
         const rect = node.getBoundingClientRect();
@@ -124,10 +132,13 @@ async function assertNoToolbarOverlap(page: Page): Promise<Rect[]> {
     expect(rect.y).toBeGreaterThanOrEqual(toolbar.y - 1);
     expect(rect.y + rect.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
   }
-  for (const strip of await page.locator('.product-editor .model-setup-camera-controls, .product-editor.station-expanded-workspace .product-editor-tool-scroll').all()) {
+  for (const strip of await page.locator('.product-editor .model-setup-camera-controls, .product-editor .product-editor-tool-scroll, .product-editor [data-model-setup-hook="areas-tool-row"], .product-editor .model-setup-command-strip').all()) {
+    // Measure both header (editing/lighting) and camera/display scroll rows in
+    // normal and enlarged phones: keyboard focus must scroll each action into
+    // view with 44px targets and full labels preserved.
     if (await strip.evaluate(node => getComputedStyle(node).display !== 'flex')) continue;
     for (const control of await strip.locator('button, select, input').all()) {
-      if (await control.isDisabled()) continue;
+      if (await control.isDisabled() || !await control.isVisible()) continue;
       await control.focus();
       await control.scrollIntoViewIfNeeded();
       await expect(control).toBeInViewport();
@@ -282,7 +293,7 @@ for (const viewport of VIEWPORTS) {
       await stageModelProduct(page);
 
       // State 1: normal view, idle toolbar (default rotate tool).
-      await expect(ms(page, 'tool-rotate')).toBeVisible();
+      await chooseModelTool(page, 'rotate');
       let measurement = await captureState(page, { ...viewport }, 'normal', 'idle', info);
       expect(measurement.canvasCssHeight).not.toBeNull();
       // 180 is the existing usable-minimum floor (docs/internal-builder.md);
@@ -293,7 +304,7 @@ for (const viewport of VIEWPORTS) {
 
       // State 2: normal view, active drawing toolbar after trusted picks.
       await measureSyntheticReference(page);
-      await ms(page, 'tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       await expect(ms(page, 'tool-freehand')).toHaveAttribute('aria-pressed', 'true');
       await ms(page, 'area-name').fill('Audit area');
       await addPolygonPoints(page);
@@ -306,7 +317,7 @@ for (const viewport of VIEWPORTS) {
       // State 3: enlarged view, idle toolbar.
       await b(page, 'product-model-expand').click();
       await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
-      await ms(page, 'tool-rotate').click();
+      await chooseModelTool(page, 'rotate');
       await expect(ms(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
       measurement = await captureState(page, { ...viewport }, 'enlarged', 'idle', info);
       expect(measurement.canvasCssHeight!).toBeGreaterThanOrEqual(180);
@@ -314,7 +325,7 @@ for (const viewport of VIEWPORTS) {
       await expectSaveReachable(page);
 
       // State 4: enlarged view, active drawing toolbar.
-      await ms(page, 'tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       await expect(ms(page, 'tool-freehand')).toHaveAttribute('aria-pressed', 'true');
       await addPolygonPoints(page);
       await expect(ms(page, 'area-finish')).toBeVisible();

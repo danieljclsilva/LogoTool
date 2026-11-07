@@ -1706,3 +1706,26 @@ Private files, screenshots and logs remain outside the repository under
 Actual Windows Chrome/Edge offline acceptance, Edge on this machine, actual
 mobile hardware and the complete repository browser matrix remain untested.
 These results are macOS development evidence, not the Windows delivery gate.
+
+## Product inclusion and contextual controls — 7 November 2026
+
+See the [follow-up audit](product-inclusion-followup-2026-11-07.md) and
+[tracked evidence](validation/2026-11-07-priority-followup/) for the final-tree
+acceptance results and case-by-case comparison with merged `c180a41`.
+The original UX audit remains a historical record.
+
+New offline specs cover excluded-product and excluded-option creation blocks,
+queued stale Add callbacks, inclusion recovery and the issued ZIP's intended
+placement, retained excluded placement editing, 1280×720 long hint/status
+readability, keyboard overflow, and the 390×844 native tool picker and View panel.
+Existing physical, document, confirmation and workspace size assertions remain.
+
+A serial installed-Chrome comparison ran three baseline-available closure-prone
+cases ten times on each of `e583941`, `c180a41` and a handler-off diagnostic copy.
+All 90 passed with zero closures. This bounded experiment did not reproduce the
+previous intermittent problem, whose cause remains unresolved.
+
+Environment is macOS 27.3 (26C5035r), arm64, Node 26.10.0, Playwright 1.64.0,
+Chromium 156.0.8078.4 and installed Chrome 156.0.8078.74. All acceptance uses
+synthetic fixtures and offline `file://`. Actual Windows Chrome/Edge remains
+untested and is the customer-delivery release gate.

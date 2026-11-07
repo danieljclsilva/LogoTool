@@ -1,0 +1,61 @@
+{
+  "environment": "macOS 27.3 (26C5035r), arm64",
+  "node": "26.10.0",
+  "playwright": "1.64.0",
+  "browser": "Google Chrome 156.0.8078.74",
+  "offline": true,
+  "entryPoint": "file://",
+  "workers": 1,
+  "retries": 0,
+  "stats": {
+    "startTime": "2026-11-07T21:01:07.264Z",
+    "duration": 21705.425,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct images job: intake, setup, placements, measurement, technique, review, save, reopen",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 11488,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 1440x1000",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1422,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 6814,
+          "errors": []
+        }
+      ]
+    }
+  ],
+  "runnerErrors": [],
+  "trace": "on, retained locally"
+}
