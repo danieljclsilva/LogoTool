@@ -1,0 +1,488 @@
+[
+  {
+    "label": "baseline",
+    "events": [
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 451.453125,
+        "rect": {
+          "x": 280,
+          "y": 181.453125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 924,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 451.453125,
+        "rect": {
+          "x": 280,
+          "y": 181.453125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 924,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 451,
+        "rect": {
+          "x": 280,
+          "y": 181.453125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.49916087962962963,
+        "scrollX": 0,
+        "scrollY": 924,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 450.578125,
+        "rect": {
+          "x": 280,
+          "y": 180.578125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 904,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 450.578125,
+        "rect": {
+          "x": 280,
+          "y": 180.578125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 904,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 450,
+        "rect": {
+          "x": 280,
+          "y": 180.578125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.49892939814814813,
+        "scrollX": 0,
+        "scrollY": 904,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 352,
+        "clientY": 207.125,
+        "rect": {
+          "x": 280,
+          "y": 153.125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.1,
+        "v": 0.1,
+        "scrollX": 0,
+        "scrollY": 257,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 568,
+        "clientY": 369.125,
+        "rect": {
+          "x": 280,
+          "y": 153.125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.4,
+        "v": 0.4,
+        "scrollX": 0,
+        "scrollY": 257,
+        "isTrusted": true
+      }
+    ],
+    "corners": "Corner 1: -649.6, 241.6 mmCorner 2: 325.1, 241.6 mmCorner 3: 325.1, 973.2 mmCorner 4: -649.6, 973.2 mm",
+    "refPixels": 160.00001507040824,
+    "nativeWidthMm": 974.9999081647086,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "appliedReferenceEvent": "click",
+    "appliedReferenceAngleDegrees": -0.024867958296567703,
+    "predictedRectangleWidthMm": 974.6824335767142,
+    "predictedRectangleHeightMm": 731.6730392506845,
+    "displayedCornerWidthMm": 974.7,
+    "displayedCornerHeightMm": 731.6
+  },
+  {
+    "label": "current",
+    "events": [
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450.953125,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450.953125,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.4982349537037037,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451.078125,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451.078125,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.49985532407407407,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 352,
+        "clientY": 214.625,
+        "rect": {
+          "x": 280,
+          "y": 160.625,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.1,
+        "v": 0.1,
+        "scrollX": 0,
+        "scrollY": 256,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 568,
+        "clientY": 376.625,
+        "rect": {
+          "x": 280,
+          "y": 160.625,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.4,
+        "v": 0.4,
+        "scrollX": 0,
+        "scrollY": 256,
+        "isTrusted": true
+      }
+    ],
+    "corners": "Corner 1: -652.9, 240.4 mmCorner 2: 324.3, 240.4 mmCorner 3: 324.3, 968.7 mmCorner 4: -652.9, 968.7 mm",
+    "refPixels": 160.0007384483345,
+    "nativeWidthMm": 974.9955001012303,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "appliedReferenceEvent": "click",
+    "appliedReferenceAngleDegrees": 0.17407518340047237,
+    "predictedRectangleWidthMm": 977.2126594034245,
+    "predictedRectangleHeightMm": 728.2810379271597,
+    "displayedCornerWidthMm": 977.2,
+    "displayedCornerHeightMm": 728.3000000000001
+  },
+  {
+    "label": "repaired",
+    "events": [
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450.953125,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450.953125,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 496,
+        "clientY": 450,
+        "rect": {
+          "x": 280,
+          "y": 180.953125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.3,
+        "v": 0.4982349537037037,
+        "scrollX": 0,
+        "scrollY": 931,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451.078125,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451.078125,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.5,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "click",
+        "kind": "reference",
+        "eventClass": "PointerEvent",
+        "clientX": 784,
+        "clientY": 451,
+        "rect": {
+          "x": 280,
+          "y": 181.078125,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.7,
+        "v": 0.49985532407407407,
+        "scrollX": 0,
+        "scrollY": 910,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerdown",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 352,
+        "clientY": 214.625,
+        "rect": {
+          "x": 280,
+          "y": 160.625,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.1,
+        "v": 0.1,
+        "scrollX": 0,
+        "scrollY": 256,
+        "isTrusted": true
+      },
+      {
+        "type": "pointerup",
+        "kind": "area",
+        "eventClass": "PointerEvent",
+        "clientX": 568,
+        "clientY": 376.625,
+        "rect": {
+          "x": 280,
+          "y": 160.625,
+          "width": 720,
+          "height": 540
+        },
+        "u": 0.4,
+        "v": 0.4,
+        "scrollX": 0,
+        "scrollY": 256,
+        "isTrusted": true
+      }
+    ],
+    "corners": "Corner 1: -650.0, 243.7 mmCorner 2: 325.0, 243.7 mmCorner 3: 325.0, 975.0 mmCorner 4: -650.0, 975.0 mm",
+    "refPixels": 160.0007384483345,
+    "nativeWidthMm": 974.9955001012303,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "appliedReferenceEvent": "pointerup",
+    "appliedReferenceAngleDegrees": 0.0,
+    "predictedRectangleWidthMm": 975.0,
+    "predictedRectangleHeightMm": 731.25,
+    "displayedCornerWidthMm": 975.0,
+    "displayedCornerHeightMm": 731.3
+  }
+]

@@ -236,23 +236,24 @@
     [data-builder-hook="product-model"] { padding:8px;gap:6px 10px;grid-template-columns:minmax(0,1fr) 250px;grid-template-rows:auto minmax(380px,65vh) auto; }
     .product-model-toolbar { gap:8px;align-items:flex-start; }
     .product-model-toolbar > [role="toolbar"] { margin:0;gap:4px;align-items:center; }
+    .model-setup-camera-controls { display:contents; }
     .product-model-toolbar .model-setup-author-tools { display:contents; }
     .product-model-toolbar .model-setup-row { margin:0;gap:4px; }
     .product-model-toolbar button,.product-model-toolbar select { flex-shrink:0;white-space:nowrap; }
     .product-model-toolbar [data-model-setup-hook="area-focus-row"] { flex-shrink:0; }
     .product-model-toolbar button,.product-model-toolbar select { min-height:44px;min-width:44px;padding:8px 6px;font-size:14px;line-height:20px;border-radius:5px; }
-    .product-model-toolbar .model-setup-field { font-size:0;gap:0; }
+    .product-model-toolbar .model-setup-field { display:flex;align-items:center;font-size:0;line-height:0;gap:0; }
     .product-model-toolbar .model-setup-field input { width:140px;font-size:14px;height:44px;padding:8px 10px; }
     .product-model-toolbar [data-model-setup-hook="mode-hint"] { order:2;flex-basis:100%;font-size:11px;line-height:16px;margin:0;height:32px;overflow:auto; }
     .product-model-toolbar .model-setup-status { order:3;flex-basis:100%;font-size:11px;line-height:16px;margin:0;min-height:32px;max-height:32px;overflow:auto; }
     .product-model-toolbar .model-setup-feedback { order:3;flex-basis:100%;display:grid;height:32px;min-width:0; }
     .product-model-toolbar .model-setup-feedback > p { grid-column:1;grid-row:1; }
-    .product-model-toolbar .model-setup-command-strip { order:1;flex-basis:100%;display:grid;grid-template-columns:240px minmax(0,1fr);align-items:start;height:48px;min-width:0;gap:8px; }
+    .product-model-toolbar .model-setup-command-strip { order:1;flex-basis:100%;display:grid;grid-template-columns:240px minmax(0,1fr);align-items:center;height:44px;min-width:0;gap:8px; }
     .product-model-toolbar .model-setup-command-strip > [data-model-setup-hook="areas-form"],
     .product-model-toolbar .model-setup-command-strip > [data-model-setup-hook="outline-actions"] { grid-column:1;grid-row:1; }
     .product-model-toolbar .model-setup-command-strip > [data-model-setup-hook="areas-actions"],
     .product-model-toolbar .model-setup-command-strip > [data-model-setup-hook="edit-actions-slot"] { grid-column:2;grid-row:1; }
-    .product-model-toolbar .model-setup-edit-slot { flex-basis:100%;height:48px;display:flex;align-items:flex-start;gap:8px;min-width:0; }
+    .product-model-toolbar .model-setup-edit-slot { flex-basis:100%;height:44px;display:flex;align-items:center;gap:8px;min-width:0; }
     .product-model-toolbar [data-model-setup-hook="handle-remove"] { width:150px; }
     .product-model-toolbar .model-setup-bend-actions { flex-wrap:nowrap;min-width:0; }
     .product-model-toolbar .model-setup-bend-actions input { width:80px;min-height:44px; }
@@ -265,7 +266,7 @@
     .product-setup-viewbtn,.product-setup-viewzoom { min-height:44px;padding:8px 12px;font-size:14px; }
     .product-setup-draw-first { fill:#fff; }
     .product-setup-vertices .product-setup-vertex,.product-setup-midpoint,.product-setup-drawing .product-setup-draw { vector-effect:non-scaling-stroke;stroke-width:1.5px; }
-    .station-expanded-workspace { position:fixed!important; inset:8px!important; z-index:1000!important; margin:0!important; padding:12px!important; background:#fff!important; border:1px solid var(--line); border-radius:10px; box-shadow:0 0 0 100vmax #192d3dbb; overflow:hidden; }
+    .station-expanded-workspace { position:fixed!important; inset:8px!important; z-index:1000!important; margin:0!important; padding:8px!important; background:#fff!important; border:1px solid var(--line); border-radius:10px; box-shadow:0 0 0 100vmax #192d3dbb; overflow:hidden; }
     [data-builder-hook="product-model"].station-expanded-workspace { grid-template-rows:auto minmax(0,1fr) auto; }
     @media(max-width:700px) {
       [data-builder-hook="product-model"] { grid-template-columns:minmax(0,1fr); grid-template-rows:auto 340px auto auto; }
@@ -280,7 +281,7 @@
       .product-model-footer { font-size:12px; }
       .product-model-footer p { max-height:48px;overflow:auto; }
       .product-model-toolbar .model-setup-status { font-size:11px;min-height:30px;max-height:30px;overflow:auto; }
-      .product-model-toolbar .model-setup-command-strip { grid-template-columns:110px minmax(0,1fr);height:48px;gap:4px; }
+      .product-model-toolbar .model-setup-command-strip { grid-template-columns:110px minmax(0,1fr);height:44px;gap:4px; }
       .product-model-toolbar [data-model-setup-hook="areas-tool-row"] { display:contents; }
       .product-model-toolbar [data-ps-tool],.product-model-toolbar [data-model-setup-hook="outline-actions"] button,
       .product-model-toolbar [data-model-setup-hook="area-undo"],.product-model-toolbar [data-model-setup-hook="area-cancel"],
@@ -312,6 +313,19 @@
 
       .product-model-footer .btn-secondary { font-size:14px;padding:8px 12px;min-height:44px; }
       .product-model-footer label { font-size:.75rem; }
+      /* Enlarged unified editor at narrow widths: keep every action 44px tall
+         with readable 14px labels; reclaim vertical space from container
+         padding/gaps only. No icon-only replacements; hooks, order,
+         visibility and disabled states unchanged. */
+      .product-editor.station-expanded-workspace { inset:4px!important; }
+      .product-editor.station-expanded-workspace .product-editor-modes { margin-bottom:4px;padding:2px 0; }
+      .product-editor.station-expanded-workspace [data-builder-hook="product-model"] { gap:4px; }
+      .product-editor.station-expanded-workspace .product-model-footer { padding-top:4px; }
+      .product-editor.station-expanded-workspace .product-model-toolbar { gap:4px; }
+      .product-editor.station-expanded-workspace .product-model-toolbar button,
+      .product-editor.station-expanded-workspace .product-model-toolbar select {
+        min-height:44px;min-width:44px;font-size:14px;line-height:20px;padding:8px 6px;
+      }
     }
     /* Finish toolbar: keep primary red/white, align compact controls. */
     [data-model-setup-hook="viewbar"] .btn-primary { background:var(--red);border-color:var(--red);color:#fff;width:auto; }
@@ -443,6 +457,7 @@
       [data-job-shell] .product-model-toolbar > button { min-height:44px;font-size:0!important; }
     }
     .product-editor { position:relative;min-width:0;scroll-margin-top:0; }
+    .product-editor-tool-scroll { display:contents; }
     .product-editor-modes { display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:8px; }
     .product-editor-modes button { min-height:44px!important;padding:8px 12px;font-size:14px; }
     .product-editor-modes [aria-pressed="true"] { border-color:var(--red);color:var(--red);font-weight:700; }
@@ -511,7 +526,7 @@
     .product-editor [data-builder-hook="editor-product-name"] { font-size:13px;margin-right:8px; }
     @media(max-width:700px) {
       .product-editor-modes { gap:4px;padding:4px 0; }
-      .product-editor-modes > * { order:1; }
+      .product-editor-modes > *, .product-editor-tool-scroll > * { order:1; }
       .product-editor-modes [data-builder-hook="editor-product-name"] { order:0;flex:1 1 calc(100% - 90px);min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px; }
       .product-editor-modes [data-builder-hook="job-save"] { order:0; }
       .product-editor-modes button { min-height:44px!important;padding:8px 10px;font-size:14px; }
@@ -520,6 +535,36 @@
       .product-editor-modes [data-builder-hook="editor-files"]::before { content:'▣';font-size:18px; }
       .product-editor-modes [data-builder-hook="model-lighting"] { width:80px;min-height:44px; }
       .product-editor.station-expanded-workspace .product-model-footer p { max-height:32px;font-size:11px; }
+    }
+    @media(max-width:700px) {
+      /* Keep camera/display actions in one touch-scrollable row so enlarged
+         authoring retains its canvas. Keyboard focus scrolls each action into
+         view; the complete labels and 44px targets stay available. */
+      .product-editor.station-expanded-workspace .product-editor-tool-scroll {
+        display:flex;flex-wrap:nowrap;flex-basis:100%;min-width:0;max-width:100%;
+        align-items:center;gap:4px;overflow-x:auto;padding-bottom:4px;
+      }
+      .product-editor.station-expanded-workspace .product-editor-tool-scroll > * { flex:none; }
+      .product-editor.station-expanded-workspace .model-setup-camera-controls {
+        display:flex;flex-wrap:nowrap;flex-basis:100%;min-width:0;max-width:100%;
+        gap:4px;overflow-x:auto;padding:0 0 4px;
+      }
+      .product-editor.station-expanded-workspace .model-setup-camera-controls > * { flex:none; }
+    }
+    @media(min-width:821px) {
+      .product-editor-modes { padding:2px 0;margin-bottom:4px; }
+      .product-model-toolbar .model-setup-camera-controls {
+        display:flex;flex:1 1 0;min-width:160px;max-width:100%;gap:4px;overflow-x:auto;
+      }
+      .product-model-toolbar .model-setup-camera-controls > * { flex:none; }
+      /* Reserve one full row even for hidden Finish/Undo/Cancel controls;
+         their labels must not grow the grid and shift photo/model picks. */
+      .product-model-toolbar .model-setup-command-strip {
+        flex-basis:580px;flex-shrink:0;order:0;grid-template-columns:220px minmax(0,1fr);
+      }
+      .product-model-toolbar .model-setup-feedback { height:16px; }
+      .product-model-toolbar [data-model-setup-hook="mode-hint"] { height:16px; }
+      .product-model-toolbar .model-setup-status { min-height:16px;max-height:16px; }
     }
     /* The operator placement screen is a viewport workspace with an independent
        secondary inspector scroll area and persistent core actions. */

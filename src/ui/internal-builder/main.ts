@@ -299,7 +299,12 @@ const saveHome = document.createComment('Job save action home'); jobSave.before(
 const provisional = document.createElement('span'); provisional.className = 'muted editor-provisional';
 provisional.textContent = 'Provisional — verify physical measurements.';
 const editorProductName = document.createElement('strong'); editorProductName.setAttribute('data-builder-hook','editor-product-name');
-editorModes.append(editorProductName, editorSetup, editorLogos, provisional, modelExpandButton);
+const editorToolScroll = document.createElement('div');
+editorToolScroll.className = 'product-editor-tool-scroll';
+editorToolScroll.setAttribute('role', 'group');
+editorToolScroll.setAttribute('aria-label', 'Editing and lighting controls (scroll for more)');
+editorToolScroll.append(editorSetup, editorLogos, modelExpandButton);
+editorModes.append(editorProductName, editorToolScroll, provisional);
 const setupSection = document.querySelector<HTMLElement>('[data-builder-step="choose"]')!;
 const sharedChooser = setupSection.querySelector<HTMLElement>('.product-setup-chooser');
 if (sharedChooser) editorModes.prepend(sharedChooser);
@@ -315,6 +320,7 @@ const productOptions = createCanvasContextPanel({host: productEditor, toolbar: e
 productOptions.trigger.className = 'btn-secondary';
 productOptions.trigger.setAttribute('data-builder-hook','editor-files');
 productOptions.content.classList.add('canvas-context-content');
+editorToolScroll.append(productOptions.trigger);
 for (const details of Array.from(setupSection.children)) if (details instanceof HTMLDetailsElement) productOptions.content.append(details);
 const selectionCard = setupSection.querySelector('.choose-selection');
 if (selectionCard) document.querySelector('[data-job-step="prepare"]')?.append(selectionCard);
@@ -4333,7 +4339,7 @@ lightingReset.textContent = 'Reset';
 lightingReset.setAttribute('data-builder-hook', 'model-lighting-reset');
 lightingReset.setAttribute('aria-label', 'Reset lighting to 100%');
 lightingWrap.append(lightingCaption, lightingInput, lightingValue, lightingReset);
-editorModes.append(lightingWrap);
+editorToolScroll.append(lightingWrap);
 
 /** Current model scope for the unified 3D workspace (mirrors refreshStaffModel). */
 function currentLightingScope(): { productId: string; variantId: string; modelPath: string; lighting: number } | null {

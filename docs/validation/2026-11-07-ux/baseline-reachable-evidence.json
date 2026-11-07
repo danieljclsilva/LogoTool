@@ -1,0 +1,20 @@
+{
+  "scope": "Supplemental causal diagnostic, not the unchanged full baseline run. Original e583941 built UI/domain source with published e2e test/helpers for visible-panel navigation. No source changes.",
+  "baselineCommit": "e583941",
+  "testFile": "e2e/internal-builder.spec.ts",
+  "test": "issues a subset hybrid package at revision 1 with approvals cleared",
+  "expectedPlacements": 1,
+  "observedPlacements": 0,
+  "status": "unexpected",
+  "attempts": [
+    {
+      "status": "failed",
+      "retry": 0,
+      "duration": 3000
+    }
+  ],
+  "error": "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 0\nReceived array:  []",
+  "offline": true,
+  "entryPoint": "file://",
+  "project": "chromium"
+}

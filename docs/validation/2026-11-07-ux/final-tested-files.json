@@ -1,0 +1,11 @@
+{
+  "src/ui/internal-builder/main.ts": "36467bb07e3b236337fc02684b728e2330645c789a4fe89c947d0a3c3ad0e162",
+  "src/ui/internal-builder/template.html": "d69cb3418bcd78057b817d77282c50d78a57f265d370966fba3726613c47edec",
+  "src/ui/internal-builder/guided-scale.ts": "7c55fada5ddfcd7c17bb25909320e4dc01facd5aefbfddc6b6841773936d5045",
+  "src/ui/internal-builder/model-setup-view.ts": "0a72c5334ceb646e53ed18b9fa6abd5c45e045ac3cc19c99305654722f890350",
+  "e2e/setup-calibration.spec.ts": "2f2085544c80b91e26e639d18cda8723c0280e87a7a1dcfc1bda73e72807aab1",
+  "e2e/product-workspace.spec.ts": "9063c00d0e9211bdf5d0fc3462923762793dd2ee800c6c9cd372c6c79516eab4",
+  "e2e/station-ux.spec.ts": "2092576beb55a9e4004cf9217d4a857d47dbb10473d895ff68b795d9a890d53d",
+  "e2e/workspace-layout-audit.spec.ts": "5093bea8ef28d5b255b377ae0827e3a5da94a5a5e9c9713ce557b4eefc659912",
+  "e2e/photo-mapping-workflow.spec.ts": "ed8ccc2c81945f53729552493ab786c36fac81c6b7488a42b74c86abc4513d0c"
+}

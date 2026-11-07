@@ -1,0 +1,662 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mode": "normal",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 25,
+      "y": 321.8125,
+      "width": 1390,
+      "height": 509
+    },
+    "canvasCssHeight": 509,
+    "canvasVisibleHeight": 509,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 25,
+      "y": 183.8125,
+      "width": 1390,
+      "height": 132
+    },
+    "toolbarHeight": 132,
+    "topBarRect": {
+      "x": 25,
+      "y": 183.8125,
+      "width": 1390,
+      "height": 132
+    },
+    "saveSetupRect": {
+      "x": 25,
+      "y": 845.8125,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 1071.4375,
+      "y": 113.90625,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 907,
+    "documentScrollWidth": 1440,
+    "viewportWidth": 1440,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "1440x900-normal-idle-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mode": "normal",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 25,
+      "y": 321.8125,
+      "width": 1390,
+      "height": 509
+    },
+    "canvasCssHeight": 509,
+    "canvasVisibleHeight": 509,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 25,
+      "y": 183.8125,
+      "width": 1390,
+      "height": 132
+    },
+    "toolbarHeight": 132,
+    "topBarRect": {
+      "x": 25,
+      "y": 183.8125,
+      "width": 1390,
+      "height": 132
+    },
+    "saveSetupRect": {
+      "x": 25,
+      "y": 845.8125,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 1071.4375,
+      "y": 113.90625,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 907,
+    "documentScrollWidth": 1440,
+    "viewportWidth": 1440,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "1440x900-normal-active-drawing-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mode": "enlarged",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 30,
+      "y": 259.296875,
+      "width": 1380,
+      "height": 551.703125
+    },
+    "canvasCssHeight": 551.703125,
+    "canvasVisibleHeight": 551.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 30,
+      "y": 121.296875,
+      "width": 1380,
+      "height": 132
+    },
+    "toolbarHeight": 132,
+    "topBarRect": {
+      "x": 30,
+      "y": 121.296875,
+      "width": 1380,
+      "height": 132
+    },
+    "saveSetupRect": {
+      "x": 30,
+      "y": 826,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 1338.25,
+      "y": 27,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 900,
+    "documentScrollWidth": 1440,
+    "viewportWidth": 1440,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "1440x900-enlarged-idle-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mode": "enlarged",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 30,
+      "y": 259.296875,
+      "width": 1380,
+      "height": 551.703125
+    },
+    "canvasCssHeight": 551.703125,
+    "canvasVisibleHeight": 551.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 30,
+      "y": 121.296875,
+      "width": 1380,
+      "height": 132
+    },
+    "toolbarHeight": 132,
+    "topBarRect": {
+      "x": 30,
+      "y": 121.296875,
+      "width": 1380,
+      "height": 132
+    },
+    "saveSetupRect": {
+      "x": 30,
+      "y": 826,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 1338.25,
+      "y": 27,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 900,
+    "documentScrollWidth": 1440,
+    "viewportWidth": 1440,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "1440x900-enlarged-active-drawing-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "mode": "normal",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 37,
+      "y": 550.09375,
+      "width": 694,
+      "height": 665.59375
+    },
+    "canvasCssHeight": 665.59375,
+    "canvasVisibleHeight": 473.90625,
+    "canvasBottomBelowViewport": true,
+    "toolbarRect": {
+      "x": 37,
+      "y": 364.09375,
+      "width": 694,
+      "height": 180
+    },
+    "toolbarHeight": 180,
+    "topBarRect": {
+      "x": 37,
+      "y": 364.09375,
+      "width": 694,
+      "height": 180
+    },
+    "saveSetupRect": {
+      "x": 37,
+      "y": 1230.6875,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 450.796875,
+      "y": 269.796875,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 1374,
+    "documentScrollWidth": 768,
+    "viewportWidth": 768,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "768x1024-normal-idle-initial-viewport.png",
+      "fullPageShot": "768x1024-normal-idle-full-page.png"
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "mode": "normal",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 37,
+      "y": 550.09375,
+      "width": 694,
+      "height": 665.59375
+    },
+    "canvasCssHeight": 665.59375,
+    "canvasVisibleHeight": 473.90625,
+    "canvasBottomBelowViewport": true,
+    "toolbarRect": {
+      "x": 37,
+      "y": 364.09375,
+      "width": 694,
+      "height": 180
+    },
+    "toolbarHeight": 180,
+    "topBarRect": {
+      "x": 37,
+      "y": 364.09375,
+      "width": 694,
+      "height": 180
+    },
+    "saveSetupRect": {
+      "x": 37,
+      "y": 1230.6875,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 450.796875,
+      "y": 269.796875,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 1374,
+    "documentScrollWidth": 768,
+    "viewportWidth": 768,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "768x1024-normal-active-drawing-initial-viewport.png",
+      "fullPageShot": "768x1024-normal-active-drawing-full-page.png"
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "mode": "enlarged",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 30,
+      "y": 357.296875,
+      "width": 708,
+      "height": 577.703125
+    },
+    "canvasCssHeight": 577.703125,
+    "canvasVisibleHeight": 577.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 30,
+      "y": 171.296875,
+      "width": 708,
+      "height": 180
+    },
+    "toolbarHeight": 180,
+    "topBarRect": {
+      "x": 30,
+      "y": 171.296875,
+      "width": 708,
+      "height": 180
+    },
+    "saveSetupRect": {
+      "x": 30,
+      "y": 950,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 443.796875,
+      "y": 77,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 1024,
+    "documentScrollWidth": 768,
+    "viewportWidth": 768,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "768x1024-enlarged-idle-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "mode": "enlarged",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 30,
+      "y": 357.296875,
+      "width": 708,
+      "height": 577.703125
+    },
+    "canvasCssHeight": 577.703125,
+    "canvasVisibleHeight": 577.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 30,
+      "y": 171.296875,
+      "width": 708,
+      "height": 180
+    },
+    "toolbarHeight": 180,
+    "topBarRect": {
+      "x": 30,
+      "y": 171.296875,
+      "width": 708,
+      "height": 180
+    },
+    "saveSetupRect": {
+      "x": 30,
+      "y": 950,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 443.796875,
+      "y": 77,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 1024,
+    "documentScrollWidth": 768,
+    "viewportWidth": 768,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "768x1024-enlarged-active-drawing-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "normal",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 35,
+      "y": 752.890625,
+      "width": 320,
+      "height": 394
+    },
+    "canvasCssHeight": 394,
+    "canvasVisibleHeight": 91.109375,
+    "canvasBottomBelowViewport": true,
+    "toolbarRect": {
+      "x": 35,
+      "y": 470.890625,
+      "width": 320,
+      "height": 276
+    },
+    "toolbarHeight": 276,
+    "topBarRect": {
+      "x": 35,
+      "y": 470.890625,
+      "width": 320,
+      "height": 276
+    },
+    "saveSetupRect": {
+      "x": 35,
+      "y": 1161.890625,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 281.25,
+      "y": 279.59375,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 1355,
+    "documentScrollWidth": 390,
+    "viewportWidth": 390,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "390x844-normal-idle-initial-viewport.png",
+      "fullPageShot": "390x844-normal-idle-full-page.png"
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "normal",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 35,
+      "y": 752.890625,
+      "width": 320,
+      "height": 394
+    },
+    "canvasCssHeight": 394,
+    "canvasVisibleHeight": 91.109375,
+    "canvasBottomBelowViewport": true,
+    "toolbarRect": {
+      "x": 35,
+      "y": 470.890625,
+      "width": 320,
+      "height": 276
+    },
+    "toolbarHeight": 276,
+    "topBarRect": {
+      "x": 35,
+      "y": 470.890625,
+      "width": 320,
+      "height": 276
+    },
+    "saveSetupRect": {
+      "x": 35,
+      "y": 1161.890625,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 281.25,
+      "y": 279.59375,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 1355,
+    "documentScrollWidth": 390,
+    "viewportWidth": 390,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "390x844-normal-active-drawing-initial-viewport.png",
+      "fullPageShot": "390x844-normal-active-drawing-full-page.png"
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "enlarged",
+    "toolbar": "idle",
+    "canvasRect": {
+      "x": 28,
+      "y": 498.296875,
+      "width": 334,
+      "height": 258.703125
+    },
+    "canvasCssHeight": 258.703125,
+    "canvasVisibleHeight": 258.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 28,
+      "y": 216.296875,
+      "width": 334,
+      "height": 276
+    },
+    "toolbarHeight": 276,
+    "topBarRect": {
+      "x": 28,
+      "y": 216.296875,
+      "width": 334,
+      "height": 276
+    },
+    "saveSetupRect": {
+      "x": 28,
+      "y": 772,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 288.25,
+      "y": 25,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 19,
+    "documentScrollHeight": 844,
+    "documentScrollWidth": 390,
+    "viewportWidth": 390,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "390x844-enlarged-idle-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "enlarged",
+    "toolbar": "active-drawing",
+    "canvasRect": {
+      "x": 28,
+      "y": 498.296875,
+      "width": 334,
+      "height": 258.703125
+    },
+    "canvasCssHeight": 258.703125,
+    "canvasVisibleHeight": 258.703125,
+    "canvasBottomBelowViewport": false,
+    "toolbarRect": {
+      "x": 28,
+      "y": 216.296875,
+      "width": 334,
+      "height": 276
+    },
+    "toolbarHeight": 276,
+    "topBarRect": {
+      "x": 28,
+      "y": 216.296875,
+      "width": 334,
+      "height": 276
+    },
+    "saveSetupRect": {
+      "x": 28,
+      "y": 772,
+      "width": 189.546875,
+      "height": 44
+    },
+    "saveSetupVisible": true,
+    "saveSetupEnabled": true,
+    "jobSaveRect": {
+      "x": 288.25,
+      "y": 25,
+      "width": 80.75,
+      "height": 44
+    },
+    "toolbarControlCount": 22,
+    "documentScrollHeight": 844,
+    "documentScrollWidth": 390,
+    "viewportWidth": 390,
+    "entryPoint": "file://<private-audit>/current/dist/station/Logo%20Station.html",
+    "scrollY": 0,
+    "evidence": {
+      "initialViewportShot": "390x844-enlarged-active-drawing-initial-viewport.png",
+      "fullPageShot": null
+    },
+    "project": "chromium"
+  }
+]

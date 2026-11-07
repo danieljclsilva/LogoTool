@@ -1,0 +1,28 @@
+[
+  {
+    "mode": "images",
+    "cycles": 3,
+    "switches": 6,
+    "before": {
+      "created": 1,
+      "revoked": 0
+    },
+    "after": {
+      "created": 1,
+      "revoked": 0
+    }
+  },
+  {
+    "mode": "model",
+    "cycles": 3,
+    "switches": 6,
+    "before": {
+      "created": 1,
+      "revoked": 0
+    },
+    "after": {
+      "created": 1,
+      "revoked": 0
+    }
+  }
+]

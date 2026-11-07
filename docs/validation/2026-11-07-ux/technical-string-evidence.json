@@ -1,0 +1,139 @@
+{
+  "baselineOccurrenceCount": 29,
+  "distinctCount": 22,
+  "allPreserved": true,
+  "rows": [
+    {
+      "text": "The reparse changed the product list; the previous project is unchanged.",
+      "baselineOccurrences": 2,
+      "currentOccurrences": 2,
+      "preserved": true
+    },
+    {
+      "text": "The reparse changed product geometry; the previous project is unchanged.",
+      "baselineOccurrences": 2,
+      "currentOccurrences": 2,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new photo; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new photo bytes; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the superseded photo evidence; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse kept a retired photo mapping; the previous project is unchanged.",
+      "baselineOccurrences": 2,
+      "currentOccurrences": 2,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new view image; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new view image bytes; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the superseded view image evidence; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse changed the project; the previous project is unchanged.",
+      "baselineOccurrences": 4,
+      "currentOccurrences": 4,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the renamed view image; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse changed the project.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the anchors sidecar.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparsed anchors sidecar is not valid JSON.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse changed the saved anchors.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost a named area or mapping; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the active-area hint; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the 3D setup; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost a projected region; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new mapping; the previous project is unchanged.",
+      "baselineOccurrences": 2,
+      "currentOccurrences": 2,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost the new reference; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    },
+    {
+      "text": "The reparse lost a rewritten area mapping; the previous project is unchanged.",
+      "baselineOccurrences": 1,
+      "currentOccurrences": 1,
+      "preserved": true
+    }
+  ]
+}

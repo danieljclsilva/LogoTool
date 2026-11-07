@@ -107,26 +107,29 @@ Windows and physical-validation gaps. See `docs/offline-testing.md`.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.
 
-## Logo Station UX improvements — 7 November 2026
+## Logo Station UX improvements — 2026-11-07
 
-The reviewed UI changes add close-tab protection for dirty jobs and pending
-placement edits, visible filename-based download status beside Save job,
-consistent **Set up & place logos** wording, retained Images/3D staging with
-active-mode Add, readable diagnostic disclosures, larger editor controls and
-inline placement errors with a disabled-Apply reason. Review diagnostics remain
-available through More output options. The WI-7 inline-validation proposal was
-approved by Codex after inspecting the Apply path.
+The [complete UX audit](ux-validation-audit-2026-11-07.md) supersedes the historical
+211-pass/41-failure report. Paired complete Chromium runs with two workers and
+one retry produced **196 passed / 46 failed** on baseline `e583941` and
+**222 passed / 30 failed** on published `3bbff0d`, both on macOS 27.2.
+The repaired tree on recovered macOS 27.3 produced **231 first-attempt passes /
+27 failures / 0 retry recoveries**, zero skips, out of 258.
+The OS change prevents an identical-environment final comparison.
 
-The pre-edit baseline passed typecheck and 866 Node tests. Chromium was
-interrupted after 45 passes, five failures, four interruptions and 188 unrun
-cases. One failure was the step label, and four timed out on placement controls
-inside the closed Artwork & logos panel. Updated acceptance flows open that
-panel through its visible trigger.
+Typecheck and `npm test` pass (866 Node tests). The saved installed-Chrome
+selection has 42 first-attempt passes and two retry recoveries; both recovered
+cases also passed isolated reruns. The recovered macOS 27.3 Chrome selection has 43 first-attempt passes, 0 failures and 2 retry recoveries out of 45; both passed an isolated no-retry rerun. This remains development evidence.
+The suite is not green; workflow focus/navigation and wording contracts need
+further triage. The audit accounts for all 41 historical failures, names all
+original 66 focused executions, documents WI-7 Codex approval, real unload and
+false-prompt tests, six mode switches with unchanged blob-URL counts, original
+diagnostics, and normal/enlarged idle/active screenshots at all three viewports.
 
-Final scoped acceptance passed 66/66 checks across bundled Chromium and
-installed Chrome. Typechecking and all 866 Node tests passed. The broader
-diagnostic run completed with 211 passes and 41 failures before final
-corrections, and full-suite readiness still requires workflow triage.
-Acceptance details are recorded in `docs/offline-testing.md`. Actual
-Windows Chrome/Edge offline delivery and physical calibration require release
-validation.
+Scoped repairs restore the original enlarged-canvas assertions and fractional
+reference picking without changing domain schemas or physical tolerances.
+Controls retain 44px heights and accessible names, including existing phone icons. Normal phone/tablet still scroll.
+The supplementary browser rejected file URLs; repository Playwright provides
+required offline `file://` checks. Edge is absent and failed its launch check.
+Windows Chrome/Edge, native print dialogs and physical calibration remain open.
+No further main push is included; follow-up work is on the review branch.

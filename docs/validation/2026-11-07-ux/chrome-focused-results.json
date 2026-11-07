@@ -1,0 +1,625 @@
+{
+  "settings": {
+    "project": "chrome",
+    "workers": 1,
+    "retries": 1,
+    "offline": true,
+    "entryPoint": "file://"
+  },
+  "stats": {
+    "startTime": "2026-11-07T14:14:55.759Z",
+    "duration": 98633.091,
+    "expected": 42,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 2
+  },
+  "cases": [
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1861
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1290
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1526
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1141
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1219
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1730
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1304
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1251
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1632
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1204
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1313
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1490
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "switching tools during texture loading completes the same model load",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1231
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2666
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2241
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2560
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1791
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2003
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "status": "flaky",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 1543
+        },
+        {
+          "status": "passed",
+          "retry": 1,
+          "duration": 2200
+        }
+      ],
+      "firstError": "Error: locator.click: Target page, context or browser has been closed"
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "over-budget presentation add is rejected and leaves prior state untouched",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1737
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "station intake: named views, gating, single empty state, workspace focus",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2786
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4060
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4093
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4933
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (390)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4652
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4163
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "product-setup tools wrap cleanly at 390x844 with real overlays",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2211
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt",
+      "status": "flaky",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 464
+        },
+        {
+          "status": "passed",
+          "retry": 1,
+          "duration": 1435
+        }
+      ],
+      "firstError": "Error: browserContext.close: Target page, context or browser has been closed"
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: freshly opened job closes without a native dialog after activation",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 496
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: downloaded job closes without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 548
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: discarded New-guard changes close without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 640
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 1440",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 848
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 768",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 790
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 390",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 855
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only images, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1074
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only model, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1158
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: download failure shows a plain headline and escaped technical disclosure",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 643
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: invalid placement fields explain disabled Apply and recover without losing edits",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1051
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1947
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1970
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1758
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7126
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2902
+        }
+      ],
+      "firstError": null
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5466
+        }
+      ],
+      "firstError": null
+    }
+  ],
+  "recheck": [
+    {
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1999
+        }
+      ]
+    },
+    {
+      "title": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1511
+        }
+      ]
+    }
+  ]
+}

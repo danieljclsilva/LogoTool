@@ -1074,7 +1074,20 @@ export function createGuidedScale(
       paintSpan();
       paintSpanButtons();
     };
-    svg.addEventListener('click', placeAt);
+    // Chromium rounds click coordinates to whole CSS pixels. Preserve the
+    // matching pointer release's fractional coordinates: rounding a horizontal
+    // reference into a slight slope rotates the calibrated physical frame.
+    let pointerRelease: PointerEvent | null = null;
+    svg.addEventListener('pointerup', event => { pointerRelease = event; });
+    svg.addEventListener('pointercancel', () => { pointerRelease = null; });
+    svg.addEventListener('click', event => {
+      const release = pointerRelease;
+      pointerRelease = null;
+      const matchingRelease = release !== null && event instanceof PointerEvent &&
+        event.detail > 0 && release.pointerId === event.pointerId &&
+        Math.abs(release.clientX - event.clientX) < 2 && Math.abs(release.clientY - event.clientY) < 2;
+      placeAt(matchingRelease ? release : event);
+    });
     svg.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && spanA !== null && spanB !== null) {
         event.preventDefault();

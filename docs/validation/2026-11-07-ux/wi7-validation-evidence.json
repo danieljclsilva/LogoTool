@@ -1,0 +1,206 @@
+{
+  "scope": "Pure UI field validator on synthetic fixture. Separate from native DOM/browser checks.",
+  "count": 23,
+  "passed": true,
+  "results": [
+    {
+      "name": "valid synthetic existing placement",
+      "passed": true,
+      "errors": {}
+    },
+    {
+      "name": "widthRaw rejects \"\"",
+      "passed": true,
+      "field": "width",
+      "errors": {
+        "width": "Width must be a number greater than 0 mm."
+      },
+      "first": "Width must be a number greater than 0 mm."
+    },
+    {
+      "name": "widthRaw rejects \"0\"",
+      "passed": true,
+      "field": "width",
+      "errors": {
+        "width": "Width must be a number greater than 0 mm."
+      },
+      "first": "Width must be a number greater than 0 mm."
+    },
+    {
+      "name": "widthRaw rejects \"-1\"",
+      "passed": true,
+      "field": "width",
+      "errors": {
+        "width": "Width must be a number greater than 0 mm."
+      },
+      "first": "Width must be a number greater than 0 mm."
+    },
+    {
+      "name": "widthRaw rejects \"NaN\"",
+      "passed": true,
+      "field": "width",
+      "errors": {
+        "width": "Width must be a number greater than 0 mm."
+      },
+      "first": "Width must be a number greater than 0 mm."
+    },
+    {
+      "name": "widthRaw rejects \"Infinity\"",
+      "passed": true,
+      "field": "width",
+      "errors": {
+        "width": "Width must be a number greater than 0 mm."
+      },
+      "first": "Width must be a number greater than 0 mm."
+    },
+    {
+      "name": "heightRaw rejects \"\"",
+      "passed": true,
+      "field": "height",
+      "errors": {
+        "height": "Height must be a number greater than 0 mm."
+      },
+      "first": "Height must be a number greater than 0 mm."
+    },
+    {
+      "name": "heightRaw rejects \"0\"",
+      "passed": true,
+      "field": "height",
+      "errors": {
+        "height": "Height must be a number greater than 0 mm."
+      },
+      "first": "Height must be a number greater than 0 mm."
+    },
+    {
+      "name": "heightRaw rejects \"-1\"",
+      "passed": true,
+      "field": "height",
+      "errors": {
+        "height": "Height must be a number greater than 0 mm."
+      },
+      "first": "Height must be a number greater than 0 mm."
+    },
+    {
+      "name": "heightRaw rejects \"NaN\"",
+      "passed": true,
+      "field": "height",
+      "errors": {
+        "height": "Height must be a number greater than 0 mm."
+      },
+      "first": "Height must be a number greater than 0 mm."
+    },
+    {
+      "name": "heightRaw rejects \"Infinity\"",
+      "passed": true,
+      "field": "height",
+      "errors": {
+        "height": "Height must be a number greater than 0 mm."
+      },
+      "first": "Height must be a number greater than 0 mm."
+    },
+    {
+      "name": "rotationRaw rejects \"\"",
+      "passed": true,
+      "field": "rotation",
+      "errors": {
+        "rotation": "Rotation must be a finite number of degrees."
+      },
+      "first": "Rotation must be a finite number of degrees."
+    },
+    {
+      "name": "rotationRaw rejects \"NaN\"",
+      "passed": true,
+      "field": "rotation",
+      "errors": {
+        "rotation": "Rotation must be a finite number of degrees."
+      },
+      "first": "Rotation must be a finite number of degrees."
+    },
+    {
+      "name": "rotationRaw rejects \"Infinity\"",
+      "passed": true,
+      "field": "rotation",
+      "errors": {
+        "rotation": "Rotation must be a finite number of degrees."
+      },
+      "first": "Rotation must be a finite number of degrees."
+    },
+    {
+      "name": "centreXRaw rejects \"\"",
+      "passed": true,
+      "field": "x",
+      "errors": {
+        "x": "X centre must be a finite millimetre number."
+      },
+      "first": "X centre must be a finite millimetre number."
+    },
+    {
+      "name": "centreXRaw rejects \"NaN\"",
+      "passed": true,
+      "field": "x",
+      "errors": {
+        "x": "X centre must be a finite millimetre number."
+      },
+      "first": "X centre must be a finite millimetre number."
+    },
+    {
+      "name": "centreXRaw rejects \"Infinity\"",
+      "passed": true,
+      "field": "x",
+      "errors": {
+        "x": "X centre must be a finite millimetre number."
+      },
+      "first": "X centre must be a finite millimetre number."
+    },
+    {
+      "name": "centreYRaw rejects \"\"",
+      "passed": true,
+      "field": "y",
+      "errors": {
+        "y": "Y centre must be a finite millimetre number."
+      },
+      "first": "Y centre must be a finite millimetre number."
+    },
+    {
+      "name": "centreYRaw rejects \"NaN\"",
+      "passed": true,
+      "field": "y",
+      "errors": {
+        "y": "Y centre must be a finite millimetre number."
+      },
+      "first": "Y centre must be a finite millimetre number."
+    },
+    {
+      "name": "centreYRaw rejects \"Infinity\"",
+      "passed": true,
+      "field": "y",
+      "errors": {
+        "y": "Y centre must be a finite millimetre number."
+      },
+      "first": "Y centre must be a finite millimetre number."
+    },
+    {
+      "name": "missing current safe area",
+      "passed": true,
+      "field": "area",
+      "errors": {
+        "area": "Choose a current safe area for this placement."
+      },
+      "first": "Choose a current safe area for this placement."
+    },
+    {
+      "name": "unoffered method",
+      "passed": true,
+      "field": "method",
+      "errors": {
+        "method": "Method “synthetic-not-offered” is not offered in “Chest”. Choose one of: embroidery, print."
+      },
+      "first": "Method “synthetic-not-offered” is not offered in “Chest”. Choose one of: embroidery, print."
+    },
+    {
+      "name": "zero rotation and negative coordinates remain valid",
+      "passed": true,
+      "errors": {}
+    }
+  ]
+}
