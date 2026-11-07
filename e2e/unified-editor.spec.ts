@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -33,6 +33,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720
       await b(page, 'logo-file').setInputFiles({ name: 'test-mark.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
       await expect(b(page, 'logo-status')).toContainText('Added');
       await b(page, 'product-model-expand').click();
+      await revealModelViewControls(page);
       await ms(page, 'view-front').click();
       await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
       const canvas = b(page, 'product-model').locator('canvas');
@@ -53,10 +54,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720
       await page.mouse.click(box.x + box.width * .55, box.y + box.height * .5);
       await ms(page, 'ref-mm').fill('200');
       await ms(page, 'ref-fit').click();
-      await ms(page, 'tool-rectangle').click();
-      await page.mouse.move(box.x + box.width * .42, box.y + box.height * .4);
+      await chooseModelTool(page, 'rectangle');
+      // Remeasure after the tool-layout transition: contextual authoring shows
+      // the Rectangle name/commands, which can shift the stage geometry.
+      const drawBox = (await canvas.boundingBox())!;
+      expect(drawBox.width).toBeGreaterThan(viewport.width * .85);
+      expect(drawBox.height).toBeGreaterThan(viewport.height * .45);
+      await page.mouse.move(drawBox.x + drawBox.width * .42, drawBox.y + drawBox.height * .4);
       await page.mouse.down();
-      await page.mouse.move(box.x + box.width * .58, box.y + box.height * .6, { steps: 5 });
+      await page.mouse.move(drawBox.x + drawBox.width * .58, drawBox.y + drawBox.height * .6, { steps: 5 });
       await page.mouse.up();
       await expect(ms(page, 'canvas-handle-corner-0')).toBeVisible();
       await b(page, 'model-setup-save').click();

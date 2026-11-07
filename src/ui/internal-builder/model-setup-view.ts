@@ -665,6 +665,14 @@ export function createModelSetupView(
   let active = true;
   let contextPanel: ReturnType<typeof createCanvasContextPanel> | null = null;
   let contextTask: 'measure' | 'areas' | 'more' = 'measure';
+  let viewControlsOpen = false;
+  let viewControls: HTMLElement | null = null;
+  let viewToggle: HTMLButtonElement | null = null;
+  const setViewControlsOpen = (open: boolean): void => {
+    viewControlsOpen = open;
+    viewControls?.classList.toggle('is-open', open);
+    viewToggle?.setAttribute('aria-expanded', String(open));
+  };
   const originalParent = container.parentElement;
   const originalNext = container.nextSibling;
   const applyContextTask = (): void => {
@@ -680,6 +688,7 @@ export function createModelSetupView(
     }
   };
   const openContext = (task: typeof contextTask): void => {
+    setViewControlsOpen(false);
     contextTask = task; applyContextTask(); contextPanel?.open(task === 'measure' ? 'Measure' : task === 'areas' ? 'Safe areas' : 'More setup options');
   };
   const mountContext = (): void => {
@@ -2021,6 +2030,7 @@ export function createModelSetupView(
 
     const statusBox = el('p', 'status', 'model-setup-status muted');
     statusBox.setAttribute('role', 'status');
+    statusBox.setAttribute('tabindex', '0');
     statusBox.textContent = lastStatus;
     const paintStatus = (message: string): void => {
       lastStatus = message;
@@ -2316,35 +2326,48 @@ export function createModelSetupView(
     const toolRow = el('div', 'areas-tool-row', 'model-setup-row');
     toolRow.setAttribute('role', 'group');
     toolRow.setAttribute('aria-label', 'Safe-area authoring tool');
+    const activateTool = (tool: ProductDraft['areaTool']): void => {
+      cancelGestureSilent();
+      panMode = false;
+      contextPanel?.close();
+      setViewControlsOpen(false);
+      draft.areaTool = tool;
+      draft.handleArm = null;
+      draft.curveArm = null;
+      draft.drawing = tool === 'freehand' ? [] : null;
+      armed = tool === 'freehand' ? 'areaPoint' : null;
+      paintStatus(tool === 'edit' && draft.selectedAreaId === null
+        ? 'Edit outline: select an area below first, then drag its white squares on the model.' : '');
+      refresh();
+    };
+    const toolChoice = el('label', 'tool-picker-label', 'model-setup-tool-picker-label');
+    toolChoice.textContent = 'Tool';
+    toolChoice.style.display = 'none';
+    const toolPicker = el('select', 'tool-picker');
+    toolPicker.setAttribute('aria-label', 'Safe-area tool');
     for (const tool of ['rotate', 'edit', 'rectangle', 'freehand'] as const) {
+      const label = tool === 'rotate' ? 'Rotate model' : tool === 'edit' ? 'Edit outline' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
+      const option = document.createElement('option');
+      option.value = tool;
+      option.textContent = label;
+      toolPicker.append(option);
       const button = el('button', `tool-${tool}`, 'btn-secondary');
       button.type = 'button';
-      button.textContent = tool === 'rotate' ? 'Rotate model' : tool === 'edit' ? 'Edit outline' : tool === 'freehand' ? 'Polygon' : 'Rectangle';
-      button.setAttribute('aria-label', button.textContent);
-      button.title = button.textContent;
+      button.textContent = label;
+      button.setAttribute('aria-label', label);
+      button.title = label;
       button.setAttribute('data-ps-tool', tool);
-      button.setAttribute('aria-pressed', draft.areaTool === tool ? 'true' : 'false');
+      button.setAttribute('aria-pressed', String(draft.areaTool === tool));
       if (draft.areaTool === tool) button.classList.add('is-selected');
-      button.addEventListener('click', () => {
-        cancelGestureSilent();
-        panMode = false;
-        contextPanel?.close();
-        draft.areaTool = tool;
-        draft.handleArm = null;
-        draft.curveArm = null;
-        draft.drawing = tool === 'freehand' ? [] : null;
-        armed = tool === 'freehand' ? 'areaPoint' : null;
-        // The persistent mode hint explains this action once. Status is for
-        // results/errors, rather than a second copy of the same instruction.
-        paintStatus(
-          tool === 'edit' && draft.selectedAreaId === null
-            ? 'Edit outline: select an area below first, then drag its white squares on the model.'
-            : '',
-        );
-        refresh();
-      });
+      button.addEventListener('click', () => activateTool(tool));
       toolRow.append(button);
     }
+    toolPicker.value = draft.areaTool;
+    toolPicker.addEventListener('change', () => {
+      activateTool(toolPicker.value as ProductDraft['areaTool']);
+      document.querySelector<HTMLSelectElement>('[data-model-setup-hook="tool-picker"]')?.focus({ preventScroll: true });
+    });
+    toolChoice.append(toolPicker);
     const modes = el('div', 'outline-actions', 'model-setup-row');
     modes.setAttribute('role', 'group');
     modes.setAttribute('aria-label', 'Outline editing mode (Edit outline tool)');
@@ -2362,7 +2385,8 @@ export function createModelSetupView(
     }
     const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
     const commands = el('div', 'command-strip', 'model-setup-command-strip');
-    (authorTools ?? section).append(toolRow, commands);
+    commands.setAttribute('data-tool', draft.areaTool);
+    (authorTools ?? section).append(toolChoice, toolRow, commands);
     commands.append(modes);
     modes.style.visibility = outlineEnabled ? '' : 'hidden';
     if (draft.areaTool === 'rectangle') {
@@ -2454,8 +2478,8 @@ export function createModelSetupView(
     });
     const cancel = el('button', 'area-cancel', 'btn-secondary');
     cancel.type = 'button';
-    cancel.textContent = 'Cancel drawing';
-    cancel.setAttribute('aria-label', cancel.textContent);
+    cancel.textContent = 'Cancel';
+    cancel.setAttribute('aria-label', 'Cancel drawing');
     cancel.title = cancel.textContent;
     cancel.disabled = draft.drawing === null;
     cancel.addEventListener('click', () => {
@@ -2465,12 +2489,10 @@ export function createModelSetupView(
       paintStatus('Drawing cancelled; nothing was committed.');
       refresh();
     });
-    const undo = el('button', 'area-undo', 'btn-secondary'); undo.type = 'button'; undo.textContent = 'Undo point'; undo.disabled = !draft.drawing?.length;
-    undo.setAttribute('aria-label', undo.textContent); undo.title = undo.textContent;
+    const undo = el('button', 'area-undo', 'btn-secondary'); undo.type = 'button'; undo.textContent = 'Undo'; undo.disabled = !draft.drawing?.length;
+    undo.setAttribute('aria-label', 'Undo point'); undo.title = 'Undo point';
     undo.addEventListener('click', () => { draft.drawing?.pop(); lastStatus = 'Last corner undone.'; refresh(); });
     actions.append(finish, undo, cancel);
-    // Fixed layout: drawing actions stay mounted for every tool; the buttons
-    // already disable themselves outside an active drawing.
     actions.style.visibility = draft.areaTool === 'freehand' ? '' : 'hidden';
     commands.append(actions);
 
@@ -2871,8 +2893,20 @@ export function createModelSetupView(
     const cameraControls = el('div', 'camera-controls', 'model-setup-camera-controls');
     cameraControls.setAttribute('role', 'group');
     cameraControls.setAttribute('aria-label', 'Camera and display controls (scroll for more)');
-    mount.append(cameraControls);
+    cameraControls.id = 'model-setup-view-controls';
+    viewControls = cameraControls;
+    const toggle = el('button', 'view-toggle', 'model-setup-view-toggle');
+    toggle.type = 'button';
+    toggle.textContent = 'View';
+    toggle.style.display = 'none';
+    toggle.setAttribute('aria-label', 'View controls');
+    toggle.setAttribute('aria-controls', cameraControls.id);
+    viewToggle = toggle;
+    toggle.addEventListener('click', () => setViewControlsOpen(!viewControlsOpen));
+    setViewControlsOpen(viewControlsOpen);
+    mount.append(toggle, cameraControls);
     const modeHint = el('p', 'mode-hint', 'muted');
+    modeHint.setAttribute('tabindex', '0');
     const tool = scope?.draft.areaTool ?? 'rotate';
     modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Edit outline to reshape the selected area, Rectangle or Polygon to draw.'
       : tool === 'edit' ? 'Drag points to reshape. Click + to add, or choose Bend edge. Select a point to remove it.'
@@ -3578,11 +3612,12 @@ export function createModelSetupView(
   }
 
   function onCanvasDown(event: PointerEvent): void {
-    if (!active || panMode) return;
     if (destroyed || !active || event.button !== 0 || !event.isPrimary) return;
     // Gate on the LIVE canvas (the lead replaces the canvas per viewer
     // attach, so a captured element would go stale).
     if (event.target !== canvasOf()) return;
+    setViewControlsOpen(false);
+    if (panMode) return;
     contextPanel?.close();
     downAt = { x: event.clientX, y: event.clientY, button: event.button, pointerId: event.pointerId };
     const resolved = currentDraft();
@@ -3829,6 +3864,13 @@ export function createModelSetupView(
 
   function onKeyDown(event: KeyboardEvent): void {
     if (destroyed || !active) return;
+    if (event.key === 'Escape' && viewControlsOpen && viewToggle?.getClientRects().length) {
+      setViewControlsOpen(false);
+      viewToggle?.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const target = event.target;
     if (
       target instanceof HTMLInputElement ||
@@ -3932,7 +3974,7 @@ export function createModelSetupView(
       if (active === next) return;
       active = next;
       if (!active) {
-        cancelGestureSilent(); contextPanel?.close();
+        cancelGestureSilent(); contextPanel?.close(); setViewControlsOpen(false);
         if (settleTimer !== null) {
           try { clearTimeout(settleTimer); } catch { /* timer already fired */ }
           settleTimer = null;

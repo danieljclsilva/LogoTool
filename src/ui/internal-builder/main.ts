@@ -160,6 +160,13 @@ import {
 import type { JobSession, OperatorHistory } from './job-session.js';
 import { DEFAULT_NEW_REGION_METHODS } from '../../core/decoration-methods/index.js';
 import { createOperatorAuthoringContext } from '../../core/operator-authoring/index.js';
+import {
+  PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE,
+  isPlacementCreationAllowed,
+  readInclusionScopeOrThrow,
+  summarizeOmittedPlacements,
+} from './placement-inclusion.js';
+import type { OmittedPlacementGroup } from './placement-inclusion.js';
 
 /** Live logo import staging (the retained intake path); the issued/return
  * snapshot shells are deleted with the legacy desk below. */
@@ -546,8 +553,12 @@ function setJobStep(next: JobStep): void {
     // text it reads: prepare it, then re-render (the first render reports
     // honestly if the digest is not ready yet; navigation never blocks).
     if (source) {
-      const scoped = scopedJobProject() ?? source.project;
-      void hasher.prepareProject(scoped).then(() => { if (jobStep === 'review' && reviewHandle) reviewHandle.update(); }).catch(() => {});
+      let scoped: ProjectDocument | null = null;
+      try {
+        scoped = scopedJobProject();
+      } catch { scoped = null; }
+      const effective = scoped ?? source.project;
+      void hasher.prepareProject(effective).then(() => { if (jobStep === 'review' && reviewHandle) reviewHandle.update(); }).catch(() => {});
     }
     if (reviewHandle) reviewHandle.update();
   }
@@ -979,10 +990,17 @@ function mintFreshIssueId(): string {
   return fresh;
 }
 function currentInclusion(): { includedProducts: string[]; includedConfigurations: string[]; logoIds: string[] } {
-  try {
+  let logoIds: string[] = [];
+  const scope = readInclusionScopeOrThrow(() => {
     const selection = readSelection();
-    return { includedProducts: [...selection.productIds], includedConfigurations: scopedConfigurationIds(selection), logoIds: [...selection.logoIds] };
-  } catch { return { includedProducts: [], includedConfigurations: [], logoIds: [] }; }
+    logoIds = [...selection.logoIds];
+    return { productIds: [...selection.productIds], configurationIds: scopedConfigurationIds(selection) };
+  });
+  return {
+    includedProducts: [...(scope?.productIds ?? [])],
+    includedConfigurations: [...(scope?.configurationIds ?? [])],
+    logoIds,
+  };
 }
   /** Save the editable job: exact geometry + original assets + presentation /
   * calibration sidecars + selection + identity + operation-authoring metadata.
@@ -1023,6 +1041,14 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
     // Persisted metadata derives from the canonical frozen fields: identity
     // from the Step 1 inputs, inclusion from the checkboxes, everything else
     // from the snapshot session. The digest binds to the exact packaged project below.
+    // A selection-read failure fails closed: no save, state preserved.
+    let inclusion: { includedProducts: string[]; includedConfigurations: string[]; logoIds: string[] };
+    try {
+      inclusion = currentInclusion();
+    } catch {
+      alertBuilder(PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE);
+      return null;
+    }
     const metadata = snapshotSessionMetadata(
       snap.session,
       {
@@ -1030,7 +1056,7 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
         ...(jobRef.value.trim() ? { jobReference: jobRef.value.trim() } : {}),
         ...(issuedBy.value.trim() ? { preparedBy: issuedBy.value.trim() } : {}),
       },
-      currentInclusion(),
+      inclusion,
     );
     metadata.sourceDigest = await hasher.prepareProject(project);
     if (!isSameSaveSession(source, snap) || generation !== jobSaveGeneration) return null;
@@ -3670,6 +3696,22 @@ function commitPlacementProject(label: string, next: ProjectDocument): { ok: tru
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+  let scope: { productIds: readonly string[]; configurationIds: readonly string[] } | null;
+  try {
+    scope = readInclusionScopeOrThrow(() => {
+      const selection = readSelection();
+      return { productIds: [...selection.productIds], configurationIds: scopedConfigurationIds(selection) };
+    });
+  } catch {
+    return { ok: false, error: PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE };
+  }
+  const previousCounts = new Map(source.project.configurations.map(entry => [entry.id, entry.placements.length]));
+  for (const configuration of next.configurations) {
+    const addsPlacement = configuration.placements.length > (previousCounts.get(configuration.id) ?? 0);
+    if (addsPlacement && !isPlacementCreationAllowed(configuration.productId, configuration.id, scope)) {
+      return { ok: false, error: 'Include this product and option in Prepare job before adding a logo placement.' };
+    }
+  }
   pushHistoryForEdit(label);
   source = replaceSessionProject(source, next);
   markJobDirty();
@@ -3799,11 +3841,13 @@ function mountJobModules(): void {
         } catch { return null; }
       },
       getIncludedScope: () => {
+        if (source === null) return null;
         try {
-          if (source === null) return null;
           const inclusion = currentInclusion();
-          return { productIds: inclusion.includedProducts, configurationIds: inclusion.includedConfigurations };
-        } catch { return null; }
+          return { productIds: [...inclusion.includedProducts], configurationIds: [...inclusion.includedConfigurations] };
+        } catch {
+          throw new Error(PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE);
+        }
       },
       requestProductSetup: (productId, variantId) => focusProductSetup(productId, variantId),
       onViewModel: (productId) => focusProductSetup(productId),
@@ -3898,32 +3942,48 @@ function mountJobModules(): void {
 function scopedJobProject(): ProjectDocument | null {
   if (!source) return null;
   const scoped: ProjectDocument = JSON.parse(JSON.stringify(source.project)) as ProjectDocument;
-  try {
-    const included = new Set(scopedConfigurationIds(readSelection()));
-    scoped.configurations = scoped.configurations.filter((config) => included.has(config.id));
-  } catch { /* scoping is best-effort; the full job still renders */ }
+  // Fail closed: a selection-read failure must not present the full job as
+  // the valid scoped file. Callers catch and flag the snapshot invalid.
+  const included = new Set(scopedConfigurationIds(readSelection()));
+  scoped.configurations = scoped.configurations.filter((config) => included.has(config.id));
   return scoped;
 }
 function readReviewSnapshot(): import('./document-review.js').DocumentReviewSnapshot | null {
   if (!source) return null;
-  const project = scopedJobProject() ?? source.project;
+  // Fail closed without misrepresenting: when the inclusion read fails, fall
+  // back to a full clone for stability but flag it invalid (blocking print)
+  // and report unknown omissions — never a valid full preview, never zero.
+  let project: ProjectDocument;
+  let omittedPlacements: readonly OmittedPlacementGroup[] | null = null;
+  let inclusionFailed = false;
+  try {
+    project = scopedJobProject() ?? source.project;
+    omittedPlacements = summarizeOmittedPlacements(source.project, project.configurations.map(entry => entry.id));
+  } catch {
+    inclusionFailed = true;
+    project = JSON.parse(JSON.stringify(source.project)) as ProjectDocument;
+  }
   let candidate: ResultCandidate | null = null;
   let candidateError: string | null = null;
-  try {
-    const context = createOperatorAuthoringContext({
-      project,
-      assets: jobAssetBytes(),
-      sha256Hex: hasher.sha256Hex,
-      identity: {
-        ...(customerName.value.trim() ? { customer: customerName.value.trim() } : {}),
-        ...(jobRef.value.trim() ? { jobReference: jobRef.value.trim() } : {}),
-        ...(issuedBy.value.trim() ? { preparedBy: issuedBy.value.trim() } : {}),
-      },
-      referenceViews: {},
-    });
-    candidate = context.candidate;
-  } catch (error) {
-    candidateError = error instanceof Error ? error.message : String(error);
+  if (inclusionFailed) {
+    candidateError = PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE;
+  } else {
+    try {
+      const context = createOperatorAuthoringContext({
+        project,
+        assets: jobAssetBytes(),
+        sha256Hex: hasher.sha256Hex,
+        identity: {
+          ...(customerName.value.trim() ? { customer: customerName.value.trim() } : {}),
+          ...(jobRef.value.trim() ? { jobReference: jobRef.value.trim() } : {}),
+          ...(issuedBy.value.trim() ? { preparedBy: issuedBy.value.trim() } : {}),
+        },
+        referenceViews: {},
+      });
+      candidate = context.candidate;
+    } catch (error) {
+      candidateError = error instanceof Error ? error.message : String(error);
+    }
   }
   const bytes = jobAssetBytes();
   const manifestBytes = bytes.get(PRESENTATION_MANIFEST_PATH);
@@ -3957,6 +4017,7 @@ function readReviewSnapshot(): import('./document-review.js').DocumentReviewSnap
     technique: { ...source.technique },
     techniqueScopeLabel: null,
     unapplied,
+    omittedPlacements,
   };
 }
 function fixReviewItem(target: ReviewFixTarget): void {

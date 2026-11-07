@@ -7,7 +7,7 @@ import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
-import { BUILDER_URL, gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, revealBuilderControl, ensurePlacementPanel, revealCustomerControl } from './helpers.js';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -594,8 +594,8 @@ test('create customer journey adds a new raster logo and reviews the return', as
     await editorPage.goto(pathToFileURL(htmlPath).href);
     await expect(editorPage.locator('[data-customer-hook="project-id"]')).toHaveText(issuedProjectId);
     await expect(editorPage.locator('[data-customer-hook="revision"]')).toHaveText('1');
-    // One workspace: width is editable alongside position; Continue adds the
-    // new logo and moves to the combined review step.
+    // Reveal the exact-size disclosure through the shared customer helper.
+    await revealCustomerControl(editorPage, 'width-mm');
     await editorPage.locator('[data-customer-hook="width-mm"]').fill('60');
     await editorPage.locator('[data-customer-hook="primary-next"]').click();
     await expect(editorPage.locator('[data-step-panel="review"]')).toBeVisible();

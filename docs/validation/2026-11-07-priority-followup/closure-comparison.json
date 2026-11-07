@@ -1,0 +1,1494 @@
+{
+  "environment": {
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.3\nBuildVersion:\t\t26C5035r",
+    "arch": "arm64",
+    "node": "v26.10.0",
+    "chrome": "156.0.8078.74",
+    "playwright": "1.64.0",
+    "offline": true,
+    "entryPoint": "file://",
+    "workers": 1,
+    "retries": 0
+  },
+  "snapshots": {
+    "baseline": {
+      "commit": "e5839417f0500b73fe2f4c47cb67a1214ddb9b54",
+      "handlerRemoved": false,
+      "mainSha256": "3d100e9a87488d0d6c88fd40a1307d840fff391c4c440f11b135b29dfc5afdb9"
+    },
+    "reviewed": {
+      "commit": "c180a416fbecd6f6329ca68f1386b19b5b4dc7bd",
+      "handlerRemoved": false,
+      "mainSha256": "36467bb07e3b236337fc02684b728e2330645c789a4fe89c947d0a3c3ad0e162"
+    },
+    "handler-off": {
+      "commit": "c180a416fbecd6f6329ca68f1386b19b5b4dc7bd",
+      "handlerRemoved": true,
+      "mainSha256": "fccddea82e7a7f555e958c0690dbba063b3bd78f6ab6e8791c1e11a86472d0cf"
+    }
+  },
+  "settings": {
+    "rounds": 10,
+    "rotatingOrder": true,
+    "freshWorkerEachBatch": true,
+    "casesPerBatch": 3,
+    "command": [
+      "npx",
+      "playwright",
+      "test",
+      "e2e/editor-regressions.spec.ts",
+      "e2e/photo-mapping-workflow.spec.ts",
+      "e2e/unified-editor.spec.ts",
+      "--project=chrome",
+      "--workers=1",
+      "--retries=0",
+      "--grep",
+      "uncalibrated area offers scale fitting then recompute and logo placement|operator maps a photo, issues it, and the customer proves placement on the mapped photo|one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "--reporter=line,json",
+      "--trace=retain-on-failure"
+    ]
+  },
+  "durationSeconds": 340.5358585419999,
+  "results": [
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 6544,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 6705,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2771,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2309,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5615,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2280,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1912,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5469,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2628,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 1,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1875,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5205,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2182,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1769,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5037,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2251,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1738,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5152,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2187,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 2,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1717,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5005,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2214,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1717,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5126,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2358,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1819,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5099,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2182,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 3,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1701,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5206,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2178,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1724,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5077,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2176,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1776,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5044,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2173,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 4,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1708,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5057,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2142,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1695,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5060,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2226,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1660,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4952,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2183,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 5,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1717,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5036,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2142,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1704,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5169,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2215,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1713,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4975,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2192,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 6,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1713,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5181,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2209,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1790,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4957,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2130,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1701,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4977,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2252,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 7,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1719,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5003,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2148,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1699,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5071,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2146,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1717,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4999,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2171,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 8,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1708,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4971,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2155,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1695,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 4990,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2157,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1673,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5100,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2183,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 9,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1700,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5116,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2195,
+          "error": ""
+        }
+      ],
+      "condition": "baseline",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1723,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5083,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2139,
+          "error": ""
+        }
+      ],
+      "condition": "reviewed",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 1697,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 5087,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration": 2176,
+          "error": ""
+        }
+      ],
+      "condition": "handler-off",
+      "round": 10,
+      "exitCode": 0,
+      "browserClosure": false
+    }
+  ]
+}

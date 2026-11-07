@@ -54,6 +54,11 @@ import { modelPointFromMm } from '../../core/model-placement/index.js';
 import { methodLabel, SUPPORTED_METHODS, configurePlacementMethod } from '../../core/decoration-methods/index.js';
 import { resolveVisualDimension } from '../../core/visual-dimension/index.js';
 import { displayVariantName } from '../../core/operation-document/index.js';
+import {
+  PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE,
+  isPlacementCreationAllowed,
+} from './placement-inclusion.js';
+import type { PlacementInclusionScope } from './placement-inclusion.js';
 import { validateProject } from '../../core/validate.js';
 import { createModelPlacementView, type ModelPlacementScene, type ModelPlacementView } from './model-placement-view.js';
 import { expandableWorkspace } from './workspace-expansion.js';
@@ -1084,6 +1089,17 @@ export function mountPlacementWorkspace(
     const wrap = el('div', 'pw-root', 'pw-root');
     root.append(wrap);
     renderHeader(wrap);
+    const context = currentContext();
+    if (context.configuration) {
+      const blockReason = creationBlockedReason(context.project, context.configuration);
+      if (blockReason !== null) {
+        const warning = el('p', 'pw-warning', 'pw-add-blocked');
+        warning.id = 'placement-exclusion-message';
+        warning.setAttribute('role', 'alert');
+        warning.textContent = blockReason;
+        wrap.append(warning);
+      }
+    }
     const layout = el('div', 'pw-layout');
     wrap.append(layout);
     const main = el('div', 'pw-main');
@@ -1130,15 +1146,46 @@ export function mountPlacementWorkspace(
   }
   window.addEventListener("resize", fitWorkspace, { signal: aborter.signal });
 
-  /** Included scope for chooser lists, or null for the full catalogue. */
-  function includedScope(): { products: Set<string>; configurations: Set<string> } | null {
+  /**
+   * Included scope state. A valid null/undefined scope from the lead means the
+   * full catalogue (unrestricted). A throwing reader means the inclusion is
+   * unavailable: choosers still show the full catalogue (never strand
+   * selection or existing placements) but creation stays blocked.
+   */
+  type InclusionState =
+    | { status: 'ok'; scope: PlacementInclusionScope | null }
+    | { status: 'unavailable' };
+
+  function inclusionState(): InclusionState {
     try {
-      const scope = deps.getIncludedScope?.();
-      if (scope === undefined || scope === null) return null;
-      return { products: new Set(scope.productIds), configurations: new Set(scope.configurationIds) };
+      const raw = deps.getIncludedScope?.();
+      if (raw === undefined || raw === null) return { status: 'ok', scope: null };
+      return {
+        status: 'ok',
+        scope: { productIds: [...raw.productIds], configurationIds: [...raw.configurationIds] },
+      };
     } catch {
-      return null;
+      return { status: 'unavailable' };
     }
+  }
+
+  /** Null when creation is allowed; the blocking message otherwise. */
+  function creationBlockedReason(project: ProjectDocument, configuration: Configuration): string | null {
+    const state = inclusionState();
+    if (state.status === 'unavailable') return PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE;
+    if (!isPlacementCreationAllowed(configuration.productId, configuration.id, state.scope)) {
+      return excludedScopeMessage(project, configuration.productId, configuration.variantId);
+    }
+    return null;
+  }
+
+  function excludedScopeMessage(project: ProjectDocument, productId: string, variantId: string): string {
+    const product = project.products.find((entry) => entry.id === productId);
+    const productName = product?.name?.trim() || 'This product';
+    const optionName = product ? displayVariantName(product, variantId) : null;
+    const name = optionName ? `${productName} (${optionName})` : productName;
+    return `Adding a logo is blocked because ${name} is excluded from this customer file. ` +
+      'Include it in Prepare job or choose an included product and option.';
   }
   /**
    * Chooser products: the included scope, plus the live selection and any
@@ -1146,7 +1193,10 @@ export function mountPlacementWorkspace(
    * scope means the full editable catalogue.
    */
   function optionProducts(project: ProjectDocument): ProductDefinition[] {
-    const scope = includedScope();
+    // Unavailable inclusion reads show the full catalogue here (never strand
+    // selection or existing placements); creation stays blocked elsewhere.
+    const state = inclusionState();
+    const scope = state.status === 'ok' ? state.scope : null;
     let selectedProduct = '';
     try {
       selectedProduct = deps.getSelection().productId;
@@ -1161,7 +1211,7 @@ export function mountPlacementWorkspace(
       if (seen.has(configuration.productId)) continue;
       if (
         scope !== null &&
-        !(scope.products.has(configuration.productId) && scope.configurations.has(configuration.id)) &&
+        !isPlacementCreationAllowed(configuration.productId, configuration.id, scope) &&
         configuration.productId !== selectedProduct &&
         !withPlacements.has(configuration.productId)
       ) continue;
@@ -1185,7 +1235,8 @@ export function mountPlacementWorkspace(
         .filter((entry) => entry.productId === productId)
         .map((entry) => entry.variantId),
     );
-    const scope = includedScope();
+    const state = inclusionState();
+    const scope = state.status === 'ok' ? state.scope : null;
     let selection: { productId: string; variantId: string } | null = null;
     try {
       const current = deps.getSelection();
@@ -1207,7 +1258,7 @@ export function mountPlacementWorkspace(
         if (withPlacements.has(variant.id)) return true;
         return project.configurations.some((entry) =>
           entry.productId === product.id && entry.variantId === variant.id &&
-          scope.products.has(entry.productId) && scope.configurations.has(entry.id));
+          isPlacementCreationAllowed(entry.productId, entry.id, scope));
       })
       .map((variant) => ({ id: variant.id, name: displayVariantName(product, variant.id) ?? 'Standard option' }));
   }
@@ -2484,6 +2535,15 @@ export function mountPlacementWorkspace(
     logoId: string,
     destination?: { regionId: string; pos: { xMm: number; yMm: number } },
   ): void {
+    // Blocked scope: block the mutation itself (not only the button), so a
+    // stale tray/drop cannot silently author outside the issued subset or
+    // while the inclusion read is unavailable.
+    const provisionalBlock = creationBlockedReason(project, configuration);
+    if (provisionalBlock !== null) {
+      announce(provisionalBlock);
+      update();
+      return;
+    }
     const product = project.products.find((entry) => entry.id === configuration.productId);
     if (product === undefined) {
       announce('The product for this option is missing; reopen the job.');
@@ -2566,7 +2626,15 @@ export function mountPlacementWorkspace(
       ? (region.allowedMethods[0] ?? '')
       : '';
     addDraft.notice = '';
-    announce('Artwork ready: check the size, then Add placement — or Place it for an immediate preview.');
+    // Prefill only stages a draft (creation still goes through the guarded
+    // submit), so it stays allowed in a blocked scope — but the announcement
+    // names the block instead of promising a placement.
+    const prefillBlock = creationBlockedReason(project, configuration);
+    if (prefillBlock !== null) {
+      announce(prefillBlock);
+    } else {
+      announce('Artwork ready: check the size, then Add placement — or Place it for an immediate preview.');
+    }
     update();
   }
 
@@ -2593,6 +2661,8 @@ export function mountPlacementWorkspace(
       return;
     }
     const grid = el('div', 'pw-artwork-grid', 'pw-artwork-grid');
+    const trayBlockReason = creationBlockedReason(project, configuration);
+    const blocked = trayBlockReason !== null;
     for (const logo of logos) {
       const card = el('div', 'pw-artwork-card', `pw-artwork-${logo.id}`);
       const pick = el('button', 'pw-artwork-pick', `pw-artwork-pick-${logo.id}`) as HTMLButtonElement;
@@ -2639,6 +2709,10 @@ export function mountPlacementWorkspace(
       place.type = 'button';
       place.textContent = 'Place';
       place.setAttribute('aria-label', `Place ${name} on the product now as a provisional preview`);
+      if (blocked) {
+        place.disabled = true;
+        place.title = trayBlockReason ?? '';
+      }
       place.addEventListener('click', () => { placeProvisional(deps.getProject(), configuration, logo.id); });
       card.append(place);
       grid.append(card);
@@ -2656,6 +2730,9 @@ export function mountPlacementWorkspace(
     // then positioned. Drag cards onto the product, Place for an immediate
     // provisional preview, or pick a card to fill the add form.
     renderArtworkTray(rail, project, configuration);
+
+    const railBlockReason = creationBlockedReason(project, configuration);
+    const creationBlocked = railBlockReason !== null;
 
     const listTitle = el('h3', '', 'pw-placements-title');
     listTitle.textContent = `Placements (${configuration.placements.length})`;
@@ -2715,7 +2792,11 @@ export function mountPlacementWorkspace(
     const addToggle = el('button', 'pw-secondary', 'pw-add-placement') as HTMLButtonElement;
     addToggle.type = 'button';
     addToggle.textContent = 'Add logo placement';
-    addToggle.disabled = project.logos.length === 0;
+    addToggle.disabled = project.logos.length === 0 || creationBlocked;
+    if (creationBlocked) {
+      addToggle.setAttribute('aria-describedby', 'placement-exclusion-message');
+      addToggle.title = railBlockReason ?? '';
+    }
     addToggle.addEventListener('click', () => {
       addOpen = true;
       addDraft = makeAddDraft(project, configuration);
@@ -3035,6 +3116,13 @@ export function mountPlacementWorkspace(
     const add = el('button', 'pw-primary', 'pw-add-confirm') as HTMLButtonElement;
     add.type = 'button';
     add.textContent = 'Add placement';
+    // Disabled (not just guarded) in a blocked scope; the mutation guard in
+    // submitAddForm still covers stale-open forms that reach it anyway.
+    const addBlockReason = creationBlockedReason(project, configuration);
+    if (addBlockReason !== null) {
+      add.disabled = true;
+      add.title = addBlockReason;
+    }
     add.addEventListener('click', () => {
       submitAddForm(project, configuration, draft);
     });
@@ -3056,6 +3144,15 @@ export function mountPlacementWorkspace(
     configuration: Configuration,
     draft: AddDraft,
   ): void {
+    // Mutation guard: re-evaluate the live inclusion scope at submit time, so
+    // a stale-open form (opened while included, submitted after exclusion)
+    // cannot silently author outside the issued subset. Never auto-includes.
+    const submitBlock = creationBlockedReason(project, configuration);
+    if (submitBlock !== null) {
+      draft.notice = submitBlock;
+      update();
+      return;
+    }
     const product = project.products.find((entry) => entry.id === configuration.productId);
     if (product === undefined) {
       draft.notice = 'The product for this option is missing; reopen the job.';
@@ -3372,7 +3469,20 @@ export function mountPlacementWorkspace(
     const duplicate = el('button', 'pw-secondary', 'pw-duplicate') as HTMLButtonElement;
     duplicate.type = 'button';
     duplicate.textContent = 'Duplicate placement';
+    // Duplicating mints a NEW placement, so it shares the fail-closed
+    // creation block (removing the existing placement below stays allowed).
+    const duplicateBlock = creationBlockedReason(project, configuration);
+    if (duplicateBlock !== null) {
+      duplicate.disabled = true;
+      duplicate.title = duplicateBlock;
+    }
     duplicate.addEventListener('click', () => {
+      const clickBlock = creationBlockedReason(deps.getProject(), configuration);
+      if (clickBlock !== null) {
+        announce(clickBlock);
+        update();
+        return;
+      }
       const id = deps.newPlacementId();
       const copy: Placement = {
         ...placement,

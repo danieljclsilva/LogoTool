@@ -1,0 +1,799 @@
+{
+  "environment": "macOS 27.3 (26C5035r), arm64",
+  "node": "26.10.0",
+  "playwright": "1.64.0",
+  "browser": "Google Chrome 156.0.8078.74",
+  "offline": true,
+  "entryPoint": "file://",
+  "workers": 1,
+  "retries": 1,
+  "stats": {
+    "startTime": "2026-11-07T20:59:04.280Z",
+    "duration": 108223.889,
+    "expected": 55,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 3
+  },
+  "cases": [
+    {
+      "file": "editor-guidance.spec.ts",
+      "title": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2429,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-guidance.spec.ts",
+      "title": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1826,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1187,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 999,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1282,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 966,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1087,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1312,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 931,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 968,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1295,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 924,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 935,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 854,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "switching tools during texture loading completes the same model load",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 789,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1518,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1505,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1351,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1054,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1076,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1183,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "issues a subset hybrid package at revision 1 with approvals cleared",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2417,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct images job: intake, setup, placements, measurement, technique, review, save, reopen",
+      "status": "flaky",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 2494,
+          "errors": [
+            "Error: locator.click: Target page, context or browser has been closed\nBrowser logs:\n\n[pid=16660][err] [16667:225874:1107/215921.081858:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215921.082013:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215921.082076:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215921.082231:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215921.082282:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215921.937379:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215921.937393:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215922.022743:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.022820:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.024199:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.024263:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.025038:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.025102:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.025242:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.025302:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.025423:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.025475:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215922.879871:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215922.879887:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215922.966536:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.966615:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.968849:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.968921:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.969094:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.969169:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.969315:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.969372:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215922.969509:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215922.969561:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215923.742775:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215923.742822:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215923.810726:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215923.810783:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215923.811703:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215923.811755:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215923.811992:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215923.812027:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215923.812298:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215923.812336:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215923.812471:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215923.812518:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215924.540254:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215924.540270:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215924.598623:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215924.598698:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215924.599404:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215924.599464:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215924.600078:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215924.600138:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215924.600278:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215924.600332:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215924.600448:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215924.600504:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215926.068330:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215926.068358:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215926.162665:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215926.162750:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215926.164521:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215926.164588:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215926.165991:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215926.166065:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215926.166214:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215926.166278:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215926.166416:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215926.166471:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215927.587060:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215927.587076:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215927.679041:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215927.679124:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215927.680107:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215927.680168:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215927.680740:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215927.680810:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215927.680948:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215927.681018:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215927.681161:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215927.681223:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215928.947750:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215928.947784:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215929.028254:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215929.028331:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215929.030024:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215929.030101:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215929.030877:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215929.030939:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215929.031100:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215929.031157:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215929.031288:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215929.031344:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215930.014196:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215930.014208:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215930.097347:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215930.097424:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215930.098648:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215930.098716:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215930.099372:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215930.099450:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215930.099636:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215930.099695:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215930.099826:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215930.099879:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215931.098973:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215931.098989:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215931.109688:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:260] SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox.\n[pid=16660][err] [16667:225835:1107/215931.186434:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215931.186520:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215931.187988:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215931.188066:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215931.188811:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215931.188868:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215931.189002:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215931.189054:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215931.189191:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215931.189250:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215932.294477:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215932.294531:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215932.379551:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215932.379611:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215932.380533:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215932.380578:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215932.381757:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215932.381806:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215932.381922:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215932.381965:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215932.382068:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215932.382104:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215934.465635:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.465695:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16660:225834:1107/215934.763176:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16660:225834:1107/215934.763196:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16660][err] [16667:225835:1107/215934.826829:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.826908:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215934.827652:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.827705:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215934.828183:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.828246:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215934.828867:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.828928:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215934.829068:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215934.829126:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215936.847819:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215936.847935:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215936.849792:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215936.849856:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215936.850871:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215936.850927:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215936.851092:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215936.851156:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225835:1107/215936.851280:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16660][err] [16667:225874:1107/215936.851332:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\nCall log:\n  - waiting for locator('[data-builder-hook=\"job-to-placements\"]')\n    - locator resolved to <button type=\"button\" class=\"btn-primary\" data-builder-hook=\"job-to-placements\">Set up & place logos</button>\n  - attempting click action\n    - waiting for element to be visible, enabled and stable\n\n\n  441 |         const starRow = fresh.locator('[data-builder-hook=\"logo-list\"] label', { hasText: 'star' }).first();\n  442 |         await expect(starRow.locator('input[type=\"checkbox\"]')).toBeChecked();\n> 443 |         await fresh.locator('[data-builder-hook=\"job-to-placements\"]').click();\n      |                                                                        ^\n  444 |         const freshHost = fresh.locator('[data-builder-hook=\"job-placement-host\"]');\n  445 |         expect(await freshHost.locator('[data-placement-hook^=\"pw-placement-row-\"]').count()).toBe(2);\n  446 |         await ensurePlacementPanel(fresh);\n    at <repo>/e2e/operator-workflow.spec.ts:443:72"
+          ]
+        },
+        {
+          "status": "passed",
+          "retry": 1,
+          "durationMs": 8597,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "opens a prepared saved project and issues it with exact mm geometry and sidecar evidence",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 951,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "customer places in the prepared mm region, confirms, saves and reopens",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1590,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "baseline review of the prepared-product return yields a consistent candidate",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2032,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "rejects tampered evidence digests before the station ever sees them",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 422,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-cards.spec.ts",
+      "title": "product cards: thumbnails, independent open, single-option default, narrowed subset",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1146,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-inclusion.spec.ts",
+      "title": "inclusion blocks excluded B, recovers on A and issues its intended placement",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1229,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-inclusion.spec.ts",
+      "title": "inclusion blocks an excluded option and rechecks a stale Add handler",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 968,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-inclusion.spec.ts",
+      "title": "inclusion keeps existing excluded placements visible and blocks duplication",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1199,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3223,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3174,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3159,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (390)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3025,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 1440x1000",
+      "status": "flaky",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 593,
+          "errors": [
+            "Error: locator.click: Target page, context or browser has been closed\nBrowser logs:\n\n[pid=16804][err] [16811:228170:1107/215948.102613:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.102691:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215948.103896:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.103963:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215948.104649:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.104705:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215948.104828:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.104877:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215948.104997:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.105050:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215948.866731:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215948.866799:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215949.623313:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215949.623332:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215949.705967:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215949.706024:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215949.707447:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215949.707524:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215949.708104:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215949.708163:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215949.708416:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215949.708456:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215949.708565:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215949.708601:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215950.489190:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215950.489263:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215951.093960:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.094026:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215951.656592:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215951.656611:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215951.664965:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215951.664985:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215951.738427:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.738512:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215951.739760:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.739825:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215951.740960:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.741015:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215951.741144:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.741191:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215951.741308:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215951.741401:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215952.096716:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215952.096735:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215952.167512:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215952.167585:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215952.169140:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215952.169205:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215952.170309:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215952.170369:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215952.170502:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215952.170563:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215952.170721:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215952.170805:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215953.261635:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215953.261655:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215953.341179:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215953.341259:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215953.342672:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215953.342751:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215953.343508:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215953.343595:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215953.343745:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215953.343801:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215953.343929:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215953.343986:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215954.504407:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215954.504438:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215954.568433:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215954.568507:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215954.569174:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215954.569228:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215954.569679:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215954.569737:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215954.569873:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215954.569929:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215954.570059:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215954.570114:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215955.488007:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215955.488021:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215955.574958:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215955.575038:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215955.576577:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215955.576649:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215955.577231:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215955.577292:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215955.577426:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215955.577483:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215955.577607:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215955.577666:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215956.699241:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215956.699259:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/215956.757879:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215956.757955:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215956.758632:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215956.758705:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215956.759121:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215956.759185:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215956.759345:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215956.759390:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/215956.759510:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/215956.759567:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/215959.948266:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/215959.948323:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/220000.021865:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220000.021951:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220000.023437:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220000.023553:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220000.024938:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220000.024999:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220000.025143:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220000.025237:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220000.025367:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220000.025419:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/220003.140468:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/220003.140486:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/220003.211730:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220003.211804:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220003.213638:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220003.213708:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220003.214520:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220003.214577:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220003.214708:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220003.214761:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220003.214880:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220003.214936:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/220006.308439:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/220006.308471:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/220006.379708:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220006.379787:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220006.381027:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220006.381103:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220006.381977:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220006.382042:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220006.382203:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220006.382266:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220006.382390:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220006.382446:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16804:228168:1107/220009.346446:ERROR:base/process/process_mac.cc:45] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16804:228168:1107/220009.346464:ERROR:base/process/process_mac.cc:90] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)\n[pid=16804][err] [16811:228170:1107/220009.457876:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220009.457960:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220009.458892:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220009.458955:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220009.459494:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220009.459552:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220009.459687:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220009.459745:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228170:1107/220009.459882:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\n[pid=16804][err] [16811:228217:1107/220009.459937:ERROR:ui/display/mac/cv_display_link_mac.mm:188] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-model\"]').locator('[data-model-setup-hook=\"view-front\"]')\n    - locator resolved to <button type=\"button\" data-model-setup-hook=\"view-front\">Front</button>\n  - attempting click action\n    - waiting for element to be visible, enabled and stable\n\n\n  2684 |       const ms = (name: string) => pane.locator(`[data-model-setup-hook=\"${name}\"]`);\n  2685 |       await revealModelViewControls(page);\n> 2686 |       await ms('view-front').click();\n       |                              ^\n  2687 |       const canvas = pane.locator('canvas');\n  2688 |       const documentBox = async () => {\n  2689 |         const box = (await canvas.boundingBox())!;\n    at <repo>/e2e/setup-calibration.spec.ts:2686:30"
+          ]
+        },
+        {
+          "status": "passed",
+          "retry": 1,
+          "durationMs": 1087,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 390x844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 904,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 992,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: freshly opened job closes without a native dialog after activation",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 344,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: downloaded job closes without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 379,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: discarded New-guard changes close without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 415,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 1440",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 624,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 768",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 592,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 390",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 576,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only images, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 898,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only model, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 874,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: download failure shows a plain headline and escaped technical disclosure",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 456,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: invalid placement fields explain disabled Apply and recover without losing edits",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 856,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1475,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1470,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 1417,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the self-contained customer file",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3819,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the hybrid ZIP customer file",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3897,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (self customer file)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3781,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (hybrid customer file)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 4069,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+      "status": "flaky",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "durationMs": 698,
+          "errors": [
+            "Error: page.evaluate: Target page, context or browser has been closed\n\n  229 |     .evaluateAll((nodes) => nodes.filter((node) => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden').length)\n  230 |     .catch(() => 0);\n> 231 |   const documentScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);\n      |                                           ^\n  232 |   const documentScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);\n  233 |   const viewportWidth = await page.evaluate(() => window.innerWidth);\n  234 |   return {\n    at measureState (<repo>/e2e/workspace-layout-audit.spec.ts:231:43)\n    at captureState (<repo>/e2e/workspace-layout-audit.spec.ts:271:23)\n    at <repo>/e2e/workspace-layout-audit.spec.ts:297:25"
+          ]
+        },
+        {
+          "status": "passed",
+          "retry": 1,
+          "durationMs": 5153,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 2536,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "durationMs": 3190,
+          "errors": []
+        }
+      ]
+    }
+  ],
+  "runnerErrors": []
+}

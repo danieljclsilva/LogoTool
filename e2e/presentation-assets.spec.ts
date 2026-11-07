@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectDocument } from '../src/core/types.js';
-import { gotoBuilder, revealBuilderControl, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { gotoBuilder, revealBuilderControl, openOfflineContext, assertCleanProbe, revealCustomerControl } from './helpers.js';
 import type { Page } from '@playwright/test';
 
 const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -116,7 +116,11 @@ test('fixed product, artwork, area and method do not become redundant selectors'
     await load(page,await packageWith(project,source.assets.filter(asset => referenced.has(asset.path)),[]));
     await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
     for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();
-    await expect(hook(page,'width-mm')).toBeVisible(); await expect(hook(page,'height-mm')).toBeHidden();
+    await expect(hook(page,'width-mm')).toBeHidden();
+    await revealCustomerControl(page, 'width-mm');
+    await expect(hook(page,'width-mm')).toBeVisible();
+    await expect(hook(page,'height-mm')).toBeVisible();
+    for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();
     await expect(hook(page,'job-choices')).toBeHidden(); assertCleanProbe(probe);
   } finally { await context.close(); }
 });
@@ -177,6 +181,7 @@ test('Builder prunes unselected reference images and preserves the selected imag
     const customer = await context.newPage(); customer.on('pageerror',error => probe.pageErrors.push(String(error))); customer.on('console',message => { if(message.type()==='error') probe.consoleErrors.push(message.text()); });
     await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeHidden();
     await expect(hook(customer,'mapping-status')).toContainText('Reference only');
+    await revealCustomerControl(customer, 'width-mm');
     await hook(customer,'width-mm').fill('60'); await hook(customer,'width-mm').press('Tab');
     await hook(customer,'primary-next').click();
     await hook(customer,'confirmed-by').fill('Synthetic reviewer'); await hook(customer,'confirm').click();
@@ -220,8 +225,9 @@ test('guided primary actions create zero and repeated placements without duplica
     await load(page,await packageWith(source.project,source.assets,[]));
     for (let count=1; count<=2; count++) {
       if (count===2) await hook(page,'add-another').click();
-      // One workspace: width is set alongside position, no step traversal.
+      // Reveal the exact-size disclosure for the active placement draft.
       await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
+      await revealCustomerControl(page, 'width-mm');
       await hook(page,'width-mm').fill('40');
       await hook(page,'width-mm').press('Tab');
       await hook(page,'primary-next').click();

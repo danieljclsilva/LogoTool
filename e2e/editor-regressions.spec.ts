@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -118,7 +118,7 @@ for (const viewport of viewports) {
         await page.mouse.click(box.x + box.width * .45, box.y + box.height * .5);
         await page.mouse.click(box.x + box.width * .55, box.y + box.height * .5);
         await ms(page, 'ref-mm').fill('200'); await ms(page, 'ref-fit').click();
-        await ms(page, 'tool-rectangle').click();
+        await chooseModelTool(page, 'rectangle');
         const drawBox = (await canvas.boundingBox())!;
         await page.mouse.move(drawBox.x + drawBox.width * .48, drawBox.y + drawBox.height * .46); await page.mouse.down();
         await page.mouse.move(drawBox.x + drawBox.width * .52, drawBox.y + drawBox.height * .54, {steps:4}); await page.mouse.up();
@@ -211,6 +211,7 @@ for (const viewport of [{width:1440,height:781},{width:1280,height:720},{width:3
     const {context,page,probe} = await openOfflineContext(browser,viewport);
     try {
       const canvas = await createUnconfiguredModel(page,cubeGlb(false,false));
+      await revealModelViewControls(page);
       await ms(page,'view-front').click();
       await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
       await ms(page,'context-measure').click(); await ms(page,'ref-pick-a').click();
@@ -222,7 +223,7 @@ for (const viewport of [{width:1440,height:781},{width:1280,height:720},{width:3
       await ms(page,'ref-mm').fill('200'); await ms(page,'ref-fit').click();
       for (const expanded of [false,true]) {
         if (expanded) await b(page,'product-model-expand').click();
-        await ms(page,'tool-freehand').click();
+        await chooseModelTool(page, 'freehand');
         await ms(page,'area-name').fill(expanded ? 'Enlarged triangle' : 'Normal triangle');
         const finish=ms(page,'area-finish');
         await expect(finish).toBeVisible(); await expect(finish).toHaveText('Finish area');
@@ -314,10 +315,11 @@ test('uncalibrated area offers scale fitting then recompute and logo placement',
   try{
     const canvas=await createUnconfiguredModel(page,cubeGlb());
     await b(page,'product-model-expand').click();
+    await revealModelViewControls(page);
     await ms(page,'view-front').click();
     await ms(page,'viewbar').locator('[data-ps-view="fit"]').click();
     const box=(await canvas.boundingBox())!;
-    await ms(page,'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await ms(page,'area-name').fill('Retained chest area');
     for(const [x,y] of [[.44,.44],[.56,.44],[.5,.56]]) await page.mouse.click(box.x+box.width*x!,box.y+box.height*y!);
     await ms(page,'area-finish').click();

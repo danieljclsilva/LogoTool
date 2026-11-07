@@ -590,3 +590,25 @@ complete baseline/published/follow-up outcomes, all failing tests, exact focused
 coverage and synthetic screenshots. Reference-span input preserves the matching
 pointer release's fractional photo coordinates instead of rounded click
 coordinates; this avoids introducing a small rotation into the calibrated frame.
+
+## Inclusion and compact editor follow-up — 7 November 2026
+
+New logo placements require an included product and option. When focus remains
+on an excluded scope, the placement workspace names the exclusion and explains
+recovery through Prepare job or an included selection. Add, immediate Place and
+Duplicate are disabled and guarded at submission. Existing excluded placements
+remain visible and editable.
+
+On phones, the labelled Tool picker selects the active authoring tool. Only that
+tool's fields appear. View opens camera/display controls. Escape closes View
+without cancelling the current drawing. Desktop guidance uses a three-line row
+with keyboard scrolling for longer messages.
+
+The review decisions, synthetic geometry checks and final acceptance accounting
+are in [the follow-up audit](product-inclusion-followup-2026-11-07.md).
+Windows Chrome/Edge delivery validation remains open.
+
+Selection-read failures use a distinct inclusion-unavailable message and block
+new placements and Save. Review blocks output for an unreadable selection and
+names existing placements omitted by product/option exclusion, including their
+counts. Re-including the option removes its omission line.

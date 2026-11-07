@@ -7,7 +7,7 @@ import { release } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSync } from 'esbuild';
-import { gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
+import { chooseModelTool, revealModelViewControls, gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -362,7 +362,7 @@ test('model-only 3D calibration: A/B surface picks + mm + named area + toggles (
 
       // Named safe area from surface picks; plane established, current fit.
       await modelSetup(page, 'area-name').fill('Left chest');
-      await modelSetup(page, 'tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       await harnessClick(page, 0.42, 0.42);
       await harnessClick(page, 0.58, 0.42);
       await harnessClick(page, 0.58, 0.58);
@@ -1353,18 +1353,20 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
 
     // One named area from surface picks, then explicit save to the master.
     await ms('area-name').fill('Chest');
-    await ms('tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await surfaceClick(0.44, 0.44);
     await surfaceClick(0.56, 0.44);
     await surfaceClick(0.56, 0.52);
     await surfaceClick(0.44, 0.52);
     await page.keyboard.press('Enter');
     await expect(ms('area-list')).toContainText('Chest');
+    await revealModelViewControls(page);
     await ms('context-more').click();
     await expect(ms('setup-save')).toBeVisible();
     await modelPane.locator('[data-canvas-context-dismiss]').click();
-    await ms('tool-edit').click();
+    await chooseModelTool(page, 'edit');
     await builder(page, 'product-model-expand').click();
+    await revealModelViewControls(page);
     await ms('context-areas').click();
     await expect(ms('area-rename')).toBeVisible();
     await expect(ms('canvas-handle-corner-0')).toBeVisible();
@@ -1381,7 +1383,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     await info.attach('station-outline-narrow', {path:outlineNarrow,contentType:'image/png'});
     await page.setViewportSize(viewport);
     await builder(page, 'product-model-expand').click();
-    await ms('tool-rotate').click();
+    await chooseModelTool(page, 'rotate');
     await (await shown(page, 'model-setup-save')).click();
     await expect(builder(page, 'model-setup-status')).toContainText('Saved 3D setup');
 
@@ -1573,7 +1575,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
 
     const drawArea = async (name: string, quad: ReadonlyArray<readonly [number, number]>) => {
       await ms('area-name').fill(name);
-      await ms('tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       for (const [fx, fy] of quad) await surfaceClick(fx, fy);
       await page.keyboard.press('Enter');
       await expect(ms('area-list')).toContainText(name);
@@ -1591,6 +1593,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
 
     // Delete the second area and re-save: with no placements anywhere its
     // region and variant links vanish — a real delete, not retained geometry.
+    await revealModelViewControls(page);
     await ms('context-areas').click();
     await setupHost.getByRole('button', { name: /Side panel/ }).first().click();
     await setupHost.getByRole('button', { name: /Delete.*Side panel/ }).click();
@@ -1614,6 +1617,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
     await ms('ref-mm').fill('500');
     await ms('ref-fit').click();
     await expect(ms('reference-scale')).toContainText('scale 1 unit =');
+    await revealModelViewControls(page);
     await ms('context-areas').click();
     await ms('areas-recompute').click();
     await expect(ms('area-list')).not.toContainText('stale');
@@ -1690,7 +1694,7 @@ test('model setup save/reopen roundtrip retains references, calibration and area
     await modelSetup(first.page, 'ref-fit').click();
     await expect(modelSetup(first.page, 'reference-scale')).toContainText('scale 1 unit =');
     await modelSetup(first.page, 'area-name').fill('Front panel');
-    await modelSetup(first.page, 'tool-freehand').click();
+    await chooseModelTool(first.page, 'freehand');
     await harnessClick(first.page, 0.42, 0.42);
     await harnessClick(first.page, 0.58, 0.42);
     await harnessClick(first.page, 0.58, 0.58);
@@ -1787,7 +1791,7 @@ test('model product visibility: hide/show mesh keeps reference, areas and fit', 
     await modelSetup(page, 'ref-fit').click();
     await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
     await modelSetup(page, 'area-name').fill('Front panel');
-    await modelSetup(page, 'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await harnessClick(page, 0.42, 0.42);
     await harnessClick(page, 0.58, 0.42);
     await harnessClick(page, 0.58, 0.58);
@@ -2161,7 +2165,7 @@ test('model tools: independent polygon corners, insertion, rollback, point drawi
     // verified four-corner area with fills and side handles. (Front-left
     // face spans roughly x 0.30–0.50: stay left of the vertical edge.)
     await modelSetup(page, 'area-name').fill('Rect1');
-    await modelSetup(page, 'tool-rectangle').click();
+    await chooseModelTool(page, 'rectangle');
     const cameraBefore = await hCall<{ x: number; y: number }>(page, 'projectProbe');
     await dragCanvas(0.36, 0.38, 0.46, 0.52);
     const cameraAfter = await hCall<{ x: number; y: number }>(page, 'projectProbe');
@@ -2229,7 +2233,7 @@ test('model tools: independent polygon corners, insertion, rollback, point drawi
     await modelSetup(page, 'canvas-handle-corner-1').focus(); await page.keyboard.press('Delete');
     expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas[0]!.points).toEqual(secondEdit);
     // No pointer-move trace: dragging in Polygon mode adds no points or area.
-    await modelSetup(page,'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await dragCanvas(.38,.4,.44,.5);
     expect((await hCall<HarnessSnapshot>(page,'lastSnapshot')).areas).toHaveLength(1);
     await expect(modelSetup(page,'live-outline').locator('rect')).toHaveCount(0);
@@ -2264,11 +2268,11 @@ test('model tools: independent polygon corners, insertion, rollback, point drawi
     expect(await hCall<boolean>(page, 'referenceOverlay')).toBe(true);
     await expect(modelSetup(page, 'reference-scale')).toContainText('scale 1 unit =');
     // Escape leaves drawing mode; selecting Freehand again is sufficient.
-    await modelSetup(page, 'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await page.keyboard.press('Escape');
     await expect(modelSetup(page, 'tool-rotate')).toHaveAttribute('aria-pressed', 'true');
     // Fresh surface picks at 200%: three magnified clicks still validate.
-    await modelSetup(page, 'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await modelSetup(page, 'area-name').fill('Zoomface');
     await harnessClick(page, 0.5, 0.48);
     await harnessClick(page, 0.54, 0.48);
@@ -2472,7 +2476,7 @@ test('model rectangle drag on a non-planar surface stages a visible area (perime
       });
     };
     await modelSetup(page, 'area-name').fill('CurvedRect');
-    await modelSetup(page, 'tool-rectangle').click();
+    await chooseModelTool(page, 'rectangle');
     {
       const box = await canvasBox();
       await page.mouse.move(box.x + box.width * 0.36, box.y + box.height * 0.38);
@@ -2488,7 +2492,7 @@ test('model rectangle drag on a non-planar surface stages a visible area (perime
     expect(await hCall<number>(page, 'safeAreaOverlays')).toBeGreaterThan(0);
     await expect(modelSetup(page, 'status')).toContainText('added');
     // An off-model release must preserve the exact previously staged geometry.
-    await modelSetup(page, 'tool-rectangle').click();
+    await chooseModelTool(page, 'rectangle');
     {
       const box = await canvasBox();
       await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45);
@@ -2499,7 +2503,7 @@ test('model rectangle drag on a non-planar surface stages a visible area (perime
     await expect(modelSetup(page, 'status')).toContainText('Release missed');
     expect((await hCall<HarnessSnapshot | null>(page, 'lastSnapshot'))?.areas).toEqual(snapshot.areas);
     // Surface-following rings with more than four points remain editable.
-    await modelSetup(page,'tool-rotate').click();
+    await chooseModelTool(page, 'rotate');
     const corner = modelSetup(page,'canvas-handle-corner-0'); await expect(corner).toBeVisible();
     const handle = (await corner.boundingBox())!;
     await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2); await page.mouse.down();
@@ -2522,7 +2526,7 @@ for (const viewport of VIEWPORTS) {
       await attachEnv(info, browser, viewport, 'model optional area name');
       expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
       const draw = async (name: string): Promise<void> => {
-        await modelSetup(page, 'tool-freehand').click();
+        await chooseModelTool(page, 'freehand');
         await modelSetup(page, 'area-name').fill(name);
         for (const [x, y] of [[0.44, 0.44], [0.56, 0.44], [0.56, 0.52], [0.44, 0.52]]) {
           await harnessClick(page, x!, y!);
@@ -2592,6 +2596,7 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
   try {
     await attachEnv(info, browser, viewport, 'contextual on-model outline editor');
     expect(await hCall<string>(page, 'loadGlb', Buffer.from(cubeGlb()).toString('base64'))).toBe('ready');
+    await revealModelViewControls(page);
     await modelSetup(page, 'context-more').click();
     await expect(modelSetup(page, 'setup-save')).toBeVisible();
     await expect(modelSetup(page, 'reference-readout')).toBeVisible();
@@ -2602,13 +2607,14 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     await modelSetup(page, 'ref-mm').fill('250'); await modelSetup(page, 'ref-fit').click();
     await page.locator('[data-canvas-context-dismiss]').click();
     await modelSetup(page, 'area-name').fill('Chest');
-    await modelSetup(page, 'tool-rectangle').click();
+    await chooseModelTool(page, 'rectangle');
     await page.locator('#gl').scrollIntoViewIfNeeded();
     const box = (await page.locator('#gl').boundingBox())!;
     await page.mouse.move(box.x + box.width*.36, box.y + box.height*.38); await page.mouse.down();
     await page.mouse.move(box.x + box.width*.46, box.y + box.height*.52, {steps:6}); await page.mouse.up();
     const original = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
     expect(original.points).toHaveLength(4);
+    await revealModelViewControls(page);
     await modelSetup(page, 'context-areas').click();
     await modelSetup(page, 'area-rename').fill('  Left chest  '); await modelSetup(page, 'area-rename-apply').click();
     const renamed = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!;
@@ -2616,7 +2622,7 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     await modelSetup(page, 'area-rename').fill('   '); await modelSetup(page, 'area-rename-apply').click();
     expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.name).toBe('Left chest');
     await page.locator('[data-canvas-context-dismiss]').click();
-    await modelSetup(page, 'tool-edit').click();
+    await chooseModelTool(page, 'edit');
     const beforeSelection = (await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points;
     expect(await hCall(page, 'profileCornerSelection')).toEqual({ projections: 0, picks: 0 });
     expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(beforeSelection);
@@ -2642,6 +2648,7 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     await page.keyboard.press('Escape');
     await expect(modelSetup(page, 'curve-bend-handle')).toBeHidden();
     expect((await hCall<HarnessSnapshot>(page, 'lastSnapshot')).areas[0]!.points).toEqual(curved.points);
+    await revealModelViewControls(page);
     await modelSetup(page, 'context-more').click();
     const downloadPromise = page.waitForEvent('download'); await modelSetup(page, 'setup-save').click();
     const path = await (await downloadPromise).path(); assert.ok(path);
@@ -2653,6 +2660,7 @@ test('contextual outline editor: More, rename, direct points, bends and persiste
     const desktopShot = info.outputPath('outline-desktop.png'); await page.screenshot({path:desktopShot});
     await info.attach('outline-desktop', {path:desktopShot,contentType:'image/png'});
     await page.setViewportSize({width:390,height:844});
+    await revealModelViewControls(page);
     await modelSetup(page, 'context-areas').click();
     await expect(modelSetup(page, 'area-rename')).toBeVisible();
     await modelSetup(page, 'area-rename').scrollIntoViewIfNeeded();
@@ -2674,6 +2682,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await (await shown(page, 'product-add')).click();
       const pane = builder(page, 'product-model');
       const ms = (name: string) => pane.locator(`[data-model-setup-hook="${name}"]`);
+      await revealModelViewControls(page);
       await ms('view-front').click();
       const canvas = pane.locator('canvas');
       const documentBox = async () => {
@@ -2681,16 +2690,22 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
         const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
         return { ...box, x: box.x + scroll.x, y: box.y + scroll.y };
       };
-      const original = await documentBox();
+      const idleBox = await documentBox();
+      let original = idleBox;
       const expectStable = async () => {
         const current = await documentBox();
         for (const key of ['x', 'y', 'width', 'height'] as const) {
           expect(Math.abs(current[key] - original[key]), `canvas ${key}`).toBeLessThanOrEqual(1);
         }
       };
-      await ms('tool-freehand').click();
+      await chooseModelTool(page, 'freehand');
       await expect(ms('area-name')).toBeVisible();
       await expect(ms('area-finish')).toBeVisible();
+      const drawingBox = await documentBox();
+      if (viewport.width <= 700) {
+        expect(drawingBox.y).toBeGreaterThan(idleBox.y);
+        original = drawingBox;
+      }
       await expectStable();
       await ms('area-name').fill('Chest');
       for (const [x, y] of [[.46, .43], [.54, .43], [.54, .53], [.46, .53]]) {
@@ -2702,12 +2717,15 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await expect(ms('status')).toContainText('Area point 4');
       await ms('area-finish').click();
       await expect(ms('area-list')).toContainText('Chest');
+      if (viewport.width <= 700) original = idleBox;
       await expectStable();
-      await ms('tool-edit').click();
+      await chooseModelTool(page, 'edit');
       await expect(ms('outline-point')).toBeVisible();
       await expect(ms('outline-curve')).toBeVisible();
+      if (viewport.width <= 700) original = drawingBox;
       await expectStable();
-      await ms('tool-rotate').click();
+      await chooseModelTool(page, 'rotate');
+      if (viewport.width <= 700) original = idleBox;
       await expectStable();
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
       const screenshot = info.outputPath('stable-authoring.png');
@@ -2728,7 +2746,7 @@ test('focus this area: camera-only focus grows the selected patch, fit restores,
     const glbBase64 = Buffer.from(cubeGlb()).toString('base64');
     expect(await hCall<string>(page, 'loadGlb', glbBase64)).toBe('ready');
     await modelSetup(page, 'area-name').fill('Focus chest');
-    await modelSetup(page, 'tool-freehand').click();
+    await chooseModelTool(page, 'freehand');
     await harnessClick(page, 0.42, 0.42);
     await harnessClick(page, 0.58, 0.42);
     await harnessClick(page, 0.58, 0.58);

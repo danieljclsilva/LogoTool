@@ -1,0 +1,62 @@
+[
+  {
+    "case": "baseline long guidance is clipped at 1280x720",
+    "name": "offline-environment",
+    "measurements": {
+      "os": "darwin",
+      "release": "27.3.0",
+      "arch": "arm64",
+      "project": "chromium",
+      "browserVersion": "156.0.8078.4",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "offline": true,
+      "entryPoint": "file://",
+      "scope": "internal inspector"
+    }
+  },
+  {
+    "case": "baseline long guidance is clipped at 1280x720",
+    "name": "baseline-guidance",
+    "measurements": {
+      "hint": {
+        "text": "Rectangle: drag diagonally on the model; flat patches add one 4-corner area, curved patches follow the surface. Release to add.",
+        "textLength": 127,
+        "fontSize": "11px",
+        "lineHeight": "16px",
+        "height": 16,
+        "clientHeight": 16,
+        "scrollHeight": 16,
+        "overflowY": "auto",
+        "tabindex": -1,
+        "hidden": false,
+        "fits": true,
+        "textTop": 243.296875,
+        "textBottom": 256.296875,
+        "paraTop": 242.296875,
+        "paraBottom": 258.296875,
+        "textInside": true
+      },
+      "status": {
+        "text": "Pick at least 3 surface points for \u201cUpper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel Upper left chest panel\u201d (have 2).",
+        "textLength": 460,
+        "fontSize": "11px",
+        "lineHeight": "16px",
+        "height": 16,
+        "clientHeight": 16,
+        "scrollHeight": 32,
+        "overflowY": "auto",
+        "tabindex": -1,
+        "hidden": false,
+        "fits": false,
+        "textTop": 243.296875,
+        "textBottom": 272.296875,
+        "paraTop": 242.296875,
+        "paraBottom": 258.296875,
+        "textInside": false
+      }
+    }
+  }
+]

@@ -417,7 +417,8 @@ async function placeConfirmAndSubmit(
   await revealCustomerControl(editor, 'add');
   await editor.locator('[data-customer-hook="add"]').click();
   await expect(editor.locator('[data-customer-hook="placement"] option')).toHaveCount(2);
-  await expect(editor.locator('[data-customer-hook="geometry"]')).toContainText('Fits: no');
+  await expect(editor.locator('[data-customer-hook="geometry"]')).toHaveClass(/\binvalid\b/);
+  await expect(editor.locator('[data-customer-hook="geometry-technical"]')).toContainText('Fits: no — footprint overlaps exclusions[0]');
   await expect(editor.locator('[data-customer-hook="confirm"]')).toBeDisabled();
   await expect(editor.locator('[data-customer-hook="submit"]')).toBeDisabled();
   await revealCustomerControl(editor, 'remove');

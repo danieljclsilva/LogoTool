@@ -1,0 +1,9 @@
+{
+  "url": "https://danieljclsilva.github.io/logotool-demo/?v=c180a41",
+  "method": "Native Google Chrome Incognito window, Create job, accessibility-tree inspection",
+  "observedStepLabel": "2 Set up & place logos",
+  "observedStepEnabled": false,
+  "reasonDisabled": "Fresh empty job",
+  "sourceCommit": "c180a416fbecd6f6329ca68f1386b19b5b4dc7bd",
+  "scope": "Cache-busted live demo label verification only"
+}
