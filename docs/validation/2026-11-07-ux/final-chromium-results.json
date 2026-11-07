@@ -1,0 +1,3591 @@
+{
+  "environment": "macOS 27.3 (26C5035r), arm64",
+  "node": "26.10.0",
+  "playwright": "1.64.0",
+  "chromium": "156.0.8078.4",
+  "chrome": "156.0.8078.74",
+  "offline": true,
+  "entryPoint": "file://",
+  "workers": 2,
+  "retries": 1,
+  "stats": {
+    "startTime": "2026-11-07T18:07:36.253Z",
+    "duration": 1484519.165,
+    "expected": 231,
+    "skipped": 0,
+    "unexpected": 27,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "file": "calibration-areas.spec.ts",
+      "title": "calibration areas: author, determinism, forged recompute, atomic failures",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2755
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "contextual-workspace.spec.ts",
+      "title": "contextual workspace: markers keep usable sizes on a 2000 px photo, desktop and narrow",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1758
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "contextual-workspace.spec.ts",
+      "title": "contextual workspace: unsaved drafts survive switches, precision, cancel, reimport, scoped saves",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1483
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "contextual-workspace.spec.ts",
+      "title": "contextual workspace: variant switches restore drafts, shared effect stated at save",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1959
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "contextual-workspace.spec.ts",
+      "title": "photo setup and logo placement share the product editor and contextual controls",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 850
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "offline chooser edit, multiple configurations, exact review, confirmation, and package round-trip",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1338
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "drop accepts a geometric-invalid editable draft but blocks confirmation and submit",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 597
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "over-budget unused-region geometry is rejected before installation or polygon rendering",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 430
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "footprint drag preserves its grab offset and physical box, while Escape cancels an uncommitted drag",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 909
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "superseded load, confirmation digest, and draft-save completion cannot install or download stale state",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 634
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "undo and reset restore package content as new revisions",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 764
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "one workspace edits position and size together; review stays a separate confirmation step",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1218
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "visible area chips select each named area without opening Advanced",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 521
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "title": "short fit warning, invalid numeric draft, and no-area honesty",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 455
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "customer model proof pointer edits preserve mapping and constraints at 1440x900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6892
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "customer model proof pointer edits preserve mapping and constraints at 390x844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3838
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "model without mapping stays honest and does not invent a customer edit surface",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 271
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "adopted return with a populated field draft keeps inclusion and saves cleanly",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10027
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "adopted return without a prior field draft keeps inclusion and saves cleanly",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6561
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-return-review.spec.ts",
+      "title": "internal review imports a confirmed return, discards forged reviews, and sends a new revision back for confirmation",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 668
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-return-review.spec.ts",
+      "title": "return review rejects tampering, stale confirmation, and old revisions without replacing the valid imported project",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 510
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "customer-return-review.spec.ts",
+      "title": "issued hybrid project returns through review, revised customer confirmation, and internal reimport",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1104
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3985
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4688
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8898
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3102
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3345
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6027
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2659
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2689
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4313
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1473
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1398
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1216
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "switching tools during texture loading completes the same model load",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1190
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10340
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8625
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3608
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2888
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1587
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5363
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "inspector-smoke.spec.ts",
+      "title": "inspector smoke: identity, ingest, offline cleanliness, layout",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 818
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "guided preparation flows from open to deliberate selection to details",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2512
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "issues a subset hybrid package at revision 1 with approvals cleared",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 2279
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 2271
+        }
+      ],
+      "errors": [
+        "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 0\nReceived array:  []",
+        "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 0\nReceived array:  []"
+      ]
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "issues self-contained HTML that opens standalone and auto-loads the project",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2451
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "issues a zero-logo (zero-artwork) selection end to end",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1280
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "checking a prepared product and variant includes its setups without opening specific setups",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1556
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "fractional millimetres render rounded once in staff return comparisons",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1546
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "rejects an invalid source without replacing the loaded selection",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1168
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "clears generated outputs and the baseline when a different source loads",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1423
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "saves two files, opens the customer file, and reviews the return against the office copy",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2892
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "keeps the automatic project ID stable and regenerates deterministic delivery bytes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2615
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "source reads reject oversized and unreadable files and discard obsolete reads",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1279
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "generation locks inputs, rejects obsolete hashing and recovers from hash failures",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1469
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "staff journey needs no technical settings (1536px)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1798
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "title": "staff journey needs no technical settings (390px)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1872
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-document-workflow.spec.ts",
+      "title": "GLB-only document (front only): artwork, measured views and offline save/reopen",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 20431
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-document-workflow.spec.ts",
+      "title": "GLB-only document (front and back): artwork, measured views and offline save/reopen",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 29610
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "model lighting visibly changes and survives save/reopen at 1440x900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7310
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "model lighting visibly changes and survives save/reopen at 390x844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3823
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "customer issue inherits model lighting while keeping the limited customer controls",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3832
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "changing lighting refreshes cached document images without changing the physical revision",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6980
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "lighting is available immediately after model intake without calibration or areas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 758
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-visibility-regression-b.spec.ts",
+      "title": "thin shell: rear projections, facing and hit-tests cull with the visible side",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 526
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-visibility-regression-b.spec.ts",
+      "title": "folded shell: rear projections and facing cull with the visible side",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 444
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-visibility-regression-b.spec.ts",
+      "title": "pan reservation, camera state and clean capture API contract",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 607
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "model-visibility-regression-b.spec.ts",
+      "title": "front/back artwork occludes correctly in both add orders",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1658
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "GLB-only creation adds a provisional product with a model entry",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 935
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "single named view image-only creation suffices (Lone view)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 952
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "single named view image-only creation suffices (Front)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 886
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "explicit named views travel with labels; no forced sides",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1211
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "invalid imports keep prior state: bad magic, oversized header, remote-looking names, external GLB",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 768
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "obsolete async product reads stay inert after opening a replacement job",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 404
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "save/reopen preserves exact bytes and physical-data invariance",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1213
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "v1 reference history upgrades verbatim: issue plus reopen preserves both",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1474
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "title": "over-budget presentation add is rejected and leaves prior state untouched",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1137
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-hardening.spec.ts",
+      "title": "external-reference model-only package stays offline with a failure caption, never a blank success canvas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 240
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-hardening.spec.ts",
+      "title": "external-reference model with valid views keeps rasters and warns, offline",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 310
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-hardening.spec.ts",
+      "title": "stale package load keeps the current project until the new bytes validate",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 231
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-hardening.spec.ts",
+      "title": "preview-only config with artwork blocks placement in the real UI; calibrated config places normally",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 451
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "model-only package offers honest 3D with a rendered model and side-tab availability",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10478
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10596
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n"
+      ]
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "image-only single side (front) falls back to the diagram with missing-side honesty",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 323
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "image-only single side (back) falls back to the diagram with missing-side honesty",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 309
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "image-only single side (left) falls back to the diagram with missing-side honesty",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 317
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "image-only single side (right) falls back to the diagram with missing-side honesty",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 311
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "mapped front/back views switch sides on one canvas; switching never mutates",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 645
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "invalid manifest, corrupt model and bad rasters fall back to the measured diagram",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 562
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "photo mode and side switching never mutate the project; save/reopen keeps exact bytes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 710
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "zero-placement project loads the diagram by default for decisions",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 299
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10456
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10521
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"model-availability\"]')\nExpected substring: \"presentation/model.glb\"\nReceived string:    \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"model-availability\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"model-availability\"]')\n    24 \u00d7 locator resolved to <p data-customer-hook=\"model-availability\">Interactive 3D model is supplied in this package.\u2026</p>\n       - unexpected value \"Interactive 3D model is supplied in this package. No logo artwork is projected onto it here \u2014 placement decisions use the measured diagram.\"\n"
+      ]
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "GLB-only flat image proxy is replaced by the honest 3D pane",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 589
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "combined model plus three photos keeps right honest in the single canvas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 702
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "switching mapped photo mode during a held raster decode retries the same image",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 495
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "stale raster decode never installs the wrong side after a side switch",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 459
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "corrupt model surfaces preview-unavailable in the 3D pane, never a blank success",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 359
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "single-canvas layout stays bounded across animation frames and screenshots settle",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1978
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create starts a truly empty draft with no demo UI",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 705
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create generates revision-1 issues with prepared catalogue identity and zero placements",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1229
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create customer journey adds a new raster logo and reviews the return",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30004
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30007
+        }
+      ],
+      "errors": [
+        "Test timeout of 30000ms exceeded.",
+        "Test timeout of 30000ms exceeded."
+      ]
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create supports zero logos and distinct duplicate logo filenames",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1330
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "a new create resets a previously opened job and its logos",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 647
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "save job round-trips through a fresh open with geometry and identity intact",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 784
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "guard Discard replaces the dirty job with a fresh draft",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 562
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "save job keeps imported customer logos in the referenced bucket",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 460
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "hostile logo uploads retain prior good state with zero errors or requests",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 620
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create-to-customer journey stays clean at 1536x1024",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 699
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "create-to-customer journey stays clean at 390x844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 818
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "adding artwork preserves product, option, setup and logo choices",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 953
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "repeated saves of an unchanged job are byte-identical",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 455
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "new-project.spec.ts",
+      "title": "invalid open keeps the previous job",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 511
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet composites a mapped photo proof with applied artwork and no artwork panels",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 220
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet omits unmapped photos from print with an explicit note",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 202
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet explains missing or undecodable artwork bytes instead of guessing an overlay",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 158
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet falls back when a mapped product photo fails native decode",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 204
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet drops revision and digest while the candidate JSON keeps them",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 285
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet keeps draft status after an internal workflow decision",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 288
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "title": "operation sheet renders without overflow on a narrow mobile viewport",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 215
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "title": "operation sheet shows business identity, mm sizes and unfinished notes without technical ids",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 212
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "title": "zero-placement configuration is shown explicitly",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 135
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "title": "print media hides main reviewer UI and shows the operation sheet",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 170
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "title": "operation sheet refreshes placement width after a revised proposal and never prints customer notes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 342
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "title": "operation sheet stays free of review state after an internal workflow decision",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 280
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-sheet-print.spec.ts",
+      "title": "department-authored sheet prints one A4 page with operator data",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1803
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-sheet-print.spec.ts",
+      "title": "two dimensions on the same logo print, measure and export together",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1475
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-sheet-print.spec.ts",
+      "title": "fully configured two-view sheet prints complete with no unfinished items",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2646
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operation-sheet-print.spec.ts",
+      "title": "operation sheet stays readable on a narrow viewport without horizontal overflow",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1378
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "preview matches core export after import (desktop 1280\u00d7900)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 375
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "zero placements and repeated artwork (desktop 1280\u00d7900)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 208
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "pending status survives internal approval (desktop 1280\u00d7900)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 256
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "failed load preserves last valid candidate and atomic download (mobile 390\u00d7844)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 364
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "preview clears when no valid pair (desktop 1280\u00d7900)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 218
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "revised proposal refreshes exact preview and export, safely displaying instruction text",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 306
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "obsolete candidate hashing is discarded without overwriting replacement status or locks",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 307
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "title": "candidate hash failure unlocks controls and allows an unchanged retry",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 242
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operator-file-chooser.spec.ts",
+      "title": "visible view chooser stages a file; add alone still reports empty staging",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 454
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct images job: intake, setup, placements, measurement, technique, review, save, reopen",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11288
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11444
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]')\nExpected substring: \"crest\"\nReceived string:    \"No logo placements for this option.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]')\n    24 \u00d7 locator resolved to <div class=\"pw-list\" data-placement-hook=\"pw-placement-list\">\u2026</div>\n       - unexpected value \"No logo placements for this option.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]')\nExpected substring: \"crest\"\nReceived string:    \"No logo placements for this option.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook=\"pw-placement-list\"]')\n    24 \u00d7 locator resolved to <div class=\"pw-list\" data-placement-hook=\"pw-placement-list\">\u2026</div>\n       - unexpected value \"No logo placements for this option.\"\n"
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 16289
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16292
+        }
+      ],
+      "errors": [
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-placement-row-\"]').first()\n    - locator resolved to <button type=\"button\" class=\"pw-item is-selected\" data-placement-hook=\"pw-placement-row-26b01f40-067a-49e9-8e72-d5d2ad9d87bf\">\u2026</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n",
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-placement-row-\"]').first()\n    - locator resolved to <button type=\"button\" class=\"pw-item is-selected\" data-placement-hook=\"pw-placement-row-023f3335-3006-42a4-b6fe-0797da7f1b44\">\u2026</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n"
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "zero-placement option stays present and prints its explicit statement",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10947
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10969
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first() with timeout 10000ms\n  - waiting for locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\n    24 \u00d7 locator resolved to <div class=\"product-card\" data-product-card=\"provisional-product-team-jacket-1-8016ea1f\">\u2026</div>\n       - unexpected value \"hidden\"\n",
+        "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first() with timeout 10000ms\n  - waiting for locator('[data-product-card]').filter({ hasText: 'Team jacket' }).first()\n    24 \u00d7 locator resolved to <div class=\"product-card\" data-product-card=\"provisional-product-team-jacket-1-f72a84b8\">\u2026</div>\n       - unexpected value \"hidden\"\n"
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "artwork selection: add choices selected-only, excluded-used stays resolvable",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1372
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11067
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11146
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\nExpected: 2\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\n    24 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\"\n",
+        "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\nExpected: 2\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"job-placement-host\"]').locator('[data-placement-hook^=\"pw-view-tab-\"]')\n    24 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "primary span calibration drives the photo overlay with no Advanced mapping",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15866
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 15862
+        }
+      ],
+      "errors": [
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Finish safe area' })\n",
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Finish safe area' })\n"
+      ]
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct model-only job: calibrated diagram placement without any photo",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15973
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16159
+        }
+      ],
+      "errors": [
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-model\"]').locator('[data-model-setup-hook=\"ref-pick-a\"]')\n    - locator resolved to <button type=\"button\" aria-pressed=\"false\" class=\"btn-secondary\" data-model-setup-hook=\"ref-pick-a\">Pick A on model</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    28 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n",
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-model\"]').locator('[data-model-setup-hook=\"ref-pick-a\"]')\n    - locator resolved to <button type=\"button\" aria-pressed=\"false\" class=\"btn-secondary\" data-model-setup-hook=\"ref-pick-a\">Pick A on model</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not visible\n    - retrying click action\n      - waiting 100ms\n    28 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not visible\n     - retrying click action\n       - waiting 500ms\n"
+      ]
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "operator maps a photo, issues it, and the customer proves placement on the mapped photo",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4132
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "stale calibration and undeclared photos fall back to the measured diagram",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 233
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "sheared mapping with a rotated placement still renders the artwork overlay",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 296
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "staged mappings survive Save master, reopen, issue and the mapped photo proof",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1921
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "title": "mapped proof print layout stays compact on two sides",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1164
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placement-ux-regression-a.spec.ts",
+      "title": "placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 120005
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 120004
+        }
+      ],
+      "errors": [
+        "Test timeout of 120000ms exceeded.",
+        "Test timeout of 120000ms exceeded."
+      ]
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: basic move commits mm delta, fields + verdict update",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10923
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: letterboxed mapping stays correct on small viewport",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1892
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: off-centre grab preserves grab offset",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13495
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: rotated placement out of safe bounds, multi-step x+y deltas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10748
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: Escape cancels to baseline with note, then re-drag commits",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11061
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: pointercancel + wrong-button/non-primary never mutate",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7971
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: real lostpointercapture + focus-loss handler cancel, then re-drag",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 15354
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: mid-drag invalidation aborts late commit",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 16044
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: mid-drag export yields baseline; save/restore roundtrips",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 18506
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: out-of-limit release never mutates; release without move preserves centre",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6820
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: punctuation placement id restores, resolves, and drags",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 9183
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-race.spec.ts",
+      "title": "placement restore race: busy locks and obsolete reads stay inert",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4949
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements-restore.spec.ts",
+      "title": "placement restore: roundtrip, forged recompute, atomic, stale lock",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 19046
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "placements.spec.ts",
+      "title": "placements: empty export, multi-add, statuses, numeric update",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3917
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "opens a prepared saved project and issues it with exact mm geometry and sidecar evidence",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1386
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "customer places in the prepared mm region, confirms, saves and reopens",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11938
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12168
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "baseline review of the prepared-product return yields a consistent candidate",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12026
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 11949
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "rejects tampered evidence digests before the station ever sees them",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 597
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "reference view and artwork thumbnail display safely; view changes preserve exact saved bytes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 555
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "bad optional images, remote references and oversized raster dimensions keep physical drafts usable",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 378
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "fixed product, artwork, area and method do not become redundant selectors",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10298
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10556
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-customer-hook=\"width-mm\"]')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-customer-hook=\"width-mm\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"width-mm\"]')\n    24 \u00d7 locator resolved to <input step=\"any\" type=\"number\" min=\"0.000000001\" data-customer-hook=\"width-mm\"/>\n       - unexpected value \"hidden\"\n",
+        "Error: expect(locator).toBeVisible() failed\n\nLocator:  locator('[data-customer-hook=\"width-mm\"]')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-customer-hook=\"width-mm\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"width-mm\"]')\n    24 \u00d7 locator resolved to <input step=\"any\" type=\"number\" min=\"0.000000001\" data-customer-hook=\"width-mm\"/>\n       - unexpected value \"hidden\"\n"
+      ]
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "Builder prunes unselected reference images and preserves the selected image through delivery and return",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30008
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30005
+        }
+      ],
+      "errors": [
+        "Test timeout of 30000ms exceeded.",
+        "Test timeout of 30000ms exceeded."
+      ]
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "obsolete image decoding cannot install a reference after a different package opens",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 358
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "guided primary actions create zero and repeated placements without duplicates",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30003
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30006
+        }
+      ],
+      "errors": [
+        "Test timeout of 30000ms exceeded.",
+        "Test timeout of 30000ms exceeded."
+      ]
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "title": "keyboard 3D-mode switch cancels an unfinished drag without changing saved bytes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 459
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-cards.spec.ts",
+      "title": "product cards: thumbnails, independent open, single-option default, narrowed subset",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 240005
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 240007
+        }
+      ],
+      "errors": [
+        "Test timeout of 240000ms exceeded.",
+        "Test timeout of 240000ms exceeded."
+      ]
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "station intake: named views, gating, single empty state, workspace focus",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1556
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "station intake: 3D model flow hides photo UI",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 782
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "in-place named rows: legacy views keep working, slug views at byte level",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 15459
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 15515
+        }
+      ],
+      "errors": [
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('tab', { name: 'Front' })\n    - locator resolved to <button role=\"tab\" type=\"button\" aria-selected=\"true\" data-fkey=\"psv-tab-front\" class=\"product-setup-tab is-active\">Front view</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+        "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('tab', { name: 'Front' })\n    - locator resolved to <button role=\"tab\" type=\"button\" aria-selected=\"true\" data-fkey=\"psv-tab-front\" class=\"product-setup-tab is-active\">Front view</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    29 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div data-canvas-context-body=\"\" class=\"canvas-context-content\">\u2026</div> from <div role=\"region\" aria-label=\"Product files\" data-canvas-context=\"panel\" id=\"product-options-context\" class=\"canvas-context-panel is-open\" data-canvas-context-section=\"Product files\">\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n"
+      ]
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "five named views calibrate, save, reopen, issue, customer places, review agrees",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 16808
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 16900
+        }
+      ],
+      "errors": [
+        "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-in-place-view=\"view-1\"]').locator('input[type=\"text\"]')\n    - locator resolved to <input type=\"text\" maxlength=\"80\" autocomplete=\"off\" class=\"view-row-name\" aria-label=\"Name for existing view Crown\"/>\n    - fill(\"Crown front\")\n  - attempting fill action\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n      - waiting 100ms\n    30 \u00d7 waiting for element to be visible, enabled and editable\n       - element is not visible\n     - retrying fill action\n       - waiting 500ms\n",
+        "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('[data-in-place-view=\"view-1\"]').locator('input[type=\"text\"]')\n    - locator resolved to <input type=\"text\" maxlength=\"80\" autocomplete=\"off\" class=\"view-row-name\" aria-label=\"Name for existing view Crown\"/>\n    - fill(\"Crown front\")\n  - attempting fill action\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and editable\n      - element is not visible\n    - retrying fill action\n      - waiting 100ms\n    30 \u00d7 waiting for element to be visible, enabled and editable\n       - element is not visible\n     - retrying fill action\n       - waiting 500ms\n"
+      ]
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 16952
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 24098
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 15302
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (390)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5955
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "project-package-inspector.spec.ts",
+      "title": "standalone transport preview opens offline, loads by chooser and drop, and round-trips the package",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 339
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "project-package-inspector.spec.ts",
+      "title": "invalid and superseded asynchronous loads never replace a valid project",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 152
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "project-package-inspector.spec.ts",
+      "title": "zero-placement configurations are named in empty and mixed projects",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 142
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "safe-area-regression.spec.ts",
+      "title": "safe areas: rect and concave-with-exclusion verdicts plus preview",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 940
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "auto-loads the exact embedded project, revision, and asset count",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 372
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "edit, confirm, save, and reopen round-trips values through the embedded package",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 607
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "zero-placement self-contained HTML loads with no placements and usable chooser",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 285
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "malformed embedded data shows a useful error and leaves the chooser usable",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1597
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "oversized embedded data is rejected by the packaging boundary and never shipped",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "title": "deterministic obsolete startup replacement wins over a delayed embedded digest",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 187
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images setup: guided measure + mm + safe area + anchors + tool toggles + atomic save",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1942
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model-only 3D calibration: A/B surface picks + mm + named area + toggles (no images)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4540
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images span setup: two-click reference + drawn area + atomic save creates region",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2861
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images two named areas: draw, rename, save, reopen, issue, customer places in both",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6155
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images delete unreferenced area: region and links gone, customer cannot select it",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2122
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images setup edit invalidates generated outputs: download disabled until regenerate",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1836
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images span span-reference retires on photo replacement, no stale calibration reuse",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 812
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images span recalibration from sibling-owned mapping resolves the owning scope",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1796
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "images shared scope: stale sibling submitter is refused, reset recovers",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1288
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station 3D setup: model-only mount + surface reference + save to master + reopen",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7203
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station 3D delete + resave: unreferenced region removed with links, issue works",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7139
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model setup save/reopen roundtrip retains references, calibration and areas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2386
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model product visibility: hide/show mesh keeps reference, areas and fit",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1454
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "prepared-master save/reopen retains references, calibration and areas",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1299
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3275
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6909
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "product-setup tools wrap cleanly at 390x844 with real overlays",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1490
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 962
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1698
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model clicked outlines accept optional names and avoid name collisions (desktop)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2183
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model clicked outlines accept optional names and avoid name collisions (mobile)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2017
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "dense model area keeps exact points while idle and zoom avoid repeated picking",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1967
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "contextual outline editor: More, rename, direct points, bends and persistence",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2602
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 1440x1000",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4484
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 390x844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1519
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "focus this area: camera-only focus grows the selected patch, fit restores, data unchanged",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1291
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "standalone.spec.ts",
+      "title": "asset replacement resets session, areas and placements",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1338
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "standalone.spec.ts",
+      "title": "standalone copy runs with no sibling dependencies",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 325
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-entry.spec.ts",
+      "title": "station entry is the single obvious staff page with no legacy sidecars",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 363
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-entry.spec.ts",
+      "title": "fresh-copied station issues both customer formats offline with no repo dependency",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 30003
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 30004
+        }
+      ],
+      "errors": [
+        "Test timeout of 30000ms exceeded.",
+        "Test timeout of 30000ms exceeded."
+      ]
+    },
+    {
+      "file": "station-entry.spec.ts",
+      "title": "station stays readable on a narrow viewport",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 372
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 764
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: freshly opened job closes without a native dialog after activation",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 250
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: downloaded job closes without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 262
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: discarded New-guard changes close without a native dialog",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 307
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 1440",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 479
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 768",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 476
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 390",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 527
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only images, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 767
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: retains both staged modes and Add includes only model, releasing thumbnails",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1034
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: download failure shows a plain headline and escaped technical disclosure",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 349
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: invalid placement fields explain disabled Apply and recover without losing edits",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 744
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6666
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3179
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 390\u00d7844",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2724
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the self-contained customer file",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 11966
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12047
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey through the hybrid ZIP customer file",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12277
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12273
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (self customer file)",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12060
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12053
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "title": "whole-workflow journey from a fresh station copy (hybrid customer file)",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 12286
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 12247
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-customer-hook=\"geometry\"]')\nExpected substring: \"Fits: no\"\nReceived string:    \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-customer-hook=\"geometry\"]') with timeout 10000ms\n  - waiting for locator('[data-customer-hook=\"geometry\"]')\n    24 \u00d7 locator resolved to <p class=\"geometry invalid\" data-customer-hook=\"geometry\" title=\"This logo extends beyond Chest. Reduce its size or move it inside the area.\">This logo extends beyond Chest. Reduce its size o\u2026</p>\n       - unexpected value \"This logo extends beyond Chest. Reduce its size or move it inside the area.\"\n"
+      ]
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer absolute: verbatim geometry, pending-review envelope, deterministic bytes",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1201
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer normalized: fixed-size keeps dims, proportional scales (worked rects)",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2328
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer override: exact mm position/size/rotation win over rule",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2230
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer multiple placements together; zero placements export empty; unsafe stays pendingReview with fits:false",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2402
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer source snapshot survives target asset replacement; result invalidates until rerun",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6010
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer frozen source numeric preservation across a different target region",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2190
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer between independently calibrated variants preserves source and leaves target draft unchanged",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3261
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer drag locks discard results and recover after cancellation without capturing a candidate",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 932
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer ignores an obsolete restore read after target asset replacement",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3603
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "title": "transfer atomic failures: bad rules JSON, missing mapping, stale calibration, busy restore, post-run edits",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3695
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "visual-operation-dimensions.spec.ts",
+      "title": "four select-based measurements across two logos print and export",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "timedOut",
+          "retry": 0,
+          "duration": 240004
+        },
+        {
+          "status": "timedOut",
+          "retry": 1,
+          "duration": 240010
+        }
+      ],
+      "errors": [
+        "Test timeout of 240000ms exceeded.",
+        "Test timeout of 240000ms exceeded."
+      ]
+    },
+    {
+      "file": "visual-placement.spec.ts",
+      "title": "visual placement: photo/diagram handles move, resize, rotate, cancel, siblings",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2604
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10287
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10352
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"workspace-status\"]')\nExpected substring: \"No product yet\"\nReceived string:    \"\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"workspace-status\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"workspace-status\"]')\n    24 \u00d7 locator resolved to <p class=\"muted\" role=\"status\" aria-live=\"polite\" data-builder-hook=\"workspace-status\"></p>\n       - unexpected value \"\"\n",
+        "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('[data-builder-hook=\"workspace-status\"]')\nExpected substring: \"No product yet\"\nReceived string:    \"\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('[data-builder-hook=\"workspace-status\"]') with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"workspace-status\"]')\n    24 \u00d7 locator resolved to <p class=\"muted\" role=\"status\" aria-live=\"polite\" data-builder-hook=\"workspace-status\"></p>\n       - unexpected value \"\"\n"
+      ]
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+      "status": "unexpected",
+      "attempts": [
+        {
+          "status": "failed",
+          "retry": 0,
+          "duration": 10358
+        },
+        {
+          "status": "failed",
+          "retry": 1,
+          "duration": 10369
+        }
+      ],
+      "errors": [
+        "Error: expect(locator).toBeVisible() failed\n\nLocator: locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' }) with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\n",
+        "Error: expect(locator).toBeVisible() failed\n\nLocator: locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' }) with timeout 10000ms\n  - waiting for locator('[data-builder-hook=\"product-workspace\"]').getByRole('button', { name: 'Safe area (4)' })\n"
+      ]
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 28251
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5750
+        }
+      ],
+      "errors": []
+    },
+    {
+      "file": "workspace-layout-audit.spec.ts",
+      "title": "workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3854
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

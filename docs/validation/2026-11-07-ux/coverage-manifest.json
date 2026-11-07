@@ -1,0 +1,278 @@
+{
+  "focusedBrowserExecutions": 66,
+  "focusedUniqueCases": 33,
+  "currentTotalCases": 252,
+  "baselineTotalCases": 242,
+  "coverage": [
+    {
+      "file": "calibration-areas.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "contextual-workspace.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "customer-editor.spec.ts",
+      "currentCases": 9,
+      "focusedCases": 0,
+      "omittedCases": 9
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "currentCases": 5,
+      "focusedCases": 0,
+      "omittedCases": 5
+    },
+    {
+      "file": "customer-return-review.spec.ts",
+      "currentCases": 3,
+      "focusedCases": 0,
+      "omittedCases": 3
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "currentCases": 19,
+      "focusedCases": 19,
+      "omittedCases": 0
+    },
+    {
+      "file": "inspector-smoke.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "internal-builder.spec.ts",
+      "currentCases": 14,
+      "focusedCases": 0,
+      "omittedCases": 14
+    },
+    {
+      "file": "model-document-workflow.spec.ts",
+      "currentCases": 2,
+      "focusedCases": 0,
+      "omittedCases": 2
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "currentCases": 5,
+      "focusedCases": 0,
+      "omittedCases": 5
+    },
+    {
+      "file": "model-visibility-regression-b.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "multiview-builder.spec.ts",
+      "currentCases": 9,
+      "focusedCases": 1,
+      "omittedCases": 8
+    },
+    {
+      "file": "multiview-hardening.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "currentCases": 16,
+      "focusedCases": 0,
+      "omittedCases": 16
+    },
+    {
+      "file": "new-project.spec.ts",
+      "currentCases": 14,
+      "focusedCases": 0,
+      "omittedCases": 14
+    },
+    {
+      "file": "operation-document-assets.spec.ts",
+      "currentCases": 7,
+      "focusedCases": 0,
+      "omittedCases": 7
+    },
+    {
+      "file": "operation-document-preview.spec.ts",
+      "currentCases": 5,
+      "focusedCases": 0,
+      "omittedCases": 5
+    },
+    {
+      "file": "operation-sheet-print.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "operational-candidate-preview.spec.ts",
+      "currentCases": 8,
+      "focusedCases": 0,
+      "omittedCases": 8
+    },
+    {
+      "file": "operator-file-chooser.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "currentCases": 7,
+      "focusedCases": 0,
+      "omittedCases": 7
+    },
+    {
+      "file": "photo-mapping-workflow.spec.ts",
+      "currentCases": 5,
+      "focusedCases": 0,
+      "omittedCases": 5
+    },
+    {
+      "file": "placement-ux-regression-a.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "currentCases": 11,
+      "focusedCases": 0,
+      "omittedCases": 11
+    },
+    {
+      "file": "placements-race.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "placements-restore.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "placements.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "presentation-assets.spec.ts",
+      "currentCases": 7,
+      "focusedCases": 0,
+      "omittedCases": 7
+    },
+    {
+      "file": "product-cards.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 1,
+      "omittedCases": 3
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 4,
+      "omittedCases": 0
+    },
+    {
+      "file": "project-package-inspector.spec.ts",
+      "currentCases": 3,
+      "focusedCases": 0,
+      "omittedCases": 3
+    },
+    {
+      "file": "safe-area-regression.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "self-contained-customer.spec.ts",
+      "currentCases": 6,
+      "focusedCases": 0,
+      "omittedCases": 6
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "currentCases": 26,
+      "focusedCases": 0,
+      "omittedCases": 26
+    },
+    {
+      "file": "standalone.spec.ts",
+      "currentCases": 2,
+      "focusedCases": 0,
+      "omittedCases": 2
+    },
+    {
+      "file": "station-entry.spec.ts",
+      "currentCases": 3,
+      "focusedCases": 0,
+      "omittedCases": 3
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "currentCases": 8,
+      "focusedCases": 8,
+      "omittedCases": 0
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "currentCases": 3,
+      "focusedCases": 0,
+      "omittedCases": 3
+    },
+    {
+      "file": "user-workflow.spec.ts",
+      "currentCases": 4,
+      "focusedCases": 0,
+      "omittedCases": 4
+    },
+    {
+      "file": "variant-transfer.spec.ts",
+      "currentCases": 10,
+      "focusedCases": 0,
+      "omittedCases": 10
+    },
+    {
+      "file": "visual-operation-dimensions.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "visual-placement.spec.ts",
+      "currentCases": 1,
+      "focusedCases": 0,
+      "omittedCases": 1
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "currentCases": 2,
+      "focusedCases": 0,
+      "omittedCases": 2
+    }
+  ]
+}

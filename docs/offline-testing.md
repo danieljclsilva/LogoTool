@@ -2,70 +2,30 @@
 
 ## Logo Station UX improvements — 2026-11-07
 
-The reviewed UI work adds native close-tab protection for dirty jobs and pending
-placement edits, a filename-based persistence line beside Save job, consistent
-**Set up & place logos** wording, retained Images/3D staging with active-mode
-Add, plain failure headlines with original technical details, larger action
-controls and inline invalid-field errors with a disabled-Apply reason.
-The WI-7 proposal was approved by Codex after reading the Apply path.
+The [complete UX audit](ux-validation-audit-2026-11-07.md) supersedes the historical
+211-pass/41-failure report. Paired complete Chromium runs with two workers and
+one retry produced **196 passed / 46 failed** on baseline `e583941` and
+**222 passed / 30 failed** on published `3bbff0d`, both on macOS 27.2.
+The repaired tree on recovered macOS 27.3 produced **231 first-attempt passes /
+27 failures / 0 retry recoveries**, zero skips, out of 258.
+The OS change prevents an identical-environment final comparison.
 
-The baseline at `e583941` passed typechecking and 866 Node tests. Its broad
-Chromium run was interrupted after 45 passes, five failures, four interruptions
-and 188 unrun cases. It reproduced the step-label mismatch and four timeouts
-on Add logo controls inside the closed Artwork & logos panel. Acceptance flows
-now open that panel through the visible trigger.
+Typecheck and `npm test` pass (866 Node tests). The saved installed-Chrome
+selection has 42 first-attempt passes and two retry recoveries; both recovered
+cases also passed isolated reruns. The recovered macOS 27.3 Chrome selection has 43 first-attempt passes, 0 failures and 2 retry recoveries out of 45; both passed an isolated no-retry rerun. This remains development evidence.
+The suite is not green; workflow focus/navigation and wording contracts need
+further triage. The audit accounts for all 41 historical failures, names all
+original 66 focused executions, documents WI-7 Codex approval, real unload and
+false-prompt tests, six mode switches with unchanged blob-URL counts, original
+diagnostics, and normal/enlarged idle/active screenshots at all three viewports.
 
-A subsequent broad diagnostic run completed with **211 passes and 41 failures**
-out of 252 cases. It preceded the final layout and test-navigation corrections.
-The final work therefore has scoped acceptance evidence, with full-suite
-readiness still requiring further workflow triage. Five failures were also
-reproduced in an isolated build of the original source and tests at `e583941`.
-They cover the two multiview model-availability assertions and the operator
-photo-overlay, primary-span and direct-model workflows. Other broad failures
-have not all been classified. The complete suite is not recorded as green.
-
-The focused checks exercise real beforeunload dialogs for dirty/pending jobs,
-clean close without a prompt, dirty/download/dirty status and reopening,
-mode-specific saved media, retained/released thumbnail URLs, visible retention
-guidance, escaped technical disclosures, invalid-width recovery and saved
-geometry, toolbar alignment, normal Save visibility and enlarged workspaces.
-The presentation-budget and original intake regressions assert the revised
-wording and mode retention. Console/page-error and HTTP(S)-request probes are
-empty in the passing offline cases.
-
-Controls use a 44px minimum height and 14px labels. Model height adapts to the
-remaining space with a 180px floor. Layout assertions use that usable minimum
-and reachable Save actions. Synthetic drawing gestures stay within the visible
-model at short aspect ratios. Screenshots at 1440×900, 768×1024 and 390×844
-were inspected, including enlarged phone and tablet controls.
-
-Environment is macOS 27.2 (26B123), arm64, bundled Chromium 156.0.8078.4 and
-installed Google Chrome 156.0.8078.74. Every browser context uses offline
-`file://` loading. Existing viewport coverage also includes 1280×900,
-1440×781 and 1280×720. The in-app browser was checked and rejected `file://`
-under its URL policy. Repo-local Playwright supplies the required deterministic
-acceptance evidence.
-
-| Check | Result |
-| --- | --- |
-| `npm run typecheck` | Passed |
-| `npm test` | 866/866 Node tests passed |
-| Broad `npm run test:e2e`, before final corrections | 211 passed, 41 failed |
-| Final focused Chromium + installed Chrome | 66/66 passed, 1.4 minutes |
-| Edge launch check with the `msedge` project | Failed clearly because Microsoft Edge is absent |
-
-The final scoped invocation uses `npx playwright test` with the three complete
-specs `station-ux.spec.ts`, `editor-regressions.spec.ts` and
-`product-workspace.spec.ts`, plus the named intake and presentation-budget cases
-from `product-photo-intake.spec.ts` and `multiview-builder.spec.ts`. It runs both
-`--project=chromium --project=chrome` with three workers and a private temporary
-output directory. Logs and screenshots are under `/tmp/logotool-ux-review/`.
-Original-source reproduction is under the portable directory recorded in
-`/tmp/logotool-ux-review/baseline-dir.txt`.
-
-Windows Chrome/Edge offline delivery, native print dialogs and real physical
-calibration remain unverified. This is macOS development evidence.
-
+Scoped repairs restore the original enlarged-canvas assertions and fractional
+reference picking without changing domain schemas or physical tolerances.
+Controls retain 44px heights and accessible names, including existing phone icons. Normal phone/tablet still scroll.
+The supplementary browser rejected file URLs; repository Playwright provides
+required offline `file://` checks. Edge is absent and failed its launch check.
+Windows Chrome/Edge, native print dialogs and physical calibration remain open.
+No further main push is included; follow-up work is on the review branch.
 
 ## Polygon authoring and return-adoption repair — 2026-11-02
 

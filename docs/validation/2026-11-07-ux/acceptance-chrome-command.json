@@ -1,0 +1,20 @@
+[
+  "npx",
+  "playwright",
+  "test",
+  "e2e/editor-regressions.spec.ts",
+  "e2e/product-workspace.spec.ts",
+  "e2e/station-ux.spec.ts",
+  "e2e/unified-editor.spec.ts",
+  "e2e/workspace-layout-audit.spec.ts",
+  "e2e/setup-calibration.spec.ts",
+  "e2e/product-photo-intake.spec.ts",
+  "e2e/multiview-builder.spec.ts",
+  "--project=chrome",
+  "--workers=1",
+  "--retries=1",
+  "--grep",
+  "Finish\\ area\\ is\\ readable,\\ aligned\\ and\\ clickable\\ at\\ 1280\u00d7720|Finish\\ area\\ is\\ readable,\\ aligned\\ and\\ clickable\\ at\\ 1440\u00d7781|Finish\\ area\\ is\\ readable,\\ aligned\\ and\\ clickable\\ at\\ 390\u00d7844|artwork\\ popup\\ wraps\\ long\\ logo\\ cards\\ without\\ clipping\\ at\\ 1440\u00d7781|artwork\\ popup\\ wraps\\ long\\ logo\\ cards\\ without\\ clipping\\ at\\ 390\u00d7844|normal\\ editor\\ keeps\\ the\\ page\\ top\\ and\\ actions\\ reachable\\ at\\ 1280\u00d7720|normal\\ editor\\ keeps\\ the\\ page\\ top\\ and\\ actions\\ reachable\\ at\\ 1440\u00d7781|normal\\ editor\\ keeps\\ the\\ page\\ top\\ and\\ actions\\ reachable\\ at\\ 1440\u00d7900|normal\\ editor\\ keeps\\ the\\ page\\ top\\ and\\ actions\\ reachable\\ at\\ 390\u00d7844|over\\-budget\\ presentation\\ add\\ is\\ rejected\\ and\\ leaves\\ prior\\ state\\ untouched|product\\ workspace:\\ live\\ outline,\\ enlarged\\ controls,\\ artwork\\ and\\ physical\\ movement\\ \\(1280\\)|product\\ workspace:\\ live\\ outline,\\ enlarged\\ controls,\\ artwork\\ and\\ physical\\ movement\\ \\(1440\\)|product\\ workspace:\\ live\\ outline,\\ enlarged\\ controls,\\ artwork\\ and\\ physical\\ movement\\ \\(390\\)|product\\ workspace:\\ live\\ outline,\\ enlarged\\ controls,\\ artwork\\ and\\ physical\\ movement\\ \\(768\\)|station\\ UX:\\ download\\ failure\\ shows\\ a\\ plain\\ headline\\ and\\ escaped\\ technical\\ disclosure|station\\ UX:\\ invalid\\ placement\\ fields\\ explain\\ disabled\\ Apply\\ and\\ recover\\ without\\ losing\\ edits|station\\ UX:\\ readable\\ persistence\\ follows\\ Save\\ through\\ download,\\ edit\\ and\\ reopen\\ at\\ 1440|station\\ UX:\\ readable\\ persistence\\ follows\\ Save\\ through\\ download,\\ edit\\ and\\ reopen\\ at\\ 390|station\\ UX:\\ readable\\ persistence\\ follows\\ Save\\ through\\ download,\\ edit\\ and\\ reopen\\ at\\ 768|station\\ UX:\\ real\\ close\\ warnings\\ for\\ dirty\\ and\\ pending\\ placement\\ edits,\\ clean\\ close\\ without\\ prompt|station\\ UX:\\ retains\\ both\\ staged\\ modes\\ and\\ Add\\ includes\\ only\\ images,\\ releasing\\ thumbnails|station\\ UX:\\ retains\\ both\\ staged\\ modes\\ and\\ Add\\ includes\\ only\\ model,\\ releasing\\ thumbnails|station\\ intake:\\ named\\ views,\\ gating,\\ single\\ empty\\ state,\\ workspace\\ focus|switching\\ tools\\ during\\ texture\\ loading\\ completes\\ the\\ same\\ model\\ load|uncalibrated\\ area\\ offers\\ scale\\ fitting\\ then\\ recompute\\ and\\ logo\\ placement|uncalibrated\\ model\\ remains\\ visible\\ through\\ mode\\ entry\\ at\\ 1280\u00d7720|uncalibrated\\ model\\ remains\\ visible\\ through\\ mode\\ entry\\ at\\ 1440\u00d7781|uncalibrated\\ model\\ remains\\ visible\\ through\\ mode\\ entry\\ at\\ 1440\u00d7900|uncalibrated\\ model\\ remains\\ visible\\ through\\ mode\\ entry\\ at\\ 390\u00d7844|uncalibrated\\ model\\ remains\\ visible\\ through\\ prepare\\ entry\\ at\\ 1280\u00d7720|uncalibrated\\ model\\ remains\\ visible\\ through\\ prepare\\ entry\\ at\\ 1440\u00d7781|uncalibrated\\ model\\ remains\\ visible\\ through\\ prepare\\ entry\\ at\\ 1440\u00d7900|uncalibrated\\ model\\ remains\\ visible\\ through\\ prepare\\ entry\\ at\\ 390\u00d7844|station UX: freshly opened job closes|station UX: downloaded job closes|station UX: discarded New-guard|workspace layout audit at|one editing workspace preserves|product-setup tools",
+  "--reporter=line,json",
+  "--output=<private-audit>/acceptance-chrome-artifacts"
+]

@@ -696,7 +696,8 @@ export function createModelSetupView(
       const button = el('button', `context-${task}`, 'btn-secondary'); button.type = 'button';
       button.textContent = task === 'areas' ? 'Areas' : 'More';
       button.setAttribute('aria-controls', contextPanel.element.id);
-      button.addEventListener('click', () => openContext(task)); toolbar.append(button);
+      button.addEventListener('click', () => openContext(task));
+      (toolbar.querySelector('[data-model-setup-hook="camera-controls"]') ?? toolbar).append(button);
     }
     applyContextTask();
   };
@@ -2573,7 +2574,9 @@ export function createModelSetupView(
       refresh();
     });
     focusRow.append(focusButton);
-    (authorTools ?? section).append(focusRow);
+    const cameraControls = document.querySelector('[data-model-setup-hook="camera-controls"]');
+    if (cameraControls) cameraControls.prepend(focusRow);
+    else (authorTools ?? section).append(focusRow);
 
     // Rename + accessible corner/curve editing for the selected area.
     // Direct square handles on the model remain the primary controls.
@@ -2865,6 +2868,10 @@ export function createModelSetupView(
     mount.replaceChildren();
     const tools = el('div', 'author-tools', 'model-setup-author-tools');
     mount.append(tools);
+    const cameraControls = el('div', 'camera-controls', 'model-setup-camera-controls');
+    cameraControls.setAttribute('role', 'group');
+    cameraControls.setAttribute('aria-label', 'Camera and display controls (scroll for more)');
+    mount.append(cameraControls);
     const modeHint = el('p', 'mode-hint', 'muted');
     const tool = scope?.draft.areaTool ?? 'rotate';
     modeHint.textContent = panMode ? 'Pan model: drag to reposition the view. Measurements stay unchanged.' : tool === 'rotate' ? 'Rotate model: drag to inspect. Choose Edit outline to reshape the selected area, Rectangle or Polygon to draw.'
@@ -2941,14 +2948,14 @@ export function createModelSetupView(
       const current = currentDraft(); if (!('error' in current)) { current.draft.handleArm = null; current.draft.areaTool = 'rotate'; }
       panMode = !panMode; refresh();
     });
-    mount.append(zoomOut, zoomSelect, zoomIn, fit, pan);
+    cameraControls.append(zoomOut, zoomSelect, zoomIn, fit, pan);
     for (const side of ['front', 'back'] as const) {
       const button = document.createElement('button'); button.type = 'button';
       button.textContent = side === 'front' ? 'Front' : 'Back';
       button.setAttribute(HOOK, `view-${side}`);
       button.disabled = !viewer?.setViewSide;
       button.addEventListener('click', () => viewerOf()?.setViewSide?.(side));
-      mount.append(button);
+      cameraControls.append(button);
     }
     const toggles: Array<{ view: string; hook: string; label: string; pressed: boolean }> = [
       {
@@ -3009,7 +3016,7 @@ export function createModelSetupView(
         emit(entry, draft);
         paintViewer(draft);
       });
-      mount.append(button);
+      cameraControls.append(button);
     }
     syncViewbar(scope);
   }

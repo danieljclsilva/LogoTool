@@ -46,6 +46,16 @@ async function expectCloseWarning(page: Page): Promise<void> {
   expect(page.isClosed()).toBe(false);
 }
 
+async function expectCleanClose(page: Page): Promise<void> {
+  let dialogCount = 0;
+  // Accept an unexpected prompt so the close completes and reports the count.
+  page.on('dialog', async (dialog) => { dialogCount += 1; await dialog.accept(); });
+  const closed = page.waitForEvent('close');
+  await page.close({ runBeforeUnload: true });
+  await closed;
+  expect(dialogCount).toBe(0);
+}
+
 test('station UX: real close warnings for dirty and pending placement edits, clean close without prompt', async ({ browser }, info) => {
   const { context, page, probe } = await openOfflineContext(browser);
   try {
@@ -70,12 +80,49 @@ test('station UX: real close warnings for dirty and pending placement edits, cle
     await expectCloseWarning(page);
     await width.fill(originalWidth);
     expect(await unloadPrevented(page)).toBe(false);
-    let dialogCount = 0;
-    page.on('dialog', async (dialog) => { dialogCount += 1; await dialog.dismiss(); });
-    const closed = page.waitForEvent('close');
-    await page.close({ runBeforeUnload: true });
-    await closed;
-    expect(dialogCount).toBe(0);
+    await expectCleanClose(page);
+    assertCleanProbe(probe);
+  } finally { await context.close(); }
+});
+
+test('station UX: freshly opened job closes without a native dialog after activation', async ({ browser }) => {
+  const { context, page, probe } = await openOfflineContext(browser);
+  try {
+    await openJob(page);
+    // Trusted user activation on the clean job: a real step click, so a
+    // zero-dialog close below proves clean state rather than missing activation.
+    await b(page, 'job-step-1').click();
+    expect(await unloadPrevented(page)).toBe(false);
+    await expectCleanClose(page);
+    assertCleanProbe(probe);
+  } finally { await context.close(); }
+});
+
+test('station UX: downloaded job closes without a native dialog', async ({ browser }, info) => {
+  const { context, page, probe } = await openOfflineContext(browser);
+  try {
+    await openJob(page);
+    await b(page, 'customer-name').fill('Synthetic downloaded clean');
+    expect(await unloadPrevented(page)).toBe(true);
+    const saved = await saveJob(page, info, 'downloaded-clean.logo-project');
+    await expect(b(page, 'job-persistence')).toHaveText(`Downloaded ${saved.fileName} — keep this file to reopen the job.`);
+    expect(await unloadPrevented(page)).toBe(false);
+    await expectCleanClose(page);
+    assertCleanProbe(probe);
+  } finally { await context.close(); }
+});
+
+test('station UX: discarded New-guard changes close without a native dialog', async ({ browser }) => {
+  const { context, page, probe } = await openOfflineContext(browser);
+  try {
+    await openJob(page);
+    await b(page, 'customer-name').fill('Synthetic discard guard');
+    expect(await unloadPrevented(page)).toBe(true);
+    await b(page, 'job-new').click();
+    await b(page, 'builder-alert').getByRole('button', { name: 'Discard changes', exact: true }).click();
+    await expect(b(page, 'customer-name')).toHaveValue('');
+    expect(await unloadPrevented(page)).toBe(false);
+    await expectCleanClose(page);
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
@@ -148,6 +195,11 @@ for (const mode of ['images', 'model'] as const) {
       await expect(b(page, 'intake-model-status')).toContainText('ready');
       let dialogCount = 0;
       page.on('dialog', async (dialog) => { dialogCount += 1; await dialog.dismiss(); });
+      const urlTotals = () => page.evaluate(() => {
+        const store = (window as unknown as { stationUxUrls: { created: string[]; revoked: string[] } }).stationUxUrls;
+        return { created: store.created.length, revoked: store.revoked.length };
+      });
+      const beforeToggles = await urlTotals();
       for (let count = 0; count < 3; count += 1) {
         await b(page, 'intake-mode-images').check();
         await expect(b(page, 'product-status')).toContainText('kept if you switch back');
@@ -158,6 +210,12 @@ for (const mode of ['images', 'model'] as const) {
       }
       expect(dialogCount).toBe(0);
       const urls = () => page.evaluate(() => (window as unknown as { stationUxUrls: { created: string[]; revoked: string[] } }).stationUxUrls);
+      const afterToggles = await urlTotals();
+      expect(afterToggles).toEqual(beforeToggles);
+      await info.attach('mode-toggle-url-counts', {
+        contentType: 'application/json',
+        body: JSON.stringify({ mode, cycles: 3, switches: 6, before: beforeToggles, after: afterToggles }, null, 2),
+      });
       expect((await urls()).revoked).not.toContain(thumbnailUrl);
       expect((await urls()).created.filter((url) => url === thumbnailUrl)).toHaveLength(1);
       await b(page, `intake-mode-${mode}`).check();

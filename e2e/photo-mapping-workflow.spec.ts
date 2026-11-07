@@ -320,12 +320,17 @@ test('operator maps a photo, issues it, and the customer proves placement on the
       regionPts.reduce((sum, point) => sum + point[0]!, 0) / regionPts.length,
       regionPts.reduce((sum, point) => sum + point[1]!, 0) / regionPts.length,
     ];
-    await revealCustomerControl(customer, 'x-mm');
-    await hook('x-mm').fill(String(Math.round(centroid[0] * 10) / 10));
-    await hook('x-mm').press('Tab');
-    await revealCustomerControl(customer, 'y-mm');
-    await hook('y-mm').fill(String(Math.round(centroid[1] * 10) / 10));
-    await hook('y-mm').press('Tab');
+    // Stage only actual coordinate changes. Re-filling an equal value fires
+    // input without a subsequent browser change event and leaves a pending
+    // form edit; this workflow is intended to exercise a committed interior drag.
+    for (const [field, value] of [['x-mm', centroid[0]], ['y-mm', centroid[1]]] as const) {
+      const target = Math.round(value * 10) / 10;
+      if (Number(await hook(field).inputValue()) === target) continue;
+      await revealCustomerControl(customer, field);
+      await hook(field).fill(String(target));
+      await hook(field).press('Tab');
+    }
+    await expect(hook('update')).toBeDisabled();
     // Press on the new placement's footprint itself (the drag starts on the
     // footprint polygon, now centred in the safe area).
     const overlay = hook('photo-overlay');

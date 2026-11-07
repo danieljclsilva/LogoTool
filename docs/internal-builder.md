@@ -562,8 +562,17 @@ Failure alerts put a plain-language headline before collapsed **Technical detail
 The saved project remains available after a failed candidate validation.
 Editor action controls have a 44px minimum height and 14px labels. The model
 canvas adapts to the space below the toolbar and above Save, with a 180px
-minimum. Enlarged views fit the controls and canvas to the viewport. The dashed
-upload border uses `#5f6f7e` for contrast against white.
+minimum. Enlarged views fit the controls and canvas to the viewport. Camera
+and display controls use a horizontal scroll row when space is constrained;
+on enlarged phones the editing/lighting controls also scroll horizontally.
+Controls remain reachable with touch and keyboard focus at 44px minimum height.
+Existing narrow-layout icons retain their accessible names; camera and text
+actions keep their labels.
+The desktop authoring row reserves room for Finish, Undo and Cancel even while
+inactive, so switching drawing tools does not shift the canvas. Normal narrow
+views still require page scrolling; the measured evidence distinguishes total
+canvas height from its initially visible portion.
+The dashed upload border uses `#5f6f7e` for contrast against white.
 
 Codex reviewed and approved the WI-7 proposal before implementation. Invalid
 placement sizes, rotation, centre coordinates, safe area and method show inline
@@ -576,3 +585,8 @@ The synthetic offline regression suite covers native unload dialogs, filename
 status and reopening, mode-specific package media and thumbnail cleanup,
 escaped technical details, and invalid-field recovery. Acceptance results and
 the Windows Chrome/Edge release gap are recorded in `docs/offline-testing.md`.
+The follow-up [validation audit](ux-validation-audit-2026-11-07.md) includes
+complete baseline/published/follow-up outcomes, all failing tests, exact focused
+coverage and synthetic screenshots. Reference-span input preserves the matching
+pointer release's fractional photo coordinates instead of rounded click
+coordinates; this avoids introducing a small rotation into the calibrated frame.

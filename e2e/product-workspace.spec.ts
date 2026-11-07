@@ -41,13 +41,20 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
         await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       };
       const normalHeight = (await canvas.boundingBox())!.height;
-      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .35);
+      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .6);
+      const normalVisibleHeight = await canvas.evaluate(node => {
+        const r = node.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+      });
       await b(page, 'product-model-expand').click();
       await ms(page, 'view-front').click();
       await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
       await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
       await expect(b(page, 'product-model-expand')).toHaveAccessibleName('Close enlarged product workspace');
-      expect((await canvas.boundingBox())!.height).toBeGreaterThanOrEqual(180);
+      const enlargedHeight = (await canvas.boundingBox())!.height;
+      // Retain the original whole-canvas guard at its original 1280/390
+      // sizes. The added tablet normal canvas extends below the viewport,
+      // so enlargement must increase the actual visible editing space.
+      expect(enlargedHeight).toBeGreaterThan(viewport.width === 768 ? normalVisibleHeight : normalHeight);
 
       await ms(page, 'context-measure').click();
       for (const hook of ['ref-pick-a', 'ref-pick-b', 'ref-mm', 'ref-fit', 'tool-rectangle']) {
@@ -90,7 +97,9 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
       await b(page, 'product-model-expand').click();
       const png = await page.evaluate(() => {
         const image = document.createElement('canvas'); image.width = 100; image.height = 50;
-        const ctx = image.getContext('2d')!; ctx.fillStyle = '#ff00ff'; ctx.fillRect(0, 0, 100, 50); ctx.fillStyle = '#00ffff'; ctx.fillRect(0, 0, 100, 12);
+        const ctx = image.getContext('2d')!; ctx.fillStyle = '#ff00ff'; ctx.fillRect(0, 0, 100, 50); // Equal color bands remain distinguishable when this synthetic logo
+        // projects to only a few pixels on the narrow workspace.
+        ctx.fillStyle = '#00ffff'; ctx.fillRect(0, 0, 100, 25);
         return image.toDataURL().split(',')[1]!;
       });
       await b(page, 'logo-file').setInputFiles({ name: 'synthetic-mark.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
@@ -101,7 +110,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
       await pw(page, 'pw-model-front').click();
       await pw(page, 'pw-model-details').click();
       await pw(page, 'pw-add-placement').click();
-      await pw(page, 'pw-add-width').fill('120'); await pw(page, 'pw-add-height').fill('60');
+      await pw(page, 'pw-add-width').fill('180'); await pw(page, 'pw-add-height').fill('90');
       await pw(page, 'pw-add-method').selectOption('print'); await pw(page, 'pw-add-confirm').click();
       await expect(pw(page, 'pw-model-workbench')).toHaveAttribute('data-artwork-count', /[1-9]/);
       const modelCanvas = pw(page, 'pw-model-canvas');

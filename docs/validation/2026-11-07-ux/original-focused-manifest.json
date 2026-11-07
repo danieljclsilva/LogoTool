@@ -1,0 +1,332 @@
+[
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1440\u00d7900"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1440\u00d7900"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1440\u00d7900"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1440\u00d7781"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1440\u00d7781"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1440\u00d7781"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1280\u00d7720"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1280\u00d7720"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1280\u00d7720"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 390\u00d7844"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 390\u00d7844"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 390\u00d7844"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "switching tools during texture loading completes the same model load"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 1440\u00d7781"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 1280\u00d7720"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 390\u00d7844"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "artwork popup wraps long logo cards without clipping at 1440\u00d7781"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "artwork popup wraps long logo cards without clipping at 390\u00d7844"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated area offers scale fitting then recompute and logo placement"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/multiview-builder.spec.ts",
+    "test": "over-budget presentation add is rejected and leaves prior state untouched"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/product-photo-intake.spec.ts",
+    "test": "station intake: named views, gating, single empty state, workspace focus"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (768)"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (390)"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 1440"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 768"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 390"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: retains both staged modes and Add includes only images, releasing thumbnails"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: retains both staged modes and Add includes only model, releasing thumbnails"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: download failure shows a plain headline and escaped technical disclosure"
+  },
+  {
+    "project": "chromium",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: invalid placement fields explain disabled Apply and recover without losing edits"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1440\u00d7900"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1440\u00d7900"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1440\u00d7900"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1440\u00d7781"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1440\u00d7781"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1440\u00d7781"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 1280\u00d7720"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 1280\u00d7720"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 1280\u00d7720"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through mode entry at 390\u00d7844"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated model remains visible through prepare entry at 390\u00d7844"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "normal editor keeps the page top and actions reachable at 390\u00d7844"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "switching tools during texture loading completes the same model load"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 1440\u00d7781"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 1280\u00d7720"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "Finish area is readable, aligned and clickable at 390\u00d7844"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "artwork popup wraps long logo cards without clipping at 1440\u00d7781"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "artwork popup wraps long logo cards without clipping at 390\u00d7844"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/editor-regressions.spec.ts",
+    "test": "uncalibrated area offers scale fitting then recompute and logo placement"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/multiview-builder.spec.ts",
+    "test": "over-budget presentation add is rejected and leaves prior state untouched"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/product-photo-intake.spec.ts",
+    "test": "station intake: named views, gating, single empty state, workspace focus"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (768)"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/product-workspace.spec.ts",
+    "test": "product workspace: live outline, enlarged controls, artwork and physical movement (390)"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: real close warnings for dirty and pending placement edits, clean close without prompt"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 1440"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 768"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: readable persistence follows Save through download, edit and reopen at 390"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: retains both staged modes and Add includes only images, releasing thumbnails"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: retains both staged modes and Add includes only model, releasing thumbnails"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: download failure shows a plain headline and escaped technical disclosure"
+  },
+  {
+    "project": "chrome",
+    "file": "e2e/station-ux.spec.ts",
+    "test": "station UX: invalid placement fields explain disabled Apply and recover without losing edits"
+  }
+]

@@ -55,6 +55,22 @@ function approval(page: Page) {
 
 /** Enter the approval branch from placements and issue the current job
  * (branch-scoped buttons only: legacy generate/download hooks are gone). */
+// A horizontal SVG line has a zero-height geometry box even when its stroke
+// is painted. Check the visible reference group and the actual stroke instead
+// of requiring an artificial slope to satisfy Playwright's box visibility.
+async function expectReferenceStroke(workspace: ReturnType<Page['locator']>): Promise<void> {
+  const line = workspace.locator('.product-setup-refline');
+  await expect(line).toHaveCount(1);
+  await expect(workspace.locator('.product-setup-reference')).toBeVisible();
+  await expect(line).toHaveCSS('visibility', 'visible');
+  expect(await line.evaluate(node => {
+    const svgLine = node as SVGLineElement;
+    const style = getComputedStyle(node);
+    return style.display !== 'none' && style.stroke !== 'none' && Number.parseFloat(style.strokeWidth) > 0 &&
+      Math.hypot(svgLine.x2.baseVal.value - svgLine.x1.baseVal.value, svgLine.y2.baseVal.value - svgLine.y1.baseVal.value) > 0;
+  })).toBe(true);
+}
+
 async function photoDetails(workspace: ReturnType<Page['locator']>): Promise<void> {
   if (!await workspace.isVisible()) {
     await builder(workspace.page(), 'job-step-2').click();
@@ -1916,7 +1932,7 @@ test('product-setup tools: dotted reference, rectangle to independent polygon, e
 
     // Dotted A/B line + entered length on the calibrated stage (400x300
     // photo, A at 0.3W, B at 0.7W: scale is 1300/160 = 8.125 mm/px).
-    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expectReferenceStroke(workspace);
     await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
 
     // Rectangle drag commits one exact four-corner area with side handles.
@@ -1978,7 +1994,7 @@ test('product-setup tools: dotted reference, rectangle to independent polygon, e
     // the inverse of the actual view transform.
     await workspace.locator('[data-ps-view="zoom"]').selectOption('200');
     await expect(workspace.locator('[data-ps-view="zoom"]')).toHaveValue('200');
-    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expectReferenceStroke(workspace);
     await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
     const zoomedBox = (await stage.boundingBox())!;
     const mmPerCssPx = (400 * 8.125) / zoomedBox.width;
@@ -2051,10 +2067,10 @@ test('product-setup tools: dotted reference, rectangle to independent polygon, e
     await workspace.locator('[data-ps-view="vis-anchors"]').click();
     await expect(workspace.locator('.product-setup-refline')).toHaveCount(0);
     await workspace.locator('[data-ps-view="vis-anchors"]').click();
-    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expectReferenceStroke(workspace);
     await workspace.locator('[data-ps-view="vis-product"]').click();
     await expect(workspace.locator('.product-setup-photo')).toBeHidden();
-    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expectReferenceStroke(workspace);
     await workspace.locator('[data-ps-view="vis-product"]').click();
     await expect(workspace.locator('.product-setup-photo')).toBeVisible();
     expect(await readCorners()).toEqual(afterSide);
@@ -2302,7 +2318,7 @@ test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ 
     await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
 
     // Reference line + label survive on the narrow calibrated stage.
-    await expect(workspace.locator('.product-setup-refline')).toBeVisible();
+    await expectReferenceStroke(workspace);
     await expect(workspace.locator('.product-setup-reflabel')).toContainText('1,300 mm');
 
     // Rectangle creation works narrow; the toolbar wraps without page scroll.
