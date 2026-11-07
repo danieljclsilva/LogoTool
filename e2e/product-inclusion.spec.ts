@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { unzipSync } from 'fflate';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
+import { PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE } from '../src/ui/internal-builder/placement-inclusion.js';
 import { gotoBuilder, openOfflineContext, assertCleanProbe, ensurePlacementPanel, revealBuilderControl } from './helpers.js';
 
 const b = (page: Page, name: string) => page.locator(`[data-builder-hook="${name}"]`);
@@ -175,3 +176,93 @@ test('inclusion keeps existing excluded placements visible and blocks duplicatio
     assertCleanProbe(probe);
   } finally { await context.close(); }
 });
+
+test('inclusion Review summarizes omitted placements and clears on re-include', async ({ browser }) => {
+  const { context, page, probe } = await openOfflineContext(browser);
+  // Unit level pins the throwing-reader contract; the rendered fail-closed
+  // path is covered by 'inclusion read failure fails closed ...' below.
+  const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    const fixture = await openFixture(page, true);
+    const productName = new RegExp(escapeRegExp(fixture.a.name ?? fixture.a.id));
+    const optionName = new RegExp(escapeRegExp(fixture.a.variants[0]!.name ?? fixture.a.variants[0]!.id));
+    const review = b(page, 'job-review-host');
+    // Exclude the whole product: its 2 placements stay saved but are flagged.
+    await b(page, 'job-step-1').click();
+    await page.locator(`[data-product-card="${fixture.a.id}"] input[type="checkbox"]`).first().uncheck();
+    await b(page, 'job-step-3').click();
+    const productLine = review.getByText(/Not in this file/).filter({ hasText: /2 placements/ }).first();
+    await expect(productLine).toBeVisible();
+    await expect(productLine).toContainText(productName);
+    // Option-only exclusion: re-include the product but narrow to the other variant.
+    await b(page, 'job-step-1').click();
+    const card = page.locator(`[data-product-card="${fixture.a.id}"]`);
+    await card.locator('input[type="checkbox"]').first().check();
+    await card.getByRole('checkbox', { name: fixture.a.variants[0]!.name!, exact: true }).uncheck();
+    await card.getByRole('checkbox', { name: fixture.a.variants[1]!.name!, exact: true }).check();
+    await b(page, 'job-step-3').click();
+    const optionLine = review.getByText(/Not in this file/).filter({ hasText: /2 placements/ }).first();
+    await expect(optionLine).toBeVisible();
+    await expect(optionLine).toContainText(optionName);
+    // Re-include everything: the omitted-placements line clears.
+    await b(page, 'job-step-1').click();
+    await card.getByRole('checkbox', { name: fixture.a.variants[0]!.name!, exact: true }).check();
+    await b(page, 'job-step-3').click();
+    await expect(review.getByText(/Not in this file/)).toHaveCount(0);
+    assertCleanProbe(probe);
+  } finally { await context.close(); }
+});
+
+for (const failurePoint of ['workspace', 'commit boundary'] as const) {
+  test(`inclusion read failure at ${failurePoint} fails closed and commits nothing`, async ({ browser }) => {
+    const { context, page, probe } = await openOfflineContext(browser);
+    try {
+      const fixture = await openFixture(page, true);
+      await focusProduct(page, fixture.a.id);
+      await fillAdd(page);
+      const staleSubmit = await pw(page, 'pw-add-confirm').elementHandle();
+      // Test-side fault injection (existing hook only, no app globals): shadow
+      // querySelectorAll on the Step 1 product-list element instance so every
+      // selection read throws. Render + submit + commit adapters must fail
+      // closed with the shared unavailable message instead of swallowing this.
+      // readSelection scans the products once, then once per included product.
+      // Let the workspace check finish to exercise the final commit guard too.
+      const successfulQueries = failurePoint === 'commit boundary' ? fixture.project.products.length + 1 : 0;
+      await b(page, 'product-list').evaluate((node, remaining) => {
+        const originalQuery = node.querySelectorAll.bind(node);
+        node.querySelectorAll = ((selector: string) => {
+          if (remaining-- <= 0) throw new Error('synthetic selection failure');
+          return originalQuery(selector);
+        }) as typeof node.querySelectorAll;
+      }, successfulQueries);
+      // A stale submit queued before the failure must block with the shared
+      // unavailable message and commit nothing.
+      await staleSubmit!.dispatchEvent('click');
+      await expect(pw(page, 'pw-add-blocked')).toBeVisible();
+      await expect(pw(page, 'pw-add-blocked')).toContainText(PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE);
+      await expect(pw(page, 'pw-add-notice')).toContainText(PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE);
+      await expect(pw(page, 'pw-add-placement')).toBeDisabled();
+      await expect(pw(page, 'pw-add-confirm')).toBeDisabled();
+      const places = page.locator('[data-placement-hook^="pw-artwork-place-"]');
+      expect(await places.count()).toBeGreaterThan(0);
+      for (const place of await places.all()) await expect(place).toBeDisabled();
+      // Selecting an existing placement keeps Duplicate disabled; even a forced
+      // click through the disabled button must announce, never commit.
+      await page.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
+      await expect(pw(page, 'pw-duplicate')).toBeDisabled();
+      await pw(page, 'pw-duplicate').dispatchEvent('click');
+      // Discard the draft, then prove Save stays blocked with no download.
+      await pw(page, 'pw-add-cancel').click();
+      await b(page, 'job-save').click();
+      await expect(b(page, 'builder-alert')).toContainText(PLACEMENT_INCLUSION_UNAVAILABLE_MESSAGE);
+      await expect(page.waitForEvent('download', { timeout: 1500 })).rejects.toThrow();
+      // Restore the prototype read, then prove zero commits landed.
+      await b(page, 'product-list').evaluate((node) => {
+        delete (node as unknown as Record<string, unknown>)['querySelectorAll'];
+      });
+      const saved = await savedProject(page);
+      expect(saved.configurations.filter(configuration => configuration.productId === fixture.a.id).flatMap(configuration => configuration.placements)).toHaveLength(2);
+      assertCleanProbe(probe);
+    } finally { await context.close(); }
+  });
+}

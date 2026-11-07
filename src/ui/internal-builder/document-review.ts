@@ -79,6 +79,7 @@ import type {
   AnchorDef,
   DimensionBinding,
 } from '../../core/operation-measurements/types.js';
+import type { OmittedPlacementGroup } from './placement-inclusion.js';
 import { evaluateProjectGeometry } from '../../core/project-editor/index.js';
 import { MAX_PREVIEW_BYTES, readRasterHeader } from '../../assets/raster-header.js';
 
@@ -203,6 +204,12 @@ export interface DocumentReviewSnapshot {
   technique: ReviewTechniqueSettings;
   techniqueScopeLabel: string | null;
   unapplied: readonly ReviewUnappliedEdit[];
+  /**
+   * Existing placements omitted from this scoped file (rail summary only,
+   * never printed/exported). Null means the inclusion read failed (unknown);
+   * an empty array means nothing is omitted (no line is rendered).
+   */
+  omittedPlacements?: readonly OmittedPlacementGroup[] | null;
   brandMarkDataUrl?: string;
   modelViews?: Record<string, readonly DocumentReviewModelView[]>;
 }
@@ -1208,6 +1215,23 @@ export function mountDocumentReview(host: HTMLElement, deps: DocumentReviewDeps)
       el('p', undefined, `Job: ${reference}`),
       el('p', undefined, `Products: ${computation.productCount} · Options: ${computation.optionCount} · Placements: ${computation.placementCount}`),
     );
+    // Omitted existing placements: rail/summary UI only, never printed or
+    // exported. Empty means nothing omitted (no line); null means the
+    // inclusion read failed (the blocking candidate error above covers it).
+    const omitted = snapshot.omittedPlacements;
+    if (omitted !== undefined && omitted !== null && omitted.length > 0) {
+      const omittedGroup = document.createElement('section');
+      omittedGroup.setAttribute('aria-label', 'Omitted placements');
+      for (const entry of omitted) {
+        const scope = entry.optionName !== null && entry.optionName !== ''
+          ? `${entry.productName} (${entry.optionName})`
+          : entry.productName;
+        const line = el('p', undefined,
+          `Not in this file — ${scope}, ${entry.placementCount} placement${entry.placementCount === 1 ? '' : 's'}`);
+        omittedGroup.append(line);
+      }
+      summaryLines.append(omittedGroup);
+    }
     paintItems(computation);
     paintModelViews(snapshot);
     const notes = reviewCustomerNotes(snapshot);

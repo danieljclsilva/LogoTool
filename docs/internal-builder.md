@@ -607,3 +607,8 @@ with keyboard scrolling for longer messages.
 The review decisions, synthetic geometry checks and final acceptance accounting
 are in [the follow-up audit](product-inclusion-followup-2026-11-07.md).
 Windows Chrome/Edge delivery validation remains open.
+
+Selection-read failures use a distinct inclusion-unavailable message and block
+new placements and Save. Review blocks output for an unreadable selection and
+names existing placements omitted by product/option exclusion, including their
+counts. Re-including the option removes its omission line.

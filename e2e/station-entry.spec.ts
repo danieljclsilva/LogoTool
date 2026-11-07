@@ -18,6 +18,7 @@ import {
   gotoStation,
   openOfflineContext,
   revealBuilderControl,
+  ensurePlacementPanel,
 } from './helpers.js';
 import { countPdfPages } from './sheet-fixtures.js';
 
@@ -234,9 +235,10 @@ test('fresh-copied station issues both customer formats offline with no repo dep
     await expect(builder(page, 'job-to-placements')).toBeEnabled();
     await builder(page, 'job-to-placements').click();
     await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
-    await (await pshown(page, 'pw-product-select')).selectOption({ index: 0 });
-    const optionSelect = placement(page, 'pw-option-select');
-    if (await optionSelect.count() > 0) await optionSelect.selectOption({ index: 0 });
+    await builder(page, 'workspace-product').selectOption({ index: 0 });
+    const optionSelect = builder(page, 'workspace-variant');
+    if (await optionSelect.isVisible()) await optionSelect.selectOption({ index: 0 });
+    await ensurePlacementPanel(page);
     await expect(await pshown(page, 'pw-empty-placements')).toContainText('No logo placements for this option.');
     await (await pshown(page, 'pw-approval')).click();
     await expect(branch(page)).toContainText('Send for customer approval');

@@ -1,5 +1,22 @@
 # Product inclusion and editor follow-up — 7 November 2026
 
+## Review correction after `5b7bae6`
+
+The pre-merge concern is repaired. Both the workspace creation actions and final commit boundary use `isPlacementCreationAllowed`. A selection-read failure now produces the shared inclusion-unavailable message and blocks creation. Save stops before packaging instead of persisting empty inclusion metadata. Review blocks document output when inclusion cannot be read. Valid unrestricted standalone callers retain their existing behavior.
+
+Review now names omitted existing placements by product and option, with an exact count. Re-including the option removes its line. Shared operator option labels also distinguish unnamed options. The summary is separate from the canonical document and export data.
+
+The existing `revealCustomerControl` helper repairs F21, F40, F41 and F42 by opening the size disclosure. F51 now uses the current shared workspace chooser and opens placement details. Its complete fresh-copy flow issues both delivery formats. These checks retain file-content, approval, deterministic-byte and physical assertions.
+
+Independent final validation passes typecheck and **881/881 Node tests**. The complete offline Chromium suite has **253 first-attempt passes, 13 failures, zero retry recoveries and zero skips across 266 cases**. Every remaining failure also failed at `5b7bae6`. The five targeted workflow failures now pass. All three new browser regressions pass, covering omitted-placement summaries and selection-read failure at both the workspace and final commit boundary, with disabled creation, blocked Save and unchanged saved placement counts.
+
+Installed Chrome passes **30/30 focused cases**, with zero retries needed. These cover all cases in `new-project`, `presentation-assets`, `station-entry` and `product-inclusion`. Both browser runs use built files through offline `file://` on the macOS environment recorded below. The complete case/attempt list, comparison of all 18 previous failures and frozen source hashes are in [the review correction results](validation/2026-11-07-priority-followup/inclusion-rule-review-results.json). Raw logs and screenshots remain in the local task evidence directory.
+
+The new Review line was additionally rendered and visually inspected at 1280×720 and 390×844, with no horizontal overflow, console/page errors or HTTP(S) requests. The synthetic fixture includes one product and explicitly reports the other product's two omitted placements.
+
+The suite remains red. The overflowing-toolbar cue and compact phone-header menu remain design follow-ups. Earlier intermittent browser closures remain unresolved despite this clean focused Chrome run. Actual Windows Chrome/Edge offline validation and an unaided staff usability trial remain open before customer use.
+
+
 Review base is merged commit `c180a416fbecd6f6329ca68f1386b19b5b4dc7bd`, whose tree matches reviewed `4448e65`. Changes are isolated on `codex/product-inclusion-followup` for review.
 
 ## Review, plan and decisions
@@ -63,7 +80,7 @@ The separate model-only phone test measures 338.1px visible while idle and 290.1
 
 Native Google Chrome Incognito opened the [cache-busted live demo](https://danieljclsilva.github.io/logotool-demo/?v=c180a41). After Create job, its visible second step read **2 Set up & place logos**. The [observation record](validation/2026-11-07-priority-followup/demo-private-check.json) distinguishes this label check from offline package acceptance.
 
-## Final validation
+## Validation recorded at `5b7bae6`
 
 The complete Chromium run has **245 first-attempt passes, 18 failures, zero retry recoveries and zero skips**, across 263 cases. All 18 failing cases also failed in the reviewed run, which had 231 passes and 27 failures across 258 cases. The nine targeted previously failing cases now pass, as do all five new cases. The full suite remains red.
 

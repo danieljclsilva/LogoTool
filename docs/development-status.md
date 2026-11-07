@@ -147,3 +147,12 @@ intermittent cause remains unresolved.
 Final validation and every remaining full-suite failure are recorded in
 [the follow-up audit](product-inclusion-followup-2026-11-07.md). Windows
 Chrome/Edge offline delivery validation remains open before customer use.
+
+The subsequent review correction shares the placement-inclusion predicate,
+uses a distinct fail-closed selection-error message and reports omitted existing
+placements in Review. F21/F40/F41/F42/F51 now pass through current shared UI
+controls. Independent typecheck and 881 Node tests pass, full Chromium has
+253 passes and 13 previously failing cases, and focused installed Chrome passes
+30/30 without retries. See the audit's review-correction section for accounting.
+Toolbar overflow affordance, a compact phone-header menu, Windows offline
+validation and an unaided staff trial remain open.

@@ -1729,3 +1729,21 @@ Environment is macOS 27.3 (26C5035r), arm64, Node 26.10.0, Playwright 1.64.0,
 Chromium 156.0.8078.4 and installed Chrome 156.0.8078.74. All acceptance uses
 synthetic fixtures and offline `file://`. Actual Windows Chrome/Edge remains
 untested and is the customer-delivery release gate.
+
+### Inclusion-rule review correction
+
+After `5b7bae6`, independent typecheck and 881 Node tests pass. The complete
+266-case offline Chromium run has 253 first-attempt passes, 13 failures and zero
+retry recoveries. All 13 also failed on `5b7bae6`. Installed Chrome passes all
+30 cases in `new-project`, `presentation-assets`, `station-entry` and
+`product-inclusion` without retries. The new exception regression reaches both
+the workspace guard and final commit guard, verifies the unavailable message,
+checks disabled creation and blocked Save, then restores the reader and checks
+unchanged saved placement counts. Review omission coverage includes product and
+option exclusion plus re-inclusion. See the [case accounting and source hashes](validation/2026-11-07-priority-followup/inclusion-rule-review-results.json).
+
+F21/F40/F41/F42 now use the existing customer disclosure helper. F51 uses the
+current shared workspace controls and issues both formats from a fresh station
+copy. Remaining failures retain their earlier unresolved status. Environment
+and Windows delivery gate remain as recorded above. No unaided staff trial has
+been observed.
