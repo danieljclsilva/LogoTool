@@ -1,7 +1,7 @@
 import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
- * Placement workspace — Step 2 "Set logo placements" (operator workflow, spec §5).
+ * Placement workspace — Step 2 "Set up & place logos" (operator workflow, spec §5).
  *
  * Framework-free UI module. The lead mounts it into a provided container with
  * caller-owned state; this module never imports `main.ts` live state, never
@@ -240,6 +240,84 @@ export function parseMm(raw: string): number | null {
   if (trimmed.length === 0) return null;
   const value = Number(trimmed);
   return Number.isFinite(value) ? value : null;
+}
+
+/** One inline message per invalid selected-placement field. Pure; no DOM. */
+export interface SelectedEditFieldErrors {
+  area?: string;
+  method?: string;
+  width?: string;
+  height?: string;
+  rotation?: string;
+  x?: string;
+  y?: string;
+}
+
+/**
+ * Validate staged selected-placement raw strings with the same parseMm /
+ * safe-area / method rules Apply commits with. Blank, non-numeric and
+ * non-finite input is invalid; sizes must exceed 0 mm; the method must be
+ * offered by the edit's own region. Partial input simply reports errors —
+ * callers keep the pending guard (invalid edits still block save/review)
+ * and never commit from here. Pure; no DOM.
+ */
+export function validateSelectedEditFields(
+  edit: {
+    widthRaw: string;
+    heightRaw: string;
+    rotationRaw: string;
+    centreXRaw: string;
+    centreYRaw: string;
+    regionId: string;
+    method: string;
+  },
+  region: Region | undefined,
+): SelectedEditFieldErrors {
+  const errors: SelectedEditFieldErrors = {};
+  if (region === undefined) {
+    errors.area = 'Choose a current safe area for this placement.';
+  } else if (!region.allowedMethods.includes(edit.method)) {
+    const areaName = region.name?.trim() || 'unnamed area';
+    errors.method =
+      `Method “${edit.method || '(none)'}” is not offered in “${areaName}”. ` +
+      `Choose one of: ${region.allowedMethods.join(', ') || '(none configured)'}.`;
+  }
+  const widthMm = parseMm(edit.widthRaw);
+  if (widthMm === null || !(widthMm > 0)) {
+    errors.width = 'Width must be a number greater than 0 mm.';
+  }
+  const heightMm = parseMm(edit.heightRaw);
+  if (heightMm === null || !(heightMm > 0)) {
+    errors.height = 'Height must be a number greater than 0 mm.';
+  }
+  if (parseMm(edit.rotationRaw) === null) {
+    errors.rotation = 'Rotation must be a finite number of degrees.';
+  }
+  if (parseMm(edit.centreXRaw) === null) {
+    errors.x = 'X centre must be a finite millimetre number.';
+  }
+  if (parseMm(edit.centreYRaw) === null) {
+    errors.y = 'Y centre must be a finite millimetre number.';
+  }
+  return errors;
+}
+
+/**
+ * First blocking failure in Apply order (area → method → width → height →
+ * rotation → centre). Pure. Drives both the disabled-Apply reason and the
+ * single Apply-attempt announcement, so the two never disagree.
+ */
+export function firstSelectedEditError(errors: SelectedEditFieldErrors): string | undefined {
+  return errors.area ?? errors.method ?? errors.width ?? errors.height ??
+    errors.rotation ?? errors.x ?? errors.y;
+}
+
+/** Inline field-error paragraph with a stable hook/id for aria-describedby. No DOM outside the node. */
+function selectedFieldError(hook: string, message: string): HTMLElement {
+  const node = el('p', 'pw-error', hook);
+  node.id = hook;
+  node.textContent = message;
+  return node;
 }
 
 /** Normalize clockwise degrees to (-180, 180] (schema range). Pure. */
@@ -834,12 +912,17 @@ export function mountPlacementWorkspace(
     const project = deps.getProject();
     const product = project.products.find((entry) => entry.id === configuration.productId);
     const region = product?.regions.find((entry) => entry.id === edit.regionId);
-    if (region === undefined) {
+    // Shared with the inline field errors below: one rule set drives both
+    // the disabled-Apply reason and this Apply-attempt announcement, so the
+    // two never disagree. Announce strings are unchanged; the domain commit
+    // (updatePlacementInConfig try/catch) keeps its own validation.
+    const fieldErrors = validateSelectedEditFields(edit, region);
+    if (region === undefined || fieldErrors.area !== undefined) {
       announce('Apply blocked: choose a current safe area for this placement.');
       update();
       return;
     }
-    if (!region.allowedMethods.includes(edit.method)) {
+    if (fieldErrors.method !== undefined) {
       announce(
         `Apply blocked: method “${edit.method || '(none)'}” is not offered in ` +
         `“${region.name?.trim() || 'unnamed area'}”. Choose one of: ${region.allowedMethods.join(', ') || '(none configured)'}.`,
@@ -847,31 +930,32 @@ export function mountPlacementWorkspace(
       update();
       return;
     }
-    const widthMm = parseMm(edit.widthRaw);
-    const heightMm = parseMm(edit.heightRaw);
-    const rotationRaw = parseMm(edit.rotationRaw);
-    const xMm = parseMm(edit.centreXRaw);
-    const yMm = parseMm(edit.centreYRaw);
-    if (widthMm === null || !(widthMm > 0)) {
+    if (fieldErrors.width !== undefined) {
       announce('Apply blocked: Width must be a number greater than 0 mm.');
       update();
       return;
     }
-    if (heightMm === null || !(heightMm > 0)) {
+    if (fieldErrors.height !== undefined) {
       announce('Apply blocked: Height must be a number greater than 0 mm.');
       update();
       return;
     }
-    if (rotationRaw === null) {
+    if (fieldErrors.rotation !== undefined) {
       announce('Apply blocked: Rotation must be a finite number of degrees.');
       update();
       return;
     }
-    if (xMm === null || yMm === null) {
+    if (fieldErrors.x !== undefined || fieldErrors.y !== undefined) {
       announce('Apply blocked: Centre X/Y must be finite millimetre numbers.');
       update();
       return;
     }
+    // The validator passed, so these re-parses are non-null (parseMm is pure).
+    const widthMm = parseMm(edit.widthRaw)!;
+    const heightMm = parseMm(edit.heightRaw)!;
+    const rotationRaw = parseMm(edit.rotationRaw)!;
+    const xMm = parseMm(edit.centreXRaw)!;
+    const yMm = parseMm(edit.centreYRaw)!;
     const rotationDeg = normalizeRotationDeg(rotationRaw);
     let next: ProjectDocument;
     try {
@@ -1131,7 +1215,7 @@ export function mountPlacementWorkspace(
   function renderHeader(wrap: HTMLElement): void {
     const { project, selection } = currentContext();
     const title = el('h2', '', 'pw-title');
-    title.textContent = 'Set logo placements';
+    title.textContent = 'Set up & place logos';
     wrap.append(title);
     const products = optionProducts(project);
     const headerRow = el('div', 'pw-row pw-header', 'pw-header');
@@ -2800,7 +2884,7 @@ export function mountPlacementWorkspace(
     if (logoSelect.options.length === 0) {
       const note = el('p', 'pw-error', 'pw-add-no-included-logos');
       note.textContent =
-        'No selected artwork: tick a logo in Step 1 (Prepare the job) to place new artwork. Existing placements stay visible below.';
+        'No selected artwork: tick a logo in Step 1 (Prepare job) to place new artwork. Existing placements stay visible below.';
       form.append(note);
     }
     logoSelect.value = draft.logoId;
@@ -3074,6 +3158,14 @@ export function mountPlacementWorkspace(
     const edit = ensureStaged(project, configuration, placement, placementIndex);
     const key = placementKeyOf(configuration.id, placement, placementIndex);
     const pending = stagedDiffers(placement, edit);
+    // Inline Apply validation: same rule set applyStaged commits with.
+    // Errors render only while edits are pending (invalid edits stay pending
+    // and keep blocking save/review via hasPendingEdits); each keystroke
+    // re-renders without announcing, and Apply announces on attempt.
+    const fieldErrors = validateSelectedEditFields(
+      edit,
+      product.regions.find((entry) => entry.id === edit.regionId),
+    );
 
     const group = el('div', '', 'pw-selected');
     const heading = el('h3', '', 'pw-selected-title');
@@ -3134,6 +3226,13 @@ export function mountPlacementWorkspace(
     });
     areaLabel.append(areaSelect);
     group.append(areaLabel);
+    if (pending && fieldErrors.area !== undefined) {
+      areaSelect.setAttribute('aria-invalid', 'true');
+      areaSelect.setAttribute('aria-describedby', 'pw-area-error');
+      group.append(selectedFieldError('pw-area-error', fieldErrors.area));
+    } else {
+      areaSelect.setAttribute('aria-invalid', 'false');
+    }
 
     const widthLabel = el('label', 'pw-field', 'pw-field-width');
     widthLabel.textContent = 'Width (mm)';
@@ -3160,6 +3259,13 @@ export function mountPlacementWorkspace(
     });
     widthLabel.append(widthInput);
     group.append(widthLabel);
+    if (pending && fieldErrors.width !== undefined) {
+      widthInput.setAttribute('aria-invalid', 'true');
+      widthInput.setAttribute('aria-describedby', 'pw-width-error');
+      group.append(selectedFieldError('pw-width-error', fieldErrors.width));
+    } else {
+      widthInput.setAttribute('aria-invalid', 'false');
+    }
     group.append(helpPopover('pw-help-size', 'Width and height edit the same logo: when proportions are locked, changing one side scales the other. Partial numbers stay local until they are valid.'));
 
     const heightLabel = el('label', 'pw-field', 'pw-field-height');
@@ -3184,6 +3290,13 @@ export function mountPlacementWorkspace(
     });
     heightLabel.append(heightInput);
     group.append(heightLabel);
+    if (pending && fieldErrors.height !== undefined) {
+      heightInput.setAttribute('aria-invalid', 'true');
+      heightInput.setAttribute('aria-describedby', 'pw-height-error');
+      group.append(selectedFieldError('pw-height-error', fieldErrors.height));
+    } else {
+      heightInput.setAttribute('aria-invalid', 'false');
+    }
 
     const keep = el('label', 'pw-check', 'pw-field-keep');
     const keepBox = el('input', '', 'pw-keep') as HTMLInputElement;
@@ -3245,6 +3358,13 @@ export function mountPlacementWorkspace(
     });
     rotationLabel.append(rotationInput);
     group.append(rotationLabel);
+    if (pending && fieldErrors.rotation !== undefined) {
+      rotationInput.setAttribute('aria-invalid', 'true');
+      rotationInput.setAttribute('aria-describedby', 'pw-rotation-error');
+      group.append(selectedFieldError('pw-rotation-error', fieldErrors.rotation));
+    } else {
+      rotationInput.setAttribute('aria-invalid', 'false');
+    }
 
     renderMeasurements(group, project, configuration, placement, placementIndex);
 
@@ -3307,10 +3427,21 @@ export function mountPlacementWorkspace(
       const apply = el('button', 'pw-primary', 'pw-apply') as HTMLButtonElement;
       apply.type = 'button';
       apply.textContent = 'Apply changes';
+      // Same first failure applyStaged would announce: Apply stays disabled
+      // while any field is invalid, with the reason linked for AT.
+      const firstError = firstSelectedEditError(fieldErrors);
+      if (firstError !== undefined) {
+        apply.disabled = true;
+        apply.setAttribute('aria-describedby', 'pw-apply-reason');
+        apply.title = firstError;
+      }
       apply.addEventListener('click', () => {
         applyStaged(configuration, placement, placementIndex, edit);
       });
       applyRow.append(apply);
+      if (firstError !== undefined) {
+        applyRow.append(selectedFieldError('pw-apply-reason', `Apply disabled: ${firstError}`));
+      }
       group.append(applyRow);
     }
 
@@ -3331,6 +3462,13 @@ export function mountPlacementWorkspace(
     });
     xLabel.append(xInput);
     precise.append(xLabel);
+    if (pending && fieldErrors.x !== undefined) {
+      xInput.setAttribute('aria-invalid', 'true');
+      xInput.setAttribute('aria-describedby', 'pw-x-error');
+      precise.append(selectedFieldError('pw-x-error', fieldErrors.x));
+    } else {
+      xInput.setAttribute('aria-invalid', 'false');
+    }
     const yLabel = el('label', 'pw-field', 'pw-field-y');
     yLabel.textContent = 'Y centre (mm)';
     const yInput = el('input', '', 'pw-y') as HTMLInputElement;
@@ -3343,12 +3481,19 @@ export function mountPlacementWorkspace(
     });
     yLabel.append(yInput);
     precise.append(yLabel);
+    if (pending && fieldErrors.y !== undefined) {
+      yInput.setAttribute('aria-invalid', 'true');
+      yInput.setAttribute('aria-describedby', 'pw-y-error');
+      precise.append(selectedFieldError('pw-y-error', fieldErrors.y));
+    } else {
+      yInput.setAttribute('aria-invalid', 'false');
+    }
     const convention = el('p', 'pw-muted', 'pw-frame-convention');
     convention.textContent = region !== undefined
-      ? `Centre is the artwork bbox centre in the region frame (mm). ` +
+      ? `Centre is the centre of the rectangular artwork footprint in millimetres. ` +
       `Origin: ${region.frame.originDescription}; +x ${region.frame.axes.xPositive}; ` +
       `+y ${region.frame.axes.yPositive}. Rotation is clockwise degrees facing the region.`
-      : 'Centre is the artwork bbox centre in the region frame (mm).';
+      : 'Centre is the centre of the rectangular artwork footprint in millimetres.';
     precise.append(convention);
     group.append(precise);
 
@@ -3380,6 +3525,17 @@ export function mountPlacementWorkspace(
       });
       methodField.append(methodSelect);
       group.append(methodField);
+      if (pending && fieldErrors.method !== undefined) {
+        methodSelect.setAttribute('aria-invalid', 'true');
+        methodSelect.setAttribute('aria-describedby', 'pw-method-error');
+        group.append(selectedFieldError('pw-method-error', fieldErrors.method));
+      } else {
+        methodSelect.setAttribute('aria-invalid', 'false');
+      }
+    } else if (pending && fieldErrors.method !== undefined) {
+      // Single-method (or unconfigured) areas render no method control, yet
+      // Apply still requires an offered method: surface it inline here.
+      group.append(selectedFieldError('pw-method-error', fieldErrors.method));
     }
 
     const methods = el('details', '', 'pw-more-methods') as HTMLDetailsElement;

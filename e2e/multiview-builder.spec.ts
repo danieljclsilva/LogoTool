@@ -614,7 +614,10 @@ test('over-budget presentation add is rejected and leaves prior state untouched'
     await stageRowImage(page, 0, 'Extra', 'extra.png', png);
     await (await shown(page, 'product-name')).fill('Over budget');
     await (await shown(page, 'product-add')).click();
-    await expect(await shown(page, 'product-status')).toContainText('32-entry budget');
+    await expect(await shown(page, 'product-status')).toContainText('A job can hold at most 32 views in total.');
+    const diagnostic = page.locator('[data-builder-hook=builder-alert] pre');
+    await expect(diagnostic).toHaveText('The presentation budget (32 entries) is full. Previous products are unchanged.');
+    await expect(diagnostic).toBeHidden();
     expect(await productIds(page)).toEqual(before);
     // The presentation stays valid: issuing still works with the intact history.
     await selectAllLists(page);

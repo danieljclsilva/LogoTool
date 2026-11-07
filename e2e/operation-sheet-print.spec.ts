@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { countPdfPages, readMediaBox } from './sheet-fixtures.js';
 import type { Probe } from './helpers.js';
 
@@ -132,6 +132,7 @@ async function setupViewWithAnchor(page: Page, viewTab: string, anchorName: stri
 /** Add one placement on the current product; picks the safe area when several exist. */
 async function addPlacement(page: Page, logoLabel: string, areaLabel: string | null, widthMm: string, heightMm: string): Promise<void> {
   const host = builder(page, 'job-placement-host');
+  await ensurePlacementPanel(page);
   await host.getByRole('button', { name: 'Add logo placement' }).click();
   await pw(page, 'pw-add-logo').selectOption({ label: logoLabel });
   const area = pw(page, 'pw-add-area');

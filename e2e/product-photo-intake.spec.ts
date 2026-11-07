@@ -206,12 +206,8 @@ async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
 test('station intake: named views, gating, single empty state, workspace focus', async ({ browser }, info) => {
   test.setTimeout(240_000);
   const { context, page, probe } = await openBuilder(browser);
-  let dialogAction: 'accept' | 'dismiss' = 'accept';
-  page.on('dialog', async (dialog) => {
-    expect(dialog.message()).toContain('cleared');
-    if (dialogAction === 'accept') await dialog.accept();
-    else await dialog.dismiss();
-  });
+  let dialogCount = 0;
+  page.on('dialog', async (dialog) => { dialogCount += 1; await dialog.dismiss(); });
   try {
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
 
@@ -237,25 +233,22 @@ test('station intake: named views, gating, single empty state, workspace focus',
     await page.keyboard.press('ArrowLeft');
     await expect(await shown(page, 'intake-mode-images')).toBeChecked();
 
-    // Switching modes with staged files asks before clearing: dismiss keeps
-    // the staged 3D model, accept clears it.
+    // Both staging paths survive toggles. Add uses only the active mode.
     await (await shown(page, 'intake-mode-model')).check();
     const modelBytes = syntheticGlb();
     await (await shown(page, 'product-file')).setInputFiles({ name: 'shell.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(modelBytes) });
     await expect(await shown(page, 'intake-model-status')).toContainText('ready');
     await expect(addButton).toBeEnabled();
-    dialogAction = 'dismiss';
-    await (await shown(page, 'intake-mode-images')).click();
-    await expect(await shown(page, 'intake-mode-model')).toBeChecked();
-    await expect(await shown(page, 'intake-model-status')).toContainText('ready');
-    await expect(addButton).toBeEnabled();
-    dialogAction = 'accept';
     await (await shown(page, 'intake-mode-images')).click();
     await expect(await shown(page, 'intake-mode-images')).toBeChecked();
-    await expect(await shown(page, 'intake-model-status')).toContainText('No 3D model staged yet');
+    await expect(builder(page, 'intake-model-status')).toContainText('ready');
     await expect(addButton).toBeDisabled();
+    await (await shown(page, 'intake-mode-model')).check();
+    await expect(addButton).toBeEnabled();
+    await expect(builder(page, 'intake-model-status')).toContainText('shell.glb ready');
+    await (await shown(page, 'intake-mode-images')).click();
+    expect(dialogCount).toBe(0);
 
-    // Images: five freely named rows (no forced sides, no slot cap).
     const labels = ['Crown', 'Sleeve', 'Main view', 'Cuff', 'Hood'];
     const fills = ['#1d6f3a', '#6f1d3a', '#3a5a1d', '#1d4a6f', '#5a1d6f'];
     for (let index = 1; index < labels.length; index += 1) {

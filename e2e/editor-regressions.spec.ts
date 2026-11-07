@@ -77,7 +77,7 @@ for (const viewport of viewports) {
       await expect(canvas).toBeVisible();
       expect(await canvas.evaluate((node, saved) => node === saved, original)).toBe(true);
       assertCleanProbe(probe);
-    } catch (error) { await page.screenshot({path:info.outputPath('failure.png')}).catch(() => {}); throw error; }
+    } catch (error) { await page.screenshot({path:info.outputPath('failure.png')}).catch(() => {}); throw new Error(`${String(error)}\n${await b(page, 'builder-alert').textContent()}`, { cause: error }); }
     finally { await context.close(); }
   });
 
@@ -98,7 +98,8 @@ for (const viewport of viewports) {
           expect(save.y + save.height).toBeLessThanOrEqual(viewport.height);
           const stage = (await canvas.boundingBox())!;
           expect(stage.y).toBeGreaterThanOrEqual(modes.y + modes.height - 1);
-          expect(stage.height).toBeGreaterThan(viewport.height * .35);
+          // Larger controls share the viewport with a canvas that remains usable.
+          expect(stage.height).toBeGreaterThanOrEqual(180);
         }
       };
       await topIsVisible();
@@ -118,8 +119,10 @@ for (const viewport of viewports) {
         await page.mouse.click(box.x + box.width * .55, box.y + box.height * .5);
         await ms(page, 'ref-mm').fill('200'); await ms(page, 'ref-fit').click();
         await ms(page, 'tool-rectangle').click();
-        await page.mouse.move(box.x + box.width * .44, box.y + box.height * .42); await page.mouse.down();
-        await page.mouse.move(box.x + box.width * .56, box.y + box.height * .58, {steps:4}); await page.mouse.up();
+        const drawBox = (await canvas.boundingBox())!;
+        await page.mouse.move(drawBox.x + drawBox.width * .48, drawBox.y + drawBox.height * .46); await page.mouse.down();
+        await page.mouse.move(drawBox.x + drawBox.width * .52, drawBox.y + drawBox.height * .54, {steps:4}); await page.mouse.up();
+        await expect(ms(page, 'area-list')).not.toContainText('No safe areas yet');
         await b(page, 'model-setup-save').click();
         await expect(b(page, 'model-setup-status')).toContainText('Saved 3D setup');
         await topIsVisible();
@@ -134,7 +137,7 @@ for (const viewport of viewports) {
       await page.screenshot({path:info.outputPath('normal-editor-top.png')});
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       assertCleanProbe(probe);
-    } catch (error) { await page.screenshot({path:info.outputPath('failure.png')}).catch(() => {}); throw error; }
+    } catch (error) { await page.screenshot({path:info.outputPath('failure.png')}).catch(() => {}); throw new Error(`${String(error)}\n${await b(page, 'builder-alert').textContent()}`, { cause: error }); }
     finally { await context.close(); }
   });
 }

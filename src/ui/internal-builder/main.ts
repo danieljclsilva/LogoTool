@@ -310,6 +310,7 @@ productEditor.append(editorModes, setupSection, jobPlacementHost);
 // leaving an empty placement section behind the shared workspace.
 document.querySelector('[data-job-step="placements"]')?.remove();
 jobPlacementHost.setAttribute('data-job-step', 'placements');
+jobPlacementHost.setAttribute('aria-label', 'Set up & place logos');
 const productOptions = createCanvasContextPanel({host: productEditor, toolbar: editorModes, id:'product-options-context', label:'Product files'});
 productOptions.trigger.className = 'btn-secondary';
 productOptions.trigger.setAttribute('data-builder-hook','editor-files');
@@ -326,8 +327,8 @@ function paintEditor(): void {
   const active = editorOpen && (jobStep === 'prepare' || jobStep === 'placements');
   productEditor.hidden = !active;
   if (!active) productOptions.close();
-  if (active) editorModes.append(jobSave);
-  else if (saveHome.parentNode) saveHome.after(jobSave);
+  if (active) editorModes.append(jobSave, jobPersistence);
+  else if (saveHome.parentNode) { saveHome.after(jobSave); jobSave.after(jobPersistence); }
   const logos = active && jobStep === 'placements';
   productEditor.dataset.mode = logos ? 'logos' : 'setup';
   editorProductName.textContent = source?.project.products.find((item) => item.id === workspaceProductId)?.name ?? '';
@@ -341,8 +342,27 @@ function paintEditor(): void {
     productModelBox.dataset.mode = 'setup';
   }
   staffModelSetup?.setActive(!logos && active);
+  fitModelSetupStage();
   try { syncLightingControl(); } catch { /* lighting sync is advisory */ }
 }
+/** Fit the model between the wrapped toolbar and the persistent Save action. */
+function fitModelSetupStage(): void {
+  if (!editorOpen || modelExpansion.expanded() || window.innerWidth <= 820 ||
+      productEditor.dataset.mode !== 'setup' || productModelBox.hidden) return;
+  const footer = productModelBox.querySelector<HTMLElement>('.product-model-footer');
+  const top = productModelStage.getBoundingClientRect().top + window.scrollY;
+  const available = Math.max(180, window.innerHeight - top - (footer?.getBoundingClientRect().height ?? 0) - 16);
+  const height = `${Math.floor(available)}px`;
+  if (productModelBox.style.getPropertyValue('--model-stage-height') !== height) {
+    productModelBox.style.setProperty('--model-stage-height', height);
+  }
+}
+const editorLayoutObserver = new ResizeObserver(fitModelSetupStage);
+for (const node of [editorModes, productModelBox.querySelector('.product-model-toolbar'),
+  productModelBox.querySelector('.product-model-footer'), document.querySelector('.station-header'), builderAlert]) {
+  if (node) editorLayoutObserver.observe(node);
+}
+window.addEventListener('resize', fitModelSetupStage);
 function openUnifiedEditor(mode: 'setup' | 'logos'): void {
   if (!source) return;
   productOptions.close();
@@ -386,9 +406,33 @@ const modelSetupBox = hook<HTMLElement>('model-setup');
 const modelSetupSave = hook<HTMLButtonElement>('model-setup-save');
 const modelSetupProductsToggle = hook<HTMLInputElement>('model-setup-products-toggle');
 const modelSetupStatus = hook<HTMLElement>('model-setup-status');
-function alertBuilder(message = ''): void {
-  builderAlert.textContent = message;
-  builderAlert.hidden = !message;
+function alertBuilder(message = '', details?: string): void {
+  builderAlert.replaceChildren();
+  if (!message && !details) {
+    builderAlert.hidden = true;
+    return;
+  }
+  const headline = document.createElement('p');
+  headline.textContent = message;
+  builderAlert.append(headline);
+  if (details !== undefined && details !== '') {
+    const disclosure = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'Technical details';
+    const pre = document.createElement('pre');
+    pre.textContent = details;
+    disclosure.append(summary, pre);
+    builderAlert.append(disclosure);
+  }
+  builderAlert.hidden = false;
+}
+/** User-facing reparse failure: plain headline first, original string
+ * verbatim in collapsed Technical details. Preserves diagnostics. */
+function readableSetupError(technical: string): string {
+  if (!/repars/i.test(technical)) return technical;
+  const headline = 'The change couldn’t be applied. Your previous project is unchanged.';
+  alertBuilder(headline, technical);
+  return headline;
 }
 function newLocalId(): string {
   const cryptoRef = globalThis.crypto;
@@ -419,7 +463,7 @@ function ensureAutoProjectId(): void {
   }
 }
 /** Operator job-shell navigation (spec section 2): ONE three-step flow.
- * Labels exactly: 1 Prepare job → 2 Set logo placements → 3 Review document.
+ * Labels exactly: 1 Prepare job → 2 Set up & place logos → 3 Review document.
  * Back/step tabs preserve state and never generate files or reset a project.
  * Forward tabs enforce the same gates as primary actions and focus the first
  * specific unresolved field. */
@@ -696,8 +740,8 @@ interface PendingProductModel { bytes: Uint8Array; fileName: string; }
  * generated locally per draft — never the mutable human label) plus the
  * decoded file bytes. Row count is unbounded (no 4-slot cap); labels are
  * free text defaulted to "View N" when blank. The 3D path stages a single
- * GLB. Mode state governs which path stages; switching modes asks before
- * clearing the other path (no silent data loss).
+ * GLB. Mode state governs which path Add uses. Switching modes retains both
+ * staged collections until successful Add or a job reset.
  */
 type IntakeMode = 'images' | 'model';
 interface StagedIntakeView {
@@ -765,9 +809,9 @@ function updateControls(): void {
   // Operator job shell: header/landing/step gating (exact spec labels).
   const dirty = source?.dirty ?? false;
   jobPersistence.textContent = dirty
-    ? 'Changes are held in this browser. Save job to keep them.'
-    : (lastJobSaved
-      ? 'Job file download started. Keep the downloaded file to reopen this job.'
+    ? 'Unsaved changes \u2014 not yet downloaded.'
+    : (lastJobSaved && lastDownloadedName !== ''
+      ? `Downloaded ${lastDownloadedName} \u2014 keep this file to reopen the job.`
       : '');
   const gateMessage = jobPrepareGateMessage();
   jobPrepareGate.textContent = gateMessage;
@@ -812,6 +856,9 @@ function paintJobNavStateOnly(): void {
 let issueIdManual = false;
 /** A Save download has started at least once for the current dirty cycle. */
 let lastJobSaved = false;
+/** Suggested filename of the last initiated job download (initiation only,
+ * never verified disk persistence). Restored on open rollback. */
+let lastDownloadedName = '';
 /** Suppress dirty-marking while installing/loading (programmatic churn). */
 let suppressJobDirty = false;
 /** Generation guards for async save/open so stale reads never swap live state. */
@@ -843,9 +890,21 @@ function markJobDirty(): void {
 function clearJobDirtyState(saved: boolean): void {
   if (source) cleanSession(source);
   lastJobSaved = saved;
+  if (!saved) lastDownloadedName = '';
   pendingReplaceAction = null;
   updateControls();
 }
+// Warn on tab close with unsaved work or pending placement edits. Clean jobs
+// do not prompt. Chromium needs returnValue to show the prompt. The dialog
+// requires user activation in some contexts; where headless rules suppress
+// it, a cancellable event fallback (defaultPrevented on BeforeUnloadEvent)
+// still signals the guard in tests.
+window.addEventListener('beforeunload', (event) => {
+  if (source?.dirty === true || placementHandle?.hasPendingEdits() === true) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 /** Inline replacement guard: Save job / Discard changes / Keep editing. */
 function guardUnsavedReplace(action: () => void): void {
   if (source === null || !source.dirty) { action(); return; }
@@ -978,7 +1037,10 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
     const packageBytes = await createProjectPackage({ project, assets: referenced, additionalAssets: additional }, { sha256: hasher.sha256Bytes });
     if (!isSameSaveSession(source, snap) || generation !== jobSaveGeneration) return null;
     const safeCustomer = (customerName.value.trim() || 'job').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 60) || 'job';
-    downloadBytes(packageBytes, `${safeCustomer}-job.logo-project`, 'application/zip');
+    const suggestedName = `${safeCustomer}-job.logo-project`;
+    downloadBytes(packageBytes, suggestedName, 'application/zip');
+    // Download initiation only: the browser cannot verify disk persistence.
+    lastDownloadedName = suggestedName;
     if (snap.session.editCounter === snap.editCounter) {
       // No newer edits arrived while saving: the file matches the live job.
       clearJobDirtyState(true);
@@ -991,7 +1053,7 @@ async function saveJobToFile(): Promise<'clean' | 'stale' | null> {
     updateControls();
     return 'stale';
   } catch (error) {
-    alertBuilder(`Could not save the job: ${error instanceof Error ? error.message : String(error)}`);
+    alertBuilder('The job could not be saved. Previous state is unchanged.', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -1051,6 +1113,7 @@ async function loadJobFile(file: File): Promise<void> {
     session: source,
     customer: customerName.value, reference: jobRef.value, preparedBy: issuedBy.value,
     saved: lastJobSaved,
+    downloadedName: lastDownloadedName,
   };
   try {
     if (file.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) throw new Error('archive size exceeds limit; rejected before reading');
@@ -1125,6 +1188,7 @@ async function loadJobFile(file: File): Promise<void> {
       jobRef.value = rollback.reference;
       issuedBy.value = rollback.preparedBy;
       lastJobSaved = rollback.saved;
+      lastDownloadedName = rollback.downloadedName;
       refreshWorkspace();
       updateControls();
     }
@@ -1957,43 +2021,21 @@ function resetIntakeStaging(): void {
   addIntakeViewRow();
 }
 
-/** Switch Images/3D mode; a staged other path is cleared only on confirm. */
+/** Switch Images/3D mode; both staged paths are retained, no confirm. */
 function setIntakeMode(next: IntakeMode): void {
   if (next === intakeMode) {
     paintIntakeMode();
     return;
   }
-  if (next === 'model') {
-    const stagedCount = intakeReadyViews().length;
-    if (stagedCount > 0 && !window.confirm(`Switch to 3D model? The ${stagedCount} staged view image${stagedCount === 1 ? '' : 's'} will be cleared. This cannot be undone.`)) {
-      paintIntakeMode();
-      return;
-    }
-    for (const url of intakeThumbUrls.values()) URL.revokeObjectURL(url);
-    intakeThumbUrls.clear();
-    stagedIntakeViews = [];
-    renderIntakeViewRows();
-    intakeMode = 'model';
-    paintIntakeMode();
-    productStatus.textContent = stagedCount > 0
-      ? 'Switched to 3D model: staged view images were cleared. Choose a .glb file.'
-      : 'Switched to 3D model. Choose a .glb file.';
-    refreshIntakeReadiness();
-    updateControls();
-    return;
-  }
-  if (pendingPrimaryModel !== null && !window.confirm('Switch to Images? The staged 3D model will be cleared. This cannot be undone.')) {
-    paintIntakeMode();
-    return;
-  }
-  pendingPrimaryModel = null;
-  intakeModelStatus.textContent = 'No 3D model staged yet.';
-  intakeMode = 'images';
-  if (stagedIntakeViews.length === 0) addIntakeViewRow();
+  intakeMode = next;
   paintIntakeMode();
-  renderIntakeViewRows();
-  productStatus.textContent = 'Switched to Images: the staged 3D model was cleared. Choose a view image.';
+  // Retain both collections and their existing thumbnail URLs.
+  if (next === 'images' && stagedIntakeViews.length === 0) addIntakeViewRow();
   refreshIntakeReadiness();
+  const otherFilesStaged = next === 'model' ? intakeReadyViews().length > 0 : pendingPrimaryModel !== null;
+  if (otherFilesStaged) {
+    productStatus.textContent += ' Staged files in the other mode are kept if you switch back.';
+  }
   updateControls();
 }
 
@@ -2200,8 +2242,14 @@ async function addProductFromStaged(): Promise<void> {
   productImporting = true;
   updateControls();
   try {
-    const readyRows = intakeReadyViews().map((row) => ({ row, name: stagedViewDisplayName(row, stagedIntakeViews.indexOf(row)) }));
-    if (intakeMode === 'model' ? pendingPrimaryModel === null : readyRows.length === 0) {
+    // Filter BOTH staged collections to the active mode BEFORE naming, asset,
+    // manifest or calibration logic: Add exports the active mode only, the
+    // other path stays staged. Failed Add retains both.
+    const readyRows = intakeMode === 'model' ? [] : intakeReadyViews().map((row) => ({
+      row, name: stagedViewDisplayName(row, stagedIntakeViews.indexOf(row)),
+    }));
+    const activeModel = intakeMode === 'model' ? pendingPrimaryModel : null;
+    if (activeModel === null && readyRows.length === 0) {
       // The disabled Add button normally prevents this; a stale click still
       // gets concise guidance instead of a silent no-op.
       refreshIntakeReadiness();
@@ -2211,7 +2259,7 @@ async function addProductFromStaged(): Promise<void> {
     const snapshot = source;
     const wantedName = productName.value.trim();
     productCounter += 1;
-    const fallbackFileName = pendingPrimaryModel?.fileName ?? readyRows[0]?.row.staged?.fileName ?? 'product';
+    const fallbackFileName = activeModel?.fileName ?? readyRows[0]?.row.staged?.fileName ?? 'product';
     const candidateId = `provisional-product-${safeProductSegment(wantedName || fallbackFileName)}-${productCounter}-${newLocalId().slice(0, 8)}`;
     const made = createProvisionalProduct({ id: candidateId, ...(wantedName ? { name: wantedName } : {}), kind: 'other' });
     if (!made.ok) {
@@ -2222,7 +2270,7 @@ async function addProductFromStaged(): Promise<void> {
     const variantId = made.product.variants[0]!.id;
     const mintedProduct: ProjectDocument['products'][number] = JSON.parse(JSON.stringify(made.product)) as ProjectDocument['products'][number];
     const safe = safeProductSegment(productId);
-    const stagedModel = pendingPrimaryModel;
+    const stagedModel = activeModel;
     if (generation !== productGeneration) return;
     const assets: Array<{ path: string; bytes: Uint8Array }> = [];
     const views: Array<{ view: string; image: string; label?: string }> = [];
@@ -2314,9 +2362,9 @@ async function addProductFromStaged(): Promise<void> {
       }
     }
     const mergedCount = mergedManifest.views.length + (mergedManifest.models?.length ?? 0) + (mergedManifest.references?.length ?? 0);
-    if (mergedCount > 32) {
-      productStatus.textContent = `Could not add product: the presentation manifest would hold ${mergedCount} entries, over the 32-entry budget. Remove a product or issue first; previous products are unchanged.`;
-      alertBuilder('The presentation budget (32 entries) is full. Previous products are unchanged.');
+    if (mergedCount > PRESENTATION_VIEW_LIMITS.manifestBudget) {
+      productStatus.textContent = `A job can hold at most ${PRESENTATION_VIEW_LIMITS.manifestBudget} views in total. Previous products are unchanged.`;
+      alertBuilder(`A job can hold at most ${PRESENTATION_VIEW_LIMITS.manifestBudget} views in total. Previous products are unchanged.`, `The presentation budget (${PRESENTATION_VIEW_LIMITS.manifestBudget} entries) is full. Previous products are unchanged.`);
       return;
     }
     const manifestBytes = new TextEncoder().encode(JSON.stringify(mergedManifest));
@@ -2375,8 +2423,9 @@ async function addProductFromStaged(): Promise<void> {
     productStatus.textContent = `Added preview-only product ${mintedProduct.name ?? productId} (${viewCountText}). It carries no measurements yet — its setup is open below: draw the safe area, place anchors, then save once.${historyNote}`;
   } catch (error) {
     if (generation === productGeneration) {
-      productStatus.textContent = `Could not add product: ${error instanceof Error ? error.message : String(error)}. Previous products are unchanged.`;
-      alertBuilder('The product could not be added. Previous products are unchanged.');
+      const technical = error instanceof Error ? error.message : String(error);
+      productStatus.textContent = 'The product could not be added. Previous products are unchanged.';
+      alertBuilder(productStatus.textContent, technical);
     }
   } finally {
     if (generation === productGeneration) { productImporting = false; updateControls(); }
@@ -2854,8 +2903,9 @@ async function attachProductPhotoFile(file: File, viewKey: string): Promise<void
     });
   } catch (error) {
     if (fresh()) {
-      productPhotoStatus.textContent = `Could not attach ${submittedFileName}: ${error instanceof Error ? error.message : String(error)}`;
-      alertBuilder(`The view image could not be attached. Previous products are unchanged.`);
+      const technical = error instanceof Error ? error.message : String(error);
+      productPhotoStatus.textContent = `Could not attach ${submittedFileName}. Previous products are unchanged.`;
+      alertBuilder('The view image could not be attached. Previous products are unchanged.', technical);
     }
   } finally {
     photoAttaching = false;
@@ -3171,8 +3221,9 @@ async function attachSlugViewImage(file: File, viewKey: string): Promise<void> {
     });
   } catch (error) {
     if (fresh()) {
-      productPhotoStatus.textContent = `Could not attach ${submittedFileName}: ${error instanceof Error ? error.message : String(error)}`;
-      alertBuilder(`The view image could not be attached. Previous products are unchanged.`);
+      const technical = error instanceof Error ? error.message : String(error);
+      productPhotoStatus.textContent = `Could not attach ${submittedFileName}. Previous products are unchanged.`;
+      alertBuilder('The view image could not be attached. Previous products are unchanged.', technical);
     }
   } finally {
     photoAttaching = false;
@@ -3364,8 +3415,9 @@ async function renameExistingView(viewKey: string, rawLabel: string): Promise<vo
     });
   } catch (error) {
     if (fresh()) {
-      productPhotoStatus.textContent = `Could not rename the view image: ${error instanceof Error ? error.message : String(error)}`;
-      alertBuilder(`The view image could not be renamed. Previous products are unchanged.`);
+      const technical = error instanceof Error ? error.message : String(error);
+      productPhotoStatus.textContent = 'The view image could not be renamed. Previous products are unchanged.';
+      alertBuilder('The view image could not be renamed. Previous products are unchanged.', technical);
     }
   } finally {
     photoAttaching = false;
@@ -3803,7 +3855,15 @@ function mountJobModules(): void {
       prepareProject: (project) => hasher.prepareProject(project),
       sha256Hex: hasher.sha256Hex,
       sha256Bytes: hasher.sha256Bytes,
-      readEditorBytes: () => embeddedEditorBytes(),
+      readEditorBytes: () => {
+        try {
+          return embeddedEditorBytes();
+        } catch (error) {
+          alertBuilder('The customer file could not be created. Rebuild the station and try again.',
+            error instanceof Error ? error.message : String(error));
+          throw new Error('Rebuild the station and try again. Technical details are available in the alert.');
+        }
+      },
       sanitizeJobPart: (value) => safeJobPart(value),
       downloadBytes: (bytes, fileName, mime) => downloadBytes(bytes, fileName, mime),
       readAdditionalAssets: () => readBranchAdditionalAssets(),
@@ -4931,7 +4991,7 @@ async function saveWorkspaceSetup(
   if (source === null) return { ok: false, error: 'No project is open; create or open one first. Nothing was saved.' };
   const snapshot = source;
   const stale = (): boolean => source !== snapshot;
-  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: `${error} Nothing was saved.` });
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: readableSetupError(`${error} Nothing was saved.`) });
   try {
     const product = snapshot.project.products.find((entry) => entry.id === scope.productId);
     if (!product) return fail(`Product “${scope.productId}” is no longer in the project.`);
@@ -5734,7 +5794,7 @@ function modelSnapshotKey(productId: string, variantId: string | null): string {
 }
 
 function parseModelSetupSidecar(bytes: Uint8Array): { ok: true; sidecar: ModelSetupSidecarFile } | { ok: false; error: string } {
-  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: readableSetupError(error) });
   if (bytes.length === 0 || bytes.length > SETUP_SPAN_SIDECAR_MAX_BYTES) {
     return fail('model setup sidecar is empty or exceeds the 64 KiB sidecar bound');
   }
@@ -6104,6 +6164,8 @@ async function commitModelSetup(): Promise<void> {
       const validated = validateProject(next);
       if (!validated || validated.ok !== true) {
         modelSetupStatus.textContent = 'The project rejects this 3D setup. Nothing was saved.';
+        alertBuilder('The 3D setup could not be saved. Check the measured area.',
+          validated && !validated.ok ? validated.errors.map((error) => `${error.path}: ${error.message}`).join('\n') : 'Project validation did not return a result.');
         return;
       }
       const liveBytes = sessionAssetMap().get(found.modelPath);
@@ -6137,7 +6199,8 @@ async function commitModelSetup(): Promise<void> {
       const back = await parseProjectPackage(packageBytes, { sha256: hasher.sha256Bytes });
       assertProjectEditorLimits(back.project);
       if (canonicalize(back.project) !== canonicalize(next)) {
-        modelSetupStatus.textContent = 'The reparse changed the project; the previous project is unchanged.';
+        modelSetupStatus.textContent = 'The 3D setup could not be saved. Previous state is unchanged.';
+        alertBuilder('The 3D setup could not be saved. Previous state is unchanged.', 'The reparse changed the project; the previous project is unchanged.');
         return;
       }
       const backSidecar = back.assets.find((asset) => asset.path === sidecarPath);
@@ -6145,7 +6208,8 @@ async function commitModelSetup(): Promise<void> {
         backSidecar.bytes.length === sidecarBytes.length &&
         backSidecar.bytes.every((value, index) => value === sidecarBytes[index]);
       if (!sidecarIdentical) {
-        modelSetupStatus.textContent = 'The reparse lost the 3D setup; the previous project is unchanged.';
+        modelSetupStatus.textContent = 'The 3D setup could not be saved. Previous state is unchanged.';
+        alertBuilder('The 3D setup could not be saved. Previous state is unchanged.', 'The reparse lost the 3D setup; the previous project is unchanged.');
         return;
       }
       const backProduct = back.project.products.find((entry) => entry.id === activeId);
@@ -6157,7 +6221,8 @@ async function commitModelSetup(): Promise<void> {
           after.calibrationRef.calibrationId === calibrationId;
       });
       if (!regionsOk) {
-        modelSetupStatus.textContent = 'The reparse lost a projected region; the previous project is unchanged.';
+        modelSetupStatus.textContent = 'The 3D setup could not be saved. Previous state is unchanged.';
+        alertBuilder('The 3D setup could not be saved. Previous state is unchanged.', 'The reparse lost a projected region; the previous project is unchanged.');
         return;
       }
       pushHistoryForEdit('Update product setup and assets');
@@ -6178,7 +6243,9 @@ async function commitModelSetup(): Promise<void> {
           : '') +
         `Reopen the master to retain it. Provisional pending review, never production-approved.`;
     } catch (error) {
-      modelSetupStatus.textContent = `Could not save the 3D setup: ${error instanceof Error ? error.message : String(error)}. Previous state is unchanged.`;
+      const technical = error instanceof Error ? error.message : String(error);
+      modelSetupStatus.textContent = 'The 3D setup could not be saved. Previous state is unchanged.';
+      alertBuilder('The 3D setup could not be saved. Previous state is unchanged.', technical);
     }
   }, () => {
     modelSetupStatus.textContent = 'The project changed before saving started; save again. Nothing was saved.';
@@ -6226,7 +6293,7 @@ async function commitGuidedScale(
   const submittedSource = source;
   const submittedSession = sourceSession;
   return enqueueWorkspaceCommit(async () => {
-  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: error });
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: readableSetupError(error) });
   if (source !== submittedSource || sourceSession !== submittedSession) {
     return fail('The project changed before measuring started (new file opened or product added); measure again.');
   }
@@ -6495,7 +6562,7 @@ function spanPhotoVariantScope(imagePath: string): string | undefined {
 }
 
 function parseSpanSidecar(bytes: Uint8Array): { ok: true; sidecar: SpanSidecarFile } | { ok: false; error: string } {
-  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: readableSetupError(error) });
   if (bytes.length === 0 || bytes.length > SETUP_SPAN_SIDECAR_MAX_BYTES) {
     return fail('span sidecar is empty or exceeds the 64 KiB sidecar bound');
   }
@@ -6589,7 +6656,7 @@ async function commitGuidedSpan(
   const submittedSource = source;
   const submittedSession = sourceSession;
   return enqueueWorkspaceCommit(async () => {
-  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: error });
+  const fail = (error: string): { ok: false; error: string } => ({ ok: false, error: readableSetupError(error) });
   if (source !== submittedSource || sourceSession !== submittedSession) {
     return fail('The project changed before measuring started (new file opened or product added); measure again.');
   }

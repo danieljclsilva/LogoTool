@@ -7,7 +7,7 @@ import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
-import { BUILDER_URL, gotoBuilder, revealBuilderControl } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -25,7 +25,7 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 //   [data-builder-hook="job-landing-response"], status
 //   [data-builder-hook="job-landing-status"].
 // - Shell: [data-builder-hook="job-step-1"] ("1 Prepare job"),
-//   [data-builder-hook="job-step-2"] ("2 Set logo placements"),
+//   [data-builder-hook="job-step-2"] ("2 Set up & place logos"),
 //   [data-builder-hook="job-step-3"] ("3 Review document"). Step 1 holds the
 //   identity inputs (customer-name/job-ref/issued-by), the Products/Logos
 //   selection lists, and [data-builder-hook="job-to-placements"] with the
@@ -392,7 +392,7 @@ test('create starts a truly empty draft with no demo UI', async ({ browser }) =>
     await expect(builder(page, 'job-step-1').locator('.n')).toHaveText('1');
     await expect(builder(page, 'job-step-1').locator('.t')).toHaveText('Prepare job');
     await expect(builder(page, 'job-step-2').locator('.n')).toHaveText('2');
-    await expect(builder(page, 'job-step-2').locator('.t')).toHaveText('Set logo placements');
+    await expect(builder(page, 'job-step-2').locator('.t')).toHaveText('Set up & place logos');
     await expect(builder(page, 'job-step-3').locator('.n')).toHaveText('3');
     await expect(builder(page, 'job-step-3').locator('.t')).toHaveText('Review document');
     await expect(page.locator('[data-job-step="prepare"]')).toContainText('Prepare the job');
@@ -660,6 +660,7 @@ test('create supports zero logos and distinct duplicate logo filenames', async (
     await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
     await selectWorkspaceOption(page, 'SYN-CAP-001');
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await expect(await pshown(page, 'pw-add-no-included-logos')).toContainText('tick a logo in Step 1');
     await expect((await pshown(page, 'pw-add-logo')).locator('option')).toHaveCount(0);
@@ -777,7 +778,7 @@ test('save job round-trips through a fresh open with geometry and identity intac
     await setListSelection(page, 'product-list', ['SYN-TEE-001', 'SYN-CAP-001']);
     await setListSelection(page, 'logo-list', ['SYN-LOGO-A']);
     await fillIdentity(page, 'Save Customer', 'SAVE-01', 'Save operator');
-    await expect(await shown(page, 'job-persistence')).toContainText('Changes are held in this browser.');
+    await expect(await shown(page, 'job-persistence')).toContainText('Unsaved changes — not yet downloaded.');
     // Staff-authored operational instructions (department text, committed on blur).
     await builder(page, 'job-step-3').click();
     await expect(page.locator('[data-job-step="prepare"]')).toBeHidden();
@@ -788,7 +789,7 @@ test('save job round-trips through a fresh open with geometry and identity intac
     const savedJob = await readDownload(page, 'save-roundtrip.logo-project', () =>
       builder(page, 'job-save').click());
     expect(savedJob.name).toBe('Save-Customer-job.logo-project');
-    await expect(await shown(page, 'job-persistence')).toContainText('Job file download started.');
+    await expect(await shown(page, 'job-persistence')).toHaveText('Downloaded Save-Customer-job.logo-project — keep this file to reopen the job.');
     const savedParsed = await parseProjectPackage(savedJob.bytes, { sha256 });
     // Save keeps the full editable project (scope travels in the versioned
     // sidecar and is reapplied on open); only issues narrow the selection.

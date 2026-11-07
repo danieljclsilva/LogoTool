@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import type { Probe } from './helpers.js';
 
 // Visual operation dimensions acceptance through the operator job shell:
@@ -151,6 +151,7 @@ test('four select-based measurements across two logos print and export', async (
 
     // Two placements of the two artworks.
     for (const [logo, width, height] of [['crest', '90', '40'], ['star', '60', '30']] as const) {
+      await ensurePlacementPanel(page);
       await host.getByRole('button', { name: 'Add logo placement' }).click();
       await pw(page, 'pw-add-logo').selectOption({ label: logo });
       const addMethod = pw(page, 'pw-add-method');

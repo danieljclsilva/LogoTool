@@ -29,7 +29,7 @@ const sha256bytes: ProjectPackageSha256 = async (bytes) => createHash('sha256').
 // no dependency on the repository checkout, rejected inputs keep state, and
 // no staff action navigates to (or downloads) another staff HTML page.
 // The operator job shell contract: landing "Prepare an operational document",
-// three steps (Prepare job → Set logo placements → Review document), and the
+// three steps (Prepare job → Set up & place logos → Review document), and the
 // "Send for customer approval" branch for both customer file formats.
 
 function builder(page: Page, name: string) {

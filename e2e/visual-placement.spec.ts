@@ -4,7 +4,7 @@ import { release } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
-import { gotoBuilder, revealBuilderControl } from './helpers.js';
+import { gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 
 // Visual placement acceptance (lead-owned slice): direct on-logo pointer
 // handles on the photo/diagram stage. Synthetic fixtures only, offline
@@ -109,6 +109,7 @@ test('visual placement: photo/diagram handles move, resize, rotate, cancel, sibl
     await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
 
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');

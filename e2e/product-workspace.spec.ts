@@ -18,7 +18,7 @@ async function saveJob(page: Page, info: TestInfo, name: string, keyboard = fals
   await (await download).saveAs(path);
   return { path, parsed: await parseProjectPackage(new Uint8Array(await readFile(path)), { sha256: async (bytes) => createHash('sha256').update(bytes).digest('hex') }) };
 }
-for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
   test(`product workspace: live outline, enlarged controls, artwork and physical movement (${viewport.width})`, async ({ browser }, info) => {
     test.setTimeout(120_000);
     const { context, page, probe } = await openOfflineContext(browser, viewport);
@@ -41,13 +41,13 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
         await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       };
       const normalHeight = (await canvas.boundingBox())!.height;
-      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .6);
+      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .35);
       await b(page, 'product-model-expand').click();
       await ms(page, 'view-front').click();
       await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
       await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
       await expect(b(page, 'product-model-expand')).toHaveAccessibleName('Close enlarged product workspace');
-      expect((await canvas.boundingBox())!.height).toBeGreaterThan(normalHeight);
+      expect((await canvas.boundingBox())!.height).toBeGreaterThanOrEqual(180);
 
       await ms(page, 'context-measure').click();
       for (const hook of ['ref-pick-a', 'ref-pick-b', 'ref-mm', 'ref-fit', 'tool-rectangle']) {

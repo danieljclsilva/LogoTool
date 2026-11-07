@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { gotoBuilder, revealBuilderControl } from './helpers.js';
+import { gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
 // Operator workflow acceptance (lead-owned): the agreed three-step direct
-// path (Prepare job → Set logo placements → Review document) without any
+// path (Prepare job → Set up & place logos → Review document) without any
 // customer file, return, or invented confirmation. Real intake, real setup,
 // real placement, real measurement, real technique data; Save job → fresh
 // station → Open job restores every field; the optional approval branch
@@ -217,7 +217,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       await (await shown(page, 'customer-name')).fill('Acme Ltd');
       await (await shown(page, 'job-ref')).fill('JOB-001');
       await (await shown(page, 'issued-by')).fill('Pat');
-      await expect(builder(page, 'job-persistence')).toHaveText('Changes are held in this browser. Save job to keep them.');
+      await expect(builder(page, 'job-persistence')).toHaveText('Unsaved changes — not yet downloaded.');
 
       // Two real products; only the first is calibrated below.
       const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
@@ -255,6 +255,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       // need no selectors, while the exact selection keeps working underneath.
       await expect(host.locator('[data-placement-hook="pw-product-select"]')).toHaveCount(0);
       await expect(host.locator('[data-placement-hook="pw-option-select"]')).toHaveCount(0);
+      await ensurePlacementPanel(page);
       await host.getByRole('button', { name: 'Add logo placement' }).click();
       const addMinHeight = await host.locator('[data-placement-hook="pw-add-placement"]').evaluate((node) => parseFloat(getComputedStyle(node as HTMLElement).minHeight));
       expect(addMinHeight).toBeGreaterThanOrEqual(44);
@@ -364,7 +365,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
 
       // Save job → exact package bytes.
       const jobPath = await downloadTo(page, builder(page, 'job-save'), info.outputPath(`job-${viewport.label}.logo-project`));
-      await expect(builder(page, 'job-persistence')).toHaveText('Job file download started. Keep the downloaded file to reopen this job.');
+      await expect(builder(page, 'job-persistence')).toHaveText('Downloaded Acme-Ltd-job.logo-project — keep this file to reopen the job.');
       const savedBytes = new Uint8Array(await readFile(jobPath));
       const saved = await parseProjectPackage(savedBytes, { sha256 });
       expect(saved.project.products).toHaveLength(2);
@@ -669,6 +670,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     // message names the artwork and the area (spec wording), review carries
     // the exact geometry reason with a Fix link, and complete print is
     // disabled. Blocking items offer no unmarked production output.
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
@@ -688,6 +690,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     await reviewHost.getByRole('button', { name: 'Back to placements' }).click();
     await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
     await host.getByRole('button', { name: 'Remove placement' }).click();
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
     await pw(page, 'pw-add-width').fill('90');
@@ -773,6 +776,7 @@ test('artwork selection: add choices selected-only, excluded-used stays resolvab
     await starRow.locator('input[type="checkbox"]').uncheck();
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     const options = await pw(page, 'pw-add-logo').locator('option').allInnerTexts();
     expect(options).toContain('crest');
@@ -849,6 +853,7 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     // A 90 mm placement on the 280 mm region renders at the canonical ratio
     // through the overlay mapping — millimetres through the region frame,
     // never from pixels.
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
@@ -954,7 +959,7 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
     // One visible heading for the step (no duplicated shell/module titles).
-    await expect(host.locator('h2', { hasText: 'Set logo placements' })).toHaveCount(1);
+    await expect(host.locator('h2', { hasText: 'Set up & place logos' })).toHaveCount(1);
     expect(await page.locator('[data-job-step="placements"] h2.task-title').count()).toBe(0);
     // The span-calibrated front view renders the photo overlay with the
     // truthful provisional warning; the unmapped back view stays diagram.
@@ -975,6 +980,7 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await expect(host.locator('[data-placement-hook="pw-overlay-provisional"]')).toContainText('Provisional calibrated preview');
     // A 90 mm placement on the drawn area tracks canonical millimetres:
     // 20% of the 400 px photo at 1300 mm per 160 px span = 650 mm wide.
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
@@ -1084,6 +1090,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await expect(host).toContainText('Place logos on the product');
     await expect(host.locator('[data-placement-hook="pw-model-canvas"]')).toBeVisible();
     await expect(host.locator('[data-placement-hook="pw-overlay-image"]')).toHaveCount(0);
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createProjectPackage } from '../src/packaging/project-package/index.js';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import type { Probe } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -280,7 +280,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → jo
     const job = await jobEvent;
     const jobPath = info.outputPath('visual-setup.job.logo-project');
     await job.saveAs(jobPath);
-    await expect(builder(page, 'job-persistence')).toHaveText('Job file download started. Keep the downloaded file to reopen this job.');
+    await expect(builder(page, 'job-persistence')).toHaveText('Downloaded Visual-Customer-job.logo-project — keep this file to reopen the job.');
     const expectedCorners = stagedAfter;
     const saved = await parseProjectPackage(new Uint8Array(await readFile(jobPath)), { sha256 });
     const savedScope = saved.project.products[0]!.regions[0]!;
@@ -335,6 +335,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → jo
       await fresh.locator('[data-builder-hook="job-to-placements"]').click();
       await expect(fresh.locator('[data-job-step="placements"]')).toBeVisible();
       const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
+      await ensurePlacementPanel(page);
       await freshHost.getByRole('button', { name: 'Add logo placement' }).click();
       await fresh.locator('[data-placement-hook="pw-add-logo"]').selectOption({ label: 'crest' });
       const freshMethod = fresh.locator('[data-placement-hook="pw-add-method"]');

@@ -28,11 +28,15 @@ tests are synthetic; optional raster reference photos and artwork thumbnails
 are visual aids only.
 
 The header offers **Save job**, **Open job**, **New job** (secondary job
-actions) plus **Open customer response**. A persistence line below reads
-`Changes are held in this browser. Save job to keep them.` while dirty and
-`Job file download started. Keep the downloaded file to reopen this job.`
-after download. After create/open, ONE three-step navigation runs the normal
-path — **1 Prepare job → 2 Set logo placements → 3 Review document** — with
+actions) plus **Open customer response**. A persistence status sits directly
+beside **Save job** in the header — a single `role=status` node that travels
+with Save job into the unified editor command row — and reads
+`Unsaved changes — not yet downloaded.` while dirty and
+`Downloaded <fileName> — keep this file to reopen the job.` after download.
+The download wording reports initiation only: the page cannot verify the file
+was written, so it never claims "Saved". After create/open, ONE three-step
+navigation runs the normal path — **1 Prepare job → 2 Set up & place logos
+→ 3 Review document** — with
 no parallel customer-packaging wizard. Back/step tabs preserve state and never
 generate files; forward tabs enforce the same gates as the primary actions.
 New job or opening a file with unsaved changes asks **Save job / Discard
@@ -52,9 +56,9 @@ save-and-continue replaces the job.
    safe areas`, `Setup saved` — configuration completeness, never production
    approval) and `Set up`. Logos are preview + name cards with an `Add logo`
    chooser; multiple and zero logos are valid. The primary
-   **Set logo placements** requires at least one included product and a
+   **Set up & place logos** requires at least one included product and a
    structurally valid job; calibration gaps surface on Step 2, never here.
-2. **Set logo placements.** Heading `Set logo placements` (single step/module title), with product /
+2. **Set up & place logos.** Heading `Set up & place logos` (single step/module title), with product /
    option selectors (hidden when single), named view tabs, and either
    calibrated photo overlays, a calibrated 3D product workspace, or the authoritative region-mm `Measured placement diagram`. Photo overlays appear wherever the
    exact scope (product + region + option + view + image + calibration) has a valid evaluated mapping: the primary
@@ -74,7 +78,9 @@ save-and-continue replaces the job.
    scale, never pixels or mesh bounds. This remains a provisional planar
    physical mapping; surface-following artwork is a visual preview. Stale,
    missing or foreign model setup evidence never substitutes a guessed mapping.
-   Action buttons meet a 44px minimum on desktop and narrow layouts. `Add logo placement` opens an
+   Editor action buttons and selects meet a 44px minimum with 14px text on
+  desktop and narrow layouts, and the dashed drop-zone border meets 3:1
+  contrast on white. `Add logo placement` opens an
    inline form (Logo, Safe area, Width/Height mm, Method); starting position
    is the region centre, never invented sizes. Selected-placement controls run
    Logo, Safe area, Width/Height, Keep proportions, Rotation, Placement
@@ -359,7 +365,7 @@ acceptance evidence.
 
 ### Pick production dimensions visually
 
-In Step 2 (Set logo placements), use **Add measurement** on a selected logo:
+In Step 2 (Set up & place logos), use **Add measurement** on a selected logo:
 choose the named anchor, the artwork edge and the convention, optionally pick
 anchor then logo edge on the calibrated photo overlay (**Pick on diagram**),
 review the resulting mm distance, then **Save measurement**. Horizontal (dx)
@@ -525,3 +531,48 @@ A local recoverable checkpoint includes the binary Git patch and every
 modified/untracked source file, with HEAD and SHA-256 manifest. No commit or
 push was made. Refactoring has not started. Windows Chrome/Edge file delivery,
 native print dialogs and physical production verification remain untested.
+
+## Logo Station UX improvements — 7 November 2026
+
+The reviewed plan covered unsaved-work protection, visible download status,
+consistent step names, reversible intake switching, readable diagnostics,
+editor controls and inline placement validation. The review confirmed the
+step-label mismatch and the active-mode intake bug. The retained hidden
+identity/format panel still supplies bound controls. Review diagnostics already
+live inside the collapsed **More output options** disclosure.
+
+The chosen Step 2 name is **Set up & place logos** throughout the stepper,
+forward action, workspace heading and accessible label. The persistence line
+travels beside **Save job** into the product editor. It wraps on narrow screens
+and records the actual suggested filename using the exact strings documented
+above. A successful download initiation describes browser behavior. Staff keep
+the downloaded file to reopen their job.
+
+Closing or refreshing a tab with a dirty job or pending placement edits invokes
+the browser's unsaved-work warning. Chromium requires prior user activation to
+show its native dialog. Clean jobs close directly. The existing in-app
+Save/Discard/Keep editing guard handles New and Open.
+
+Images and 3D intake keep their staged files across mode switches. **Add product**
+uses the active mode's files, then releases both staged collections and their
+thumbnail URLs after success. Removal, New and Open also release staged previews.
+Failed operations retain the staged files for correction.
+
+Failure alerts put a plain-language headline before collapsed **Technical details** containing the original diagnostic text. The details render as text.
+The saved project remains available after a failed candidate validation.
+Editor action controls have a 44px minimum height and 14px labels. The model
+canvas adapts to the space below the toolbar and above Save, with a 180px
+minimum. Enlarged views fit the controls and canvas to the viewport. The dashed
+upload border uses `#5f6f7e` for contrast against white.
+
+Codex reviewed and approved the WI-7 proposal before implementation. Invalid
+placement sizes, rotation, centre coordinates, safe area and method show inline
+errors with `aria-invalid` and `aria-describedby`. **Apply changes** is disabled
+with a visible reason while the fields are invalid. Correcting values clears the
+errors. Pending invalid edits continue to block save and review, and commit-time
+validation checks the final candidate.
+
+The synthetic offline regression suite covers native unload dialogs, filename
+status and reopening, mode-specific package media and thumbnail cleanup,
+escaped technical details, and invalid-field recovery. Acceptance results and
+the Windows Chrome/Edge release gap are recorded in `docs/offline-testing.md`.

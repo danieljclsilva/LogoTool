@@ -106,3 +106,27 @@ The acceptance log records the installed-Chrome result and the explicit Edge,
 Windows and physical-validation gaps. See `docs/offline-testing.md`.
 
 See `docs/asset-pipeline.md` and `docs/prototype-findings.md` for Phase 4 scope and verification.
+
+## Logo Station UX improvements — 7 November 2026
+
+The reviewed UI changes add close-tab protection for dirty jobs and pending
+placement edits, visible filename-based download status beside Save job,
+consistent **Set up & place logos** wording, retained Images/3D staging with
+active-mode Add, readable diagnostic disclosures, larger editor controls and
+inline placement errors with a disabled-Apply reason. Review diagnostics remain
+available through More output options. The WI-7 inline-validation proposal was
+approved by Codex after inspecting the Apply path.
+
+The pre-edit baseline passed typecheck and 866 Node tests. Chromium was
+interrupted after 45 passes, five failures, four interruptions and 188 unrun
+cases. One failure was the step label, and four timed out on placement controls
+inside the closed Artwork & logos panel. Updated acceptance flows open that
+panel through its visible trigger.
+
+Final scoped acceptance passed 66/66 checks across bundled Chromium and
+installed Chrome. Typechecking and all 866 Node tests passed. The broader
+diagnostic run completed with 211 passes and 41 failures before final
+corrections, and full-suite readiness still requires workflow triage.
+Acceptance details are recorded in `docs/offline-testing.md`. Actual
+Windows Chrome/Edge offline delivery and physical calibration require release
+validation.

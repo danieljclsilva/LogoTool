@@ -149,6 +149,14 @@ export async function revealControl(page: Page, selector: string): Promise<void>
   }
 }
 
+/** Open the Artwork & logos contextual panel holding Add logo placement. */
+export async function ensurePlacementPanel(page: Page): Promise<void> {
+  const panel = page.locator('#placement-context');
+  if ((await panel.count()) > 0 && await panel.isVisible()) return;
+  const trigger = page.locator('[data-placement-hook="pw-model-details"]');
+  if ((await trigger.count()) > 0 && await trigger.isVisible()) await trigger.click();
+}
+
 export async function restoreSession(page: Page, sessionText: string): Promise<void> {
   await hook(page, 'calibration', 'restore-file').setInputFiles({
     name: 'session.json',

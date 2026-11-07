@@ -1,4 +1,4 @@
-import { gotoBuilder, revealBuilderControl, revealCustomerControl } from './helpers.js';
+import { gotoBuilder, revealBuilderControl, revealCustomerControl, ensurePlacementPanel } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -21,7 +21,7 @@ import type { ProjectDocument, Sha256HexFn } from '../src/core/index.js';
 //
 // Shell contract (mirrors e2e/operator-workflow.spec.ts):
 // - Landing ([data-job-landing], job-landing-create/open/response) → shell
-//   (job-step-1 "1 Prepare job", job-step-2 "2 Set logo placements",
+//   (job-step-1 "1 Prepare job", job-step-2 "2 Set up & place logos",
 //   job-step-3 "3 Review document").
 // - Step 1: customer-name/job-ref/issued-by + Products (product-list,
 //   add-product-disclosure, configuration-list) + Logos + setup workspace +
@@ -249,7 +249,7 @@ test('guided preparation flows from open to deliberate selection to details', as
     await expect(page.locator('[data-job-step="review"]')).toBeHidden();
     // Step tabs carry the exact shell labels.
     await expect(builder(page, 'job-step-1')).toContainText('Prepare job');
-    await expect(builder(page, 'job-step-2')).toContainText('Set logo placements');
+    await expect(builder(page, 'job-step-2')).toContainText('Set up & place logos');
     await expect(builder(page, 'job-step-3')).toContainText('Review document');
     // Identity lives in Step 1; the technical issue ID is branch-only.
     await expect(await shown(page, 'customer-name')).toBeVisible();
@@ -275,7 +275,7 @@ test('guided preparation flows from open to deliberate selection to details', as
     await (await shown(page, 'customer-name')).fill(CUSTOMER);
     await (await shown(page, 'job-ref')).fill('BUILDER-PREVIEW');
     await (await shown(page, 'issued-by')).fill(ISSUED_BY);
-    await expect(builder(page, 'job-persistence')).toHaveText('Changes are held in this browser. Save job to keep them.');
+    await expect(builder(page, 'job-persistence')).toHaveText('Unsaved changes — not yet downloaded.');
 
     // Deliberate selection: nothing is pre-selected; ticking products and
     // logos by hand enables the placements step.
@@ -322,6 +322,7 @@ test('issues a subset hybrid package at revision 1 with approvals cleared', asyn
     await page.locator('[data-product-card]', { hasText: 'Synthetic Trouser' }).first().locator('input[type="checkbox"]').first().uncheck();
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'marka' });
     const addMethod = pw(page, 'pw-add-method');
@@ -400,6 +401,7 @@ test('issues self-contained HTML that opens standalone and auto-loads the projec
     await addLogo(page, 'markb.png', '#b03030');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'marka' });
     const addMethod = pw(page, 'pw-add-method');
@@ -507,6 +509,7 @@ test('checking a prepared product and variant includes its setups without openin
     // The matching setup shipped automatically: a placement can target the
     // prepared option without any disclosure detour.
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'capmark' });
     const addMethod = pw(page, 'pw-add-method');
@@ -545,6 +548,7 @@ test('fractional millimetres render rounded once in staff return comparisons', a
     await addLogo(page, 'fracmark.png', '#d4af37');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'fracmark' });
     const addMethod = pw(page, 'pw-add-method');
@@ -650,6 +654,7 @@ test('clears generated outputs and the baseline when a different source loads', 
     await addLogo(page, 'stalemark.png', '#d4af37');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'stalemark' });
     const addMethod = pw(page, 'pw-add-method');
@@ -692,6 +697,7 @@ test('saves two files, opens the customer file, and reviews the return against t
     await addLogo(page, 'baseb.png', '#b03030');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'basea' });
     const addMethod = pw(page, 'pw-add-method');
@@ -699,6 +705,7 @@ test('saves two files, opens the customer file, and reviews the return against t
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'baseb' });
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
@@ -821,6 +828,7 @@ test('keeps the automatic project ID stable and regenerates deterministic delive
     await addLogo(page, 'determmark.png', '#d4af37');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'determmark' });
     const addMethod = pw(page, 'pw-add-method');
@@ -951,6 +959,7 @@ test('generation locks inputs, rejects obsolete hashing and recovers from hash f
     await addLogo(page, 'hashmark.png', '#d4af37');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
+    await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     await pw(page, 'pw-add-logo').selectOption({ label: 'hashmark' });
     const addMethod = pw(page, 'pw-add-method');
@@ -1004,6 +1013,7 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844
       await (await shown(page, 'job-to-placements')).click();
       await expect(page.locator('[data-job-step="placements"]')).toBeVisible();
       const host = builder(page, 'job-placement-host');
+      await ensurePlacementPanel(page);
       await host.getByRole('button', { name: 'Add logo placement' }).click();
       await pw(page, 'pw-add-logo').selectOption({ label: 'guidedmark' });
       const addMethod = pw(page, 'pw-add-method');
