@@ -149,7 +149,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 1024
       await expect(status).toHaveText(`Downloaded ${saved.fileName} — keep this file to reopen the job.`);
       await assertReadable();
       await b(page, 'job-step-2').click();
-      await expect(page.locator('.product-editor-modes').locator('[data-builder-hook="job-persistence"]')).toHaveCount(1);
+      await expect(page.locator('.station-header').locator('[data-builder-hook="job-persistence"]')).toHaveCount(1);
       await assertReadable();
       await page.screenshot({ path: info.outputPath('persistence-editor.png') });
       await b(page, 'job-step-1').click();

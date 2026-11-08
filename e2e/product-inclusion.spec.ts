@@ -57,6 +57,7 @@ async function fillAdd(page: Page) {
     const value = await method.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).find(Boolean)!);
     await method.selectOption(value);
   }
+  await pw(page, 'pw-add-keep').uncheck();
   await pw(page, 'pw-add-width').fill('30');
   await pw(page, 'pw-add-height').fill('20');
 }

@@ -1,3 +1,4 @@
+import { formatMeasurement, unusualCalibrationReference } from './measurement-display.js';
 import { planeFromPolygon, projectAreaToMm } from '../../core/model-placement/area-projection.js';
 export { planeFromPolygon, projectAreaToMm } from '../../core/model-placement/area-projection.js';
 import { createCanvasContextPanel } from './canvas-context-panel.js';
@@ -608,7 +609,7 @@ function formatNative(value: number): string {
 
 function formatMm(value: number): string {
   if (!Number.isFinite(value)) return '—';
-  return `${Math.round(value * 10) / 10}`;
+  return formatMeasurement(value);
 }
 
 const HOOK = 'data-model-setup-hook';
@@ -665,6 +666,7 @@ export function createModelSetupView(
   let active = true;
   let contextPanel: ReturnType<typeof createCanvasContextPanel> | null = null;
   let contextTask: 'measure' | 'areas' | 'more' = 'measure';
+  const dismissedCalibrationWarnings = new Map<string, Set<number>>();
   let viewControlsOpen = false;
   let viewControls: HTMLElement | null = null;
   let viewToggle: HTMLButtonElement | null = null;
@@ -689,13 +691,19 @@ export function createModelSetupView(
   };
   const openContext = (task: typeof contextTask): void => {
     setViewControlsOpen(false);
-    contextTask = task; applyContextTask(); contextPanel?.open(task === 'measure' ? 'Measure' : task === 'areas' ? 'Safe areas' : 'More setup options');
+    contextTask = task; applyContextTask();
+    contextPanel?.open(task === 'measure' ? 'Measure' : task === 'areas' ? 'Safe areas' : 'More setup options');
   };
   const mountContext = (): void => {
     if (!options.contextHost) return;
     const toolbar = document.querySelector<HTMLElement>('[data-model-setup-hook="viewbar"]'); if (!toolbar) return;
     if (!contextPanel) {
-      contextPanel = createCanvasContextPanel({ host: options.contextHost, toolbar, id: 'model-context', label: 'Measure' });
+      contextPanel = createCanvasContextPanel({ host: options.contextHost, toolbar, id: 'model-context', label: 'Measure',
+        onVisibilityChange: () => {
+          const scope = currentDraft();
+          if (!('error' in scope)) syncReferenceOverlay(scope.draft);
+        },
+      });
       contextPanel.content.append(container);
       contextPanel.trigger.setAttribute(HOOK, 'context-measure');
       contextPanel.trigger.addEventListener('click', () => openContext('measure'));
@@ -877,7 +885,7 @@ export function createModelSetupView(
       // the wrapper group, it follows camera/wrapper transforms.
       try {
         viewer.setReferenceOverlay?.(
-          draft.refA !== null && draft.refB !== null
+          contextTask === 'measure' && (!options.contextHost || contextPanel?.isOpen() || armed === 'refA' || armed === 'refB') && draft.areaTool === 'rotate' && draft.refA !== null && draft.refB !== null
             ? {
                 a: { ...draft.refA },
                 b: { ...draft.refB },
@@ -913,7 +921,7 @@ export function createModelSetupView(
   const syncReferenceOverlay = (draft: ProductDraft): void => {
     try {
       viewerOf()?.setReferenceOverlay?.(
-        draft.refA !== null && draft.refB !== null
+        contextTask === 'measure' && (!options.contextHost || contextPanel?.isOpen() || armed === 'refA' || armed === 'refB') && draft.areaTool === 'rotate' && draft.refA !== null && draft.refB !== null
           ? {
               a: { ...draft.refA },
               b: { ...draft.refB },
@@ -2085,6 +2093,13 @@ export function createModelSetupView(
     wireHandleFrame();
     syncHandleLayer();
     syncCurveHandle();
+    for (const control of document.querySelectorAll<HTMLButtonElement | HTMLInputElement>('[data-model-setup-hook][disabled]')) {
+      const reason = control.title || (control.getAttribute(HOOK)?.startsWith('outline-')
+        ? 'Choose Edit outline and select a safe area first.'
+        : 'Complete the current measurement or select the relevant safe area first.');
+      control.title = reason;
+      control.setAttribute('aria-description', reason);
+    }
     noteHandlesSettled();
   }
 
@@ -2303,7 +2318,35 @@ export function createModelSetupView(
     } else {
       scale.textContent = 'No scale fitted yet — areas stay uncalibrated until the reference above fits.';
     }
-    section.append(scale);
+    const details = document.createElement('details');
+    const detailsTitle = document.createElement('summary');
+    detailsTitle.textContent = 'Scale details';
+    details.append(detailsTitle, scale);
+    const summary = el('p', 'scale-summary', 'muted');
+    summary.textContent = draft.fitted
+      ? `Reference fitted at ${formatMm(draft.fitted.lengthMm)} mm${draft.fitStale ? ' — re-fit after editing' : ''}. Pending review, not production-approved.`
+      : 'Measure a known distance to set the scale.';
+    section.append(summary, details);
+    const fittedLength = draft.fitted?.lengthMm;
+    const warningKey = `${entry.productId}\0${entry.variantId ?? ''}`;
+    if (fittedLength !== undefined && !draft.fitStale && unusualCalibrationReference(fittedLength) &&
+        !dismissedCalibrationWarnings.get(warningKey)?.has(fittedLength)) {
+      const warning = el('div', 'calibration-warning', 'calibration-warning');
+      warning.setAttribute('role', 'status');
+      const message = document.createElement('p');
+      message.textContent = `This reference represents ${formatMeasurement(fittedLength)} mm ${fittedLength >= 1000 ? `(${formatMeasurement(fittedLength / 1000)} m)` : ''}. Check the units (mm) and the physical distance. You can continue.`;
+      const dismiss = el('button', 'calibration-warning-dismiss', 'btn-secondary');
+      dismiss.type = 'button';
+      dismiss.textContent = 'Dismiss size warning';
+      dismiss.addEventListener('click', () => {
+        const values = dismissedCalibrationWarnings.get(warningKey) ?? new Set<number>();
+        values.add(fittedLength);
+        dismissedCalibrationWarnings.set(warningKey, values);
+        warning.remove();
+      });
+      warning.append(message, dismiss);
+      section.append(warning);
+    }
     root.append(section);
   }
 
@@ -2470,7 +2513,7 @@ export function createModelSetupView(
       draft.areaTool = 'rotate';
       paintStatus(
         draft.fitted && !draft.fitStale
-          ? `Safe area “${name.trim()}” saved (${points.length} points, plane established). Pending review.`
+          ? `Safe area “${name.trim()}” saved (${points.length} points, surface mapped). Pending review.`
           : `Safe area “${name.trim()}” saved (${points.length} points) but the reference is uncalibrated — fit the scale, then recompute.`,
       );
       emit(entry, draft);

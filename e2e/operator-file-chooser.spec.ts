@@ -17,7 +17,7 @@ async function openBuilder(browser: Browser): Promise<{
 }> {
   const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
   await gotoBuilder(page);
-  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare a customer file' })).toBeVisible();
   return { context, page, probe };
 }
 

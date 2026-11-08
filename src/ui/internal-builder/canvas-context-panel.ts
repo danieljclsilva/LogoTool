@@ -4,6 +4,8 @@ export interface CanvasContextPanelOptions {
   toolbar: HTMLElement;
   id: string;
   label: string;
+  title?: string;
+  onVisibilityChange?(): void;
 }
 export interface CanvasContextPanel {
   readonly element: HTMLElement;
@@ -45,6 +47,7 @@ export function createCanvasContextPanel(options: CanvasContextPanelOptions): Ca
   element.style.maxWidth = 'min(340px, calc(100% - 24px))';
   element.style.maxHeight = 'min(60vh, calc(100% - 24px))';
   element.style.overflow = 'auto';
+  element.style.scrollbarGutter = 'stable';
   element.style.pointerEvents = 'auto';
   element.style.background = '#fff';
   element.style.color = 'var(--ink)';
@@ -52,6 +55,10 @@ export function createCanvasContextPanel(options: CanvasContextPanelOptions): Ca
   element.style.fontFamily = 'system-ui, sans-serif';
 
   const header = document.createElement('div');
+  header.style.position = 'sticky';
+  header.style.top = '0';
+  header.style.zIndex = '2';
+  header.style.background = '#fff';
   header.style.display = 'flex';
   header.style.alignItems = 'center';
   header.style.justifyContent = 'space-between';
@@ -59,14 +66,14 @@ export function createCanvasContextPanel(options: CanvasContextPanelOptions): Ca
 
   const title = document.createElement('span');
   title.setAttribute('data-canvas-context-title', '');
-  title.textContent = label;
+  title.textContent = options.title ?? label;
 
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
   dismiss.setAttribute('data-canvas-context-dismiss', '');
   dismiss.setAttribute('aria-label', 'Dismiss panel');
   dismiss.textContent = 'Close \u00d7';
-  dismiss.style.color = 'var(--red)';
+  dismiss.style.color = 'var(--ink)';
   dismiss.style.border = '1px solid var(--line)';
 
   header.appendChild(title);
@@ -103,17 +110,19 @@ export function createCanvasContextPanel(options: CanvasContextPanelOptions): Ca
     if (titleText !== undefined) {
       title.textContent = titleText;
     }
-    element.setAttribute('data-canvas-context-section', titleText ?? label);
-    element.setAttribute('aria-label', titleText ?? label);
+    element.setAttribute('data-canvas-context-section', titleText ?? options.title ?? label);
+    element.setAttribute('aria-label', titleText ?? options.title ?? label);
     element.hidden = false;
     element.classList.add('is-open');
     syncTrigger();
+    options.onVisibilityChange?.();
   }
 
   function close(): void {
     element.hidden = true;
     element.classList.remove('is-open');
     syncTrigger();
+    options.onVisibilityChange?.();
   }
 
   function isOpen(): boolean {

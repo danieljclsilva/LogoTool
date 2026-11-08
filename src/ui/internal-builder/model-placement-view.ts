@@ -1,3 +1,4 @@
+import { formatMeasurement } from './measurement-display.js';
 /// <reference lib="dom" />
 import { ModelViewer, normalizeModelLighting, type SurfaceArtworkItem } from '../../viewer/model-viewer.js';
 import { modelPointFromMm, regionMmFromModel, type ModelPoint, type ModelRegionFrame } from '../../core/model-placement/index.js';
@@ -186,7 +187,7 @@ export function createModelPlacementView(callbacks: {
   button('−', () => zoom(-1), 'pw-model-zoom-out').setAttribute('aria-label', 'Zoom out product');
   button('+', () => zoom(1), 'pw-model-zoom-in').setAttribute('aria-label', 'Zoom in product');
   const expand = button('Enlarge workspace', () => { callbacks.expand(); syncTools(); }, 'pw-model-expand');
-  const details = button('Logo details', () => { details.setAttribute('aria-expanded', String(callbacks.toggleDetails())); }, 'pw-model-details');
+  const details = button('Placement details', () => { details.setAttribute('aria-expanded', String(callbacks.toggleDetails())); }, 'pw-model-details');
   details.classList.add('model-placement-details-button'); details.setAttribute('aria-expanded', 'false');
   if (callbacks.save) button('Save job', () => callbacks.save?.(), 'pw-model-save-job');
   if (customer) {
@@ -206,9 +207,13 @@ export function createModelPlacementView(callbacks: {
     pan.setAttribute('aria-pressed', String(panMode));
     viewerOf()?.setInteractionMode(panMode ? 'pan' : 'select');
     move.disabled = data === null || data.selectedIndex < 0;
+    move.title = move.disabled ? 'Select a placement first.' : 'Click a new position for the selected placement.';
+    move.setAttribute('aria-description', move.title);
+    if (move.disabled) hint.textContent = 'Select a placement to move or resize it. Drag the product to rotate.';
     try {
       const region = data?.scene.regions.find((entry) => entry.id === data?.activeRegionId) ?? null;
       focusArea.disabled = data === null || region === null || active !== null || !ready;
+      focusArea.setAttribute('aria-description', focusArea.disabled ? 'Select a placement in a safe area and finish the active edit first.' : 'Focus the selected safe area.');
     } catch {
       /* focus gating is advisory */
     }
@@ -542,7 +547,7 @@ export function createModelPlacementView(callbacks: {
       );
       for (const measure of measures) {
         const tag = cornerLabels[measure.cornerIndex]; if (!tag) continue;
-        const text = `${measure.distanceMm.toFixed(1)}mm`;
+        const text = `${formatMeasurement(measure.distanceMm)} mm`;
         if (cornerLabelText[measure.cornerIndex] !== text) { cornerLabelText[measure.cornerIndex] = text; tag.textContent = text; }
         drawLine(projectStage(measure.corner.x, measure.corner.y), projectStage(measure.nearest.x, measure.nearest.y), '#6d4c00', '4 3', 1.5);
       }

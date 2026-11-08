@@ -28,7 +28,7 @@ imports (see `e2e/visual-product-setup.spec.ts`).
 ## Start and issue
 
 Run `npm run build`, then open `dist/station/Logo Station.html` directly with the
-network disabled. The landing offers **Prepare an operational document**:
+network disabled. The landing offers **Prepare a customer file**:
 **Create job** starts a genuinely empty draft (no products, no logos, no
 example content — nothing is pre-selected, so nothing synthetic can leak into
 a real job), **Open job** loads a saved `.logo-project` job file, and
@@ -84,7 +84,7 @@ save-and-continue replaces the job.
    **Move logo** and click the product; **Rotate**, **Front**, **Back**, **Fit**,
    zoom, **Enlarge workspace** and **Save job** stay inside the workbench. The
    enlarged view includes logo selection, dimensions and actions; on narrow
-   screens **Logo details** opens that panel without leaving the product.
+   screens **Placement details** opens that panel without leaving the product.
    Screen picks are converted through the saved region plane and reference
    scale, never pixels or mesh bounds. This remains a provisional planar
    physical mapping; surface-following artwork is a visual preview. Stale,
@@ -623,3 +623,93 @@ Selection-read failures use a distinct inclusion-unavailable message and block
 new placements and Save. Review blocks output for an unreadable selection and
 names existing placements omitted by product/option exclusion, including their
 counts. Re-including the option removes its omission line.
+
+### Editor and Prepare UX, round 2
+
+The landing uses “customer file”. Prepare keeps the intake form on the left and
+selection summary and next action on the right from 1024 px. A new empty job
+keeps selection validation neutral. The disabled next action retains its reason.
+The view counter counts staged images, with a maximum of 12 views per product.
+
+Save job stays in the header with Undo and Redo. Enlarging the editor brings
+that same header into the enlarged dialog, including its save status and history
+controls. Save has a solid primary treatment when the job or placement fields
+have unsaved changes. The editor footer keeps Review document, Customer approval
+and Back to Prepare job reachable. The product checklist reads the active
+option's saved region calibration and placements, plus the staged model fit and
+area freshness when available. Its buttons open the corresponding tools.
+Reopened model areas are deliberately stale until recomputed, as before.
+
+Manage artwork opens Placement details. At 1024 px and wider the panel docks
+beside the canvas and reserves space for it. At narrower sizes it floats. The
+panel has a sticky header, a scroll gutter, full-height placement rows and names
+with end ellipses and full-name tooltips. Fields follow DOM and keyboard order.
+Remove placement is separated and has destructive styling. Undo restores removal
+through the existing job history. Reset lighting names the affected control.
+Product images & model opens the existing product-file options.
+
+Calibration references outside the inclusive 5–5,000 mm range produce a soft
+warning after fitting. Dismissal is remembered for the value and active product
+and option for the mounted setup session. The limits live in one UI constant.
+The warning leaves fitting and saving available. Physical scale calculations,
+safe-area projection, production schemas and export formats retain their existing
+contracts. Measurement display groups thousands and uses a space before mm.
+
+The existing safe-area-derived provisional logo sizing is retained. 5,000 mm
+was already the upper cap, rather than a fixed initial size. New placements keep
+proportions by default. Existing placements retain their session lock policy.
+Rotation remains clockwise in the safe area's coordinate frame, where 0° follows
+its horizontal axis. No rotation conversion is introduced.
+
+These changes use the handoff's recommended defaults for D1–D4. Windows
+Chrome/Edge offline acceptance and the unaided staff trial remain open. The trial
+should observe whether staff notice an unusual calibration and find the next
+editor step without help.
+
+The owner delegated the canvas/layout tradeoff during implementation. The
+round-2 desktop acceptance uses the existing 45% viewport-height editor floor,
+plus explicit full-viewport checks for the setup action and all three next-step
+actions. The older normal-view 60% assertion competed with the new reachable
+toolbar, checklist and persistent actions. Tablet retains its 60% check and all
+sizes retain the assertion that enlargement increases usable canvas space.
+
+Tests that enter independent width and height now explicitly uncheck Keep
+proportions first. Their original physical dimensions, PDF text and export
+assertions are retained. The persistence test now checks the same status in the
+stable header, replacing its previous editor-toolbar container expectation.
+Landing and empty-state expectations follow the revised copy. Customer-response
+tests open the header's More menu before selecting that action.
+
+#### Round-2 verification on 8 November 2026
+
+The fresh `45bdbda` baseline has 250 Chromium passes and 18 failures out of
+268 cases. The complete round-2 sweep has 255 passes and the identical 18
+failing case names out of 273 cases, with zero retries and skips. Matching case
+names establish the comparison, without establishing identical causes. This
+sweep preceded the final single-scroll-container and bounded-height refinement.
+The final build then passes all 25 focused Chromium cases covering round-2
+behavior, persistence, product workspaces, editor guidance and the unified editor.
+
+Installed Chrome's 10-case focused run has eight passes and two browser-closure
+errors. A separate one-worker, zero-retry recheck passes all five round-2 cases,
+including both affected cases. The closures remain unresolved. Typecheck and
+all 883 Node tests pass. The two new Node tests exercise advisory range limits
+and measurement formatting. Five new offline e2e cases cover warnings, desktop
+docking and keyboard order, removal/Undo, neutral Prepare validation and default
+proportions with clean/pending save styling.
+
+Development environment is macOS 27.3 (26C5035r), arm64, Node 26.10.0,
+Playwright 1.64.0, Chromium 156.0.8078.4 and Chrome 156.0.8078.80. The final
+synthetic-fixture walkthrough captured 32 screenshots at 1290×700, 1440×900,
+768×1024 and 390×844 over offline `file://`, including normal and enlarged
+setup and placement modes and panel scroll extremes. All four contexts report
+zero console errors, page errors and HTTP(S) requests. A separate 1024 px header
+check measures all top-level buttons on one row with no horizontal overflow.
+Raw evidence is local under `/tmp/logotool-round2/`.
+
+The Contributor lead stalled during read-only review and returned no edits.
+Codex interrupted it, verified no active execution remained, implemented the
+changes and performed independent validation. Axe was not run because the
+project has no installed axe dependency and this scope allows no new dependency.
+Windows Chrome/Edge offline acceptance, the unaided staff trial and the existing
+18 failing Chromium cases remain open gates.

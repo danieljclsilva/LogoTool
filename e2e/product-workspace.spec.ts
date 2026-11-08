@@ -41,7 +41,16 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
         await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       };
       const normalHeight = (await canvas.boundingBox())!.height;
-      if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .6);
+      // Round 2 reserves space for the checklist, reachable toolbar and footer.
+      // The owner delegated this UI tradeoff. Keep the existing 45% editor floor
+      // and assert the visible actions instead of the former desktop 60% ratio.
+      if (viewport.width >= 1024) {
+        expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .45);
+        await expect(b(page, 'editor-checklist')).toBeVisible();
+        for (const action of ['model-setup-save', 'editor-to-review', 'editor-to-approval', 'editor-to-prepare']) {
+          await expect(b(page, action)).toBeInViewport({ ratio: 1 });
+        }
+      } else if (viewport.width >= 700) expect(normalHeight).toBeGreaterThanOrEqual(viewport.height * .6);
       const normalVisibleHeight = await canvas.evaluate(node => {
         const r = node.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
       });

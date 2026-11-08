@@ -35,7 +35,7 @@ async function openBuilder(browser: Browser): Promise<{ context: BrowserContext;
   const context = await browser.newContext({ offline: true, acceptDownloads: true, viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   await gotoBuilder(page);
-  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare a customer file' })).toBeVisible();
   await page.locator('[data-builder-hook="job-landing-create"]').click();
   await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();
@@ -790,6 +790,7 @@ test('mapped proof print layout stays compact on two sides', async ({ browser })
     // the return open in the approval branch, Use installs the validated
     // content, and Step 3 review renders the operation document for the
     // print-layout checks.
+    await page.locator('.job-file-menu > summary').click();
     await page.locator('[data-builder-hook="job-response"]').click();
     const printBranch = approvalBranch(page);
     await expect(printBranch).toBeVisible();

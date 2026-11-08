@@ -765,17 +765,126 @@
       .product-editor .canvas-context-panel { max-height:32vh!important;box-sizing:border-box; }
       .product-editor .canvas-context-content { max-height:none; }
     }
+
+    /* Round 2. Desktop sidebars reserve actual canvas space so picking stays aligned. */
+    @media(max-width:700px) {
+      .product-editor .product-model-footer .product-setup-actions { gap:6px; }
+      .product-editor .product-model-footer button { font-size:12px!important;padding:8px!important;min-height:44px; }
+    }
+
+    .product-model-footer .pw-step-actions { display:contents!important; }
+    .product-editor #placement-context .pw-list .pw-item { min-height:60px!important;box-shadow:none; }
+    .product-editor.station-expanded-workspace > .station-header { min-height:44px; }
+    .product-editor.station-expanded-workspace > .station-header img { height:32px; }
+    .product-editor.station-expanded-workspace .editor-checklist { margin-bottom:2px; }
+    .product-editor.station-expanded-workspace .editor-checklist button { padding:2px 5px; }
+    @media(max-width:700px) {
+      .product-editor .product-model-toolbar .model-setup-camera-controls:not(.is-open) { display:none; }
+    }
+
+    .product-editor [data-builder-hook="product-model"][data-mode="logos"] { flex:1;min-height:0;grid-template-rows:minmax(0,1fr); }
+    .product-editor .model-setup-camera-controls::before { content:'Navigate / View';font-size:11px;color:var(--muted);align-self:center;margin-right:4px; }
+    .product-editor [data-model-setup-hook="areas-tool-row"]::before { content:'Author';font-size:11px;color:var(--muted);align-self:center;margin-right:4px; }
+
+    .product-editor .product-model-toolbar > [role="toolbar"] { align-items:flex-start; }
+    .product-editor .product-model-toolbar .model-setup-camera-controls { flex-basis:100%;border-left:0;border-top:1px solid var(--line);padding:4px 0 0; }
+    .product-editor .product-model-toolbar .model-setup-author-tools { flex-basis:100%; }
+    .product-editor #placement-context .pw-list { max-height:none; }
+    .product-editor #placement-context [data-placement-hook="pw-selected"] { display:flex;flex-direction:column; }
+    .product-editor #placement-context [data-placement-hook="pw-selected"] > * { order:initial; }
+    .station-header .builder-modes > button { width:auto;flex:none; }
+    .station-header .job-persistence:empty { display:none; }
+    .product-editor:has(.canvas-context-panel:not([hidden]) [data-model-setup-hook="reference-section"]:not([hidden])) .editor-footer .btn-primary,
+    .product-editor:has([data-model-setup-hook="area-finish"]:not(:disabled)) .editor-footer .btn-primary { background:#fff;color:var(--ink);border-color:#c6ced6; }
+
+    .canvas-context-panel { scrollbar-gutter:stable; }
+    #placement-context::-webkit-scrollbar { width:12px; }
+    #placement-context::-webkit-scrollbar-track { background:#f4f6f8; }
+    #placement-context::-webkit-scrollbar-thumb { background:#8895a2;border:3px solid #f4f6f8;border-radius:6px; }
+    .canvas-context-panel > div:first-child { top:0; padding-bottom:8px; }
+    .product-editor .canvas-context-content .pw-rail-content { overflow:visible;max-height:none; }
+    .product-editor #placement-context .canvas-context-content { max-height:none;overflow:visible; }
+    .product-editor #placement-context .pw-rail { display:block!important;overflow:visible;max-height:none;padding:0; }
+    .product-editor #placement-context .pw-list { display:grid;gap:6px;overflow:visible; }
+    .product-editor #placement-context .pw-item { width:100%;min-height:60px;flex:none; }
+    .product-editor #placement-context .pw-item-body { min-width:0;flex:1; }
+    .product-editor #placement-context .pw-item-name { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .product-editor #placement-context .pw-item-sub { display:block;white-space:normal;overflow-wrap:anywhere; }
+    .pw-destructive { color:#a50a26!important;border-color:#a50a26!important;margin-top:12px!important; }
+    .pw-destructive:hover { background:#fff1f3!important; }
+    .calibration-warning { background:#fff8e1;color:#684800;border:1px solid #b18100;border-radius:6px;padding:8px; }
+    .product-model-toolbar .model-setup-field { font-size:12px;line-height:1.3;gap:4px; }
+    .product-model-toolbar .model-setup-camera-controls { display:flex;flex-wrap:wrap;gap:4px;min-width:0;border-left:1px solid var(--line);padding-left:6px; }
+    .product-editor .product-model-toolbar > [role="toolbar"] { flex-wrap:wrap;overflow:visible; }
+    .product-editor [data-model-setup-hook="areas-tool-row"] { flex-wrap:wrap;overflow:visible; }
+    .editor-checklist { display:flex;flex-wrap:wrap;gap:12px;margin-bottom:6px; }
+    .editor-checklist button { background:transparent;border:0;border-bottom:1px solid var(--line);padding:5px;color:var(--ink);cursor:pointer; }
+    .editor-footer { position:sticky;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);padding:6px 0;flex:none; }
+    .editor-footer .pw-step-actions { display:flex;flex-wrap:wrap;gap:8px; }
+    .editor-footer button { width:auto!important;min-height:44px; }
+    .product-editor [aria-pressed="true"], .pw-item.is-selected { background:#edf2f6!important;color:var(--ink)!important;border-color:#657183!important; }
+    .station-header .builder-modes { display:flex;align-items:center;flex-wrap:nowrap;gap:12px; }
+    .station-header .builder-modes button { font-size:14px;border-bottom:0;padding:8px 5px;min-height:44px; }
+    .station-header .builder-modes button:disabled { opacity:.4;cursor:default; }
+    .station-header [data-builder-hook="job-save"] { border:1px solid var(--red);border-radius:6px;background:#fff;color:var(--red);padding:8px 12px; }
+    .station-header [data-builder-hook="job-save"].is-dirty { background:var(--red);color:#fff; }
+    .station-header .job-persistence { flex:1 1 140px;font-size:11px;max-width:240px; }
+    .station-header .job-file-menu { position:relative;flex:none; }
+    .job-file-menu summary { cursor:pointer;padding:10px 4px;font-size:14px; }
+    .job-file-menu[open] > .job-file-menu-body { position:absolute;right:0;top:100%;z-index:1050;width:200px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 12px #192d3d26; }
+    .job-file-menu-body { display:grid; }
+    .job-file-menu-body button { width:100%;text-align:left; }
+    .product-editor.station-expanded-workspace > .station-header { flex:none;padding:0 8px;min-height:56px; }
+    .product-editor.station-expanded-workspace .station-header img { width:116px; }
+    body.station-job-dirty .product-editor .btn-primary,
+    body.station-job-dirty .product-editor .pw-primary { background:#fff;color:var(--ink);border-color:#c6ced6; }
+    body.station-job-dirty .product-editor .station-header [data-builder-hook="job-save"] { background:var(--red);color:#fff; }
+    [data-builder-hook="selection-summary"] { font-size:15px;margin:8px 0; }
+    [data-builder-hook="selection-summary"] p { margin:4px 0; }
+    [data-builder-hook="product-view-add"] { width:auto;justify-self:start; }
+    .prepare-summary { align-self:start; }
+    button:focus-visible,select:focus-visible,input:focus-visible { outline:3px solid var(--focus);outline-offset:2px; }
+    @media(min-width:1024px) {
+      header.station-header { flex-wrap:nowrap;gap:16px;min-height:64px; }
+      header.station-header > span { white-space:nowrap;font-size:18px; }
+      header.station-header img { width:116px; }
+      header.station-header .builder-modes { width:auto;margin-left:auto;flex:1;justify-content:flex-end; }
+      [data-job-step="prepare"] { grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:36px; }
+      .prepare-summary { position:sticky;top:20px;border-left:1px solid var(--line);padding-left:24px; }
+      .prepare-summary .choose-selection { margin-top:0;border-top:0; }
+      .product-editor:not(.station-expanded-workspace) [data-builder-hook="product-model"][data-mode="logos"]:has(#placement-context:not([hidden])) { flex:none;height:var(--logo-stage-height,380px);max-height:var(--logo-stage-height,380px); }
+      .product-editor [data-builder-hook="product-model"][data-mode="logos"]:has(#placement-context:not([hidden])) {
+        display:grid!important;grid-template-columns:minmax(0,1fr) 340px;gap:12px;
+      }
+      .product-editor.station-expanded-workspace [data-builder-hook="product-model"][data-mode="logos"]:has(#placement-context:not([hidden])) { grid-template-rows:minmax(0,1fr); }
+      .product-editor #placement-context { position:relative!important;grid-column:2;grid-row:1;left:auto!important;bottom:auto!important;width:340px;max-width:100%!important;height:100%;max-height:100%!important;overflow:auto!important;box-shadow:none;min-height:0; }
+      .product-editor [data-builder-hook="product-model"][data-mode="logos"] .product-model-stage { min-width:0; }
+    }
+    @media(max-width:1023px) {
+      .station-header .builder-modes { flex-wrap:wrap;gap:6px; }
+      .station-header .job-persistence { max-width:none;flex-basis:100%; }
+      .product-editor #placement-context { max-height:min(55vh,calc(100% - 24px))!important; }
+    }
+    @media(max-width:700px) {
+      .product-model-toolbar .model-setup-camera-controls { flex-wrap:nowrap;overflow:auto; }
+      .editor-checklist { gap:6px;font-size:12px; }
+      .product-editor.station-expanded-workspace > .station-header > img,
+      .product-editor.station-expanded-workspace > .station-header > span { display:none; }
+      .product-editor.station-expanded-workspace .station-header .builder-modes { margin:0;width:100%; }
+      .product-editor.station-expanded-workspace .station-header .job-persistence { order:2; }
+      .editor-footer button { font-size:12px;padding:8px; }
+    }
   </style>
   <style><!-- STATION_BRAND_STYLES --></style>
 </head>
 <body>
-  <header class="station-header"><img data-station-brand alt="FlexiTog"><span>Logo Station</span><nav class="builder-modes" aria-label="Job actions"><button type="button" data-builder-hook="job-save" class="is-active">Save job</button><p class="job-persistence" data-builder-hook="job-persistence" role="status" aria-live="polite"></p><button type="button" data-builder-hook="job-open">Open job</button><button type="button" data-builder-hook="job-new">New job</button><button type="button" data-builder-hook="job-response" class="linklike">Open customer response</button><input data-builder-hook="job-open-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a saved job file"></nav></header>
+  <header class="station-header"><img data-station-brand alt="FlexiTog"><span>Logo Station</span><nav class="builder-modes" aria-label="Job actions"><button type="button" data-builder-hook="job-save">Save job</button><p class="job-persistence" data-builder-hook="job-persistence" role="status" aria-live="polite"></p><button type="button" data-builder-hook="job-open">Open job</button><button type="button" data-builder-hook="job-new">New job</button><details class="job-file-menu"><summary>More</summary><div class="job-file-menu-body"><button type="button" data-builder-hook="job-response" class="linklike">Open customer response</button></div></details><input data-builder-hook="job-open-file" type="file" accept=".logo-project,application/zip" aria-label="Choose a saved job file"></nav></header>
   <main id="internal-builder">
     <h1 class="vh">Logo Station internal builder</h1>
     <div data-builder-hook="builder-alert" class="builder-alert" role="alert" hidden></div>
 
-    <section data-job-landing aria-label="Prepare an operational document">
-      <h2 class="task-title">Prepare an operational document</h2>
+    <section data-job-landing aria-label="Prepare a customer file">
+      <h2 class="task-title">Prepare a customer file</h2>
       <p class="task-sub">Create a job or open a saved job to begin.</p>
       <div class="actions"><button type="button" class="btn-primary" data-builder-hook="job-landing-create">Create job</button><button type="button" class="btn-secondary" data-builder-hook="job-landing-open">Open job</button><button type="button" class="btn-link" data-builder-hook="job-landing-response">Open customer response</button></div>
       <p class="muted" data-builder-hook="job-landing-status" role="status" aria-live="polite"></p>
@@ -804,7 +913,7 @@
             <details class="disclosure" data-builder-hook="add-product-disclosure" open>
               <summary data-builder-hook="add-product-summary">Add a product</summary>
               <div class="body">
-            <p class="muted">Name the product, pick <strong>Images</strong> or <strong>3D model</strong>, choose the files, then choose <strong>Add product</strong>. Images take one or more named view images (for example “Crown”; up to 12 per product). A 3D model is one .glb file with all viewpoints included.</p>
+            <p class="muted" data-builder-hook="intake-view-count" role="status">0 of 12 views</p>
             <label class="field">Product name<input data-builder-hook="product-name" type="text" autocomplete="off" placeholder="e.g. Team jacket"></label>
             <fieldset>
               <legend>Product media</legend>
@@ -835,7 +944,7 @@
         <h3 class="group-title">Logos</h3>
             <div class="rows" data-builder-hook="logo-list"><p class="muted">No project loaded yet.</p></div>
             <div class="actions"><button type="button" class="btn-secondary" data-builder-hook="logo-add">Add a customer logo</button><input data-builder-hook="logo-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" aria-label="Choose a customer logo image (PNG, JPEG or WebP)"></div>
-            <p class="muted">Adds a PNG, JPEG or WebP image from this device. Nothing is uploaded. It is selected automatically; the customer places it later.</p>
+            <p class="muted">Adds a PNG, JPEG or WebP image from this device. Nothing is uploaded. Place logos here. Your customer can adjust them.</p>
             <p class="muted" data-builder-hook="logo-status" role="status" aria-live="polite"></p>
       <section data-builder-step="choose" aria-label="Choose items" hidden>
         <h2 class="task-title">Choose what to include</h2>
@@ -893,7 +1002,7 @@
         <section class="choose-selection" aria-label="Your selection">
             <h3 class="rail-title">Your selection</h3>
             <div data-builder-hook="selection-summary" class="muted"></div>
-            <p class="muted">The customer can adjust logo placement later.</p>
+
         </section>
       </section>
         <div class="actions"><button type="button" class="btn-primary" data-builder-hook="job-to-placements">Set up &amp; place logos</button></div>

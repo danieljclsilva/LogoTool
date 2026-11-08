@@ -29,7 +29,7 @@ const sha256bytes: ProjectPackageSha256 = async (bytes) => createHash('sha256').
 // entry runs the normal prepare→issue flow for BOTH customer formats with
 // no dependency on the repository checkout, rejected inputs keep state, and
 // no staff action navigates to (or downloads) another staff HTML page.
-// The operator job shell contract: landing "Prepare an operational document",
+// The operator job shell contract: landing "Prepare a customer file",
 // three steps (Prepare job → Set up & place logos → Review document), and the
 // "Send for customer approval" branch for both customer file formats.
 
@@ -147,7 +147,7 @@ test('station entry is the single obvious staff page with no legacy sidecars', a
     // The landing is the single obvious entry: no legacy mode panels, an
     // operational-document heading, and the Create/Open job actions.
     await expect(page.locator('[data-job-landing]')).toBeVisible();
-    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare a customer file');
     await expect(page.locator('[data-job-landing]')).toContainText('Create a job or open a saved job to begin.');
     await expect(builder(page, 'job-landing-create')).toContainText('Create job');
     await expect(builder(page, 'job-landing-open')).toBeVisible();
@@ -370,7 +370,7 @@ test('station stays readable on a narrow viewport', async ({ browser }, info) =>
   try {
     await gotoStation(page);
     await expect(page.locator('[data-job-landing]')).toBeVisible();
-    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare a customer file');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await builder(page, 'job-landing-create').click();
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();

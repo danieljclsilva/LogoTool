@@ -1,3 +1,4 @@
+import { formatMeasurement } from './measurement-display.js';
 import { createCanvasContextPanel } from './canvas-context-panel.js';
 /// <reference lib="dom" />
 /**
@@ -236,7 +237,7 @@ export interface PlacementWorkspaceHandle {
 /** Display-only 1-decimal millimetre rounding (never feeds geometry). */
 export function displayMm(value: number): string {
   if (!Number.isFinite(value)) return '—';
-  return `${Math.round(value * 10) / 10}`;
+  return formatMeasurement(value);
 }
 
 /** Parse a millimetre number field; blank/non-numeric/non-finite → null. */
@@ -1081,6 +1082,7 @@ export function mountPlacementWorkspace(
     if (destroyed) return;
     const memory = clearFocusMemory();
     const openDetails = new Set(Array.from(root.querySelectorAll<HTMLDetailsElement>('details[open]')).map((node) => node.getAttribute(HOOK)));
+    const contextScroll = contextPanel?.element.scrollTop ?? 0;
     const railScroll = root.querySelector<HTMLElement>('.pw-rail-content')?.scrollTop ?? 0;
     deps.onBeforeRender?.();
     if (contextPanel) { contextOpen = contextPanel.isOpen(); contextPanel.destroy(); contextPanel = null; }
@@ -1121,8 +1123,8 @@ export function mountPlacementWorkspace(
     if (deps.sharedSurface) {
       const modelBar = main.querySelector<HTMLElement>('.model-placement-toolbar');
       const toolbar = modelBar ?? main.querySelector<HTMLElement>('[role="toolbar"]') ?? main;
-      const contextHost = modelBar ? deps.sharedSurface.stage : main;
-      contextPanel = createCanvasContextPanel({host: contextHost, toolbar, id:'placement-context', label:'Artwork & logos'});
+      const contextHost = modelBar ? deps.sharedSurface.stage.parentElement ?? deps.sharedSurface.stage : main;
+      contextPanel = createCanvasContextPanel({host: contextHost, toolbar, id:'placement-context', label:'Manage artwork', title:'Placement details'});
       contextPanel.content.classList.add('canvas-context-content');
       contextPanel.content.append(rail);
       contextPanel.trigger.className = 'pw-secondary';
@@ -1132,7 +1134,8 @@ export function mountPlacementWorkspace(
       contextPanel.trigger.setAttribute('data-placement-hook','pw-model-details');
       if (actions) wrap.append(actions);
       if (cue) cue.remove();
-      if (contextOpen || addOpen || measureOpen) contextPanel.open('Logo details');
+      if (contextOpen || addOpen || measureOpen) contextPanel.open('Placement details');
+      contextPanel.element.scrollTop = contextScroll;
 
     }
     deps.onRendered?.();
@@ -1142,7 +1145,13 @@ export function mountPlacementWorkspace(
 
   function fitWorkspace(): void {
     if (root.getClientRects().length === 0) return;
-    root.style.setProperty("--pw-workspace-height", `${Math.max(300, window.innerHeight - root.getBoundingClientRect().top - 12)}px`);
+    const footerHeight = root.closest('.product-editor')?.querySelector('.editor-footer')?.getBoundingClientRect().height ?? 0;
+    root.style.setProperty("--pw-workspace-height", `${Math.max(300, window.innerHeight - root.getBoundingClientRect().top - footerHeight - 12)}px`);
+    const model = deps.sharedSurface?.stage.parentElement;
+    if (model) {
+      const available = Math.max(180, window.innerHeight - model.getBoundingClientRect().top - footerHeight - 40);
+      model.style.setProperty('--logo-stage-height', `${Math.floor(available)}px`);
+    }
   }
   window.addEventListener("resize", fitWorkspace, { signal: aborter.signal });
 
@@ -2601,6 +2610,7 @@ export function mountPlacementWorkspace(
       return;
     }
     if (commitNext('Place artwork preview', next)) {
+      ratioLocks.set(placementKeyOf(configuration.id, placement, configuration.placements.length), policyForLock({ xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm, heightMm: placement.heightMm, rotationDeg: placement.rotationDeg }));
       deps.setSelection({ placementId: id });
       const notes: string[] = [];
       if (known === null) notes.push('size is provisional — verify physically before production');
@@ -2774,6 +2784,8 @@ export function mountPlacementWorkspace(
       const body = el('span', 'pw-item-body');
       const name = el('span', 'pw-item-name');
       name.textContent = logoNameOf(project, entry.logoId);
+      name.title = name.textContent;
+      row.title = name.textContent;
       const sub = el('span', 'pw-item-sub');
       const areaName = areaNameOf(project, configuration.productId, entry.regionId);
       const size = `${displayMm(entry.widthMm)} × ${displayMm(entry.heightMm)} mm` +
@@ -2841,7 +2853,7 @@ export function mountPlacementWorkspace(
     });
     const back = el('button', 'pw-secondary', 'pw-back') as HTMLButtonElement;
     back.type = 'button';
-    back.textContent = 'Back';
+    back.textContent = 'Back to Prepare job';
     back.addEventListener('click', () => {
       deps.onBack();
     });
@@ -2917,7 +2929,7 @@ export function mountPlacementWorkspace(
       widthRaw: raws.widthRaw,
       heightRaw: raws.heightRaw,
       rotationRaw: '0',
-      keepProportions: false,
+      keepProportions: true,
       method: area !== undefined && area.allowedMethods.length === 1
         ? (area.allowedMethods[0] ?? '')
         : '',
@@ -3226,6 +3238,8 @@ export function mountPlacementWorkspace(
       verdict = null;
     }
     if (commitNext('Add logo placement', next)) {
+      const policy = policyForLock({ xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm, heightMm: placement.heightMm, rotationDeg: placement.rotationDeg });
+      ratioLocks.set(placementKeyOf(configuration.id, placement, configuration.placements.length), { ...policy, locked: draft.keepProportions && policy.locked });
       addOpen = false;
       addDraft = null;
       deps.setSelection({ placementId: id });
@@ -3363,7 +3377,7 @@ export function mountPlacementWorkspace(
     } else {
       widthInput.setAttribute('aria-invalid', 'false');
     }
-    group.append(helpPopover('pw-help-size', 'Width and height edit the same logo: when proportions are locked, changing one side scales the other. Partial numbers stay local until they are valid.'));
+
 
     const heightLabel = el('label', 'pw-field', 'pw-field-height');
     heightLabel.textContent = 'Height (mm)';
@@ -3441,7 +3455,6 @@ export function mountPlacementWorkspace(
       announce('Ratio lock now follows the original artwork ratio. Geometry unchanged.');
       update();
     });
-    group.append(resetRatio);
 
     const rotationLabel = el('label', 'pw-field', 'pw-field-rotation');
     rotationLabel.textContent = 'Rotation (degrees)';
@@ -3453,6 +3466,7 @@ export function mountPlacementWorkspace(
       edit.rotationRaw = rotationInput.value;
       update();
     });
+    rotationInput.title = 'Clockwise angle in the safe-area coordinate frame. 0° follows its horizontal axis.';
     rotationLabel.append(rotationInput);
     group.append(rotationLabel);
     if (pending && fieldErrors.rotation !== undefined) {
@@ -3463,6 +3477,8 @@ export function mountPlacementWorkspace(
       rotationInput.setAttribute('aria-invalid', 'false');
     }
 
+    group.append(resetRatio);
+    group.append(helpPopover('pw-help-size', 'Width and height edit the same logo: when proportions are locked, changing one side scales the other. Partial numbers stay local until they are valid.'));
     renderMeasurements(group, project, configuration, placement, placementIndex);
 
     const editRow = el('div', 'pw-inline', 'pw-edit-actions');
@@ -3503,9 +3519,10 @@ export function mountPlacementWorkspace(
         update();
       }
     });
-    const remove = el('button', 'pw-secondary', 'pw-remove') as HTMLButtonElement;
+    const remove = el('button', 'pw-secondary pw-destructive', 'pw-remove') as HTMLButtonElement;
     remove.type = 'button';
     remove.textContent = 'Remove placement';
+    remove.title = 'Remove this placement. Undo restores it.';
     remove.addEventListener('click', () => {
       let next: ProjectDocument;
       try {

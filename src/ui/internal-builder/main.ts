@@ -112,7 +112,7 @@ import { createProvisionalProduct } from '../../core/project-builder/provisional
 import { planPhotoIntake, renameIntakeViewLabel } from '../../core/photo-intake/index.js';
 import type { DraftRetirementEvent } from '../../core/workspace-drafts/types.js';
 import { createWebCryptoProjectHasher } from '../shared/browser-hasher.js';
-import { mountPlacementWorkspace } from './placement-workspace.js';
+import { calibrationState, configuredAreas, mountPlacementWorkspace } from './placement-workspace.js';
 import type {
   PlacementStageOverlay,
   PlacementWorkspaceHandle,
@@ -302,7 +302,7 @@ const editorSetup = document.createElement('button'); editorSetup.type = 'button
 editorSetup.textContent = 'Measurements & areas'; editorSetup.setAttribute('data-builder-hook', 'editor-setup');
 const editorLogos = document.createElement('button'); editorLogos.type = 'button'; editorLogos.className = 'btn-secondary';
 editorLogos.textContent = 'Logos'; editorLogos.setAttribute('data-builder-hook', 'editor-logos');
-const saveHome = document.createComment('Job save action home'); jobSave.before(saveHome);
+const stationHeader = document.querySelector<HTMLElement>('.station-header')!;
 const provisional = document.createElement('span'); provisional.className = 'muted editor-provisional';
 provisional.textContent = 'Provisional — verify physical measurements.';
 const editorProductName = document.createElement('strong'); editorProductName.setAttribute('data-builder-hook','editor-product-name');
@@ -323,14 +323,67 @@ productEditor.append(editorModes, setupSection, jobPlacementHost);
 document.querySelector('[data-job-step="placements"]')?.remove();
 jobPlacementHost.setAttribute('data-job-step', 'placements');
 jobPlacementHost.setAttribute('aria-label', 'Set up & place logos');
-const productOptions = createCanvasContextPanel({host: productEditor, toolbar: editorModes, id:'product-options-context', label:'Product files'});
+const productOptions = createCanvasContextPanel({host: productEditor, toolbar: editorModes, id:'product-options-context', label:'Product images & model'});
 productOptions.trigger.className = 'btn-secondary';
 productOptions.trigger.setAttribute('data-builder-hook','editor-files');
 productOptions.content.classList.add('canvas-context-content');
 editorToolScroll.append(productOptions.trigger);
 for (const details of Array.from(setupSection.children)) if (details instanceof HTMLDetailsElement) productOptions.content.append(details);
 const selectionCard = setupSection.querySelector('.choose-selection');
-if (selectionCard) document.querySelector('[data-job-step="prepare"]')?.append(selectionCard);
+const preparePage = document.querySelector<HTMLElement>('[data-job-step="prepare"]')!;
+const prepareForm = document.createElement('div'); prepareForm.className = 'prepare-form';
+const prepareSummary = document.createElement('aside'); prepareSummary.className = 'prepare-summary';
+prepareSummary.setAttribute('aria-label', 'Job selection and next step');
+for (const child of Array.from(preparePage.children)) {
+  if (child.contains(jobToPlacements) || child === jobPrepareGate) prepareSummary.append(child);
+  else prepareForm.append(child);
+}
+if (selectionCard) prepareSummary.prepend(selectionCard);
+preparePage.append(prepareForm, prepareSummary);
+
+const editorChecklist = document.createElement('nav'); editorChecklist.className = 'editor-checklist';
+editorChecklist.setAttribute('aria-label', 'Active product checklist');
+editorChecklist.setAttribute('data-builder-hook', 'editor-checklist');
+const editorFooter = document.createElement('footer'); editorFooter.className = 'editor-footer';
+editorFooter.setAttribute('aria-label', 'Editor next steps');
+const setupFooter = document.createElement('div'); setupFooter.className = 'pw-step-actions';
+for (const [label, target] of [['Back to Prepare job', 'prepare'], ['Customer approval', 'approval'], ['Review document', 'review']] as const) {
+  const button = document.createElement('button'); button.type = 'button';
+  button.className = target === 'review' ? 'btn-primary' : 'btn-secondary'; button.textContent = label;
+  button.setAttribute('data-builder-hook', `editor-to-${target}`);
+  button.addEventListener('click', () => {
+    editorOpen = false; modelExpansion.close(); setJobStep(target); window.scrollTo(0, 0);
+  });
+  setupFooter.append(button);
+}
+productEditor.insertBefore(editorChecklist, setupSection);
+productEditor.append(editorFooter);
+function paintEditorChecklist(): void {
+  editorChecklist.replaceChildren();
+  const product = source?.project.products.find(item => item.id === workspaceProductId);
+  if (!product) return;
+  const variantId = workspaceVariantId ?? product.variants[0]?.id ?? '';
+  const areas = configuredAreas(product, variantId);
+  const draft = staffModelSnapshots.get(modelSnapshotKey(product.id, variantId));
+  const scaleReady = draft ? draft.mmPerUnit !== null && !draft.fitStale
+    : areas.some(area => calibrationState(product, area) === 'ok');
+  const areasReady = draft ? scaleReady && draft.areas.some(area => area.status === 'current')
+    : areas.some(area => calibrationState(product, area) === 'ok');
+  const placed = source?.project.configurations.some(config => config.productId === product.id &&
+    config.variantId === variantId && config.placements.length > 0) ?? false;
+  for (const [label, complete, target] of [['Scale', scaleReady, 'measure'], ['Safe area', areasReady, 'areas'], ['Logo placed', placed, 'logos']] as const) {
+    const button = document.createElement('button'); button.type = 'button';
+    button.textContent = `${complete ? '✓' : '○'} ${label}`;
+    button.setAttribute('aria-label', `${label}, ${complete ? 'complete' : 'incomplete'}`);
+    button.addEventListener('click', () => {
+      openUnifiedEditor(target === 'logos' ? 'logos' : 'setup');
+      const hook = target === 'measure' ? 'context-measure' : 'context-areas';
+      if (target !== 'logos') document.querySelector<HTMLButtonElement>(`[data-model-setup-hook="${hook}"]`)?.click();
+    });
+    editorChecklist.append(button);
+  }
+}
+
 
 jobShell?.insertBefore(productEditor, document.querySelector('[data-job-step="review"]'));
 let editorOpen = false;
@@ -340,13 +393,15 @@ function paintEditor(): void {
   const active = editorOpen && (jobStep === 'prepare' || jobStep === 'placements');
   productEditor.hidden = !active;
   if (!active) productOptions.close();
-  if (active) editorModes.append(jobSave, jobPersistence);
-  else if (saveHome.parentNode) { saveHome.after(jobSave); jobSave.after(jobPersistence); }
+  paintEditorChecklist();
   const logos = active && jobStep === 'placements';
   productEditor.dataset.mode = logos ? 'logos' : 'setup';
   editorProductName.textContent = source?.project.products.find((item) => item.id === workspaceProductId)?.name ?? '';
   editorSetup.setAttribute('aria-pressed', String(!logos)); editorLogos.setAttribute('aria-pressed', String(logos));
   setupSection.hidden = !active || logos; jobPlacementHost.hidden = !logos;
+  editorFooter.hidden = !logos;
+  if (!logos) productEditor.append(editorFooter);
+  if (!logos) productModelBox.querySelector('.product-setup-actions')?.append(setupFooter);
   const prepare = document.querySelector<HTMLElement>('[data-job-step="prepare"]');
   if (prepare) prepare.hidden = jobStep !== 'prepare' || active;
   document.body.classList.toggle('station-editor-active', active);
@@ -364,7 +419,7 @@ function fitModelSetupStage(): void {
       productEditor.dataset.mode !== 'setup' || productModelBox.hidden) return;
   const footer = productModelBox.querySelector<HTMLElement>('.product-model-footer');
   const top = productModelStage.getBoundingClientRect().top + window.scrollY;
-  const available = Math.max(180, window.innerHeight - top - (footer?.getBoundingClientRect().height ?? 0) - 16);
+  const available = Math.max(180, window.innerHeight - top - (footer?.getBoundingClientRect().height ?? 0) - editorFooter.getBoundingClientRect().height - 16);
   const height = `${Math.floor(available)}px`;
   if (productModelBox.style.getPropertyValue('--model-stage-height') !== height) {
     productModelBox.style.setProperty('--model-stage-height', height);
@@ -399,10 +454,16 @@ function placeSharedModelSurface(): void {
   const workbench = jobPlacementHost.querySelector<HTMLElement>('[data-placement-hook="pw-model-workbench"]');
   const bar = workbench?.querySelector<HTMLElement>('.model-placement-toolbar');
   if (workbench && bar) {
+    const actions = jobPlacementHost.querySelector<HTMLElement>('[data-placement-hook="pw-step-actions"]');
+    if (actions) editorFooter.replaceChildren(actions);
+    jobPlacementHost.append(editorFooter);
     if (productModelBox.previousSibling !== bar) bar.after(productModelBox); productModelBox.dataset.mode = 'logos';
   }
 }
 const modelExpansion = expandableWorkspace(productEditor, (expanded) => {
+  if (expanded) productEditor.prepend(stationHeader);
+  else document.body.prepend(stationHeader);
+  syncEnlargedHeader();
   modelExpandButton.textContent = expanded ? 'Close enlarged view' : 'Enlarge workspace';
   modelExpandButton.setAttribute('aria-label', expanded ? 'Close enlarged product workspace' : 'Enlarge product setup workspace');
   modelExpandButton.setAttribute('aria-expanded', String(expanded));
@@ -413,6 +474,16 @@ const modelExpansion = expandableWorkspace(productEditor, (expanded) => {
     }
   });
 });
+function syncEnlargedHeader(): void {
+  const menu = stationHeader.querySelector<HTMLDetailsElement>('.job-file-menu')!;
+  const body = menu.querySelector<HTMLElement>('.job-file-menu-body')!;
+  if (modelExpansion.expanded() && window.innerWidth < 701) body.prepend(jobOpen, jobNew);
+  else { menu.before(jobOpen, jobNew); }
+}
+stationHeader.querySelector('.job-file-menu')?.addEventListener('click', (event) => {
+  if ((event.target as HTMLElement).closest('button')) stationHeader.querySelector<HTMLDetailsElement>('.job-file-menu')!.open = false;
+});
+window.addEventListener('resize', syncEnlargedHeader);
 modelExpandButton.addEventListener('click', () => modelExpansion.toggle());
 const productModelStatus = hook<HTMLElement>('product-model-status');
 const modelSetupBox = hook<HTMLElement>('model-setup');
@@ -824,7 +895,10 @@ function updateControls(): void {
   for (const input of [workspaceProduct, workspaceVariant]) input.disabled = prepOff || source === null;
   for (const input of document.querySelectorAll<HTMLInputElement>('.rows input')) input.disabled = blocked;
   // Operator job shell: header/landing/step gating (exact spec labels).
-  const dirty = source?.dirty ?? false;
+  const dirty = (source?.dirty ?? false) || (placementHandle?.hasPendingEdits() ?? false);
+  document.body.classList.toggle('station-job-dirty', dirty);
+  jobSave.classList.toggle('is-dirty', dirty);
+  jobSave.classList.remove('is-active');
   jobPersistence.textContent = dirty
     ? 'Unsaved changes \u2014 not yet downloaded.'
     : (lastJobSaved && lastDownloadedName !== ''
@@ -1330,7 +1404,7 @@ function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = fa
   if (summary.products.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'No products in source.';
+    empty.textContent = 'No products yet.';
     productList.append(empty);
   } else {
     const manifest = parseFlexiblePresentationManifest(
@@ -1428,7 +1502,7 @@ function renderSelectionLists(summary: BuilderSourceSummary, preserveChecks = fa
   if (summary.logoIds.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'No logos in source.';
+    empty.textContent = 'No logos yet.';
     logoList.append(empty);
   } else {
     for (const logoId of summary.logoIds) {
@@ -1583,7 +1657,8 @@ function refreshSelectionValidation(): void {
     selectionValid = false;
     const readable = `Selection invalid: ${outcome.errors.map((error) => error.message).join('; ')}`;
     generateStatus.textContent = readable;
-    selectionError.textContent = 'Choose at least one product and an option for each selected product. Check any specific setups you selected.';
+    selectionError.textContent = source.project.products.length > 0
+      ? 'Choose at least one product and an option for each selected product. Check any specific setups you selected.' : '';
     renderSelectionSummary();
   }
   updateControls();
@@ -2079,6 +2154,7 @@ function renderIntakeViewRows(): void {
   for (const url of intakeThumbUrls.values()) URL.revokeObjectURL(url);
   intakeThumbUrls.clear();
   productViewRows.replaceChildren();
+  hook<HTMLElement>('intake-view-count').textContent = `${intakeReadyViews().length} of ${PRESENTATION_VIEW_LIMITS.maxViewsPerScope} views`;
   stagedIntakeViews.forEach((row, index) => {
     const name = stagedViewDisplayName(row, index);
     const wrap = document.createElement('div');
@@ -3785,7 +3861,7 @@ function mountJobModules(): void {
         getViewer: () => staffModelReady ? staffModelViewer : null,
         isActive: () => editorOpen && jobStep === 'placements' },
       onBeforeRender: () => { if (setupHome.parentNode) setupHome.after(productModelBox); },
-      onRendered: placeSharedModelSurface,
+      onRendered: () => { placeSharedModelSurface(); paintEditorChecklist(); updateControls(); },
       toggleExpanded: () => modelExpansion.toggle(),
       isExpanded: () => modelExpansion.expanded(),
 
@@ -4399,7 +4475,7 @@ lightingValue.textContent = '100%';
 const lightingReset = document.createElement('button');
 lightingReset.type = 'button';
 lightingReset.className = 'btn-secondary';
-lightingReset.textContent = 'Reset';
+lightingReset.textContent = 'Reset lighting';
 lightingReset.setAttribute('data-builder-hook', 'model-lighting-reset');
 lightingReset.setAttribute('aria-label', 'Reset lighting to 100%');
 lightingWrap.append(lightingCaption, lightingInput, lightingValue, lightingReset);
@@ -5989,6 +6065,7 @@ function mountModelSetup(productId: string, modelPath: string): void {
     onChange: (snapshot) => {
       modelSetupStatus.textContent = '';
       staffModelSnapshots.set(modelSnapshotKey(snapshot.productId, snapshot.variantId), snapshot);
+      paintEditorChecklist();
     },
     onSelectProduct: (nextId, nextVariantId) => {
       if (source === null) return;

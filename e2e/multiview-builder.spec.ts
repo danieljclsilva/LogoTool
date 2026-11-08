@@ -26,7 +26,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
 }> {
   const { context, page, probe } = await openOfflineContext(browser, viewport);
   await gotoBuilder(page);
-  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare a customer file' })).toBeVisible();
   await page.locator('[data-builder-hook="job-landing-create"]').click();
   await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();

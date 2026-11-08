@@ -86,7 +86,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
     if (/^https?:/i.test(request.url())) probe.networkRequests.push(request.url());
   });
   await gotoBuilder(page);
-  await expect(page.getByRole('heading', { name: 'Prepare an operational document' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepare a customer file' })).toBeVisible();
   await page.locator('[data-builder-hook="job-landing-create"]').click();
   await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Prepare the job' })).toBeVisible();
@@ -504,6 +504,7 @@ test('baseline review of the prepared-product return yields a consistent candida
     await gotoBuilder(reviewer);
     await reviewer.locator('[data-builder-hook="job-landing-create"]').click();
     await expect(reviewer.locator('[data-job-step="prepare"]')).toBeVisible();
+    await reviewer.locator('.job-file-menu > summary').click();
     await reviewer.locator('[data-builder-hook="job-response"]').click();
     const reviewBranch = reviewer.locator('[data-job-branch="approval"]');
     await expect(reviewBranch).toBeVisible();

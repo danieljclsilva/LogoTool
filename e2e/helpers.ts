@@ -178,7 +178,7 @@ export async function addProductAndOpenSetup(page: Page): Promise<void> {
   throw new Error('The added product has no setup card.');
 }
 
-/** Open the Artwork & logos contextual panel holding Add logo placement. */
+/** Open the Manage artwork contextual panel holding Add logo placement. */
 export async function ensurePlacementPanel(page: Page): Promise<void> {
   const panel = page.locator('#placement-context');
   if ((await panel.count()) > 0 && await panel.isVisible()) return;

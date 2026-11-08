@@ -19,7 +19,7 @@ import { extractEmbeddedProjectPackage } from '../src/packaging/self-contained-h
 // zero console/page errors and zero HTTP(S) requests.
 //
 // Navigation contract (operator job shell):
-// - Landing: heading "Prepare an operational document"
+// - Landing: heading "Prepare a customer file"
 //   ([data-job-landing]), primary [data-builder-hook="job-landing-create"]
 //   ("Create job"), secondary [data-builder-hook="job-landing-open"], link
 //   [data-builder-hook="job-landing-response"], status
@@ -122,7 +122,7 @@ async function openBuilder(browser: Browser, viewport = { width: 1280, height: 9
   });
   await gotoBuilder(page);
   await expect(page.locator('[data-job-landing]')).toBeVisible();
-  await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+  await expect(page.locator('[data-job-landing]')).toContainText('Prepare a customer file');
   return { context, page, probe };
 }
 
@@ -376,7 +376,7 @@ test('create starts a truly empty draft with no demo UI', async ({ browser }) =>
     // Landing: the single entry point. Primary Create job, secondary Open
     // job, link Open customer response; no workspace, product list, document
     // preview or duplicated help message on the landing.
-    await expect(page.locator('[data-job-landing]')).toHaveAttribute('aria-label', 'Prepare an operational document');
+    await expect(page.locator('[data-job-landing]')).toHaveAttribute('aria-label', 'Prepare a customer file');
     await expect(await shown(page, 'job-landing-create')).toContainText('Create job');
     await expect(await shown(page, 'job-landing-open')).toBeVisible();
     await expect(await shown(page, 'job-landing-response')).toBeVisible();
@@ -400,7 +400,7 @@ test('create starts a truly empty draft with no demo UI', async ({ browser }) =>
     await expect(await shown(page, 'create-status')).toContainText('empty draft');
     expect(await checkedTopLevelIds(page, 'product-list')).toEqual([]);
     expect(await checkedTopLevelIds(page, 'logo-list')).toEqual([]);
-    await expect(await shown(page, 'product-list')).toContainText('No products in source.');
+    await expect(await shown(page, 'product-list')).toContainText('No products yet.');
     // The explicit path restores the example selection: open the synthetic
     // fixture package through the real Open job chooser.
     await openSyntheticCatalogue(page);

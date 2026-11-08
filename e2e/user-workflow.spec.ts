@@ -305,7 +305,7 @@ async function runUserWorkflow(
     const page = await context.newPage();
     watchPage(page, probe);
     await page.goto(stationUrl);
-    await expect(page.locator('[data-job-landing]')).toContainText('Prepare an operational document');
+    await expect(page.locator('[data-job-landing]')).toContainText('Prepare a customer file');
     await shoot(page, `${format}-01-start`);
 
     await builder(page, 'job-landing-create').click();

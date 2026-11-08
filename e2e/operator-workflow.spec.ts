@@ -265,6 +265,7 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
       const addMethod = pw(page, 'pw-add-method');
       if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+      await pw(page, 'pw-add-keep').uncheck();
       await pw(page, 'pw-add-width').fill('90');
       await pw(page, 'pw-add-height').fill('40');
       await pw(page, 'pw-add-confirm').click();
@@ -684,6 +685,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('500');
     await pw(page, 'pw-add-height').fill('400');
     await pw(page, 'pw-add-confirm').click();
@@ -703,6 +705,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     await ensurePlacementPanel(page);
     await host.getByRole('button', { name: 'Add logo placement' }).click();
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -794,6 +797,7 @@ test('artwork selection: add choices selected-only, excluded-used stays resolvab
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -868,6 +872,7 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -995,6 +1000,7 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('90');
     await pw(page, 'pw-add-height').fill('40');
     await pw(page, 'pw-add-confirm').click();
@@ -1105,6 +1111,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await pw(page, 'pw-add-logo').selectOption({ label: 'crest' });
     const addMethod = pw(page, 'pw-add-method');
     if ((await addMethod.count()) > 0) await addMethod.selectOption('print');
+    await pw(page, 'pw-add-keep').uncheck();
     await pw(page, 'pw-add-width').fill('60');
     await pw(page, 'pw-add-height').fill('30');
     await pw(page, 'pw-add-confirm').click();
