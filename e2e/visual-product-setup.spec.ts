@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createProjectPackage } from '../src/packaging/project-package/index.js';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import type { Probe } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -99,7 +99,7 @@ test('visual setup: upload → guided measure → draw + anchors → save → jo
     await (await shown(page, 'customer-name')).fill('Visual Customer');
     await (await shown(page, 'job-ref')).fill('VISUAL-01');
     await (await shown(page, 'product-name')).fill('Test Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Test Jacket');
 
     // Honest pending: front view has no scale mapping yet.

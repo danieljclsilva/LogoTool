@@ -8,7 +8,7 @@
 // >45% enlarged guard. Synthetic fixtures only; no network, no Odoo.
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 
 const b = (page: Page, name: string) => page.locator(`[data-builder-hook="${name}"]`);
@@ -27,7 +27,7 @@ async function stageModelProduct(page: Page): Promise<void> {
   });
   await expect(b(page, 'intake-model-status')).toContainText('ready');
   await b(page, 'product-name').fill('Guidance product');
-  await b(page, 'product-add').click();
+  await addProductAndOpenSetup(page);
   await expect(b(page, 'product-editor')).toBeVisible();
   await expect(b(page, 'product-model-canvas')).toBeVisible();
 }

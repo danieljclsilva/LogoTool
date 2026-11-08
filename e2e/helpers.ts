@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { release } from 'node:os';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 
@@ -158,6 +158,24 @@ export async function revealControl(page: Page, selector: string): Promise<void>
       await page.keyboard.press('Enter');
     }
   }
+}
+
+/** Add the staged product, then explicitly open its setup through its card. */
+export async function addProductAndOpenSetup(page: Page): Promise<void> {
+  await revealBuilderControl(page, 'product-add');
+  const cards = page.locator('[data-product-card]');
+  const previousIds = new Set(await cards.evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('data-product-card')),
+  ));
+  await page.locator('[data-builder-hook="product-add"]').click();
+  await expect(cards).toHaveCount(previousIds.size + 1);
+  for (const card of await cards.all()) {
+    if (!previousIds.has(await card.getAttribute('data-product-card'))) {
+      await card.getByRole('button', { name: /^Open setup for / }).click();
+      return;
+    }
+  }
+  throw new Error('The added product has no setup card.');
 }
 
 /** Open the Artwork & logos contextual panel holding Add logo placement. */

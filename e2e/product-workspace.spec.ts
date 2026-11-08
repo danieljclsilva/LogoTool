@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -33,7 +33,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 900
       await b(page, 'product-file').setInputFiles({ name: 'fold.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(cubeGlb(true, false)) });
       await expect(b(page, 'intake-model-status')).toContainText('ready');
       await b(page, 'product-name').fill('Synthetic folded product');
-      await b(page, 'product-add').click();
+      await addProductAndOpenSetup(page);
       const setup = b(page, 'product-model');
       const canvas = setup.locator('canvas');
       const clickSurface = async (x: number, y: number) => {

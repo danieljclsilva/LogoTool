@@ -1,5 +1,16 @@
 # Internal Builder (the Logo Station)
 
+## Collect products and logos before setup — 8 November 2026
+
+Add product keeps the operator in Prepare job. The added product and its option
+stay selected, the intake form stays open, and the product name clears for the
+next item. Add the remaining products and customer logos on this page, then
+choose Set up & place logos or a product's Open setup action when ready.
+
+The same flow applies to view images and 3D models. Save job preserves the full
+batch and its inclusion choices for reopening.
+
+
 The guided Builder is the single staff entry: run `npm run build`, then open
 `dist/station/Logo Station.html` directly with the network disabled. No other
 staff HTML page is part of the delivery; developer-only inspection pages live

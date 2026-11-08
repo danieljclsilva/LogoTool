@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { createProjectPackage, parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import type { ProjectDocument } from '../src/core/types.js';
-import { gotoBuilder, openOfflineContext, assertCleanProbe, revealBuilderControl } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, openOfflineContext, assertCleanProbe, revealBuilderControl } from './helpers.js';
 import type { Probe } from './helpers.js';
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -296,7 +296,7 @@ test('GLB-only creation adds a provisional product with a model entry', async ({
     await (await shown(page, 'product-name')).fill('Test Jacket');
     await stageModel(page, 'model.glb', syntheticGlb());
     await expect(await shown(page, 'product-status')).toContainText('Staged 3D model');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     await expect(await shown(page, 'product-status')).toContainText('no measurements');
     const after = await productIds(page);
@@ -319,7 +319,7 @@ for (const label of ['Lone view', 'Front']) {
       await stageRowImage(page, 0, label, 'lone.png', png);
       await expect(await shown(page, 'product-status')).toContainText('1 view image ready');
       await (await shown(page, 'product-name')).fill(`Lone ${label}`);
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
       const after = await productIds(page);
       expect(after.length).toBe(before.length + 1);
@@ -359,7 +359,7 @@ test('explicit named views travel with labels; no forced sides', async ({ browse
     await stageRowImage(page, 1, 'Rear view', 'back.png', back);
     await expect(await shown(page, 'product-status')).toContainText('2 view images ready');
     await (await shown(page, 'product-name')).fill('Two-sided');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Two-sided (2 views)');
     // Issue just the new preview-only product with the explicit escape.
     const addedTwoSided = (await productIds(page)).find((id) => !productsBefore.includes(id));
@@ -489,7 +489,7 @@ test('save/reopen preserves exact bytes and physical-data invariance', async ({ 
     await addRow(page);
     await stageRowImage(page, 1, 'Left', 'left.png', png);
     await (await shown(page, 'product-name')).fill('Invariant');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     const addedInvariant = (await productIds(page)).find((id) => !invariantBefore.includes(id));
     assert.ok(addedInvariant, 'new product should appear in the product list');
@@ -549,7 +549,7 @@ test('v1 reference history upgrades verbatim: issue plus reopen preserves both',
     const png = await syntheticPng(page, '#12394b', 20, 10);
     await stageRowImage(page, 0, 'Newcomer', 'front.png', png);
     await (await shown(page, 'product-name')).fill('Multiview newcomer');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     // Issue with every setup selected, then confirm the merged manifest
     // keeps the v1 reference VERBATIM alongside the new v2 view.

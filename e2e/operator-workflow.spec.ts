@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
@@ -223,14 +223,14 @@ test('direct images job: intake, setup, placements, measurement, technique, revi
       const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
       await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
       await (await shown(page, 'product-name')).fill('Team jacket');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added');
       await setupProductWithAnchor(page, 'Chest center');
 
       const capPng = await syntheticPngBytes(page, '#27408b');
       await stageIntakeImage(page, 'Side', 'side.png', capPng);
       await (await shown(page, 'product-name')).fill('Promo cap');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added');
 
       // Two real logos through the Step 1 chooser.
@@ -667,7 +667,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);
@@ -742,7 +742,7 @@ test('zero-placement option stays present and prints its explicit statement', as
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
     await checkProductCard(page, 'Team jacket');
@@ -771,7 +771,7 @@ test('artwork selection: add choices selected-only, excluded-used stays resolvab
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);
@@ -833,7 +833,7 @@ test('calibrated photo overlay tracks canonical dimensions; unmapped views stay 
     await rows.nth(1).locator('input[type="file"]').setInputFiles({ name: 'back.png', mimeType: 'image/png', buffer: Buffer.from(backPng) });
     await expect(rows.nth(1).locator('.view-row-state')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
     // The rectangle calibration above staged the front-view photo mapping
@@ -939,7 +939,7 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await rows.nth(1).locator('input[type="file"]').setInputFiles({ name: 'back.png', mimeType: 'image/png', buffer: Buffer.from(backPng) });
     await expect(rows.nth(1).locator('.view-row-state')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Span jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     // Primary flow only: two-click span + drawn safe area + atomic save.
     // No Advanced mapping UI is touched; the span commit stages a
@@ -1053,7 +1053,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await (await shown(page, 'product-file')).setInputFiles({ name: 'shell.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(cubeGlb()) });
     await expect(await shown(page, 'intake-model-status')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Model shell');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     // No image UI in model mode: the model pane (not the photo intake) owns setup.
     await expect(builder(page, 'product-model')).toBeVisible();

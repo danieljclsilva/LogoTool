@@ -1,4 +1,4 @@
-import { gotoBuilder, revealBuilderControl, revealCustomerControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, revealCustomerControl, ensurePlacementPanel } from './helpers.js';
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -171,7 +171,7 @@ async function addSetupProduct(page: Page, productName: string, viewLabel: strin
   const png = await syntheticPngBytes(page, fill);
   await stageIntakeImage(page, viewLabel, `${productName.replace(/\s+/g, '-').toLowerCase()}.png`, png);
   await (await shown(page, 'product-name')).fill(productName);
-  await (await shown(page, 'product-add')).click();
+  await addProductAndOpenSetup(page);
   await expect(await shown(page, 'product-status')).toContainText('Added');
   await setupProductWithAnchor(page, anchorName);
 }

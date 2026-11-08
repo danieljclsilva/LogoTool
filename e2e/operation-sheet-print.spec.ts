@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { countPdfPages, readMediaBox } from './sheet-fixtures.js';
 import type { Probe } from './helpers.js';
 
@@ -237,7 +237,7 @@ test('department-authored sheet prints one A4 page with operator data', async ({
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     const card = page.locator('[data-product-card]', { hasText: 'Team jacket' }).first();
     await expect(card.locator('input[type="checkbox"]').first()).toBeChecked();
@@ -336,7 +336,7 @@ test('two dimensions on the same logo print, measure and export together', async
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupViewWithAnchor(page, '', 'Anchor 1', '280', '200');
 
@@ -413,7 +413,7 @@ test('fully configured two-view sheet prints complete with no unfinished items',
     await rows.nth(1).locator('input[type="file"]').setInputFiles({ name: 'back.png', mimeType: 'image/png', buffer: Buffer.from(backPng) });
     await expect(rows.nth(1).locator('.view-row-state')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
 
     // One named anchor per measured view, saved atomically with the setup.
@@ -531,7 +531,7 @@ test('operation sheet stays readable on a narrow viewport without horizontal ove
     const jacketPng = await syntheticPngBytes(page, '#1d6f3a');
     await stageIntakeImage(page, 'Front', 'front.png', jacketPng);
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupViewWithAnchor(page, '', 'Chest center', '280', '200');
     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);

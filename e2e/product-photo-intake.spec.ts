@@ -1,8 +1,7 @@
 // Station intake UX acceptance (Worker 2): explicit Images/3D toggle with
 // only the relevant fields, dynamic named view rows (free labels, unbounded
-// count, stable ids), one prominent "Add product and set up" with gating,
-// a single inviting empty-state intake block, and automatic workspace focus
-// on success. In-place named rows on existing products: legacy side keys
+// count, stable ids), one prominent "Add product" with gating,
+// a single inviting empty-state intake block, and batch intake before explicit setup. In-place named rows on existing products: legacy side keys
 // keep the proven planner path (replace/add/stale/master roundtrips); new
 // slug views commit through the local narrow path. Flexible views flow end
 // to end via the v3 manifest, workspace tabs, calibration sidecars, mappings,
@@ -26,7 +25,7 @@ import type { ProjectPackageSha256 } from '../src/packaging/project-package/inde
 import { createProvisionalProduct } from '../src/core/project-builder/provisional-product.js';
 import type { ProjectDocument } from '../src/core/types.js';
 import { SCHEMA_VERSION } from '../src/core/types.js';
-import { gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
 
 const sha256: ProjectPackageSha256 = async (bytes) => createHash('sha256').update(bytes).digest('hex');
 const digestOf = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
@@ -203,7 +202,7 @@ async function checkAllBoxes(page: Page, listHook: string): Promise<void> {
   });
 }
 
-test('station intake: named views, gating, single empty state, workspace focus', async ({ browser }, info) => {
+test('station intake: named views, gating, single empty state, stays in Prepare', async ({ browser }, info) => {
   test.setTimeout(240_000);
   const { context, page, probe } = await openBuilder(browser);
   let dialogCount = 0;
@@ -215,7 +214,7 @@ test('station intake: named views, gating, single empty state, workspace focus',
     await expect(await shown(page, 'add-product-summary')).toContainText('Add a product');
     await expect(page.locator('body')).not.toContainText('The workspace stays empty until then');
     const addButton = await shown(page, 'product-add');
-    await expect(addButton).toContainText('Add product and set up');
+    await expect(addButton).toContainText('Add product');
     await expect(addButton).toBeDisabled();
     await expect(await shown(page, 'product-status')).toContainText('Choose at least one view image');
 
@@ -275,29 +274,17 @@ test('station intake: named views, gating, single empty state, workspace focus',
       await page.screenshot({ path: info.outputPath('photo-intake-intake.png') });
     }
 
-    // Create: one prominent action, correct product selected, focus moves to
-    // the calibration workspace. Focus is asserted before any later helper
-    // call reopens the disclosure (reveal focuses summaries to open them).
+    // Add keeps Prepare job available for more products and logos.
     await (await shown(page, 'product-name')).fill('Named Views Jacket');
     await addButton.click();
-    // Plain locator (no reveal): the success closes the intake disclosure and
-    // the assertion must not reopen/refocus it before the focus check below.
     await expect(builder(page, 'product-status')).toContainText('Added preview-only product Named Views Jacket (5 view');
-    const productId: string = await builder(page, 'workspace-product').evaluate(
-      (element) => (element as HTMLSelectElement).value,
-    );
-    assert.ok(productId.length > 0, 'workspace product must be selected');
-    const focusedInWorkspace = await page.evaluate(() => {
-      const active = document.activeElement;
-      if (!(active instanceof Element)) return 'none';
-      if (active.getAttribute('data-builder-hook') === 'workspace-product') return 'workspace-product';
-      const box = document.querySelector('[data-builder-hook="product-workspace"]');
-      return box !== null && box.contains(active) ? 'workspace-box' : active.tagName;
-    });
-    assert.ok(
-      focusedInWorkspace === 'workspace-product' || focusedInWorkspace === 'workspace-box',
-      `focus must move into the setup workspace on success (was: ${focusedInWorkspace})`,
-    );
+    await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
+    await expect(builder(page, 'product-editor')).toBeHidden();
+    await expect(builder(page, 'add-product-disclosure')).toHaveAttribute('open', '');
+    await expect(builder(page, 'product-name')).toHaveValue('');
+    await expect(builder(page, 'product-name')).toBeFocused();
+    const productId = await page.locator('[data-product-card]').first().getAttribute('data-product-card');
+    assert.ok(productId, 'added product must have a selection card');
     if (info.project.name === 'chromium') {
       await page.screenshot({ path: info.outputPath('photo-intake-setup.png') });
     }
@@ -363,7 +350,7 @@ test('station intake: 3D model flow hides photo UI', async ({ browser }) => {
     await expect(await shown(page, 'intake-model-status')).toContainText('ready');
     await expect(await shown(page, 'product-add')).toBeEnabled();
     await (await shown(page, 'product-name')).fill('Model Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Model Jacket');
     await expect(await shown(page, 'product-status')).toContainText('3D model (all viewpoints included)');
 
@@ -620,7 +607,7 @@ test('five named views calibrate, save, reopen, issue, customer places, review a
       await expect(row.locator('.view-row-state')).toContainText('ready');
     }
     await (await shown(page, 'product-name')).fill('Five View Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(builder(page, 'product-status')).toContainText('Added preview-only product Five View Jacket (5 views');
     const productId: string = await builder(page, 'workspace-product').evaluate(
       (element) => (element as HTMLSelectElement).value,

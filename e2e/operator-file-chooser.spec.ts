@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
 import type { Probe } from './helpers.js';
 
 function builder(page: Page, name: string) {
@@ -78,7 +78,7 @@ test('visible view chooser stages a file; add alone still reports empty staging'
     await expect(await shown(page, 'product-status')).toContainText('1 view image ready');
 
     await (await shown(page, 'product-name')).fill('Operator Provisional');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product');
     await expect(await shown(page, 'product-status')).toContainText('no measurements');
 

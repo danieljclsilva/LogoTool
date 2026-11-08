@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -23,7 +23,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720
       await b(page, 'product-file').setInputFiles({ name: 'synthetic.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(cubeGlb()) });
       await expect(b(page, 'intake-model-status')).toContainText('ready');
       await b(page, 'product-name').fill('Synthetic product');
-      await b(page, 'product-add').click();
+      await addProductAndOpenSetup(page);
       await expect(b(page, 'product-editor')).toBeVisible();
       await expect(b(page, 'customer-name')).toBeHidden();
       const png = await page.evaluate(() => {
