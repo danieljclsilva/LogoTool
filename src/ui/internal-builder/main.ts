@@ -1842,7 +1842,7 @@ async function createEmptyProject(): Promise<void> {
     formatSelf.checked = true; formatHybrid.checked = false;
     projectIdInput.value = newLocalId(); lastAutoProjectId = projectIdInput.value;
     logoStatus.textContent = '';
-    masterStatus.textContent = 'Empty draft ready. Name the product, choose Images or 3D model below, then “Add product and set up” — nothing is pre-selected, nothing is synthetic.';
+    masterStatus.textContent = 'Empty draft ready. Name the product, choose Images or 3D model below, then “Add product” — nothing is pre-selected, nothing is synthetic.';
     createStatus.textContent = 'Created a new empty draft with no products. Name the product and add views or a model below, or open an existing project file.';
     refreshSelectionValidation();
     resetSessionForInstall();
@@ -1978,10 +1978,10 @@ function refreshIntakeReadiness(): void {
   if (intakeMode === 'model') {
     if (pendingPrimaryModel === null) {
       productAdd.disabled = true;
-      productStatus.textContent = 'Choose a 3D model (.glb) to continue — then “Add product and set up” creates it.';
+      productStatus.textContent = 'Choose a 3D model (.glb) to continue — then “Add product” creates it.';
     } else {
       productAdd.disabled = false;
-      productStatus.textContent = `Staged 3D model ${pendingPrimaryModel.fileName}. Choose “Add product and set up” to create it — all viewpoints are included, no view images needed.`;
+      productStatus.textContent = `Staged 3D model ${pendingPrimaryModel.fileName}. Choose “Add product” to create it — all viewpoints are included, no view images needed.`;
     }
     return;
   }
@@ -1995,7 +1995,7 @@ function refreshIntakeReadiness(): void {
     const capped = stagedIntakeViews.length >= PRESENTATION_VIEW_LIMITS.maxViewsPerScope
       ? ` Up to ${PRESENTATION_VIEW_LIMITS.maxViewsPerScope} view images per product.`
       : '';
-    productStatus.textContent = `${ready.length} view image${ready.length === 1 ? '' : 's'} ready (${names}). Choose “Add product and set up” to create the product and open its setup.${capped}`;
+    productStatus.textContent = `${ready.length} view image${ready.length === 1 ? '' : 's'} ready (${names}). Choose “Add product” to add the product to this job.${capped}`;
   }
 }
 
@@ -2443,16 +2443,19 @@ async function addProductFromStaged(): Promise<void> {
     }
     refreshSelectionValidation();
     reprepareJobDigest();
-    // The calibration workspace opens automatically on the new product:
-    // selection moves there and keyboard focus follows, so the next action
-    // (draw the safe area, place anchors, save once) is immediate.
-    openProductWorkspace(productId);
+    // Keep intake available so products and logos can be collected together.
+    // Product setup opens only through an explicit operator action.
+    editorOpen = false;
+    setJobStep('prepare');
     refreshAddProductDisclosure();
+    addProductDisclosure.open = true;
+    productName.value = '';
+    productName.focus({ preventScroll: true });
     if (generation !== productGeneration) return;
     const viewCountText = views.length === 0
       ? '3D model (all viewpoints included)'
       : `${views.length} view${views.length === 1 ? '' : 's'}`;
-    productStatus.textContent = `Added preview-only product ${mintedProduct.name ?? productId} (${viewCountText}). It carries no measurements yet — its setup is open below: draw the safe area, place anchors, then save once.${historyNote}`;
+    productStatus.textContent = `Added preview-only product ${mintedProduct.name ?? productId} (${viewCountText}). It carries no measurements yet. Add more products and logos here, then choose Set up & place logos when ready.${historyNote}`;
   } catch (error) {
     if (generation === productGeneration) {
       const technical = error instanceof Error ? error.message : String(error);

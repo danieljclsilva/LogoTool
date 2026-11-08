@@ -2,7 +2,7 @@ import {expect, test, type Page, type Locator} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
-import {gotoBuilder, openOfflineContext, assertCleanProbe} from './helpers.js';
+import { addProductAndOpenSetup,gotoBuilder, openOfflineContext, assertCleanProbe} from './helpers.js';
 import {customerModelPackage} from './fixtures/customer-model-package.js';
 import {parseProjectPackage} from '../src/packaging/project-package/index.js';
 
@@ -172,7 +172,7 @@ test('lighting is available immediately after model intake without calibration o
     await b(page, 'intake-mode-model').check();
     await b(page, 'product-file').setInputFiles({name: 'new-model.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(model.bytes)});
     await expect(b(page, 'intake-model-status')).toContainText('ready');
-    await b(page, 'product-name').fill('Synthetic uncalibrated model'); await b(page, 'product-add').click();
+    await b(page, 'product-name').fill('Synthetic uncalibrated model'); await addProductAndOpenSetup(page);
     await expect(b(page, 'model-lighting')).toBeVisible();
     await expect(b(page, 'model-lighting')).toHaveValue('100');
     await b(page, 'model-lighting').focus(); await b(page, 'model-lighting').press('End');

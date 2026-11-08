@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chooseModelTool, revealModelViewControls, assertCleanProbe, gotoBuilder, openOfflineContext } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, assertCleanProbe, gotoBuilder, openOfflineContext } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 
 const VIEWPORTS = [
@@ -54,7 +54,7 @@ async function stageModelProduct(page: Page): Promise<void> {
   });
   await expect(b(page, 'intake-model-status')).toContainText('ready');
   await b(page, 'product-name').fill('Audit product');
-  await b(page, 'product-add').click();
+  await addProductAndOpenSetup(page);
   await expect(b(page, 'product-editor')).toBeVisible();
   await expect(b(page, 'product-model-canvas')).toBeVisible();
 }

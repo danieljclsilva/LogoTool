@@ -1,5 +1,47 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Batch product and logo intake — 8 November 2026
+
+Adding an image-based or model-based product now keeps Prepare job visible.
+Operators can collect multiple products and logos before explicitly opening
+setup. The Add product button, staging guidance and success message follow this
+flow. The intake form stays open and its name field resets for the next item.
+
+Two new cases at 1280×720 and 390×844 add two products (one GLB) and two logos
+before setup, verify selection, save and reopen, compare original asset bytes,
+and explicitly open the model's setup. Existing setup cases now use a shared
+helper that clicks the new product's actual Open setup button. Original
+physical, size, fit, deterministic-package and asset assertions are retained.
+The rejected-add budget case retains its direct Add action.
+
+Independent typecheck and all 881 Node tests pass. The 26-case Chromium smoke
+run passes. The complete offline Chromium run has **255 first-attempt passes,
+13 failures, zero retry recoveries and zero skips across 268 cases**. All 13
+failing cases also failed on merged `2891e81`. Shared outcomes do not establish
+shared causes. [Results and frozen source hashes](validation/2026-11-08-batch-intake/results.json)
+include every case and attempt, plus the comparison with that baseline.
+
+Installed Chrome has **43 first-attempt passes, two retry recoveries and zero
+persistent failures across 45 cases**. The direct-images journey reported a
+browser closure. The desktop unified-editor case failed its workbench-ready
+assertion with an empty value. Both passed an isolated traced, zero-retry
+recheck. The readiness case then passed ten zero-retry repetitions on both the
+current tree and an isolated `2891e81` build. Its intermittent cause remains
+unresolved. A separate two-case check of the primary Set up & place logos
+button after batch intake also passes. These supplemental runs are recorded
+separately from the complete suite.
+
+Environment is macOS 27.3 (26C5035r), arm64, Node 26.10.0, Playwright 1.64.0,
+Chromium 156.0.8078.4 and installed Chrome 156.0.8078.80. Acceptance uses offline
+`file://` and synthetic fixtures. Desktop and phone screenshots were visually
+inspected. Raw artifacts remain in the local task evidence directory.
+
+The Contributor lead's connection reset before edits were returned. Codex
+confirmed the sessions stopped, implemented the change and independently
+verified it. The Windows Chrome/Edge gate and unaided staff trial remain
+deferred as requested.
+
+
 ## Logo Station UX improvements — 2026-11-07
 
 The [complete UX audit](ux-validation-audit-2026-11-07.md) supersedes the historical

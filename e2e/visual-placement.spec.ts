@@ -4,7 +4,7 @@ import { release } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
-import { gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 
 // Visual placement acceptance (lead-owned slice): direct on-logo pointer
 // handles on the photo/diagram stage. Synthetic fixtures only, offline
@@ -77,7 +77,7 @@ test('visual placement: photo/diagram handles move, resize, rotate, cancel, sibl
     await rows.first().locator('input[type="file"]').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: Buffer.from(jacketPng) });
     await expect(rows.first().locator('.view-row-state')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
 
     // Calibrated 280x200 mm rectangle + one anchor (rect corners double as the safe area).

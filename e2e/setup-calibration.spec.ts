@@ -7,7 +7,7 @@ import { release } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSync } from 'esbuild';
-import { chooseModelTool, revealModelViewControls, gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, revealBuilderControl, revealCustomerControl, selectCustomerOption } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
@@ -257,7 +257,7 @@ test('images setup: guided measure + mm + safe area + anchors + tool toggles + a
       const frontPng = await syntheticPngBytes(page, '#1d6f3a');
       await stageIntakeImage(page, 'Front', 'front.png', frontPng);
       await (await shown(page, 'product-name')).fill('Setup Jacket');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Setup Jacket');
 
       const workspace = builder(page, 'product-workspace');
@@ -408,7 +408,7 @@ test('images span setup: two-click reference + drawn area + atomic save creates 
       const frontPng = await syntheticPngBytes(page, '#8f2a4d');
       await stageIntakeImage(page, 'Front', 'front.png', frontPng);
       await (await shown(page, 'product-name')).fill('Span Jacket');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Span Jacket');
 
       // Primary flow: two clicks A/B on the actual photo + real millimetres.
@@ -515,7 +515,7 @@ test('images two named areas: draw, rename, save, reopen, issue, customer places
       const frontPng = await syntheticPngBytes(page, '#5a2a6f');
       await stageIntakeImage(page, 'Front', 'front.png', frontPng);
       await (await shown(page, 'product-name')).fill('Two Area Jacket');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Two Area Jacket');
 
       const workspace = builder(page, 'product-workspace');
@@ -802,7 +802,7 @@ test('images delete unreferenced area: region and links gone, customer cannot se
     const frontPng = await syntheticPngBytes(page, '#6f5a2a');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Delete Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Delete Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -916,7 +916,7 @@ test('images setup edit invalidates generated outputs: download disabled until r
     const frontPng = await syntheticPngBytes(page, '#2a6f5a');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Stale Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Stale Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -1014,7 +1014,7 @@ test('images span span-reference retires on photo replacement, no stale calibrat
     const frontPng = await syntheticPngBytes(page, '#7a3a5a');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Replace Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Replace Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -1063,7 +1063,7 @@ test('images span recalibration from sibling-owned mapping resolves the owning s
     const frontPng = await syntheticPngBytes(page, '#4a6a8a');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Recal Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Recal Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -1315,7 +1315,7 @@ test('station 3D setup: model-only mount + surface reference + save to master + 
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await stageIntakeModel(page, 'box.glb', cubeGlb());
     await (await shown(page, 'product-name')).fill('Model Box');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Model Box');
 
     // The model pane mounts the 3D setup view: no images anywhere.
@@ -1551,7 +1551,7 @@ test('station 3D delete + resave: unreferenced region removed with links, issue 
     await expect(page.locator('[data-job-step="prepare"]')).toBeVisible();
     await stageIntakeModel(page, 'box.glb', cubeGlb());
     await (await shown(page, 'product-name')).fill('Delete Box');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Delete Box');
 
     const modelPane = builder(page, 'product-model');
@@ -1833,7 +1833,7 @@ test('prepared-master save/reopen retains references, calibration and areas', as
     const frontPng = await syntheticPngBytes(page, '#2a4d8f');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Master Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Master Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -1911,7 +1911,7 @@ test('product-setup tools: dotted reference, rectangle to independent polygon, e
     const frontPng = await syntheticPngBytes(page, '#2a6f4d');
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Tool Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Tool Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -2300,7 +2300,7 @@ test('product-setup tools wrap cleanly at 390x844 with real overlays', async ({ 
     const frontPng = await syntheticPngBytes(page, '#3a6f2a', 300, 900);
     await stageIntakeImage(page, 'Front', 'front.png', frontPng);
     await (await shown(page, 'product-name')).fill('Narrow Jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added preview-only product Narrow Jacket');
 
     const workspace = builder(page, 'product-workspace');
@@ -2679,7 +2679,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       await attachEnv(info, browser, viewport, 'stable polygon authoring controls');
       await stageIntakeModel(page, 'stable-box.glb', cubeGlb());
       await (await shown(page, 'product-name')).fill('Stable polygon box');
-      await (await shown(page, 'product-add')).click();
+      await addProductAndOpenSetup(page);
       const pane = builder(page, 'product-model');
       const ms = (name: string) => pane.locator(`[data-model-setup-hook="${name}"]`);
       await revealModelViewControls(page);

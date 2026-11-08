@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import type { Probe } from './helpers.js';
 
 // Visual operation dimensions acceptance through the operator job shell:
@@ -112,7 +112,7 @@ test('four select-based measurements across two logos print and export', async (
     await rows.first().locator('input[type="file"]').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: Buffer.from(jacketPng) });
     await expect(rows.first().locator('.view-row-state')).toContainText('ready');
     await (await shown(page, 'product-name')).fill('Team jacket');
-    await (await shown(page, 'product-add')).click();
+    await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
 
     // One named anchor on the calibrated front view.

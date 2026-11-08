@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -19,7 +19,7 @@ async function createUnconfiguredModel(page: Page, glb = cubeGlb(true, false)) {
   await b(page, 'product-file').setInputFiles({ name: 'unconfigured.glb', mimeType: 'model/gltf-binary', buffer: Buffer.from(glb) });
   await expect(b(page, 'intake-model-status')).toContainText('ready');
   await b(page, 'product-name').fill('Unconfigured jacket');
-  await b(page, 'product-add').click();
+  await addProductAndOpenSetup(page);
   await expect(b(page, 'product-editor')).toBeVisible();
   const png = await page.evaluate(() => {
     const c = document.createElement('canvas'); c.width = 80; c.height = 40;
