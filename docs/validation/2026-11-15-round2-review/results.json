@@ -1,0 +1,125 @@
+{
+  "browser": "156.0.8078.4",
+  "platform": "darwin",
+  "osRelease": "27.3.0",
+  "node": "v26.10.0",
+  "offline": true,
+  "source": "0579d39",
+  "screens": [
+    {
+      "file": "1290-prepare.png",
+      "viewport": {
+        "width": 1290,
+        "height": 700
+      },
+      "canvas": null,
+      "errors": []
+    },
+    {
+      "file": "1290-setup.png",
+      "viewport": {
+        "width": 1290,
+        "height": 700
+      },
+      "canvas": {
+        "x": 23,
+        "y": 351.75,
+        "width": 1244,
+        "height": 259
+      },
+      "errors": []
+    },
+    {
+      "file": "1290-logos.png",
+      "viewport": {
+        "width": 1290,
+        "height": 700
+      },
+      "canvas": {
+        "x": 26,
+        "y": 253.75,
+        "width": 886,
+        "height": 333
+      },
+      "errors": []
+    },
+    {
+      "file": "1290-logos-enlarged.png",
+      "viewport": {
+        "width": 1290,
+        "height": 700
+      },
+      "canvas": {
+        "x": 26,
+        "y": 209.75,
+        "width": 886,
+        "height": 374.3125
+      },
+      "errors": []
+    },
+    {
+      "file": "390-prepare.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": null,
+      "errors": []
+    },
+    {
+      "file": "390-setup.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": {
+        "x": 33,
+        "y": 556.78125,
+        "width": 324,
+        "height": 394
+      },
+      "errors": []
+    },
+    {
+      "file": "390-logos.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": {
+        "x": 38,
+        "y": 629.78125,
+        "width": 314,
+        "height": 382
+      },
+      "errors": []
+    },
+    {
+      "file": "390-logos-enlarged.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": {
+        "x": 20,
+        "y": 280.21875,
+        "width": 350,
+        "height": 426
+      },
+      "errors": []
+    }
+  ],
+  "customer": {
+    "original": "40",
+    "edited": "45",
+    "status": "Applied your changes as version 2.",
+    "closePrevented": false,
+    "lockBeforeHeight": true,
+    "lockAfterHeight": false,
+    "afterHeight": {
+      "width": "45",
+      "height": "30"
+    },
+    "afterReplacingFile": "40"
+  }
+}

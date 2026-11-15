@@ -856,6 +856,148 @@ export function createModelSetupView(
   const draftKeyFor = (productId: string, variantId: string | null | undefined): string =>
     `${productId}${variantId === undefined || variantId === null ? '' : ` ${variantId}`}`;
 
+  /* ------------------------------------------------------------------ */
+  /* Disabled-control reasons (view-only, no domain/browser providers).  */
+  /* Base titles are action descriptions: stored, replaced by the       */
+  /* specific disabled reason, then restored when enabled. Reasons also */
+  /* travel via aria-describedby + adjacent hidden span. Queries stay   */
+  /* scoped to container + viewbar mount, never document.               */
+  /* ------------------------------------------------------------------ */
+
+  const REASON_ID_PREFIX = 'model-setup-reason-';
+  const baseTitles = new WeakMap<Element, string | null>();
+
+  function reasonIdForControl(control: Element): string | null {
+    const hook = control.getAttribute(HOOK);
+    if (hook !== null && hook !== '') return `${REASON_ID_PREFIX}${hook}`;
+    const psView = control.getAttribute('data-ps-view');
+    if (psView !== null && psView !== '') return `${REASON_ID_PREFIX}${psView}`;
+    return null;
+  }
+
+  function setDisabledReason(control: Element, reason: string | null): void {
+    const id = reasonIdForControl(control);
+    if (id === null) return;
+    const raw = control.getAttribute('aria-describedby') ?? '';
+    const tokens = raw.split(/\s+/).filter((token) => token.length > 0);
+    const others = tokens.filter((token) => !token.startsWith(REASON_ID_PREFIX));
+    const parent = control.parentElement;
+    const existing = parent?.querySelector(`#${CSS.escape(id)}`);
+    if (reason === null) {
+      if (baseTitles.has(control)) {
+        const base = baseTitles.get(control) ?? null;
+        if (base === null) control.removeAttribute('title');
+        else control.setAttribute('title', base);
+        baseTitles.delete(control);
+      }
+      if (tokens.length !== others.length) {
+        if (others.length > 0) control.setAttribute('aria-describedby', others.join(' '));
+        else control.removeAttribute('aria-describedby');
+      }
+      if (existing instanceof HTMLElement) existing.remove();
+      return;
+    }
+    if (!baseTitles.has(control)) baseTitles.set(control, control.getAttribute('title'));
+    control.setAttribute('title', reason);
+    let node = existing instanceof HTMLElement ? existing : null;
+    if (node === null && parent !== null) {
+      node = document.createElement('span');
+      node.id = id;
+      parent.insertBefore(node, control.nextSibling);
+    }
+    if (node !== null) {
+      node.hidden = true;
+      if (node.textContent !== reason) node.textContent = reason;
+    }
+    const next = [...others, id].join(' ');
+    if (raw !== next) control.setAttribute('aria-describedby', next);
+  }
+
+  function disabledReasonFor(
+    control: Element,
+    scope: { entry: ModelSetupProduct; draft: ProductDraft } | null,
+  ): string | null {
+    const hook = control.getAttribute(HOOK);
+    const psView = control.getAttribute('data-ps-view');
+    const draft = scope?.draft ?? null;
+    if (hook === 'outline-point' || hook === 'outline-curve') {
+      return 'Choose Edit outline to enable outline editing.';
+    }
+    if (hook === 'area-name') {
+      return 'Naming is paused while Edit outline is active.';
+    }
+    if (hook === 'area-finish') {
+      return 'Draw an outline first — use Rectangle or Polygon — then finish the area.';
+    }
+    if (hook === 'area-undo') {
+      return 'Draw at least one corner before undoing.';
+    }
+    if (hook === 'area-cancel') {
+      return 'Nothing to cancel — start a Rectangle or Polygon drawing first.';
+    }
+    if (hook === 'focus-area') {
+      const selected = draft?.areas.find((area) => area.id === draft.selectedAreaId);
+      if (selected === undefined) return 'Select a safe area first — then focus it.';
+      if (gesture !== null || pendingHandle !== null || curveDrag !== null) {
+        return 'Finish the active drag first — then focus this area.';
+      }
+      if (draft !== null && !draft.productVisible) return 'Show the product to focus an area.';
+      return 'Focus needs a live 3D preview.';
+    }
+    if (hook === 'handle-remove') {
+      const selected = draft?.areas.find((area) => area.id === draft?.selectedAreaId);
+      if (selected === undefined) return 'Select a safe area first to remove a corner.';
+      return 'Select a corner first to remove it.';
+    }
+    if (hook === 'areas-recompute') {
+      const staleCount = draft?.areas.filter((area) => area.status === 'stale').length ?? 0;
+      if (staleCount === 0) return 'No stale areas to recompute.';
+      if (draft?.fitted === null || draft?.fitted === undefined) {
+        return 'Fit the reference scale first — then recompute stale areas.';
+      }
+      if (draft?.fitStale) return 'Re-fit the edited reference first — then recompute stale areas.';
+      return 'No stale areas to recompute.';
+    }
+    if (psView === 'zoom-out') {
+      return `Already at minimum zoom (${VIEW_ZOOM_STEPS[0]}%).`;
+    }
+    if (psView === 'zoom-in') {
+      return `Already at maximum zoom (${VIEW_ZOOM_STEPS[VIEW_ZOOM_STEPS.length - 1]}%).`;
+    }
+    if (hook === 'view-front' || hook === 'view-back') {
+      return 'Side views need a live 3D preview.';
+    }
+    if (hook === 'toggle-anchors' || hook === 'toggle-safe' || hook === 'toggle-product') {
+      return 'No active product — add a product first.';
+    }
+    if (hook === 'setup-restore') {
+      return 'Reading the setup file…';
+    }
+    return null;
+  }
+
+  function syncDisabledReasons(scope: { entry: ModelSetupProduct; draft: ProductDraft } | null): void {
+    const roots: Element[] = [container];
+    const mount = document.querySelector('[data-model-setup-hook="viewbar"]');
+    if (mount !== null && mount !== container && !container.contains(mount)) roots.push(mount);
+    const selector =
+      'button[data-model-setup-hook], input[data-model-setup-hook], select[data-model-setup-hook], ' +
+      'button[data-ps-view], select[data-ps-view]';
+    for (const root of roots) {
+      const controls = root.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(selector);
+      controls.forEach((control) => {
+        if (!control.disabled) {
+          if (reasonIdForControl(control) === null) return;
+          const described = control.getAttribute('aria-describedby') ?? '';
+          const hasOurs = described.split(/\s+/).some((token) => token.startsWith(REASON_ID_PREFIX));
+          if (hasOurs || baseTitles.has(control)) setDisabledReason(control, null);
+          return;
+        }
+        setDisabledReason(control, disabledReasonFor(control, scope));
+      });
+    }
+  }
+
   const draftFor = (productId: string, variantId: string | null | undefined): ProductDraft => {
     const key = draftKeyFor(productId, variantId);
     const existing = drafts.get(key);
@@ -2093,13 +2235,7 @@ export function createModelSetupView(
     wireHandleFrame();
     syncHandleLayer();
     syncCurveHandle();
-    for (const control of document.querySelectorAll<HTMLButtonElement | HTMLInputElement>('[data-model-setup-hook][disabled]')) {
-      const reason = control.title || (control.getAttribute(HOOK)?.startsWith('outline-')
-        ? 'Choose Edit outline and select a safe area first.'
-        : 'Complete the current measurement or select the relevant safe area first.');
-      control.title = reason;
-      control.setAttribute('aria-description', reason);
-    }
+    syncDisabledReasons({ entry, draft });
     noteHandlesSettled();
   }
 
@@ -3131,33 +3267,47 @@ export function createModelSetupView(
 
   /** Patch zoom readout/disabled state in place (no rebuild, keeps focus). */
   function syncViewbar(scope: { entry: ModelSetupProduct; draft: ProductDraft } | null): void {
+    const mount = document.querySelector('[data-model-setup-hook="viewbar"]');
+    if (mount === null) return;
+    let zoom = 100;
     try {
-      const mount = document.querySelector('[data-model-setup-hook="viewbar"]');
-      if (mount === null) return;
-      let zoom = 100;
-      try {
-        zoom = viewerOf()?.getZoomPercent?.() ?? 100;
-      } catch {
-        zoom = 100;
-      }
-      const select = mount.querySelector<HTMLSelectElement>('[data-ps-view="zoom"]');
-      if (select !== null) {
-        if (!Array.from(select.options).some((option) => option.value === String(zoom))) {
-          const current = document.createElement('option');
-          current.value = String(zoom); current.textContent = `${zoom}%`;
-          current.dataset.currentZoom = 'true';
-          select.querySelectorAll('[data-current-zoom]').forEach((option) => option.remove());
-          select.append(current);
-        }
-        select.value = String(zoom);
-      }
-      const out = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-out"]');
-      if (out !== null) out.disabled = zoom <= VIEW_ZOOM_STEPS[0]!;
-      const into = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-in"]');
-      if (into !== null) into.disabled = zoom >= VIEW_ZOOM_STEPS[VIEW_ZOOM_STEPS.length - 1]!;
-      void scope;
+      zoom = viewerOf()?.getZoomPercent?.() ?? 100;
     } catch {
-      return;
+      zoom = 100;
+    }
+    const select = mount.querySelector<HTMLSelectElement>('[data-ps-view="zoom"]');
+    if (select !== null) {
+      if (!Array.from(select.options).some((option) => option.value === String(zoom))) {
+        const current = document.createElement('option');
+        current.value = String(zoom); current.textContent = `${zoom}%`;
+        current.dataset.currentZoom = 'true';
+        select.querySelectorAll('[data-current-zoom]').forEach((option) => option.remove());
+        select.append(current);
+      }
+      select.value = String(zoom);
+    }
+    const out = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-out"]');
+    if (out !== null) {
+      out.disabled = zoom <= VIEW_ZOOM_STEPS[0]!;
+      setDisabledReason(out, out.disabled ? disabledReasonFor(out, scope) : null);
+    }
+    const into = mount.querySelector<HTMLButtonElement>('[data-ps-view="zoom-in"]');
+    if (into !== null) {
+      into.disabled = zoom >= VIEW_ZOOM_STEPS[VIEW_ZOOM_STEPS.length - 1]!;
+      setDisabledReason(into, into.disabled ? disabledReasonFor(into, scope) : null);
+    }
+    for (const control of mount.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(
+      'button[data-model-setup-hook], input[data-model-setup-hook], select[data-model-setup-hook], ' +
+        'button[data-ps-view], select[data-ps-view]',
+    )) {
+      if (control === out || control === into) continue;
+      if (control.disabled) setDisabledReason(control, disabledReasonFor(control, scope));
+      else if (reasonIdForControl(control) !== null) {
+        const described = control.getAttribute('aria-describedby') ?? '';
+        if (described.split(/\s+/).some((token) => token.startsWith(REASON_ID_PREFIX)) || baseTitles.has(control)) {
+          setDisabledReason(control, null);
+        }
+      }
     }
   }
 
@@ -3247,9 +3397,11 @@ export function createModelSetupView(
         return;
       }
       restore.disabled = true;
+      setDisabledReason(restore, 'Reading the setup file…');
       void picked.text().then(
         (text) => {
           restore.disabled = false;
+          setDisabledReason(restore, null);
           const outcome = restoreSetup(entry, draft, text);
           paintStatus(outcome.message);
           if (outcome.ok) emit(entry, draft);
@@ -3257,6 +3409,7 @@ export function createModelSetupView(
         },
         (error: unknown) => {
           restore.disabled = false;
+          setDisabledReason(restore, null);
           paintStatus(`Could not read that file (${error instanceof Error ? error.message : String(error)}). Current setup kept.`);
           refresh();
         },

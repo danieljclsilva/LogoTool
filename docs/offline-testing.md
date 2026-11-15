@@ -1,5 +1,29 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+## Hosted browser evidence
+
+`.github/workflows/offline-e2e.yml` runs on PRs, main pushes and manual dispatch.
+Linux Chromium is advisory initially. Windows Chrome and Edge are strict jobs.
+Each job builds the normal entry points, launches its named browser, records its
+actual version and runner image, and checks the station over offline `file://`
+before the full suite. Missing branded browsers cause a launch failure. The
+Windows jobs use the runner-installed browsers. The runner image inventory
+lists Chrome and Edge, and the launch preflight verifies the specific runner.
+See the [Windows image inventory](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md).
+
+Runs use two workers, zero retries and no fail-fast cancellation across browsers.
+Artifacts retain environment JSON, full Playwright JSON/HTML results and failure
+attachments for 14 days, including failed attempts. Per-test context attachments
+record viewport, OS, browser version and offline mode. Runner evidence supports
+the Windows investigation. Actual operator-machine acceptance remains a delivery
+gate.
+
+The 13-failure and 18-failure runs of `45bdbda` demonstrate a variable baseline.
+Compare repeated attempts on the same revision, runner image, browser and worker
+count before attributing a change. Matching failure names in one pair of runs
+cannot rule out regressions in intermittent cases.
+
+
 ## Batch product and logo intake — 8 November 2026
 
 Adding an image-based or model-based product now keeps Prepare job visible.
@@ -1789,3 +1813,19 @@ current shared workspace controls and issues both formats from a fresh station
 copy. Remaining failures retain their earlier unresolved status. Environment
 and Windows delivery gate remain as recorded above. No unaided staff trial has
 been observed.
+
+### Follow-up validation on 15 November 2026
+
+The Contributor lead integrated two bounded workers for the disabled-reason fix.
+Codex reviewed title restoration, hidden description nodes, selector scope and
+in-place zoom transitions. Independent typecheck and all 883 Node tests pass.
+The 10-case Chromium selection covering disabled reasons, editor guidance and
+round-2 staff behavior passes, along with all 14 existing customer-editor and
+model-proof cases. The JSON reporter file path and offline browser preflight
+were exercised locally. Missing Edge produces a failed environment record.
+Hosted Linux/Windows execution will be recorded on the PR.
+
+The [regenerated round-2 screenshots](validation/2026-11-15-round2-review/README.md)
+are tracked evidence from committed `0579d39`. The actual 1290×700 setup canvas
+measures 259 px high. The [customer-editor review](customer-editor-review-2026-11-15.md)
+records reproduced data-loss and proportion-lock findings for follow-up work.

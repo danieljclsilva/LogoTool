@@ -685,7 +685,9 @@ tests open the header's More menu before selecting that action.
 The fresh `45bdbda` baseline has 250 Chromium passes and 18 failures out of
 268 cases. The complete round-2 sweep has 255 passes and the identical 18
 failing case names out of 273 cases, with zero retries and skips. Matching case
-names establish the comparison, without establishing identical causes. This
+names describe these two runs. The earlier batch-intake run of `45bdbda` recorded
+13 failures, while this rerun recorded 18. The baseline varies across runs. Matching
+failure names cannot rule out a regression in an intermittent case. This
 sweep preceded the final single-scroll-container and bounded-height refinement.
 The final build then passes all 25 focused Chromium cases covering round-2
 behavior, persistence, product workspaces, editor guidance and the unified editor.

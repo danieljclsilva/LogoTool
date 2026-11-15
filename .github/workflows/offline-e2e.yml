@@ -1,0 +1,62 @@
+name: Offline browser evidence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    name: ${{ matrix.os }} / ${{ matrix.project }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    continue-on-error: ${{ matrix.os == 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            project: chromium
+          - os: windows-latest
+            project: chrome
+          - os: windows-latest
+            project: msedge
+    env:
+      CI: true
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/results.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install bundled Chromium and Linux dependencies
+        if: matrix.project == 'chromium'
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Verify installed browser and offline file entry
+        run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
+      - name: Run offline suite with zero retries
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --reporter=line,json,html
+      - name: Upload environment, results and failure evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: offline-${{ matrix.os }}-${{ matrix.project }}-${{ github.run_attempt }}
+          path: |
+            ci-evidence/
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: warn
