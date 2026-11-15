@@ -35,19 +35,19 @@
       "bounds": {
         "canvas": {
           "x": 23,
-          "y": 298.75,
+          "y": 296.75,
           "width": 1244,
           "height": 315
         },
         "save": {
           "x": 23,
-          "y": 626.75,
+          "y": 624.75,
           "width": 229.515625,
           "height": 44
         },
         "footer": {
           "x": 23,
-          "y": 617.75,
+          "y": 615.75,
           "width": 1244,
           "height": 72.390625
         }
@@ -101,6 +101,45 @@
       "startTime": "2026-11-15T19:22:35.894Z",
       "duration": 3979.901,
       "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "latestDefaultChromium": {
+    "workers": 2,
+    "retries": 0,
+    "ciEnvironment": true,
+    "tracing": "off",
+    "stats": {
+      "startTime": "2026-11-15T20:02:50.551Z",
+      "duration": 84895.54999999999,
+      "expected": 59,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "previousFullChromium": {
+    "head": "2ed8386",
+    "workers": 2,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T19:25:20.544Z",
+      "duration": 689362.5499999999,
+      "expected": 272,
+      "skipped": 0,
+      "unexpected": 14,
+      "flaky": 0
+    }
+  },
+  "latestInternalChrome": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:05:26.010Z",
+      "duration": 28369.933999999997,
+      "expected": 14,
       "skipped": 0,
       "unexpected": 0,
       "flaky": 0

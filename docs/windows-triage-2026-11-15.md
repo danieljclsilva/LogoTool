@@ -55,8 +55,8 @@ Representative failures occur after controls resolve as visible and stable,
 while Playwright scrolls them into view. Other timeouts occur during canvas
 picking or editing. This supports collecting renderer and timing evidence before
 changing readiness thresholds. The preflight now records WebGL support, renderer,
-vendor and version. Hosted runs retain failure traces for action timing and
-DOM inspection. A software-renderer cause remains unconfirmed.
+vendor and version. Focused opt-in traces support action timing and DOM
+inspection. A software-renderer cause remains unconfirmed.
 
 ## Layout and path checks
 
@@ -78,3 +78,26 @@ Compare repeated zero-retry cohorts with matching browser/runner versions and
 worker counts. Confirm the golden-JSON fix on Windows. Investigate the timeout
 cluster using measured renderer information and representative retained traces.
 The observed inventories support triage. Operator-machine acceptance remains open.
+
+## Tracing experiment on `2ed8386`
+
+Run `43752138435` enabled full action, DOM and screenshot tracing. Linux completed
+286 cases with 264 passes and 22 failures, and produced a 723,538,266-byte artifact.
+Edge shard 1 completed 143 cases with 109 passes and 34 failures. The other three
+Windows shards hit the 35-minute job limit. These results are a separate
+instrumented cohort, with incomplete Windows totals.
+
+Eight of nine customer persistence cases passed in the completed Edge shard.
+The first case timed out in the initial file chooser before testing dirty state.
+Linux phone geometry exposed a normal-view canvas shortfall of about half a
+pixel and an enlarged-view shortfall after entering a drawing tool. The phone
+checklist spacing and footer grid were refined while preserving the assertions.
+
+The new summaries run successfully in the completed jobs and list failing cases.
+Full tracing substantially increased observed runtime and artifact size. Primary
+CI returns to its untraced setting. Focused developers can set `E2E_TRACE=1` to
+retain action and DOM traces on failure, with continuous screenshot capture
+disabled. A local smoke case verified the trace event/snapshot streams and zero
+screencast frames. Renderer records identify SwiftShader on hosted Windows.
+A retained import-readiness trace also contains ReadPixels GPU-stall warnings.
+Those observations leave the underlying timeout cause unresolved.

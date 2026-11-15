@@ -1852,8 +1852,10 @@ with no skips or retries. The [triage report](windows-triage-2026-11-15.md) and
 per-platform inventories preserve the case-level evidence. Windows CI remains
 strict while the timeout cluster is investigated.
 
-The new CI summary exposes failing titles and errors in each job, and retains
-failure traces. Preflight records WebGL renderer information. Persistence-layout
+The new CI summary exposes failing titles and errors in each job. Focused
+`E2E_TRACE=1` runs retain action and DOM failure traces without continuous
+screenshot capture. Full-suite tracing hit three Windows job limits in
+`43752138435`, so primary CI retains the untraced profile. Preflight records WebGL renderer information. Persistence-layout
 failures attach measured bounds, scroll/client sizes and the rendered font.
 Canonical LF checkout rules address the confirmed golden-JSON CRLF mismatch.
 A local Windows-style `core.autocrlf=true` checkout probe preserves the golden
@@ -1895,3 +1897,17 @@ corrected integration and acceptance failures, and performed independent final
 validation. Unaided staff/customer trials and actual Windows operator-machine
 acceptance remain open. Hosted Windows evidence and unresolved failures are
 reported on the follow-up PR.
+
+
+The final hosted tracing experiment completed Linux with 264 passes and 22
+failures, and Edge shard 1 with 109 passes and 34 failures. Three Windows jobs
+hit their 35-minute limits. The complete [instrumentation analysis](windows-triage-2026-11-15.md)
+records the limits and the decision to keep tracing opt-in. The latest untraced
+local cohort passes all 59 focused and compatibility cases with CI=true, two
+workers and zero retries. A separate desktop 1280×720 reachability check passes.
+Phone footer buttons now form two columns, and hidden supplemental controls do
+not reserve grid rows. The existing canvas floors and all action targets remain
+asserted. A phone layout attachment records the toolbar and footer rectangles.
+
+The final 14-case staff layout selection passes in installed Chrome with one
+worker and zero retries after the phone-footer refinement.

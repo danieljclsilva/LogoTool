@@ -276,6 +276,16 @@ test('phone editor at 390x844 keeps full tool labels and contextual authoring fi
     await b(page, 'product-model-expand').click();
     await expect(b(page, 'product-editor')).toHaveClass(/station-expanded-workspace/);
     const enlargedBox = (await canvas.boundingBox())!;
+    await info.attach('phone-enlarged-layout', {
+      contentType: 'application/json',
+      body: JSON.stringify(await page.locator('.product-model-footer, .product-setup-actions, .product-editor-modes, .editor-checklist, .product-model-toolbar').evaluateAll(nodes => nodes.map(node => ({
+        className: node.className,
+        bounds: node.getBoundingClientRect().toJSON(),
+        display: getComputedStyle(node).display,
+        gridRows: getComputedStyle(node).gridTemplateRows,
+      }))), null, 2),
+    });
+    await page.screenshot({ path: info.outputPath('phone-390-enlarged.png') });
     expect(enlargedBox.height).toBeGreaterThan(844 * 0.45);
     await expect(picker).toBeVisible();
     await expect(picker).toHaveValue('freehand');

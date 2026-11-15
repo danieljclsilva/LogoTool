@@ -2,8 +2,10 @@
 
 Synthetic fixtures over offline `file://` on macOS 27.3.0 arm64, Node 26.10.0,
 Playwright 1.64.0 and Chromium 156.0.8078.4. Two workers, zero retries.
-The final focused Chromium cohort passes all 49 cases, and a separate ten-case
-presentation/layout audit also passes. Both use two workers and zero retries.
+The latest untraced Chromium cohort passes all 59 focused and compatibility
+cases with CI=true, two workers and zero retries. The phone footer uses two
+columns, with full labels and 44 px targets. A separate 1280×720 reachability
+case also passes.
 The two-worker Chrome cohort passes 47 of 49 cases, with two browser-closure
 errors in staff persistence tests. A one-worker expanded Chrome cohort passes
 58 of 59 cases, with one browser-closure error in the presentation handoff test.
@@ -26,3 +28,6 @@ provides the primary acceptance evidence required by AGENTS.md.
 acceptance-source hashes. Prior screenshots in `2026-11-15-round2-review` remain
 historical evidence for the findings. Hosted Windows results are linked on the
 PR. Actual operator-machine and unaided staff/customer trials remain pending.
+
+The final 14-case staff layout selection passes in installed Chrome with one
+worker and zero retries after the phone-footer refinement.
