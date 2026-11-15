@@ -1829,3 +1829,8 @@ The [regenerated round-2 screenshots](validation/2026-11-15-round2-review/README
 are tracked evidence from committed `0579d39`. The actual 1290×700 setup canvas
 measures 259 px high. The [customer-editor review](customer-editor-review-2026-11-15.md)
 records reproduced data-loss and proportion-lock findings for follow-up work.
+
+The first hosted Windows attempt stopped at fixture packaging. Checkout EOL
+conversion changed the hashed SVG bytes. Scoped `.gitattributes` entries preserve
+both synthetic SVG assets exactly. The original failed attempt is retained in
+Actions run `43738480355`. The follow-up run supplies browser execution evidence.
