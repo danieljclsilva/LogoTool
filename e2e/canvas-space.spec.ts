@@ -138,6 +138,7 @@ test('staff canvas space at 1290x700: normal and enlarged keep canvas, footer, g
     await b(page, 'model-setup-save').click();
     await expect(b(page, 'model-setup-status')).toContainText('Saved 3D setup');
     await expect(b(page, 'model-setup-status')).toContainText('Provisional');
+    await expect(ms(page, 'status')).toHaveText('');
 
     // Normal view bounds + footer reachability.
     await assertCanvasAndFooter(page, '1290x700-normal', info);

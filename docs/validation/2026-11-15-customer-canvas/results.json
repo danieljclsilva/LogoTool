@@ -164,5 +164,17 @@
       "unexpected": 0,
       "flaky": 0
     }
+  },
+  "finalFeedbackAcceptance": {
+    "workers": 2,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:39:08.135Z",
+      "duration": 77532.706,
+      "expected": 50,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
   }
 }

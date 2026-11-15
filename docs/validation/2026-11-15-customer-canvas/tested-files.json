@@ -1,10 +1,10 @@
 {
   "src/ui/customer-editor/main.ts": "117ff4adea144168ec62962166828816c0ca1275f0b64569d026b3e7273c4a4b",
   "src/ui/customer-editor/template.html": "90b538d0ca4fcb7ca08b5464663ed0690ecf02974e67e9f09f5794234a01b98f",
-  "src/ui/internal-builder/main.ts": "b4d2a93d47a83dec80c537a85f543a21b41e08596a18932aa23bf24e7072cad2",
+  "src/ui/internal-builder/main.ts": "bc3b32b305427637244a0058188ea82e80a044fb52ec0aa9f2a31291f0fdc616",
   "src/ui/internal-builder/template.html": "8d98f474cf2b9c85e2bad862c1f499475928464f13c47d8e2b08d16f88dfd913",
-  "src/ui/internal-builder/model-setup-view.ts": "010c22cb622e7cb7efd8ebd84845f404fb51304dc74d25bc3c341a4f6ea013f5",
-  "e2e/canvas-space.spec.ts": "b2a09a67237ffcd9761a45cbf46c3200df2fc59605c57357451da1a51086bc11",
+  "src/ui/internal-builder/model-setup-view.ts": "54e05b8eee4604dfbd78b99632bc15c44bcbda6e7335b5c90acac84089e8f77b",
+  "e2e/canvas-space.spec.ts": "6e62563c542899a3dfe5d7f212f820887e5e56a9c2221ba0fc4d19d5678fba4b",
   "e2e/customer-persistence.spec.ts": "f56d2d431842478a5e46e7a0be6a4ba37f3a77c292fd42f11c24238a6e7f7ca0",
   "e2e/customer-editor.spec.ts": "7976ca3d2210ab83008620be114f0186a452363942b5ec34b6730834ceb240a4",
   "e2e/prepared-product-import.spec.ts": "a29cf422417c60bf9cd51a9473139b691a85270112741974030e27b1339ca9f3",

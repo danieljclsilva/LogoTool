@@ -37,3 +37,9 @@ one Chrome browser closure during phone-audit teardown. The affected case passes
 a separate one-worker, zero-retry recheck. The full untraced hosted cohort on
 `f526aa9` passes all ten new customer persistence/canvas cases in all three
 browsers. Full totals and the subsequent font fix are recorded on the PR.
+
+Saving measurements and areas now clears the preceding staged-tool feedback,
+leaving the committed outcome in the footer. The canvas regression asserts the
+cleared feedback as well as preserved physical geometry. The final 50-case staff
+layout/persistence cohort passes in Chromium and installed Chrome with two
+workers and zero retries after this refinement and the integral line-height fix.

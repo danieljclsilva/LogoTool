@@ -1922,3 +1922,9 @@ round trips pass. Windows font diagnostics identify a 13 px client height versus
 explicit 16 px. After this refinement, the 50-case local layout/persistence cohort
 has 49 passes and one Chrome teardown closure, followed by a passing one-case
 recheck. The final hosted font verification is reported on the PR.
+
+Saving measurements and areas now clears the preceding staged-tool feedback,
+leaving the committed outcome in the footer. The canvas regression asserts the
+cleared feedback as well as preserved physical geometry. The final 50-case staff
+layout/persistence cohort passes in Chromium and installed Chrome with two
+workers and zero retries after this refinement and the integral line-height fix.

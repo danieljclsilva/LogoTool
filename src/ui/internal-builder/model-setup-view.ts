@@ -515,6 +515,7 @@ export interface ModelSetupCallbacks {
 
 export interface ModelSetupViewHandle {
   refresh(): void;
+  clearFeedback(): void;
   setActive(active: boolean): void;
   destroy(): void;
   /**
@@ -4197,6 +4198,10 @@ export function createModelSetupView(
         if (curveHandleEl) curveHandleEl.style.display = 'none';
         if (drawingOutline) drawingOutline.style.display = 'none';
       } else { framedViewer = null; refresh(); }
+    },
+    clearFeedback(): void {
+      lastStatus = '';
+      refresh();
     },
     hydrateFromJson(text: string): { ok: boolean; message: string } {
       if (destroyed) return { ok: false, message: 'Setup view is closed.' };

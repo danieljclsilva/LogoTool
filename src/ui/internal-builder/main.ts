@@ -6380,6 +6380,7 @@ async function commitModelSetup(): Promise<void> {
       // early return above leaves prior outputs intact.
       invalidateOutputsForEdit();
       refreshWorkspaceSelectors();
+      staffModelSetup?.clearFeedback();
       modelSetupStatus.textContent =
         `Saved 3D setup (reference A/B = ${reference.lengthMm} mm, ${stagedSnapshot.areas.length} area(s) as projected regions) in this job. ` +
         (referenceChanged ? `Reference changed: dependent geometry was recomputed. ` : '') +
