@@ -1840,3 +1840,47 @@ Windows full runs exceeded the initial 35-minute job budget in run
 with two workers and zero retries per shard. Linux uses one shard. Artifact
 names identify the browser, shard and attempt. Retained reports expose failures
 and unexecuted cases from the timed-out attempt.
+
+### Windows triage and customer/canvas repairs — 15 November 2026
+
+PR #5 was merged normally as `3c7ebc9`. Its tracked tree is identical to
+`5071f4a`. The repeated hosted cohort demonstrates Windows variability on the
+same code. Chrome changes from 57 failures to 47, with ten newly failing cases
+and twenty recovering. Edge changes from 60 to 59, with four newly failing and
+five recovering. Linux repeats the same 17 failures. All three run 276 cases,
+with no skips or retries. The [triage report](windows-triage-2026-11-15.md) and
+per-platform inventories preserve the case-level evidence. Windows CI remains
+strict while the timeout cluster is investigated.
+
+The new CI summary exposes failing titles and errors in each job, and retains
+failure traces. Preflight records WebGL renderer information. Persistence-layout
+failures attach measured bounds, scroll/client sizes and the rendered font.
+Canonical LF checkout rules address the confirmed golden-JSON CRLF mismatch.
+A local Windows-style `core.autocrlf=true` checkout probe preserves the golden
+JSON exactly. No golden values were changed.
+
+Independent typecheck and all 884 Node tests pass. The 48-case selection passes
+in Chromium 156.0.8078.4 and installed Chrome 156.0.8078.80 with two workers and
+zero retries, covering customer persistence, native
+unload dialog dismissal, confirmation/download state, invalid replacements,
+superseded saves, linked sizes, the existing customer editor/model proof,
+prepared-product round trips, staff guidance, round-2 behavior, persistence and
+the unified editor. Prior tests now explicitly discard before replacement and
+uncheck Keep shape before requesting independent dimensions. Exact geometry
+assertions retain their expected values. The new lock is available while adding
+the first placement as well as while editing an existing one.
+
+The canvas regression measures the canvas element itself. At 1290×700 it is
+315 px high normally and approximately 344 px enlarged, with the setup save and
+all three next-step actions fully visible and at least 44 px high. Phone guidance
+and unified-editor tests preserve their existing enlarged-canvas floor. The
+[tracked screenshots and measurements](validation/2026-11-15-customer-canvas/README.md)
+show the final synthetic UI. Download initiation marks the captured customer
+content clean. Actual disk persistence remains outside browser verification.
+
+The Contributor lead and two bounded workers supplied the initial changes.
+Codex stopped delegated work at its time limit, confirmed all writers stopped,
+corrected integration and acceptance failures, and performed independent final
+validation. Unaided staff/customer trials and actual Windows operator-machine
+acceptance remain open. Hosted Windows evidence and unresolved failures are
+reported on the follow-up PR.

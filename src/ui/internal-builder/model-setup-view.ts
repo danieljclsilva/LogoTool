@@ -708,13 +708,15 @@ export function createModelSetupView(
       contextPanel.trigger.setAttribute(HOOK, 'context-measure');
       contextPanel.trigger.addEventListener('click', () => openContext('measure'));
     }
-    toolbar.prepend(contextPanel.trigger);
+    const authorGroup =
+      toolbar.querySelector<HTMLElement>('[data-model-setup-hook="author-actions"]') ?? toolbar;
+    if (contextPanel.trigger.parentElement !== authorGroup) authorGroup.prepend(contextPanel.trigger);
     for (const task of ['areas','more'] as const) {
       const button = el('button', `context-${task}`, 'btn-secondary'); button.type = 'button';
       button.textContent = task === 'areas' ? 'Areas' : 'More';
       button.setAttribute('aria-controls', contextPanel.element.id);
       button.addEventListener('click', () => openContext(task));
-      (toolbar.querySelector('[data-model-setup-hook="camera-controls"]') ?? toolbar).append(button);
+      authorGroup.append(button);
     }
     applyContextTask();
   };
@@ -2539,7 +2541,12 @@ export function createModelSetupView(
       button.setAttribute('aria-pressed', String(draft.areaTool === tool));
       if (draft.areaTool === tool) button.classList.add('is-selected');
       button.addEventListener('click', () => activateTool(tool));
-      toolRow.append(button);
+      if (tool === 'rotate') {
+        const navigateGroup = viewControls;
+        (navigateGroup ?? toolRow).append(button);
+      } else {
+        toolRow.append(button);
+      }
     }
     toolPicker.value = draft.areaTool;
     toolPicker.addEventListener('change', () => {
@@ -2565,7 +2572,9 @@ export function createModelSetupView(
     const authorTools = document.querySelector('[data-model-setup-hook="author-tools"]');
     const commands = el('div', 'command-strip', 'model-setup-command-strip');
     commands.setAttribute('data-tool', draft.areaTool);
-    (authorTools ?? section).append(toolChoice, toolRow, commands);
+    const authorActions = document.querySelector('[data-model-setup-hook="author-actions"]') ?? authorTools ?? section;
+    authorActions.append(toolChoice, toolRow);
+    (authorTools ?? section).append(commands);
     commands.append(modes);
     modes.style.visibility = outlineEnabled ? '' : 'hidden';
     if (draft.areaTool === 'rectangle') {
@@ -3036,11 +3045,14 @@ export function createModelSetupView(
   }
 
   /**
-   * View controls adjacent to the preview (zoom + visibility), rendered into
-   * the lead-provided mount `[data-model-setup-hook="viewbar"]` directly
-   * above the canvas. Fallback: when the lead mount is absent, create the
-   * same hooked node as the canvas's previous sibling so controls still sit
-   * adjacent to the preview, never beneath the reference/area forms. The
+   * View controls adjacent to the preview (zoom + visibility). The View
+   * toggle renders into the lead-provided mount
+   * `[data-model-setup-hook="viewbar"]` directly above the canvas; the
+   * Model navigation group floats over the stage while retaining its toolbar
+   * parent for keyboard navigation, status updates and existing callers.
+   * Fallback: when the lead mount is absent, create the same hooked node as
+   * the canvas's previous sibling so controls still sit adjacent to the
+   * preview, never beneath the reference/area forms. The
    * visibility controls below were removed to avoid duplication: hiding a
    * layer is display-only and never discards staged data.
    */
@@ -3068,10 +3080,14 @@ export function createModelSetupView(
     }
     mount.replaceChildren();
     const tools = el('div', 'author-tools', 'model-setup-author-tools');
+    tools.setAttribute('role', 'group');
+    tools.setAttribute('aria-label', 'Authoring tools');
+    const authorActions = el('div', 'author-actions', 'model-setup-author-actions');
+    tools.append(authorActions);
     mount.append(tools);
     const cameraControls = el('div', 'camera-controls', 'model-setup-camera-controls');
     cameraControls.setAttribute('role', 'group');
-    cameraControls.setAttribute('aria-label', 'Camera and display controls (scroll for more)');
+    cameraControls.setAttribute('aria-label', 'Model navigation');
     cameraControls.id = 'model-setup-view-controls';
     viewControls = cameraControls;
     const toggle = el('button', 'view-toggle', 'model-setup-view-toggle');

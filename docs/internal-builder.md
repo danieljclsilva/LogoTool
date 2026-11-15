@@ -715,3 +715,27 @@ changes and performed independent validation. Axe was not run because the
 project has no installed axe dependency and this scope allows no new dependency.
 Windows Chrome/Edge offline acceptance, the unaided staff trial and the existing
 18 failing Chromium cases remain open gates.
+
+### Canvas and customer follow-up — 15 November 2026
+
+Desktop setup navigation floats over the canvas edge, with Rotate model grouped
+with zoom, Fit, Pan and Front/Back. Measure, shape tools, Areas and More share the
+authoring group. Phone authoring actions use a keyboard-accessible horizontal
+strip to retain the existing enlarged-canvas floor. The required setup commit is
+labelled “Save measurements and areas”. It commits calibration and safe areas
+into the current job, so it remains beside the next-step actions. The prepared
+master download remains the existing reuse export under More.
+
+The fitted desktop setup stage has a 315 px minimum. The new bounds regression
+measures the canvas element at 1290×700 in normal and enlarged views, checks all
+four footer actions and 44 px targets, and compares saved physical product data
+before and after navigation. Reopened setup details appear once in the toolbar,
+with a short reopen outcome in the footer. Final results and tracked screenshots
+are linked from [offline testing](offline-testing.md).
+
+Unaided staff and customer trials remain pending. Observe a staff member preparing
+a product, fitting a known measurement, drawing an area and saving the job. Then
+observe a customer placing and sizing artwork, reviewing the proof, downloading
+a return and reopening it. Record assistance, lost work, misunderstood units,
+missed warnings and failures to find the next action. Run operator-machine trials
+in actual Windows Chrome and Edge over offline `file://`.

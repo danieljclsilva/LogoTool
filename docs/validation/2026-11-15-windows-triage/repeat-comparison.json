@@ -1,0 +1,77 @@
+{
+  "previousRun": 43742294340,
+  "repeatRun": 43747000114,
+  "identicalTrackedTree": true,
+  "projects": {
+    "chromium": {
+      "stats": {
+        "expected": 259,
+        "unexpected": 17,
+        "skipped": 0
+      },
+      "newlyFailing": [],
+      "recovered": []
+    },
+    "chrome": {
+      "stats": {
+        "expected": 229,
+        "unexpected": 47,
+        "skipped": 0
+      },
+      "newlyFailing": [
+        "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits",
+        "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence",
+        "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking",
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (mobile)",
+        "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit",
+        "setup-calibration.spec.ts :: model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)",
+        "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+        "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+        "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom"
+      ],
+      "recovered": [
+        "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+        "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+        "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+        "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+        "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision",
+        "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 390x844",
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000"
+      ]
+    },
+    "msedge": {
+      "stats": {
+        "expected": 217,
+        "unexpected": 59,
+        "skipped": 0
+      },
+      "newlyFailing": [
+        "placements-drag.spec.ts :: drag: rotated placement out of safe bounds, multi-step x+y deltas",
+        "setup-calibration.spec.ts :: model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)",
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290"
+      ],
+      "recovered": [
+        "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+        "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+        "station-round2.spec.ts :: round 2 new placements start locked and save styling follows clean and pending edits",
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720"
+      ]
+    }
+  }
+}

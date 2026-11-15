@@ -186,6 +186,11 @@ const backStep = optionalHook<HTMLButtonElement>('back-step');
 const addAnotherButton = optionalHook<HTMLButtonElement>('add-another');
 const prototypeNote = optionalHook<HTMLElement>('prototype-note');
 const unsavedWarning = optionalHook<HTMLElement>('unsaved-warning');
+const unsavedGuard = optionalHook<HTMLElement>('unsaved-guard');
+const unsavedGuardDetail = optionalHook<HTMLElement>('unsaved-guard-detail');
+const unsavedSaveButton = optionalHook<HTMLButtonElement>('unsaved-save');
+const unsavedDiscardButton = optionalHook<HTMLButtonElement>('unsaved-discard');
+const unsavedKeepButton = optionalHook<HTMLButtonElement>('unsaved-keep');
 const areaChipsHost = optionalHook<HTMLElement>('area-chips');
 const areaEmpty = optionalHook<HTMLElement>('area-empty');
 const geometryTechnicalWrap = optionalHook<HTMLElement>('geometry-technical-wrap');
@@ -1631,9 +1636,10 @@ function chooseShowcaseSide(side: string): void {
   paintShowcase();
   void refreshShowcase();
 }
-// Aspect-ratio lock for the Size step. The lock only mirrors width into
-// height in the form; independent width/height stay a domain capability and
-// unlocking (or typing a height) always sticks.
+// Aspect-ratio lock for the Size step. Symmetric: editing either dimension
+// while locked recomputes the other via lockedRatio. Only an explicit
+// uncheck authorizes distortion (independent width/height stay a domain
+// capability once unlocked).
 let lockedRatio: number | null = null;
 
 function refreshLockedRatio(): void {
@@ -1660,6 +1666,71 @@ let confirming = false;
 let confirmationFresh = false;
 let placementFormDirty = false;
 let projectInstructionsDirty = false;
+// Last successfully downloaded content (exact captured revision/content).
+// Applied edits and confirmations create a new project object, so identity
+// plus revision/confirmation digest distinguishes awaiting-download from
+// download-clean. Pending form edits are tracked separately above.
+let lastSavedProject: ProjectDocument | null = null;
+let lastSavedRevision: number | null = null;
+let lastSavedConfirmationDigest: string | null = null;
+// Inline file-replacement guard: a pending file waits while dirty.
+let pendingLoad: { name: string; size: number; read: () => Promise<Uint8Array> } | null = null;
+let lastFocusedBeforeGuard: HTMLElement | null = null;
+
+function hasUnsavedDownload(): boolean {
+  if (!loaded) return false;
+  if (!lastSavedProject || lastSavedRevision === null) return true;
+  if (lastSavedProject !== loaded.project) return true;
+  if (lastSavedRevision !== loaded.project.revision) return true;
+  const currentDigest = loaded.project.confirmation?.digest ?? null;
+  if (lastSavedConfirmationDigest !== currentDigest) return true;
+  return false;
+}
+
+function hasUnsavedContent(): boolean {
+  return placementFormDirty || projectInstructionsDirty || hasUnsavedDownload();
+}
+
+function markDownloadClean(snapshot: { project: ProjectDocument; revision: number }): void {
+  lastSavedProject = snapshot.project;
+  lastSavedRevision = snapshot.revision;
+  lastSavedConfirmationDigest = snapshot.project.confirmation?.digest ?? null;
+}
+
+function dirtyKindLabel(): string {
+  const pending = placementFormDirty || projectInstructionsDirty;
+  const awaiting = hasUnsavedDownload();
+  if (pending && awaiting) return 'unsaved edits and changes awaiting download';
+  if (pending) return 'unsaved edits';
+  if (awaiting) return loaded?.project?.confirmation ? 'confirmed changes awaiting download' : 'applied changes awaiting download';
+  return 'unsaved changes';
+}
+
+function showUnsavedGuard(fileName: string): void {
+  if (!unsavedGuard) {
+    setStatus(`“${fileName}” is waiting — you have ${dirtyKindLabel()}. Nothing has been replaced yet.`);
+    return;
+  }
+  try {
+    const active = document.activeElement;
+    lastFocusedBeforeGuard = active instanceof HTMLElement ? active : null;
+  } catch { lastFocusedBeforeGuard = null; }
+  if (unsavedGuardDetail) {
+    unsavedGuardDetail.textContent = `You have ${dirtyKindLabel()} that have not been downloaded yet. “${fileName}” is waiting and nothing has been replaced yet. Save draft, Discard changes, or Keep editing.`;
+  }
+  unsavedGuard.hidden = false;
+  // Focus the safe default (keep editing) so keyboard users land inside the dialog.
+  const target = unsavedKeepButton ?? unsavedSaveButton ?? unsavedDiscardButton;
+  try { target?.focus(); } catch { /* focus is best-effort */ }
+}
+
+function hideUnsavedGuard(restoreFocus: boolean): void {
+  if (unsavedGuard) unsavedGuard.hidden = true;
+  if (restoreFocus && lastFocusedBeforeGuard) {
+    try { lastFocusedBeforeGuard.focus(); } catch { /* focus is best-effort */ }
+  }
+  lastFocusedBeforeGuard = null;
+}
 let drag: DragState | null = null;
 let generatedId = 0;
 let geometryProject: ProjectDocument | null = null;
@@ -1790,7 +1861,7 @@ function updateButtons(): void {
   const stepBlocked = !usable || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
   if (stepEditButton) stepEditButton.disabled = stepBlocked;
   if (stepReviewButton) stepReviewButton.disabled = stepBlocked;
-  if (ratioLock) ratioLock.disabled = !usable || !currentPlacement();
+  if (ratioLock) ratioLock.disabled = !canEdit || modelProofDragging;
   updateButton.hidden = !hasPendingEdits;
   confirmButton.hidden = confirmationFresh && !hasPendingEdits;
   submitButton.hidden = !confirmationFresh || hasPendingEdits;
@@ -2402,7 +2473,15 @@ function refreshCurrentConfirmation(): void {
 
 async function loadProjectSource(
   source: { name: string; size: number; read: () => Promise<Uint8Array> },
+  options: { force?: boolean } = {},
 ): Promise<void> {
+  if (!options.force && hasUnsavedContent()) {
+    pendingLoad = source;
+    showUnsavedGuard(source.name);
+    setStatus(`“${source.name}” is waiting — you have ${dirtyKindLabel()}. Save draft, Discard changes, or Keep editing. Nothing has been replaced yet.`);
+    updateButtons();
+    return;
+  }
   const fileName = source.name;
   const generation = ++loadGeneration;
   stateGeneration += 1;
@@ -2436,6 +2515,8 @@ async function loadProjectSource(
     photoNatural = null;
     placementFormDirty = false;
     projectInstructionsDirty = false;
+    // Opening is download-clean: the on-disk file matches memory until the next edit/confirmation.
+    markDownloadClean({ project: parsed.project, revision: parsed.project.revision });
     baseline = cloneProject(parsed.project);
     undoHistory = [];
     activeConfigurationId = parsed.project.configurations[0]?.id ?? '';
@@ -2554,7 +2635,10 @@ async function savePackage(submit = false): Promise<void> {
     link.click();
     link.remove();
     globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
-    setStatus(submit ? 'Saved your confirmed return file. Now send it back yourself as an email attachment — nothing was sent automatically.' : 'Saved your draft file. Nothing was sent anywhere.');
+    // Download initiation only: the browser started a download, persistence to
+    // disk is never verified here. Mark ONLY the exact captured revision clean.
+    markDownloadClean(snapshot);
+    setStatus(submit ? 'Confirmed return download started — check your downloads folder, then send it back yourself as an email attachment. Nothing was sent automatically.' : 'Draft download started — check your downloads folder. Nothing was sent anywhere; attach it yourself if needed.');
   } catch (error) {
     if (snapshotIsCurrent(snapshot)) setStatus(`Could not make the file: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -3232,12 +3316,18 @@ widthInput.addEventListener('input', () => {
   heightInput.value = String(width / lockedRatio);
   placementFormDirty = true;
   updateUnsavedWarning();
+  updateButtons();
 });
 heightInput.addEventListener('input', () => {
-  // Typing a height keeps independent width/height: unlock so the typed
-  // value sticks instead of being mirrored back.
-  if (ratioLock?.checked) ratioLock.checked = false;
-  lockedRatio = null;
+  // Symmetric lock: editing height while locked recomputes width via
+  // lockedRatio. Only an explicit uncheck authorizes distortion.
+  if (!ratioLock?.checked || lockedRatio === null) return;
+  const height = Number(heightInput.value);
+  if (!Number.isFinite(height) || height <= 0) return;
+  widthInput.value = String(height * lockedRatio);
+  placementFormDirty = true;
+  updateUnsavedWarning();
+  updateButtons();
 });
 ratioLock?.addEventListener('change', () => {
   if (ratioLock.checked) refreshLockedRatio();
@@ -3401,6 +3491,56 @@ photoOverlay.addEventListener('pointermove', movePhotoDrag);
 photoOverlay.addEventListener('pointerup', (event) => finishPhotoDrag(event, true));
 photoOverlay.addEventListener('pointercancel', (event) => finishPhotoDrag(event, false));
 photoOverlay.addEventListener('lostpointercapture', (event) => finishPhotoDrag(event as PointerEvent, false));
+// Real beforeunload on unsaved content: applied awaiting download, confirmed
+// awaiting download, and pending form edits. Only when dirty; file:// offline
+// safe, no network.
+window.addEventListener('beforeunload', (event) => {
+  if (!hasUnsavedContent()) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+// Inline file-replacement guard: Save draft / Discard / Keep editing.
+// Never replaces project/assets/selection/history on cancel, superseded
+// load, invalid file, or async save failure — only an explicit Discard or a
+// successful Save-then-load installs the pending file.
+unsavedSaveButton?.addEventListener('click', () => {
+  void (async () => {
+    const captured = pendingLoad;
+    if (!captured) { hideUnsavedGuard(true); return; }
+    if (placementFormDirty || projectInstructionsDirty) {
+      applyPendingEdits();
+      if (placementFormDirty || projectInstructionsDirty) {
+        setStatus('Those edits still need attention before the draft can be saved — fix or add them, then Save draft again, or Discard.');
+        return;
+      }
+    }
+    await savePackage(false);
+    if (hasUnsavedContent()) return;
+    // A newer file may have arrived during the async save: never install the
+    // stale capture or clear the newer queue.
+    if (pendingLoad !== captured) return;
+    pendingLoad = null;
+    hideUnsavedGuard(false);
+    await loadProjectSource(captured, { force: true });
+  })();
+});
+unsavedDiscardButton?.addEventListener('click', () => {
+  void (async () => {
+    const captured = pendingLoad;
+    // Discard clears only the guard queue — never the dirty flags. A
+    // successful install resets them in loadProjectSource; an invalid or
+    // superseded file leaves pending inputs and unload protection intact.
+    pendingLoad = null;
+    hideUnsavedGuard(false);
+    if (!captured) return;
+    await loadProjectSource(captured, { force: true });
+  })();
+});
+unsavedKeepButton?.addEventListener('click', () => {
+  pendingLoad = null;
+  hideUnsavedGuard(true);
+  setStatus('Kept your current work — nothing was replaced. Save draft or Discard when ready.');
+});
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && drag) { event.preventDefault(); cancelDrag('Move cancelled with Escape. Your saved logo is unchanged.'); }
   if (event.key === 'Escape' && photoDrag) { event.preventDefault(); cancelPhotoDrag('Move cancelled with Escape. Your saved logo is unchanged.'); }

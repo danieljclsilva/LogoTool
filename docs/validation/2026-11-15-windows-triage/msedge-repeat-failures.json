@@ -1,0 +1,359 @@
+{
+  "runId": 43747000114,
+  "failures": [
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "customer model proof pointer edits preserve mapping and constraints at 1440x900",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "f94f1b4744dab63d34b54b83ffbd6c55bbc66d3c75a7aa124303950087fc398c"
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "customer model proof pointer edits preserve mapping and constraints at 390x844",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "c9533531593b6ff90d07c9a3ac3a593c7cc8f2327a7c3d79c2aeb0033bf949af"
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "adopted return with a populated field draft keeps inclusion and saves cleanly",
+      "error": "Test timeout of 180000ms exceeded.",
+      "errorSha256": "815f7a2718255f7ec108fb2e191350994ced5ac467abec2ca81356fae78840c9"
+    },
+    {
+      "file": "customer-model-proof.spec.ts",
+      "title": "adopted return without a prior field draft keeps inclusion and saves cleanly",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "d473f24aecd89095eab39009e99f1963fe5a1dba370f3d612d69c6ca15e31541"
+    },
+    {
+      "file": "editor-guidance.spec.ts",
+      "title": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+      "error": "Error: Timeout 10000ms exceeded while waiting on the predicate",
+      "errorSha256": "f3d13815f86ba27e552608c5ac4519bec286fbddac8258cc83298845c20dce21"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7900",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "9856a8efc93f517df866395ac545d45b5820ee259ec1fddae85e7ac27be15fa1"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "64c9415b6b5d75873588c51cd2ec89f3026af8b54b2626843f2d3946824f1897"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7900",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "379e8a3910d3f9378206a8d1380c4b36ab3375b051904b0dba6a197f02a19a91"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 1440\u00d7781",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "f07748773ef7171a40e126cc11a65c95ccc4282b002a59d42d1651621400940c"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "9856a8efc93f517df866395ac545d45b5820ee259ec1fddae85e7ac27be15fa1"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "normal editor keeps the page top and actions reachable at 1440\u00d7781",
+      "error": "Error: TimeoutError: locator.evaluate: Timeout 10000ms exceeded.",
+      "errorSha256": "3b0ec62914b78d0ed209c0c1af53db00d521c0f1e2a963df070f54341afc1a8c"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+      "error": "Error: TimeoutError: locator.click: Timeout 10000ms exceeded.",
+      "errorSha256": "42cacd4949442d9d82a51467ae6374fd95f7545951f16c33d51491b5123af645"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through mode entry at 390\u00d7844",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "070e6595cb7f551ee7a81d0c6440faa8ab7232e3d33e11b4065d964d23a7040f"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated model remains visible through prepare entry at 390\u00d7844",
+      "error": "TimeoutError: page.waitForEvent: Timeout 10000ms exceeded while waiting for event \"download\"",
+      "errorSha256": "61f7d8b65854a87c96f2558f956e817eb5b4923365a00346fb2441fa101c2650"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1440\u00d7781",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "bfefe67f4b8803cc435baabd3e5a409cf6b2f34bcd017a3ebbe5c1b24246b105"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 1280\u00d7720",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "5900235f89d0ba72b87b5d77f4cd4dacae5595aa3997cd1e353cf50e4ae5bb55"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "Finish area is readable, aligned and clickable at 390\u00d7844",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "a2989d9433decf505cabce37e11ce56eb6cc6a6a2ca004132fd09336d1bea5db"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "3956a08c6f08b1311f7b4850465a9d7541a6dadc60a021425233838c481a03d6"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "artwork popup wraps long logo cards without clipping at 390\u00d7844",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "ff0696506cd92a426529c731017320d3c5cf59544fb5ee203c11d432d967af38"
+    },
+    {
+      "file": "editor-regressions.spec.ts",
+      "title": "uncalibrated area offers scale fitting then recompute and logo placement",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "4d558356cb6ec104c734ecd9945c7bfe2fbba311eadb19e3f2c877dff2ff5406"
+    },
+    {
+      "file": "model-document-workflow.spec.ts",
+      "title": "GLB-only document (front only): artwork, measured views and offline save/reopen",
+      "error": "TimeoutError: locator.click: Timeout 12000ms exceeded.",
+      "errorSha256": "448f5253bcebbb4208992453b53de353638147c80bac1d2b9a189d03ef580242"
+    },
+    {
+      "file": "model-document-workflow.spec.ts",
+      "title": "GLB-only document (front and back): artwork, measured views and offline save/reopen",
+      "error": "TimeoutError: page.screenshot: Timeout 12000ms exceeded.",
+      "errorSha256": "f574b492930a01f7437ae48bf532861279999b751cd8c1bd2789ad5e6afdd4d7"
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "model lighting visibly changes and survives save/reopen at 1440x900",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "d7a2fa33795edf456f2d03670d6f4a319f1f92c996081c7b1c1928fc77f77e25"
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "model lighting visibly changes and survives save/reopen at 390x844",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "13e8f3b8816ee6914790c1353396aebbdeb3d38854fb6e9088cdc23031816227"
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "customer issue inherits model lighting while keeping the limited customer controls",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "bcb54b929d3f14d977cef409c540208036fecc17e63a3a1386a7e3b24fd2ac62"
+    },
+    {
+      "file": "model-lighting.spec.ts",
+      "title": "changing lighting refreshes cached document images without changing the physical revision",
+      "error": "Test timeout of 60000ms exceeded.",
+      "errorSha256": "1a630b24f3eb2b18aa312fae04942d408691fcb9e902782ae4c092ee731959bf"
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "model-only package offers honest 3D with a rendered model and side-tab availability",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "edf8eb8655d58401efdc3aa4085b5d41d7ae005e910eb484ab48b307fb5dd067"
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "1e0400f92a7527636721ef8abd7909a1c0ad8ba935431f8d958039f8ea961a88"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "ecf3bd1f54edc52a3665ae770f1a484dca173edf24896a5273fe1fc163778ae3"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "zero-placement option stays present and prints its explicit statement",
+      "error": "Error: expect(locator).toBeVisible() failed",
+      "errorSha256": "be960fa65a8e5248d7bfd145dd478b58af91e3b23b36b5a08dd43478fa03b1f4"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+      "error": "Error: expect(locator).toHaveCount(expected) failed",
+      "errorSha256": "812ca3f76cf1648d1589361a1f407ac7da28bf3d877f267faafb867a40083f0a"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "primary span calibration drives the photo overlay with no Advanced mapping",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "0207d9b65af3282732965868b35364356cc4312093f1f6fbc706a331d06e1fad"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct model-only job: calibrated diagram placement without any photo",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "2a4c06be9366420562bd3ae25b2f3066969ecddf350ebf2a38864a4e98218c1e"
+    },
+    {
+      "file": "placement-ux-regression-a.spec.ts",
+      "title": "placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "0384aa5273d072cd95d9ae5399fe2edd87a9174b37e7dac35dfe770a0db44996"
+    },
+    {
+      "file": "placements-drag.spec.ts",
+      "title": "drag: rotated placement out of safe bounds, multi-step x+y deltas",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "ff71c1347e9a17df422a0728ae97810a8ab1b5c63842f880f9ecc13750500300"
+    },
+    {
+      "file": "prepared-product-import.spec.ts",
+      "title": "opens a prepared saved project and issues it with exact mm geometry and sidecar evidence",
+      "error": "Error: expect(received).toBe(expected) // Object.is equality",
+      "errorSha256": "a8c7bf3c2bcd997e5619ed0987bc3d18f4cc86e32e0b5e5f4e31050f1b1a26fb"
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "in-place named rows: legacy views keep working, slug views at byte level",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "85ef6edac82c3caea11e4d9cfd6d8547b66e3ee99f793de0f87517f735944bd3"
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "five named views calibrate, save, reopen, issue, customer places, review agrees",
+      "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded.",
+      "errorSha256": "09467a8cc3a95d24f3b06dc9dea274bcd16860c6d9a37572080c2b6380aa0d86"
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "0278bdd86ba9418c3903f745b7263bd78f55dc8d8340a48bf8e69fd0e4ecc6fe"
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "03770ff6739c8453caf7471686be873e775ae6836c22703aa1a362c62f3ad37c"
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "e9f5aa1f470b43eaea37b7fab1529250d05449ecf30b75e61221c7404baf091f"
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (390)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "1442ef13a04ac49b04b1bb76a7ca304bfcfac765cb4755f19249cd0b3f7ccf50"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station 3D setup: model-only mount + surface reference + save to master + reopen",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "b88aeae26c05240d4ca791bccc63e3e191c5b6ed42b783f11eee14e9e8586c67"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station 3D delete + resave: unreferenced region removed with links, issue works",
+      "error": "TimeoutError: locator.evaluate: Timeout 15000ms exceeded.",
+      "errorSha256": "f08e82bae60eb6d92e7e8a4bec536e4a6646012e6656d8059d41afa0c4b2dad2"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model setup save/reopen roundtrip retains references, calibration and areas",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "458504c51f31c30e441dbf7c1e4d682bdede96bdf358a472ce4546bf0e2dd4a9"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model product visibility: hide/show mesh keeps reference, areas and fit",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "6602c53e95b7a8993659e8795a4b3d32a6c1f1f553f0d98b2b1635c9e5d0f88c"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "d784e805d824075013bde94657e5e74fba345ca8a7d71d9c4d14bd6b4c3d6aa9"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "model clicked outlines accept optional names and avoid name collisions (mobile)",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "fef0af3ed1bc00205914133e11b2aa84fa45490aa9710d52bd43f80450690711"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "contextual outline editor: More, rename, direct points, bends and persistence",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "6183ca32d047b615eaaf47fb4d6cc1d7d0600261f8cd8b7db1d618d1e9df7b01"
+    },
+    {
+      "file": "setup-calibration.spec.ts",
+      "title": "station polygon tools keep the picking canvas fixed at 1440x1000",
+      "error": "TimeoutError: locator.scrollIntoViewIfNeeded: Timeout 12783.641999999993ms exceeded.",
+      "errorSha256": "af75d02329feae0deb40d21e319818387608634d6c567586d4339cf0fea4c5d3"
+    },
+    {
+      "file": "station-round2.spec.ts",
+      "title": "round 2 dock, footer, header and field order at 1290",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "b343933dfa3de17eccdd1d5b623dd23e4ea2c8abc50c4cd2511c774b69013019"
+    },
+    {
+      "file": "station-round2.spec.ts",
+      "title": "round 2 dock, footer, header and field order at 1440",
+      "error": "Test timeout of 30000ms exceeded.",
+      "errorSha256": "53464d0381907779e3425f5f84833dcf0f45a9f813200109c3c38748cfb0de2e"
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 1440",
+      "error": "Error: expect(received).toBe(expected) // Object.is equality",
+      "errorSha256": "6c17f935ba0c781669a0964001719231987b996246c322493fa449bf5b23e25d"
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 768",
+      "error": "Error: expect(received).toBe(expected) // Object.is equality",
+      "errorSha256": "6c17f935ba0c781669a0964001719231987b996246c322493fa449bf5b23e25d"
+    },
+    {
+      "file": "station-ux.spec.ts",
+      "title": "station UX: readable persistence follows Save through download, edit and reopen at 390",
+      "error": "Error: expect(received).toBe(expected) // Object.is equality",
+      "errorSha256": "6c17f935ba0c781669a0964001719231987b996246c322493fa449bf5b23e25d"
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+      "error": "TimeoutError: locator.elementHandle: Timeout 10000ms exceeded.",
+      "errorSha256": "85315f8f2476b010fcb6d839046c1de516704669de5c4bb20d3a0bdefc4cbbed"
+    },
+    {
+      "file": "visual-operation-dimensions.spec.ts",
+      "title": "four select-based measurements across two logos print and export",
+      "error": "Test timeout of 240000ms exceeded.",
+      "errorSha256": "a5caad8392d882956417d48757c50b001ab5c18185e13e50e41838aef70a5c3a"
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "aa79a1b75bb691f23c217fd4daa8e6113301422912bebde1942f469907ce8c4a"
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+      "error": "Error: expect(locator).toBeVisible() failed",
+      "errorSha256": "9b17733ca7e5b9c054efe7292f391035dd3caf161d46ebd4f105c01f073b1c94"
+    }
+  ]
+}

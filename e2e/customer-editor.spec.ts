@@ -388,6 +388,8 @@ test('drop accepts a geometric-invalid editable draft but blocks confirmation an
       mimeType: 'application/zip',
       buffer: Buffer.from('not a ZIP archive'),
     });
+    await expect(page.locator('[data-customer-hook="unsaved-guard"]')).toBeVisible();
+    await page.locator('[data-customer-hook="unsaved-discard"]').click();
     await expect(page.locator('[data-customer-hook="status"]')).toContainText(/Could not load broken\.logo-project/);
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText('SYN-PROJ-MULTI-001');
     await expect(page.locator('[data-customer-hook="x-mm"]')).toHaveValue('0');
@@ -736,9 +738,9 @@ test('one workspace edits position and size together; review stays a separate co
       await expect(page.locator('[data-customer-hook="logo-chips"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="placement-instructions"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="region"]')).toBeHidden();
-      await expect(page.locator('[data-customer-hook="width-mm"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="width-mm"]')).toBeVisible();
       await expect(page.locator('[data-customer-hook="x-mm"]')).toBeHidden();
-      await expect(page.locator('[data-customer-hook="height-mm"]')).toBeHidden();
+      await expect(page.locator('[data-customer-hook="height-mm"]')).toBeVisible();
       // Width commits in place (Tab = human commit parity) without leaving
       // the workspace; Review is the separate combined proof step.
       await revealCustomerControl(page, 'width-mm');
@@ -763,8 +765,10 @@ test('one workspace edits position and size together; review stays a separate co
       await precise.locator('summary').focus(); await page.keyboard.press('Enter');
       await expect(precise).toHaveAttribute('open', '');
       await page.locator('[data-customer-hook="height-mm"]').fill('15');
-      await expect(page.locator('[data-customer-hook="ratio-lock"]')).not.toBeChecked();
-      // The height edit auto-applies on change; no Apply click is needed.
+      await expect(page.locator('[data-customer-hook="ratio-lock"]')).toBeChecked();
+      await expect(page.locator('[data-customer-hook="width-mm"]')).toHaveValue('30');
+      await page.locator('[data-customer-hook="ratio-lock"]').uncheck();
+      // Explicit unlocking allows independent width and height.
       await page.locator('[data-customer-hook="width-mm"]').fill('60');
       await page.locator('[data-customer-hook="width-mm"]').press('Tab');
       await expect(page.locator('[data-customer-hook="height-mm"]')).toHaveValue('15');
@@ -872,6 +876,8 @@ test('short fit warning, invalid numeric draft, and no-area honesty', async ({ b
       mimeType: 'application/zip',
       buffer: Buffer.from(emptyBytes),
     });
+    await expect(page.locator('[data-customer-hook="unsaved-guard"]')).toBeVisible();
+    await page.locator('[data-customer-hook="unsaved-discard"]').click();
     await expect(page.locator('[data-customer-hook="area-chips"]')).toBeHidden();
     await expect(page.locator('[data-customer-hook="area-empty"]')).toBeVisible();
     await expect(page.locator('[data-customer-hook="add"]')).toBeDisabled();

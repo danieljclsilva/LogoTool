@@ -470,7 +470,9 @@
     .product-editor [data-builder-step="choose"] > .task-sub,
     .product-editor [data-builder-step="choose"] > h3,
     .product-editor [data-builder-step="choose"] > h3 + p { display:none; }
-    /* The stage uses the space below the wrapped controls and above Save. */
+    /* The stage uses the space below the wrapped controls and above Save.
+       Model navigation floats over the canvas corner (out of flow), so the
+       toolbar stays short and the fitted stage keeps >=315px. */
     .product-editor [data-builder-hook="product-model"] { grid-template-columns:minmax(0,1fr);grid-template-rows:auto var(--model-stage-height,minmax(320px,min(65vh,calc(100vh - 356px)))) auto; }
     .product-editor [data-builder-hook="model-setup"] { grid-column:auto;grid-row:auto;overflow:visible;border:0;padding:0; }
     .product-editor [data-builder-hook="product-model-stage"] { grid-column:1;min-height:0; }
@@ -588,7 +590,10 @@
         display:none;position:absolute;top:48px;left:0;right:0;width:auto;max-width:100%;
         z-index:30;flex-wrap:wrap;flex-basis:auto;align-items:center;gap:4px;padding:8px;
         background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 16px #192d3d26;
+        pointer-events:none;
       }
+      .product-editor .model-setup-camera-controls > *,
+      .product-editor.station-expanded-workspace .model-setup-camera-controls > * { pointer-events:auto; }
       .product-editor .model-setup-camera-controls.is-open { display:flex; }
 
     }
@@ -784,7 +789,7 @@
 
     .product-editor [data-builder-hook="product-model"][data-mode="logos"] { flex:1;min-height:0;grid-template-rows:minmax(0,1fr); }
     .product-editor .model-setup-camera-controls::before { content:'Navigate / View';font-size:11px;color:var(--muted);align-self:center;margin-right:4px; }
-    .product-editor [data-model-setup-hook="areas-tool-row"]::before { content:'Author';font-size:11px;color:var(--muted);align-self:center;margin-right:4px; }
+    .product-editor [data-model-setup-hook="author-actions"]::before { content:'Author';font-size:11px;color:var(--muted);align-self:center;margin-right:4px; }
 
     .product-editor .product-model-toolbar > [role="toolbar"] { align-items:flex-start; }
     .product-editor .product-model-toolbar .model-setup-camera-controls { flex-basis:100%;border-left:0;border-top:1px solid var(--line);padding:4px 0 0; }
@@ -873,6 +878,25 @@
       .product-editor.station-expanded-workspace .station-header .builder-modes { margin:0;width:100%; }
       .product-editor.station-expanded-workspace .station-header .job-persistence { order:2; }
       .editor-footer button { font-size:12px;padding:8px; }
+    }
+    .product-editor .model-setup-author-actions { display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0; }
+    @media(max-width:820px) {
+      .product-editor [data-model-setup-hook="author-actions"]::before { content:none; }
+      .product-editor .model-setup-author-actions {
+        flex:1 1 0;flex-wrap:nowrap;overflow-x:auto;max-width:calc(100% - 56px);
+      }
+      .product-editor .model-setup-author-actions > * { flex:none; }
+    }
+    @media(min-width:821px) {
+      .product-editor [data-model-setup-hook="viewbar"] { position:relative; }
+      .product-editor .product-model-toolbar .model-setup-camera-controls {
+        position:absolute;top:calc(100% + 8px);right:8px;z-index:6;
+        max-width:calc(100% - 16px);min-width:0;
+        padding:6px;gap:4px;border:1px solid var(--line);border-radius:6px;
+        background:#fffffff2;box-shadow:0 2px 8px #192d3d20;
+        pointer-events:none;
+      }
+      .product-editor .product-model-toolbar .model-setup-camera-controls > * { pointer-events:auto; }
     }
   </style>
   <style><!-- STATION_BRAND_STYLES --></style>
@@ -970,7 +994,7 @@
               <div data-builder-hook="model-setup"></div>
               <div class="product-model-footer">
               <div class="product-setup-actions">
-                <button type="button" class="btn-secondary" data-builder-hook="model-setup-save">Save 3D setup to master</button>
+                <button type="button" class="btn-secondary" data-builder-hook="model-setup-save">Save measurements and areas</button>
                 <span data-model-setup-hook="commit-tools"></span>
                 <label class="muted"><input type="checkbox" data-builder-hook="model-setup-products-toggle" checked> Show product buttons</label>
               </div>

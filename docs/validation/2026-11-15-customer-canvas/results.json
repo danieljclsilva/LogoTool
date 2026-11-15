@@ -1,0 +1,80 @@
+{
+  "os": "macOS 27.3.0 arm64",
+  "node": "26.10.0",
+  "browser": "Chromium 156.0.8078.4",
+  "playwright": "1.64.0",
+  "workers": 2,
+  "retries": 0,
+  "offline": true,
+  "entry": "file://",
+  "fixtures": "synthetic only",
+  "stats": {
+    "startTime": "2026-11-15T18:58:11.273Z",
+    "duration": 45040.186,
+    "expected": 48,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "measurements": [
+    {
+      "name": "canvas-space-1290x700-normal",
+      "bounds": {
+        "canvas": {
+          "x": 23,
+          "y": 298.75,
+          "width": 1244,
+          "height": 315
+        },
+        "save": {
+          "x": 23,
+          "y": 626.75,
+          "width": 229.515625,
+          "height": 44
+        },
+        "footer": {
+          "x": 23,
+          "y": 617.75,
+          "width": 1244,
+          "height": 72.390625
+        }
+      }
+    },
+    {
+      "name": "canvas-space-1290x700-enlarged",
+      "bounds": {
+        "canvas": {
+          "x": 24,
+          "y": 255.75,
+          "width": 1242,
+          "height": 343.859375
+        },
+        "save": {
+          "x": 24,
+          "y": 612.609375,
+          "width": 229.515625,
+          "height": 44
+        },
+        "footer": {
+          "x": 24,
+          "y": 603.609375,
+          "width": 1242,
+          "height": 72.390625
+        }
+      }
+    }
+  ],
+  "installedChrome": {
+    "version": "156.0.8078.80",
+    "workers": 2,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T18:59:24.444Z",
+      "duration": 32268.552,
+      "expected": 48,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  }
+}

@@ -63,7 +63,10 @@ jobs:
       - name: Verify installed browser and offline file entry
         run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
       - name: Run offline suite with zero retries
-        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --shard=${{ matrix.partition }}/${{ matrix.partitions }} --reporter=line,json,html
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --shard=${{ matrix.partition }}/${{ matrix.partitions }} --reporter=line,json,html --trace=retain-on-failure
+      - name: Summarize failing cases
+        if: always()
+        run: node scripts/summarize-e2e.mjs ${{ matrix.project }}
       - name: Upload environment, results and failure evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

@@ -137,11 +137,19 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 768, height: 1024
       await expect(status).toHaveText('Unsaved changes — not yet downloaded.');
       const assertReadable = async () => {
         await expect(status).toBeVisible();
-        expect(await status.evaluate((node) => {
+        const bounds = await status.evaluate((node) => {
           const rect = node.getBoundingClientRect();
-          return rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth &&
-            node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight;
-        })).toBe(true);
+          return { rect: rect.toJSON(), viewport: { width: innerWidth, height: innerHeight },
+            clientWidth: node.clientWidth, clientHeight: node.clientHeight,
+            scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight,
+            font: getComputedStyle(node).font,
+            fits: rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth &&
+              node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight };
+        });
+        if (!bounds.fits) await info.attach('persistence-bounds', {
+          contentType: 'application/json', body: JSON.stringify(bounds, null, 2),
+        });
+        expect(bounds.fits).toBe(true);
         expect(await b(page, 'job-save').evaluate((node) => node.nextElementSibling?.getAttribute('data-builder-hook'))).toBe('job-persistence');
       };
       await assertReadable();

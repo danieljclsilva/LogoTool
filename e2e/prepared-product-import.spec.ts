@@ -410,6 +410,8 @@ async function placeConfirmAndSubmit(
   // and keep confirmation/submission disabled. No control is bypassed.
   await editor.locator('[data-customer-hook="x-mm"]').fill('15');
   await editor.locator('[data-customer-hook="y-mm"]').fill('15');
+  await revealCustomerControl(editor, 'ratio-lock');
+  await editor.locator('[data-customer-hook="ratio-lock"]').uncheck();
   await revealCustomerControl(editor, 'width-mm');
   await editor.locator('[data-customer-hook="width-mm"]').fill('50');
   await revealCustomerControl(editor, 'height-mm');
@@ -429,6 +431,8 @@ async function placeConfirmAndSubmit(
   await revealCustomerControl(editor, 'x-mm');
   await editor.locator('[data-customer-hook="x-mm"]').fill('-40');
   await editor.locator('[data-customer-hook="y-mm"]').fill('-30');
+  await revealCustomerControl(editor, 'ratio-lock');
+  await editor.locator('[data-customer-hook="ratio-lock"]').uncheck();
   await revealCustomerControl(editor, 'width-mm');
   await editor.locator('[data-customer-hook="width-mm"]').fill('50');
   await revealCustomerControl(editor, 'height-mm');
