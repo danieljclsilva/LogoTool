@@ -1834,3 +1834,9 @@ The first hosted Windows attempt stopped at fixture packaging. Checkout EOL
 conversion changed the hashed SVG bytes. Scoped `.gitattributes` entries preserve
 both synthetic SVG assets exactly. The original failed attempt is retained in
 Actions run `43738480355`. The follow-up run supplies browser execution evidence.
+
+Windows full runs exceeded the initial 35-minute job budget in run
+`43738770945`. Each Windows browser now uses two disjoint Playwright shards,
+with two workers and zero retries per shard. Linux uses one shard. Artifact
+names identify the browser, shard and attempt. Retained reports expose failures
+and unexecuted cases from the timed-out attempt.

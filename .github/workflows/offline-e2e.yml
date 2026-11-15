@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   offline:
-    name: ${{ matrix.os }} / ${{ matrix.project }}
+    name: ${{ matrix.os }} / ${{ matrix.project }} / ${{ matrix.partition }} of ${{ matrix.partitions }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     continue-on-error: ${{ matrix.os == 'ubuntu-latest' }}
@@ -25,12 +25,27 @@ jobs:
         include:
           - os: ubuntu-latest
             project: chromium
+            partition: 1
+            partitions: 1
           - os: windows-latest
             project: chrome
+            partition: 1
+            partitions: 2
+          - os: windows-latest
+            project: chrome
+            partition: 2
+            partitions: 2
           - os: windows-latest
             project: msedge
+            partition: 1
+            partitions: 2
+          - os: windows-latest
+            project: msedge
+            partition: 2
+            partitions: 2
     env:
       CI: true
+      TEST_SHARD: ${{ matrix.partition }}/${{ matrix.partitions }}
       PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/results.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -48,12 +63,12 @@ jobs:
       - name: Verify installed browser and offline file entry
         run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
       - name: Run offline suite with zero retries
-        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --reporter=line,json,html
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --shard=${{ matrix.partition }}/${{ matrix.partitions }} --reporter=line,json,html
       - name: Upload environment, results and failure evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: offline-${{ matrix.os }}-${{ matrix.project }}-${{ github.run_attempt }}
+          name: offline-${{ matrix.os }}-${{ matrix.project }}-part-${{ matrix.partition }}-of-${{ matrix.partitions }}-${{ github.run_attempt }}
           path: |
             ci-evidence/
             playwright-report/

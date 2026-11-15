@@ -10,7 +10,7 @@ if (!Object.hasOwn(channels, project)) throw new Error(`Unsupported browser proj
 const directory = resolve('ci-evidence', project);
 await mkdir(directory, { recursive: true });
 const evidence = {
-  project, platform: process.platform, release: release(), arch: arch(),
+  project, shard: process.env.TEST_SHARD ?? '1/1', workers: 2, retries: 0, platform: process.platform, release: release(), arch: arch(),
   node: process.version, sourceCommit: process.env.GITHUB_SHA ?? null,
   runnerImage: process.env.ImageOS ?? null, runnerImageVersion: process.env.ImageVersion ?? null,
   viewport: { width: 1280, height: 900 }, offline: true,
