@@ -1,0 +1,3 @@
+# Fixture digests cover exact asset bytes across Windows and Unix checkouts.
+examples/logos/syn-mark-a.svg -text
+examples/logos/syn-mark-b.svg -text
