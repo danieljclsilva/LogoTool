@@ -2475,7 +2475,9 @@ async function loadProjectSource(
   source: { name: string; size: number; read: () => Promise<Uint8Array> },
   options: { force?: boolean } = {},
 ): Promise<void> {
+  const generation = ++loadGeneration;
   if (!options.force && hasUnsavedContent()) {
+    loading = false;
     pendingLoad = source;
     showUnsavedGuard(source.name);
     setStatus(`“${source.name}” is waiting — you have ${dirtyKindLabel()}. Save draft, Discard changes, or Keep editing. Nothing has been replaced yet.`);
@@ -2483,7 +2485,6 @@ async function loadProjectSource(
     return;
   }
   const fileName = source.name;
-  const generation = ++loadGeneration;
   stateGeneration += 1;
   cancelDrag('Moving stopped because opening a file started. Your saved logo is unchanged.');
   if (source.size > PROJECT_PACKAGE_LIMITS.maxArchiveBytes) {
@@ -2557,6 +2558,8 @@ async function loadProjectSource(
 
 async function loadFiles(files: readonly File[]): Promise<void> {
   if (files.length !== 1) {
+    pendingLoad = null;
+    hideUnsavedGuard(false);
     loadGeneration += 1;
     stateGeneration += 1;
     cancelDrag('Moving stopped because opening a file started. Your saved logo is unchanged.');

@@ -1859,15 +1859,26 @@ Canonical LF checkout rules address the confirmed golden-JSON CRLF mismatch.
 A local Windows-style `core.autocrlf=true` checkout probe preserves the golden
 JSON exactly. No golden values were changed.
 
-Independent typecheck and all 884 Node tests pass. The 48-case selection passes
-in Chromium 156.0.8078.4 and installed Chrome 156.0.8078.80 with two workers and
-zero retries, covering customer persistence, native
-unload dialog dismissal, confirmation/download state, invalid replacements,
-superseded saves, linked sizes, the existing customer editor/model proof,
-prepared-product round trips, staff guidance, round-2 behavior, persistence and
-the unified editor. Prior tests now explicitly discard before replacement and
+Independent typecheck and all 884 Node tests pass. Final Chromium development
+acceptance passes all 49 focused cases and all ten presentation/layout audit
+cases, with two workers and zero retries. Coverage includes customer persistence,
+native unload dialog dismissal, confirmation/download state, invalid replacement,
+in-flight supersession, linked sizes, customer editor/model proof, prepared-product
+round trips, staff guidance, round-2 behavior and the unified editor.
+
+The first 48-case installed Chrome cohort passes. After the additional in-flight
+replacement regression, the 49-case cohort has 47 passes and two browser closures
+in staff persistence tests. A one-worker expanded cohort has 58 passes and one
+closure in the presentation handoff test. The closures recur across worker counts
+and remain unresolved. The affected presentation case passes
+a separate one-worker, zero-retry recheck. Browser stderr includes CVDisplayLink and invalid-mailbox
+diagnostics, which do not establish their cause. No run uses retries or skips.
+
+Prior tests now explicitly discard before replacement and
 uncheck Keep shape before requesting independent dimensions. Exact geometry
-assertions retain their expected values. The new lock is available while adding
+assertions retain their expected values. The layout audit now bounds floating
+desktop navigation to the canvas while authoring controls retain toolbar bounds,
+44 px targets and pairwise overlap checks. The new lock is available while adding
 the first placement as well as while editing an existing one.
 
 The canvas regression measures the canvas element itself. At 1290×700 it is

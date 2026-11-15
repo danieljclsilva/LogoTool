@@ -494,3 +494,50 @@ test('superseded pending file during save cannot install the older file', async 
     await fs.rm(prototype.directory, { recursive: true, force: true });
   }
 });
+
+
+test('a guarded newer file supersedes an in-flight discarded replacement', async ({ browser }) => {
+  const prototype = await unpackPrototype();
+  const { context, page, probe } = await openOfflineEditor(browser);
+  try {
+    await openPage(page, prototype);
+    await choosePackage(page, prototype.projectPath);
+    const originalId = await page.locator('[data-customer-hook="project-id"]').textContent();
+    await setNumber(page, 'x-mm', 11);
+    await page.evaluate(() => {
+      const nativeRead = File.prototype.arrayBuffer;
+      Object.defineProperty(File.prototype, 'arrayBuffer', {
+        configurable: true,
+        value: function (this: File): Promise<ArrayBuffer> {
+          if (this.name !== 'older slow.logo-project') return nativeRead.call(this);
+          return new Promise((_resolve, reject) => {
+            (window as unknown as { rejectOlderRead: () => void }).rejectOlderRead = () => reject(new Error('Older read failed'));
+          });
+        },
+      });
+    });
+    await page.locator('[data-customer-hook="file-input"]').setInputFiles({
+      name: 'older slow.logo-project', mimeType: 'application/zip', buffer: prototype.projectBytes,
+    });
+    await page.locator('[data-customer-hook="unsaved-discard"]').click();
+    await page.waitForFunction(() => typeof (window as unknown as { rejectOlderRead?: unknown }).rejectOlderRead === 'function');
+    await page.locator('[data-customer-hook="file-input"]').setInputFiles({
+      name: 'newer waiting.logo-project', mimeType: 'application/zip', buffer: prototype.projectBytes,
+    });
+    await expect(page.locator('[data-customer-hook="unsaved-guard"]')).toBeVisible();
+    await page.evaluate(async () => {
+      (window as unknown as { rejectOlderRead: () => void }).rejectOlderRead();
+      // Allow the rejected read and load catch to finish their microtasks.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await expect(page.locator('[data-customer-hook="status"]')).toContainText('newer waiting.logo-project');
+    await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText(originalId ?? '');
+    expect(await isBeforeUnloadDirty(page)).toBe(true);
+    await page.locator('[data-customer-hook="unsaved-keep"]').click();
+    await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+    await fs.rm(prototype.directory, { recursive: true, force: true });
+  }
+});

@@ -116,7 +116,7 @@ test('fixed product, artwork, area and method do not become redundant selectors'
     await load(page,await packageWith(project,source.assets.filter(asset => referenced.has(asset.path)),[]));
     await expect(page.locator('[data-step-panel="edit"]')).toBeVisible();
     for (const name of ['configuration','product','variant','region','logo','placement','method']) await expect(hook(page,name)).toBeHidden();
-    await expect(hook(page,'width-mm')).toBeHidden();
+    await expect(hook(page,'width-mm')).toBeVisible();
     await revealCustomerControl(page, 'width-mm');
     await expect(hook(page,'width-mm')).toBeVisible();
     await expect(hook(page,'height-mm')).toBeVisible();

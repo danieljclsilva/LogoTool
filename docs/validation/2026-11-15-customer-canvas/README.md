@@ -2,8 +2,14 @@
 
 Synthetic fixtures over offline `file://` on macOS 27.3.0 arm64, Node 26.10.0,
 Playwright 1.64.0 and Chromium 156.0.8078.4. Two workers, zero retries.
-The 48-case selection passes in Chromium and installed Chrome 156.0.8078.80
-with no skips. Each acceptance flow checks zero
+The final focused Chromium cohort passes all 49 cases, and a separate ten-case
+presentation/layout audit also passes. Both use two workers and zero retries.
+The two-worker Chrome cohort passes 47 of 49 cases, with two browser-closure
+errors in staff persistence tests. A one-worker expanded Chrome cohort passes
+58 of 59 cases, with one browser-closure error in the presentation handoff test.
+The earlier 48-case Chrome cohort passed completely. The affected presentation case passes
+a separate one-worker, zero-retry recheck. No run uses retries or skips.
+Each acceptance flow checks zero
 page errors, console errors and HTTP(S) requests. The Browser connector probe
 failed because its paired browser extension was inactive. Repo-local Playwright
 provides the primary acceptance evidence required by AGENTS.md.

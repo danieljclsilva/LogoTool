@@ -1,12 +1,14 @@
 {
-  "src/ui/customer-editor/main.ts": "b96d68e18793ec9cb28906973b8b036e1359debd213caa7acc4e5870f05d8b7c",
+  "src/ui/customer-editor/main.ts": "117ff4adea144168ec62962166828816c0ca1275f0b64569d026b3e7273c4a4b",
   "src/ui/customer-editor/template.html": "90b538d0ca4fcb7ca08b5464663ed0690ecf02974e67e9f09f5794234a01b98f",
   "src/ui/internal-builder/main.ts": "b4d2a93d47a83dec80c537a85f543a21b41e08596a18932aa23bf24e7072cad2",
   "src/ui/internal-builder/template.html": "82561024fd8f50756b561f8f529dd169025d7f1ccb71b5b66bf0b2037a51c801",
   "src/ui/internal-builder/model-setup-view.ts": "010c22cb622e7cb7efd8ebd84845f404fb51304dc74d25bc3c341a4f6ea013f5",
   "e2e/canvas-space.spec.ts": "b2a09a67237ffcd9761a45cbf46c3200df2fc59605c57357451da1a51086bc11",
-  "e2e/customer-persistence.spec.ts": "47653b1321c03de0f6f9c7288078c3e9306208fdd4a5b5322690e21bbcc1edf9",
+  "e2e/customer-persistence.spec.ts": "f56d2d431842478a5e46e7a0be6a4ba37f3a77c292fd42f11c24238a6e7f7ca0",
   "e2e/customer-editor.spec.ts": "7976ca3d2210ab83008620be114f0186a452363942b5ec34b6730834ceb240a4",
   "e2e/prepared-product-import.spec.ts": "a29cf422417c60bf9cd51a9473139b691a85270112741974030e27b1339ca9f3",
-  "e2e/station-ux.spec.ts": "f252162f2d3a362449267fbec4251d2b4d498a105158cb6ad410cb43499d8ba6"
+  "e2e/station-ux.spec.ts": "f252162f2d3a362449267fbec4251d2b4d498a105158cb6ad410cb43499d8ba6",
+  "e2e/presentation-assets.spec.ts": "be8cc4b7fc11035b84266540de62b445f52a6ce16efd6490486271f48872ff03",
+  "e2e/workspace-layout-audit.spec.ts": "b4ea3b5ce404e0777d37658a0e8976b129835a24767481dbc3379764c751665a"
 }
