@@ -1911,3 +1911,14 @@ asserted. A phone layout attachment records the toolbar and footer rectangles.
 
 The final 14-case staff layout selection passes in installed Chrome with one
 worker and zero retries after the phone-footer refinement.
+
+
+The completed untraced cohort `43756262557` on `f526aa9` runs all 286 cases in
+each browser, with zero skips and retries. Linux has 272 passes / 14 failures,
+Windows Chrome 230 / 56 and Windows Edge 230 / 56. All ten newly added customer
+persistence/canvas cases pass in all three browsers. Both Windows golden-JSON
+round trips pass. Windows font diagnostics identify a 13 px client height versus
+14 px scroll height in the 11 px persistence status. Its line height is now an
+explicit 16 px. After this refinement, the 50-case local layout/persistence cohort
+has 49 passes and one Chrome teardown closure, followed by a passing one-case
+recheck. The final hosted font verification is reported on the PR.

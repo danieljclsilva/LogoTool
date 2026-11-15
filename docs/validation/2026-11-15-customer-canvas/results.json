@@ -144,5 +144,25 @@
       "unexpected": 0,
       "flaky": 0
     }
+  },
+  "lineHeightAcceptance": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:30:02.473Z",
+      "duration": 90338.462,
+      "expected": 49,
+      "skipped": 0,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "chromeRecheck": {
+      "startTime": "2026-11-15T20:32:46.823Z",
+      "duration": 4235.627,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
   }
 }

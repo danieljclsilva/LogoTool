@@ -62,9 +62,11 @@ inspection. A software-renderer cause remains unconfirmed.
 
 Three Windows persistence-status tests fail their readable-bounds predicate at
 1440, 768 and 390 px. The predicate checks both viewport bounds and scroll size.
-It needs measured rectangles and client/scroll sizes to distinguish font metrics,
-wrapping, fractional-pixel rounding and real clipping. The original assertions
-remain active.
+The added diagnostics in run `43756262557` record a 13.1875 px line box,
+clientHeight 13 and scrollHeight 14 in all three Edge cases. The computed font
+is 11 px Segoe UI fallback with a 13.2 px line height. The header persistence
+status now uses an integral 16 px line height. Phone checklist spacing preserves
+the canvas floor. The original assertions remain active.
 
 Entry helpers use `pathToFileURL(resolve(...))`, including copied customer and
 station entry points. The hosted Windows offline preflights pass with zero page
@@ -101,3 +103,19 @@ disabled. A local smoke case verified the trace event/snapshot streams and zero
 screencast frames. Renderer records identify SwiftShader on hosted Windows.
 A retained import-readiness trace also contains ReadPixels GPU-stall warnings.
 Those observations leave the underlying timeout cause unresolved.
+
+
+## Completed untraced cohort on `f526aa9`
+
+Run `43756262557` completes all 286 cases per browser with no skips or retries.
+Linux reports 272 passes and 14 failures. Windows Chrome and Edge each report
+230 passes and 56 failures. All nine new customer persistence cases and the canvas
+regression pass in each browser. The exact golden-JSON round trip passes in both
+Windows browsers, confirming the LF fix. All five summary steps succeed.
+
+The three persistence-status cases fail in both Windows browsers with the measured
+line-height shortfall described above. An explicit 16 px line height addresses
+that font-metrics defect while the readability predicate remains intact. Local
+acceptance after this change has 25 Chromium passes and 24 Chrome passes, with
+one Chrome browser closure during phone-audit teardown. That case passes a
+separate one-worker, zero-retry recheck. A final hosted run verifies the font fix.

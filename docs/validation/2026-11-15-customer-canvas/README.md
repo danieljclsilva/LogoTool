@@ -31,3 +31,9 @@ PR. Actual operator-machine and unaided staff/customer trials remain pending.
 
 The final 14-case staff layout selection passes in installed Chrome with one
 worker and zero retries after the phone-footer refinement.
+
+The final line-height refinement passes 25 Chromium and 24 Chrome cases, with
+one Chrome browser closure during phone-audit teardown. The affected case passes
+a separate one-worker, zero-retry recheck. The full untraced hosted cohort on
+`f526aa9` passes all ten new customer persistence/canvas cases in all three
+browsers. Full totals and the subsequent font fix are recorded on the PR.
