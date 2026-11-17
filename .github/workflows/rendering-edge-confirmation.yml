@@ -1,7 +1,8 @@
 name: Round 4 Edge confirmation
 
 on:
-  pull_request:
+  push:
+    branches: [codex/round4-rendering-experiments]
     paths:
       - .github/workflows/rendering-edge-confirmation.yml
   workflow_dispatch:
