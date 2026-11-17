@@ -1,12 +1,15 @@
 import { defineConfig } from '@playwright/test';
 
+const timeoutMultiplier = Number(process.env.E2E_TIMEOUT_MULTIPLIER ?? 1);
+if (![1, 2].includes(timeoutMultiplier)) throw new Error('Expected E2E_TIMEOUT_MULTIPLIER 1 or 2.');
+
 export default defineConfig({
-  testDir: 'e2e',
-  testMatch: '**/*.spec.ts',
+  testDir: process.env.E2E_EXPERIMENT_TEST_DIR ?? 'e2e',
+  testMatch: process.env.E2E_PROFILE_ONLY === '1' ? '**/*.probe.ts' : '**/*.spec.ts',
   fullyParallel: true,
   retries: 0,
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 30_000 * timeoutMultiplier,
+  expect: { timeout: 10_000 * timeoutMultiplier },
   outputDir: 'test-results',
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {

@@ -42,14 +42,46 @@ Questions include how many viewer instances render concurrently, how hidden
 views behave, which timeouts occur during readiness versus input/scrolling,
 and whether failures move between cases as runner load changes.
 
+## Experiment 0 — idle viewers and contexts
+
+Run the opt-in `E2E_PROFILE_ONLY=1` Playwright probe before the factor matrix,
+on Linux Chromium and Windows Chrome/Edge. The workflow gates A–D on successful
+measurement collection. Record landing/empty Prepare, model setup, Logos,
+Prepare after setup, customer proof, diagram, review and repeated replacement.
+Include staff document review and two open/close cycles of its reframe dialog.
+Each screen settles for 1.5 seconds and is sampled for 4 seconds with one worker.
+
+The test-only init script counts pending RAF requests and callback identities,
+executions, GL clear passes, draw calls and RAF callbacks that drew to each
+canvas. The latter measures rendered RAF frames per second. Multiple render
+passes in one callback share a rendered-frame count. Explicit capture clears
+outside RAF are recorded separately. A control verifies clear counting, RAF
+cancellation and a deliberate context-loss event. The matrix runs without this
+instrumentation so probe overhead is confined to Experiment 0.
+
+Record long-task count/duration/support, CDP page task/script time, heap and DOM
+node count. Classify every observed canvas by DOM connection, layout visibility
+and viewport intersection. Identify simultaneous drawing and drawing by hidden
+canvases. Log `webglcontextlost` and restoration events. Context/canvas handles
+use WeakRef. Reachable non-lost contexts and detached canvases are observable
+proxies for context lifetime. Garbage collection timing and renderer disposal
+require lifecycle evidence before interpreting a count as a leak. The probe
+neither forces garbage collection nor loses application contexts.
+
+If a hidden viewer continues drawing, first prototype explicit hidden-viewer
+suspension on a separate comparison SHA. Check visibility restoration, overlays,
+resize and document capture before broader scheduler work. Compare context
+counts over repeated replacements and document-editor open/close cycles. A
+context-loss event or count increase needs a reproducible lifecycle trace before
+attributing macOS Chrome closures to context exhaustion.
+
 ## Experiment 1 — concurrency and timing
 
 Pin an immutable source SHA, synthetic fixtures, browser build, viewport, offline
 mode, renderer settings and shard membership for each comparison. Record runner
-image/version and browser/renderer metadata. The current preflight script records
-`workers: 2` as a constant. Make its worker and experimental timeout metadata
-reflect the actual arm before using it as the experiment manifest. Use zero retries and retain every
-run, including failures and interrupted cases.
+image/version and browser/renderer metadata. The preflight now derives workers and timeout multiplier from the arm and
+rejects contradictory settings. Use zero retries and retain every run, including
+failures and interrupted cases.
 
 Run the following arms for Windows Chrome, with an equivalent Linux control.
 Then confirm the useful result in Windows Edge.
@@ -71,18 +103,59 @@ The existing one-worker command is runnable now after `npm ci` and `npm run buil
 npx playwright test --project=chrome --workers=1 --retries=0 --reporter=line,json,html
 ```
 
-`--timeout=60000` doubles the current 30-second default test timeout only.
-Several specs call `test.setTimeout`, helpers set action timeouts, assertions
-have an expect timeout, and some waits specify their own timeout. Inventory
-those categories before implementing arms C and D. Choose shard sizes and job
-budgets that allow the single-worker, doubled-budget arm to complete, using the
-same shard membership across all arms. Provide one explicit,
-experimental multiplier through a shared test configuration/helper and record
-which budgets it covers. Keep test predicates and production behavior as the
-acceptance criteria. Report job-level budget limits and unfinished cases.
+The opt-in runner copies the acceptance sources into ignored
+`ci-evidence/experiment-source`, preserves fixture bytes and imports, and uses
+the TypeScript AST to multiply explicit `timeout` options and test/default
+action/navigation timeout setters. Config defaults for test and expect budgets
+use the same multiplier. Fixed timers and `waitForTimeout` delays retain their
+original values. All four arms execute the same generated code path, including
+multiplier 1. Source and derived SHA-256 hashes and timing sites are retained in
+`experiment-manifest.json`. The checked-in tests retain their original bytes.
+
+Windows Chrome uses four fixed shards for every arm, Linux Chromium two.
+Each job has a 60-minute ceiling. A timed-out job is an incomplete arm. Keep its
+artifacts and report the cases that did not finish. Report source SHA, exact
+browser/runner builds, shard membership and any between-arm version differences.
+
+```sh
+E2E_EXPERIMENT_ARM=D TEST_SHARD=1/4 node scripts/run-rendering-experiment.mjs chrome
+```
 
 A lower failure count is evidence consistent with resource pressure. Use the
 separate factor arms and timing/renderer measurements to interpret the cause.
+
+## Decision table fixed before the first comparison
+
+Interpret improvement through case-level errors and action timings, with
+repeated arms needed to assess the observed run-to-run variability. A single
+lower failure total supports a follow-up experiment.
+
+| Observation across A–D | Next action |
+| --- | --- |
+| B and D improve relative to A and C | Repeat single-worker arms and correlate page task time/long tasks with failures. Investigate concurrency pressure. |
+| C and D improve relative to A and B | Examine which waits consume extra budget. Repeat to distinguish slow completion from unstable failures. |
+| Only D improves | Repeat the worker × budget interaction and inspect slowest actions. |
+| B improves and extra timeout adds little | Use one worker as the next comparison control and investigate rendering cost. |
+| All arms have similar failures | Cluster shared assertion/readiness targets and inspect deterministic behavior. |
+| Failure membership varies without a repeatable arm effect | Repeat complete arms with pinned versions and retained timing data. |
+| An arm reaches its job limit or versions/shards differ materially | Report the comparison as incomplete or confounded and correct the experiment setup. |
+| Experiment 0 shows hidden viewers drawing | Test hidden-viewer suspension first, including capture and reactivation. |
+| Context counts grow or context loss recurs during lifecycle cycles | Trace creation/disposal and canvas replacement before changing context management. |
+
+Use the first useful Windows Chrome result for a complete Edge confirmation
+with matching worker/budget policy. Keep original test predicates, per-case
+outcomes and every attempt in the report.
+
+## Intermediate rendering arm — idle throttle
+
+After the idle baseline, prototype a flag-controlled throttle alongside the
+continuous control. A starting experimental policy is a 10 Hz cap after two
+quiet seconds. Record this as a proposed setting and adjust from measured
+latency and CPU data. Return immediately to active cadence for user input,
+OrbitControls damping, resize, model/texture completion or overlay changes.
+Audit which changes reset the quiet period. Check the last damping frame,
+`onFrame`, marker/label settlement and explicit document captures. Compare
+hidden-viewer suspension and idle throttle independently before combining them.
 
 ## Experiment 2 — render-on-demand prototype
 

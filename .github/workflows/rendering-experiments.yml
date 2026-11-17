@@ -1,0 +1,127 @@
+name: Rendering experiments
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/rendering-experiments.yml
+      - scripts/run-rendering-experiment.mjs
+      - scripts/experiment-settings.mjs
+      - e2e/rendering-profile.probe.ts
+      - e2e/rendering-probe.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rendering-experiments-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    name: Experiment 0 / ${{ matrix.os }} / ${{ matrix.project }}
+    timeout-minutes: 15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            project: chromium
+          - os: windows-latest
+            project: chrome
+          - os: windows-latest
+            project: msedge
+    env:
+      CI: true
+      E2E_WORKERS: 1
+      E2E_PROFILE_ONLY: 1
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/results.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - if: matrix.project == 'chromium'
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
+      - name: Measure idle screens with zero retries
+        run: npx playwright test --project=${{ matrix.project }} --workers=1 --retries=0 --reporter=line,json
+      - if: always()
+        run: node scripts/summarize-rendering-profile.mjs ${{ matrix.project }}
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: profile-${{ matrix.os }}-${{ matrix.project }}-${{ github.run_attempt }}
+          path: |
+            ci-evidence/
+            test-results/
+          retention-days: 14
+
+  matrix:
+    name: Arm ${{ matrix.arm }} / ${{ matrix.os }} / ${{ matrix.project }} / ${{ matrix.shard }}
+    needs: profile
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        arm: [A, B, C, D]
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3, 4]
+        exclude:
+          - os: ubuntu-latest
+            shard: 3
+          - os: ubuntu-latest
+            shard: 4
+        include:
+          - os: ubuntu-latest
+            project: chromium
+            shards: 2
+          - os: windows-latest
+            project: chrome
+            shards: 4
+    env:
+      CI: true
+      E2E_EXPERIMENT_ARM: ${{ matrix.arm }}
+      TEST_SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/results.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - if: matrix.project == 'chromium'
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
+      - name: Run immutable arm with zero retries
+        run: node scripts/run-rendering-experiment.mjs ${{ matrix.project }}
+      - if: always()
+        run: node scripts/summarize-e2e.mjs ${{ matrix.project }}
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: arm-${{ matrix.arm }}-${{ matrix.os }}-${{ matrix.project }}-part-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: ci-evidence/${{ matrix.project }}/
+          retention-days: 14
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: detail-arm-${{ matrix.arm }}-${{ matrix.os }}-${{ matrix.project }}-part-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

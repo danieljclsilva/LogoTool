@@ -195,10 +195,21 @@ test('staff canvas space at 1290x700: normal and enlarged keep canvas, footer, g
 
 
 async function assertUnobscuredModelAfterFit(page: Page, label: string, info: TestInfo): Promise<void> {
-  await revealModelViewControls(page);
   const navigation = ms(page, 'camera-controls');
-  await expect(navigation).toBeVisible();
-  await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
+  const fit = page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]');
+  const toggle = ms(page, 'view-toggle');
+  // Fit is usable while View stays closed: the popover never opens here.
+  await expect(navigation).toBeHidden();
+  await expect(fit).toBeVisible();
+  await expect(fit).toBeEnabled();
+  await expect(toggle).toBeVisible();
+  // 44px minimum touch targets for both adjacent triggers.
+  for (const trigger of [fit, toggle]) {
+    const triggerBox = (await trigger.boundingBox())!;
+    expect(triggerBox.height).toBeGreaterThanOrEqual(44);
+    expect(triggerBox.width).toBeGreaterThanOrEqual(44);
+  }
+  await fit.click();
   await expect(navigation).toBeHidden();
   await expect(ms(page, 'view-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(ms(page, 'view-toggle')).toBeFocused();
@@ -252,11 +263,14 @@ async function assertUnobscuredModelAfterFit(page: Page, label: string, info: Te
   expect(model.y).toBeGreaterThan(model.canvas.y + 1);
   expect(model.x + model.width).toBeLessThan(model.canvas.x + model.canvas.width - 1);
   expect(model.y + model.height).toBeLessThan(model.canvas.y + model.canvas.height - 1);
-  const trigger = (await ms(page, 'view-toggle').boundingBox())!;
-  const overlapX = Math.min(model.x + model.width, trigger.x + trigger.width) - Math.max(model.x, trigger.x);
-  const overlapY = Math.min(model.y + model.height, trigger.y + trigger.height) - Math.max(model.y, trigger.y);
-  expect(overlapX <= 0 || overlapY <= 0).toBe(true);
-  await info.attach(`unobscured-model-${label}`, { contentType: 'application/json', body: JSON.stringify({ model, trigger }, null, 2) });
+  const fitBox = (await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').boundingBox())!;
+  const toggleBox = (await ms(page, 'view-toggle').boundingBox())!;
+  for (const trigger of [fitBox, toggleBox]) {
+    const overlapX = Math.min(model.x + model.width, trigger.x + trigger.width) - Math.max(model.x, trigger.x);
+    const overlapY = Math.min(model.y + model.height, trigger.y + trigger.height) - Math.max(model.y, trigger.y);
+    expect(overlapX <= 0 || overlapY <= 0).toBe(true);
+  }
+  await info.attach(`unobscured-model-${label}`, { contentType: 'application/json', body: JSON.stringify({ model, fit: fitBox, viewToggle: toggleBox }, null, 2) });
   await page.screenshot({ path: info.outputPath(`unobscured-model-${label}.png`) });
 }
 

@@ -2523,7 +2523,6 @@ export function createModelSetupView(
       refresh();
     };
     const toolChoice = el('label', 'tool-picker-label', 'model-setup-tool-picker-label');
-    toolChoice.textContent = 'Tool';
     toolChoice.style.display = 'none';
     const toolPicker = el('select', 'tool-picker');
     toolPicker.setAttribute('aria-label', 'Safe-area tool');
@@ -3051,9 +3050,13 @@ export function createModelSetupView(
    * `[data-model-setup-hook="viewbar"]` directly above the canvas; the
    * Model navigation group opens from View while retaining its toolbar
    * parent for keyboard navigation, status updates and existing callers.
-   * Fallback: when the lead mount is absent, create the same hooked node as
-   * the canvas's previous sibling so controls still sit adjacent to the
-   * preview, never beneath the reference/area forms. The
+   * The single Fit button (`data-ps-view="fit"`) stays outside the popover
+   * adjacent to the View toggle, so Fit is usable while View is closed on
+   * desktop and phone layouts; clicking Fit still closes the popover and
+   * focuses the View toggle. Fallback: when the lead mount is absent,
+   * create the same hooked node as the canvas's previous sibling so
+   * controls still sit adjacent to the preview, never beneath the
+   * reference/area forms. The
    * visibility controls below were removed to avoid duplication: hiding a
    * layer is display-only and never discards staged data.
    */
@@ -3176,6 +3179,9 @@ export function createModelSetupView(
       setViewControlsOpen(false);
       if (toggle.getClientRects().length) toggle.focus({ preventScroll: true });
     });
+    // Fit lives outside the camera-controls popover, adjacent to the View
+    // toggle, so it stays visible and enabled while View is closed.
+    mount.insertBefore(fit, toggle);
     const pan = el('button', 'pan', 'btn-secondary');
     pan.type = 'button'; pan.textContent = 'Pan'; pan.setAttribute('aria-pressed', String(panMode));
     pan.addEventListener('click', () => {
@@ -3183,7 +3189,7 @@ export function createModelSetupView(
       const current = currentDraft(); if (!('error' in current)) { current.draft.handleArm = null; current.draft.areaTool = 'rotate'; }
       panMode = !panMode; refresh();
     });
-    cameraControls.append(zoomOut, zoomSelect, zoomIn, fit, pan);
+    cameraControls.append(zoomOut, zoomSelect, zoomIn, pan);
     for (const side of ['front', 'back'] as const) {
       const button = document.createElement('button'); button.type = 'button';
       button.textContent = side === 'front' ? 'Front' : 'Back';
