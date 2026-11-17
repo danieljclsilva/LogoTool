@@ -419,7 +419,7 @@ function fitModelSetupStage(): void {
       productEditor.dataset.mode !== 'setup' || productModelBox.hidden) return;
   const footer = productModelBox.querySelector<HTMLElement>('.product-model-footer');
   const top = productModelStage.getBoundingClientRect().top + window.scrollY;
-  const available = Math.max(180, window.innerHeight - top - (footer?.getBoundingClientRect().height ?? 0) - editorFooter.getBoundingClientRect().height - 16);
+  const available = Math.max(315, window.innerHeight - top - (footer?.getBoundingClientRect().height ?? 0) - editorFooter.getBoundingClientRect().height - 16);
   const height = `${Math.floor(available)}px`;
   if (productModelBox.style.getPropertyValue('--model-stage-height') !== height) {
     productModelBox.style.setProperty('--model-stage-height', height);
@@ -6102,8 +6102,8 @@ function mountModelSetup(productId: string, modelPath: string): void {
         };
         const outcome = handle.hydrateFromJson(JSON.stringify(envelope));
         modelSetupStatus.textContent = outcome.ok
-          ? `Reopened saved 3D setup for this model (${modelPath}). ${outcome.message}`
-          : `Saved 3D setup ignored: ${outcome.message}`;
+          ? `Reopened saved 3D setup for this model (${modelPath}).`
+          : 'Saved 3D setup ignored. See the setup feedback above.';
       }
     }
   }
@@ -6113,7 +6113,8 @@ function mountModelSetup(productId: string, modelPath: string): void {
 /**
  * Commit the staged 3D setup for the active model product: calibration
  * record + deterministic sidecar in ONE atomic repackage-and-reparse
- * commit. Requires a fitted, non-stale reference and zero stale areas —
+ * commit. Saves measurements and areas into the working job. Requires a
+ * fitted, non-stale reference and zero stale areas —
  * stale geometry never commits. Regions are deliberately NOT created (see
  * the section header). Failed commits keep prior state with an error.
  */
@@ -6379,8 +6380,9 @@ async function commitModelSetup(): Promise<void> {
       // early return above leaves prior outputs intact.
       invalidateOutputsForEdit();
       refreshWorkspaceSelectors();
+      staffModelSetup?.clearFeedback();
       modelSetupStatus.textContent =
-        `Saved 3D setup (reference A/B = ${reference.lengthMm} mm, ${stagedSnapshot.areas.length} area(s) as projected regions) to the master. ` +
+        `Saved 3D setup (reference A/B = ${reference.lengthMm} mm, ${stagedSnapshot.areas.length} area(s) as projected regions) in this job. ` +
         (referenceChanged ? `Reference changed: dependent geometry was recomputed. ` : '') +
         (modelFate.removed.length > 0
           ? `Removed ${modelFate.removed.length} deleted area(s) (“${modelFate.removed.map((entry) => entry.name).join('”, “')}”) — no longer selectable. `
@@ -6388,7 +6390,7 @@ async function commitModelSetup(): Promise<void> {
         (modelFate.retired.length > 0
           ? `Retired ${modelFate.retired.length} placed area(s) with emptied geometry (“${modelFate.retired.map((entry) => entry.name).join('”, “')}”) — existing placements stay but are invalid until re-verified; no new placements fit there. `
           : '') +
-        `Reopen the master to retain it. Provisional pending review, never production-approved.`;
+        `Save the job to retain it. Provisional pending review, never production-approved.`;
     } catch (error) {
       const technical = error instanceof Error ? error.message : String(error);
       modelSetupStatus.textContent = 'The 3D setup could not be saved. Previous state is unchanged.';

@@ -467,7 +467,7 @@ test('stale calibration and undeclared photos fall back to the measured diagram'
     await expect(hook('mode-photo')).toBeDisabled();
     await expect(hook('canvas')).toBeVisible();
     await expect(hook('reference-img')).toBeHidden();
-    await expect(hook('mapping-status')).toContainText('reference only');
+    await expect(hook('mapping-status')).toContainText('Use the diagram to position and size your logo.');
 
     // Mapping photo that is not a declared preview view also falls back.
     const other = await syntheticPng(page, '#4b3912');
@@ -492,7 +492,7 @@ test('stale calibration and undeclared photos fall back to the measured diagram'
     await loadCustomer(page, undeclaredBytes, 'undeclared-photo.logo-project');
     await expect(hook('side-front')).toBeDisabled();
     await expect(hook('mode-photo')).toBeDisabled();
-    await expect(hook('mapping-status')).toContainText('reference only');
+    await expect(hook('mapping-status')).toContainText('Use the diagram to position and size your logo.');
   } finally {
     await context.close();
   }

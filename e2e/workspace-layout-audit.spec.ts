@@ -120,17 +120,26 @@ async function assertNoToolbarOverlap(page: Page): Promise<Rect[]> {
       })
       .map((node) => {
         const rect = node.getBoundingClientRect();
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        return {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          navigation: node.closest('[data-model-setup-hook="camera-controls"]') !== null,
+        };
       }),
   );
   const toolbar = (await page.locator('.product-model-toolbar').boundingBox())!;
+  const canvas = (await b(page, 'product-model-canvas').boundingBox())!;
   for (const rect of rects) {
+    // Desktop navigation floats within the canvas. Authoring remains in the toolbar.
+    const bounds = rect.navigation && page.viewportSize()!.width > 820 ? canvas : toolbar;
     expect(rect.width).toBeGreaterThan(0);
     expect(rect.height).toBeGreaterThanOrEqual(44);
-    expect(rect.x).toBeGreaterThanOrEqual(toolbar.x - 1);
-    expect(rect.x + rect.width).toBeLessThanOrEqual(toolbar.x + toolbar.width + 1);
-    expect(rect.y).toBeGreaterThanOrEqual(toolbar.y - 1);
-    expect(rect.y + rect.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
+    expect(rect.x).toBeGreaterThanOrEqual(bounds.x - 1);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    expect(rect.y).toBeGreaterThanOrEqual(bounds.y - 1);
+    expect(rect.y + rect.height).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
   }
   for (const strip of await page.locator('.product-editor .model-setup-camera-controls, .product-editor .product-editor-tool-scroll, .product-editor [data-model-setup-hook="areas-tool-row"], .product-editor .model-setup-command-strip').all()) {
     // Measure both header (editing/lighting) and camera/display scroll rows in

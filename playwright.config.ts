@@ -9,7 +9,11 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   outputDir: 'test-results',
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
-  use: { acceptDownloads: true, offline: true },
+  use: {
+    acceptDownloads: true,
+    offline: true,
+    trace: process.env.E2E_TRACE === '1' ? { mode: 'retain-on-failure', screenshots: false } : 'off',
+  },
   projects: [
     { name: 'chromium', use: {} },
     { name: 'chrome', use: { channel: 'chrome' } },

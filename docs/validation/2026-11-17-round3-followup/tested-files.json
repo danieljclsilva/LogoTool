@@ -1,0 +1,18 @@
+{
+  "e2e/canvas-space.spec.ts": "7fefae55b4a1468784e93f279a90f631690b7120d457d81c2335ca1dd3857e77",
+  "e2e/customer-persistence.spec.ts": "9aa4a20adbf321e722f6b90fa85dbdbfdd2ee3e80ef9b1bc8751e9425cb6a3eb",
+  "e2e/helpers.ts": "bfc066e84d3f67b409efe6063a12ce21302ef748bff9953f9a42aafb087f7af3",
+  "e2e/model-document-workflow.spec.ts": "1fd1ef01f0342e29044179ff7bb5eda51bde60feb5e35a0f8848b876b75f0c9d",
+  "e2e/multiview-hardening.spec.ts": "697a8dd9a65add537e082338e56d668a58a921ba4491a29a1f3895923a1ac663",
+  "e2e/multiview-viewer.spec.ts": "aa47fa583935923fc2c95665689d76dcf86405f20081ffebd4b638a8b7fb4644",
+  "e2e/photo-mapping-workflow.spec.ts": "3cdf537ac0236de7492eb9193928b3d8f310aa3e43375ba8d18deaffc3611c88",
+  "e2e/presentation-assets.spec.ts": "69c798e8f6e5edec8f2faf0349ad91aebbeb3e225ad61cb978e0c5aea4d83b8e",
+  "src/ui/customer-editor/main.ts": "35f817ec10b687d50f786bcd9c33d49fc471fab96e29b4de71a1ebb09d5ab28c",
+  "src/ui/customer-editor/template.html": "71c76ff24ca96b03eebc6f2300d69e632fdccfeabfb3d69b3d0ed549177aa024",
+  "src/ui/internal-builder/model-setup-view.ts": "e8ca81602445fc15729c867eb8099ee6c4918470949b5a01449048a3652fefbb",
+  "src/ui/internal-builder/template.html": "048e2253f73b42546cbadf98c92cf6e0f7c039153b04bc4b542ebe92063beff2",
+  "dist/station/Logo Station.html": "57796baac66b73342d9595b8c4e238d5601c51c7258adf3ebb44d3a561f5b4dd",
+  "dist/dev/customer-configurator.html": "c57cc7553f1b51bd97bd03a466f0c4767c8fad30d7de243ad639c2ff065eba62",
+  "dist/dev/synthetic-customer-prototype.zip": "3089aa6a0679010ef1186afe987cc918c5f32788206c496d1029854ed5b8ddc2",
+  "dist/dev/synthetic-customer-self-contained.html": "8c65af1a05ada71f22bbdc17958311f1b1c9c72b94a31639ba6ba31d9401cb80"
+}

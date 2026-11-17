@@ -1840,3 +1840,131 @@ Windows full runs exceeded the initial 35-minute job budget in run
 with two workers and zero retries per shard. Linux uses one shard. Artifact
 names identify the browser, shard and attempt. Retained reports expose failures
 and unexecuted cases from the timed-out attempt.
+
+### Windows triage and customer/canvas repairs — 15 November 2026
+
+PR #5 was merged normally as `3c7ebc9`. Its tracked tree is identical to
+`5071f4a`. The repeated hosted cohort demonstrates Windows variability on the
+same code. Chrome changes from 57 failures to 47, with ten newly failing cases
+and twenty recovering. Edge changes from 60 to 59, with four newly failing and
+five recovering. Linux repeats the same 17 failures. All three run 276 cases,
+with no skips or retries. The [triage report](windows-triage-2026-11-15.md) and
+per-platform inventories preserve the case-level evidence. Windows CI remains
+strict while the timeout cluster is investigated.
+
+The new CI summary exposes failing titles and errors in each job. Focused
+`E2E_TRACE=1` runs retain action and DOM failure traces without continuous
+screenshot capture. Full-suite tracing hit three Windows job limits in
+`43752138435`, so primary CI retains the untraced profile. Preflight records WebGL renderer information. Persistence-layout
+failures attach measured bounds, scroll/client sizes and the rendered font.
+Canonical LF checkout rules address the confirmed golden-JSON CRLF mismatch.
+A local Windows-style `core.autocrlf=true` checkout probe preserves the golden
+JSON exactly. No golden values were changed.
+
+Independent typecheck and all 884 Node tests pass. Final Chromium development
+acceptance passes all 49 focused cases and all ten presentation/layout audit
+cases, with two workers and zero retries. Coverage includes customer persistence,
+native unload dialog dismissal, confirmation/download state, invalid replacement,
+in-flight supersession, linked sizes, customer editor/model proof, prepared-product
+round trips, staff guidance, round-2 behavior and the unified editor.
+
+The first 48-case installed Chrome cohort passes. After the additional in-flight
+replacement regression, the 49-case cohort has 47 passes and two browser closures
+in staff persistence tests. A one-worker expanded cohort has 58 passes and one
+closure in the presentation handoff test. The closures recur across worker counts
+and remain unresolved. The affected presentation case passes
+a separate one-worker, zero-retry recheck. Browser stderr includes CVDisplayLink and invalid-mailbox
+diagnostics, which do not establish their cause. No run uses retries or skips.
+
+Prior tests now explicitly discard before replacement and
+uncheck Keep shape before requesting independent dimensions. Exact geometry
+assertions retain their expected values. The layout audit now bounds floating
+desktop navigation to the canvas while authoring controls retain toolbar bounds,
+44 px targets and pairwise overlap checks. The new lock is available while adding
+the first placement as well as while editing an existing one.
+
+The canvas regression measures the canvas element itself. At 1290×700 it is
+315 px high normally and approximately 344 px enlarged, with the setup save and
+all three next-step actions fully visible and at least 44 px high. Phone guidance
+and unified-editor tests preserve their existing enlarged-canvas floor. The
+[tracked screenshots and measurements](validation/2026-11-15-customer-canvas/README.md)
+show the final synthetic UI. Download initiation marks the captured customer
+content clean. Actual disk persistence remains outside browser verification.
+
+The Contributor lead and two bounded workers supplied the initial changes.
+Codex stopped delegated work at its time limit, confirmed all writers stopped,
+corrected integration and acceptance failures, and performed independent final
+validation. Unaided staff/customer trials and actual Windows operator-machine
+acceptance remain open. Hosted Windows evidence and unresolved failures are
+reported on the follow-up PR.
+
+
+The final hosted tracing experiment completed Linux with 264 passes and 22
+failures, and Edge shard 1 with 109 passes and 34 failures. Three Windows jobs
+hit their 35-minute limits. The complete [instrumentation analysis](windows-triage-2026-11-15.md)
+records the limits and the decision to keep tracing opt-in. The latest untraced
+local cohort passes all 59 focused and compatibility cases with CI=true, two
+workers and zero retries. A separate desktop 1280×720 reachability check passes.
+Phone footer buttons now form two columns, and hidden supplemental controls do
+not reserve grid rows. The existing canvas floors and all action targets remain
+asserted. A phone layout attachment records the toolbar and footer rectangles.
+
+The final 14-case staff layout selection passes in installed Chrome with one
+worker and zero retries after the phone-footer refinement.
+
+
+The completed untraced cohort `43756262557` on `f526aa9` runs all 286 cases in
+each browser, with zero skips and retries. Linux has 272 passes / 14 failures,
+Windows Chrome 230 / 56 and Windows Edge 230 / 56. All ten newly added customer
+persistence/canvas cases pass in all three browsers. Both Windows golden-JSON
+round trips pass. Windows font diagnostics identify a 13 px client height versus
+14 px scroll height in the 11 px persistence status. Its line height is now an
+explicit 16 px. After this refinement, the 50-case local layout/persistence cohort
+has 49 passes and one Chrome teardown closure, followed by a passing one-case
+recheck. The final hosted font verification is reported on the PR.
+
+Saving measurements and areas now clears the preceding staged-tool feedback,
+leaving the committed outcome in the footer. The canvas regression asserts the
+cleared feedback as well as preserved physical geometry. The final 50-case staff
+layout/persistence cohort passes in Chromium and installed Chrome with two
+workers and zero retries after this refinement and the integral line-height fix.
+
+### PR #6 review follow-up — 17 November 2026
+
+The desktop navigation group now opens from View. Fit closes it and restores
+focus to View. The regression reads actual synthetic model pixels from the GL
+buffer and checks complete bounds inside the canvas, zero overlap with View's
+trigger and a hidden navigation group after Fit. Normal and enlarged desktop
+and phone views retain canvas dimensions, 44 px targets and keyboard access.
+The original 315 px canvas floor, reachable footer and exact saved geometry
+checks remain in place.
+
+Customer dimension text is rounded for display with exact numeric backing for
+form reads. Regression coverage includes linked edits, explicit independent
+sizing, tiny/high-precision values and unchanged dimensions after download,
+reopen and an unrelated edit. The replacement guard appears below the project
+chooser, size precedes instructions, and missing-photo copy uses ordinary language.
+
+Typecheck and all 884 Node tests pass. A preliminary 13-case Chromium cohort
+passes. The broader affected cohort has 87 passes and three failures, including
+two existing model-status assertions and a helper that clicked hidden Rotate.
+After updating the helper to open View, the 67-case compatibility cohort has
+66 passes and the existing 768 px enlargement assertion failure. All new
+canvas/customer regressions, workspace audits, setup/calibration and both
+model-document journeys pass. Runs use zero retries and skips over offline
+`file://` with synthetic fixtures. Browser/OS versions, per-case metadata,
+remaining errors and key screenshots are tracked in the
+[follow-up evidence](validation/2026-11-17-round3-followup/README.md).
+
+Installed Chrome 157.0.8103.51 passes 31 of 32 selected customer, canvas,
+model-document and workspace-audit cases with one worker. The desktop audit
+reports a browser closure during context teardown, then passes a separate
+one-case, zero-retry recheck. All 13 canvas/customer persistence cases pass.
+The recurring macOS Chrome closure remains unresolved. The evidence retains
+both attempts and their environment records.
+
+The [round-4 handoff](round4-windows-rendering-handoff.md) records continuous
+rendering and SwiftShader evidence, worker/timeout experiments and the
+render-on-demand prototype criteria. The [observer sheets](unaided-trial-observer-sheets.md)
+are ready for unaided staff/customer trials. Windows operator-machine delivery
+acceptance and human trials remain pending.

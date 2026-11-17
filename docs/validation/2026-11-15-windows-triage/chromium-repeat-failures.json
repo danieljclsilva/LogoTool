@@ -1,0 +1,107 @@
+{
+  "runId": 43747000114,
+  "failures": [
+    {
+      "file": "editor-guidance.spec.ts",
+      "title": "editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+      "error": "Error: expect(received).toBeGreaterThan(expected)",
+      "errorSha256": "eba6495253dd4819596e970bbb75eb7c3fa44b5e5d49c996cbc9958baa3e181e"
+    },
+    {
+      "file": "editor-guidance.spec.ts",
+      "title": "phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+      "error": "Error: expect(received).toBeGreaterThanOrEqual(expected)",
+      "errorSha256": "13e716a22119f0cc6029bf12f43d014ebfa2413bce3b0c766ce3ac0b63608504"
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "model-only package offers honest 3D with a rendered model and side-tab availability",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "128d9335f8d589b86f374e43825202714e2022d1fd387ed3fd91757d575ab9ac"
+    },
+    {
+      "file": "multiview-viewer.spec.ts",
+      "title": "replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "d8f11e84a3174ed79cf91f492927e84d3f5da2909a8b1157cc5d266363a2372e"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "4824c879a913da392151492c546dfb2075e66e39868b9fc934c598976ad6465e"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "zero-placement option stays present and prints its explicit statement",
+      "error": "Error: expect(locator).toBeVisible() failed",
+      "errorSha256": "43bb7b687ee158181cb1dbffd61ffd35cb5a8e7fa0305cc75a3d9481ffa19341"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+      "error": "Error: expect(locator).toHaveCount(expected) failed",
+      "errorSha256": "d9ea37822dfa12ecb75887505306a36695e2819a65921fcd3abfa005ca39e152"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "primary span calibration drives the photo overlay with no Advanced mapping",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "43128e28fbae39a46d16c75a4005a6d202b2ffbb8f8428e3cf6f2a4c8b3bbbae"
+    },
+    {
+      "file": "operator-workflow.spec.ts",
+      "title": "direct model-only job: calibrated diagram placement without any photo",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "f23f76b537ac4d26db97de08e6b205124f707e4ee3c750890bdba2a3af1eb1eb"
+    },
+    {
+      "file": "placement-ux-regression-a.spec.ts",
+      "title": "placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+      "error": "Test timeout of 120000ms exceeded.",
+      "errorSha256": "8dbf845c1bccd4046ff4acef93713c1fe24d28cd222323a888211ba97e471586"
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "in-place named rows: legacy views keep working, slug views at byte level",
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.",
+      "errorSha256": "b693ca86d5258f5a4c914200ec611571aa872fca79cf7d75ee197b7b5459e9df"
+    },
+    {
+      "file": "product-photo-intake.spec.ts",
+      "title": "five named views calibrate, save, reopen, issue, customer places, review agrees",
+      "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded.",
+      "errorSha256": "a63af9535597f5df0966fa31e3cb16e157982855764086172523f9ad15d96dee"
+    },
+    {
+      "file": "product-workspace.spec.ts",
+      "title": "product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+      "error": "Error: expect(received).toBeGreaterThan(expected)",
+      "errorSha256": "99e27662935ece4de1edca278a3e6ca1cee1d99bcb3ad3531651824f0b55e87a"
+    },
+    {
+      "file": "unified-editor.spec.ts",
+      "title": "one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+      "error": "Error: expect(received).toBeGreaterThan(expected)",
+      "errorSha256": "f39f3f271705f6ea429267168d95a5d1f21a2a62ed2506a7dee8de26c2c5b4ac"
+    },
+    {
+      "file": "visual-operation-dimensions.spec.ts",
+      "title": "four select-based measurements across two logos print and export",
+      "error": "Test timeout of 240000ms exceeded.",
+      "errorSha256": "a5caad8392d882956417d48757c50b001ab5c18185e13e50e41838aef70a5c3a"
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+      "error": "Error: expect(locator).toContainText(expected) failed",
+      "errorSha256": "3129b8e1dc17d9c4dae6370159e93b9efe4584ae0bf30277b18da026e8ca4cfa"
+    },
+    {
+      "file": "visual-product-setup.spec.ts",
+      "title": "shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+      "error": "Error: expect(locator).toBeVisible() failed",
+      "errorSha256": "1abce823af66da0fb75a5c501b0243700d3acce4be7d99c30853e87463e196ed"
+    }
+  ]
+}

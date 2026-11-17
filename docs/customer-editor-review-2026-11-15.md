@@ -44,6 +44,18 @@ shows the edited synthetic project. Review covered the model-backed path and
 existing automated customer journeys. An unaided customer trial, accessibility
 scan and actual Windows operator-machine acceptance are pending.
 
-The next implementation should address download-aware persistence guards and
-symmetric proportion locking, then run the self-contained and hybrid customer
-round trips with multiple products and zero/multiple placements.
+## Follow-up implementation
+
+The customer editor now tracks applied and confirmed content awaiting download,
+as well as pending form edits. Closing a dirty page invokes the browser unload
+warning. Opening another project offers Save draft, Discard changes and Keep
+editing. A failed replacement retains the current inputs and unload protection.
+A superseded file choice cannot install an older queued project after a save.
+Download initiation marks the captured content clean, with copy asking customers
+to check their downloads folder. The browser cannot verify disk persistence.
+
+Width, height and Keep shape appear together in the main edit controls. Both
+axes use the locked ratio until the customer explicitly unchecks Keep shape.
+Rotation and method remain under Advanced. Regression evidence and remaining
+platform gaps are recorded in the follow-up section of
+[offline testing](offline-testing.md).

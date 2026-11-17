@@ -231,7 +231,7 @@ for (const side of SIDES) {
       await expect(hook(page, 'canvas')).toBeVisible();
       await expect(hook(page, 'reference-img')).toBeHidden();
       await expect(hook(page, 'mode-photo')).toBeDisabled();
-      await expect(hook(page, 'mapping-status')).toContainText('Reference only');
+      await expect(hook(page, 'mapping-status')).toContainText('Use the diagram to position and size your logo.');
       for (const other of SIDES.filter((entry) => entry !== side)) {
         await expect(hook(page, `side-${other}`)).toBeDisabled();
       }
@@ -409,7 +409,7 @@ test('zero-placement project loads the diagram by default for decisions', async 
     // The measured diagram is the default; the unmapped photo is reference-only.
     await expect(hook(page, 'canvas')).toBeVisible();
     await expect(hook(page, 'mode-diagram')).toHaveAttribute('aria-pressed', 'true');
-    await expect(hook(page, 'mapping-status')).toContainText('Reference only');
+    await expect(hook(page, 'mapping-status')).toContainText('Use the diagram to position and size your logo.');
     const saved = await downloadBytes(page, () => hook(page, 'save-draft-top').click());
     expect(Buffer.from(saved)).toEqual(Buffer.from(bytes));
     await shoot(page, info, 'multiview-zero-mobile.png');

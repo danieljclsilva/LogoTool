@@ -1,0 +1,180 @@
+{
+  "os": "macOS 27.3.0 arm64",
+  "node": "26.10.0",
+  "playwright": "1.64.0",
+  "chromiumVersion": "156.0.8078.4",
+  "chromeVersion": "156.0.8078.80",
+  "offline": true,
+  "entry": "file://",
+  "fixtures": "synthetic only",
+  "workers": 2,
+  "retries": 0,
+  "focused": {
+    "chromium": {
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0
+    },
+    "chrome": {
+      "passed": 47,
+      "failed": 2,
+      "skipped": 0
+    }
+  },
+  "compatibilityChromium": {
+    "startTime": "2026-11-15T19:14:53.026Z",
+    "duration": 40245.777,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "measurements": [
+    {
+      "name": "canvas-space-1290x700-normal",
+      "bounds": {
+        "canvas": {
+          "x": 23,
+          "y": 296.75,
+          "width": 1244,
+          "height": 315
+        },
+        "save": {
+          "x": 23,
+          "y": 624.75,
+          "width": 229.515625,
+          "height": 44
+        },
+        "footer": {
+          "x": 23,
+          "y": 615.75,
+          "width": 1244,
+          "height": 72.390625
+        }
+      }
+    },
+    {
+      "name": "canvas-space-1290x700-enlarged",
+      "bounds": {
+        "canvas": {
+          "x": 24,
+          "y": 255.75,
+          "width": 1242,
+          "height": 343.859375
+        },
+        "save": {
+          "x": 24,
+          "y": 612.609375,
+          "width": 229.515625,
+          "height": 44
+        },
+        "footer": {
+          "x": 24,
+          "y": 603.609375,
+          "width": 1242,
+          "height": 72.390625
+        }
+      }
+    }
+  ],
+  "twoWorkerChromeErrors": [
+    "station-ux.spec.ts native-close case \u2014 target page/context/browser closed",
+    "station-ux.spec.ts persistence at1440 \u2014 target page/context/browser closed"
+  ],
+  "serialChrome": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T19:16:10.054Z",
+      "duration": 61658.058999999994,
+      "expected": 58,
+      "skipped": 0,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "failure": "presentation-assets.spec.ts Builder prunes \u2014 target page/context/browser closed"
+  },
+  "serialChromeRecheck": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T19:22:35.894Z",
+      "duration": 3979.901,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "latestDefaultChromium": {
+    "workers": 2,
+    "retries": 0,
+    "ciEnvironment": true,
+    "tracing": "off",
+    "stats": {
+      "startTime": "2026-11-15T20:02:50.551Z",
+      "duration": 84895.54999999999,
+      "expected": 59,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "previousFullChromium": {
+    "head": "2ed8386",
+    "workers": 2,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T19:25:20.544Z",
+      "duration": 689362.5499999999,
+      "expected": 272,
+      "skipped": 0,
+      "unexpected": 14,
+      "flaky": 0
+    }
+  },
+  "latestInternalChrome": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:05:26.010Z",
+      "duration": 28369.933999999997,
+      "expected": 14,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "lineHeightAcceptance": {
+    "workers": 1,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:30:02.473Z",
+      "duration": 90338.462,
+      "expected": 49,
+      "skipped": 0,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "chromeRecheck": {
+      "startTime": "2026-11-15T20:32:46.823Z",
+      "duration": 4235.627,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "finalFeedbackAcceptance": {
+    "workers": 2,
+    "retries": 0,
+    "stats": {
+      "startTime": "2026-11-15T20:39:08.135Z",
+      "duration": 77532.706,
+      "expected": 50,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  }
+}

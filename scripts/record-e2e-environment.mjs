@@ -33,6 +33,17 @@ try {
   await page.goto(evidence.entryPoint);
   await page.locator('[data-builder-hook="job-landing-create"]').waitFor();
   evidence.title = await page.title();
+  evidence.webgl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    if (!gl) return { supported: false };
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
+    const info = { supported: true, version: gl.getParameter(gl.VERSION),
+      vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+      renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) };
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return info;
+  });
   if (evidence.pageErrors.length || evidence.consoleErrors.length || evidence.httpRequests.length) {
     throw new Error('Offline entry reported errors or HTTP(S) requests. Inspect environment.json.');
   }

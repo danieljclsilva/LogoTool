@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { addProductAndOpenSetup, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
+import { addProductAndOpenSetup, chooseModelTool, revealModelViewControls, gotoBuilder, openOfflineContext, assertCleanProbe } from './helpers.js';
 import { cubeGlb } from './fixtures/setup-calibration-glb.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 
@@ -34,14 +34,16 @@ for (const twoSided of [false, true]) test(`GLB-only document (${twoSided ? 'fro
     await expect(ms('area-list')).toContainText('Chest');
     if (twoSided) {
       // Setup navigation responds at a close zoom without editing saved mm.
-      await ms('tool-rotate').click();
+      await chooseModelTool(page, 'rotate');
+      await revealModelViewControls(page);
       await page.locator('[data-ps-view="zoom-in"]').click();
       await ms('pan').click(); await expect(ms('pan')).toHaveAttribute('aria-pressed', 'true');
       const beforePan = await canvas.evaluate((node) => (node as HTMLCanvasElement).toDataURL());
       await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5); await page.mouse.down();
       await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5 + 25, { steps: 5 }); await page.mouse.up();
       await expect.poll(() => canvas.evaluate((node) => (node as HTMLCanvasElement).toDataURL())).not.toBe(beforePan);
-      await ms('tool-rotate').click(); await expect(ms('pan')).toHaveAttribute('aria-pressed', 'false');
+      await chooseModelTool(page, 'rotate'); await expect(ms('pan')).toHaveAttribute('aria-pressed', 'false');
+      await revealModelViewControls(page);
       await ms('view-back').click(); await page.locator('[data-ps-view="fit"]').click();
       await ms('area-name').fill('Back'); await ms('tool-rectangle').click();
       await page.mouse.move(box.x + box.width * .44, box.y + box.height * .42); await page.mouse.down();
