@@ -45,8 +45,10 @@ and whether failures move between cases as runner load changes.
 ## Experiment 0 — idle viewers and contexts
 
 Run the opt-in `E2E_PROFILE_ONLY=1` Playwright probe before the factor matrix,
-on Linux Chromium and Windows Chrome/Edge. The workflow gates A–D on successful
-measurement collection. Record landing/empty Prepare, model setup, Logos,
+on Linux Chromium and Windows Chrome/Edge. Opening/reopening the PR or a
+manual workflow dispatch gates A–D on successful measurement collection.
+Follow-up commits run the profile and focused Fit/layout checks. Repeat the
+original complete run to reproduce the frozen factor comparison. Record landing/empty Prepare, model setup, Logos,
 Prepare after setup, customer proof, diagram, review and repeated replacement.
 Include staff document review and two open/close cycles of its reframe dialog.
 Each screen settles for 1.5 seconds and is sampled for 4 seconds with one worker.

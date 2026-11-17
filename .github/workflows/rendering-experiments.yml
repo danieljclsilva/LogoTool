@@ -8,6 +8,9 @@ on:
       - scripts/experiment-settings.mjs
       - e2e/rendering-profile.probe.ts
       - e2e/rendering-probe.ts
+      - e2e/canvas-space.spec.ts
+      - src/ui/internal-builder/model-setup-view.ts
+      - src/ui/internal-builder/template.html
   workflow_dispatch:
 
 permissions:
@@ -55,6 +58,11 @@ jobs:
         run: npx playwright test --project=${{ matrix.project }} --workers=1 --retries=0 --reporter=line,json
       - if: always()
         run: node scripts/summarize-rendering-profile.mjs ${{ matrix.project }}
+      - name: Check Fit and toolbar layout offline
+        env:
+          E2E_PROFILE_ONLY: 0
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/ui-results.json
+        run: npx playwright test e2e/canvas-space.spec.ts e2e/editor-guidance.spec.ts e2e/workspace-layout-audit.spec.ts --project=${{ matrix.project }} --workers=1 --retries=0 --reporter=line,json
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -67,6 +75,7 @@ jobs:
   matrix:
     name: Arm ${{ matrix.arm }} / ${{ matrix.os }} / ${{ matrix.project }} / ${{ matrix.shard }}
     needs: profile
+    if: github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'reopened'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:

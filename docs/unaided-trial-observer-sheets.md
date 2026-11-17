@@ -9,8 +9,9 @@ copy is a reusable blank template.
 | Field | Record |
 | --- | --- |
 | Anonymous participant code and role | |
+| Session mode — author-led rehearsal or independent participant | |
 | Date, observer and build SHA | |
-| Windows edition/build and machine | |
+| OS edition/build and machine | |
 | Chrome or Edge exact version | |
 | GPU/renderer, display scaling and browser zoom | |
 | Viewport in CSS pixels | |
@@ -32,6 +33,42 @@ incomplete tasks. Record elapsed time for each task.
 Use a fresh participant for each browser where possible. Record prior exposure
 when a participant repeats the flow. Synthetic practice assets can establish
 workflow usability. A real measured product supplies physical acceptance evidence.
+
+## Solo rehearsal while people or hardware are unavailable
+
+Use an author-led rehearsal now and keep the independent trial rows pending.
+Record prior familiarity and the actual OS/browser. A rehearsal on the available
+computer supplies development evidence. Record Windows operator acceptance
+when a representative Windows machine becomes available.
+
+Use the generated `dist/dev/solo-walkthrough.zip` or its extracted folder.
+The kit contains the current staff HTML, a self-contained customer HTML,
+two synthetic models and a PNG mark. Open the HTML files directly after unzip
+with networking disabled. The models and 300 mm task span are synthetic
+workflow stimuli. Physical acceptance uses a measured real product later.
+
+1. Spend up to 20 minutes in `Logo Station.html`. Start a job, add `Product A.glb`
+   and `Mark A.png`, pick a reference span and enter the 300 mm task value,
+   define an area, place a logo, save and reopen. If time permits, create the
+   customer approval files and retain the office copy. Note every point where
+   you must guess or consult instructions.
+2. Spend up to 15 minutes in your issued customer file, or use the supplied
+   `Customer.html` when that file is still pending. Record which file you use. Set linked width and height,
+   explicitly unlock for independent dimensions, undo, save/reopen, review and
+   confirm. The supplied file lets the customer walkthrough continue when the
+   staff path is blocked.
+3. Use remaining time for the excluded-product and 22,000 mm checks on separate
+   staff copies, and customer replacement/close warnings. Record saved output
+   dimensions and exact warning text. If you issued your own customer file,
+   open its return with the office copy and inspect the measurements. Stop at
+   the session cap.
+4. Record first actions, help consulted, ease ratings and any blockers in the
+   same sheets. A solo rehearsal contributes one author-led record. The proposed
+   independent participant completion threshold remains pending.
+
+If an unfamiliar colleague or friend becomes available, they can try the
+customer task with consent. Record their actual role and prior exposure.
+Keep completed sheets, recordings and customer-specific files privately.
 
 ## Trial timebox
 

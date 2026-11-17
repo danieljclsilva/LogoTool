@@ -5,7 +5,7 @@ export function experimentSettings(env = process.env) {
   if (arm !== null && !Object.hasOwn(arms, arm)) throw new Error('E2E_EXPERIMENT_ARM must be A, B, C or D.');
   const workers = Number(env.E2E_WORKERS ?? arms[arm]?.workers ?? 2);
   const multiplier = Number(env.E2E_TIMEOUT_MULTIPLIER ?? arms[arm]?.multiplier ?? 1);
-  if (!Number.isInteger(workers) || workers < 1 || workers > 2) throw new Error('Expected one or two experiment workers.');
+  if (!Number.isInteger(workers) || workers < 1) throw new Error('Expected a positive worker count.');
   if (![1, 2].includes(multiplier)) throw new Error('Expected timeout multiplier 1 or 2.');
   if (arm && (workers !== arms[arm].workers || multiplier !== arms[arm].multiplier)) throw new Error('Worker/timeout settings disagree with the experiment arm.');
   return { arm, workers, timeoutMultiplier: multiplier };

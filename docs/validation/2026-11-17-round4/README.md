@@ -39,7 +39,7 @@ acceptance evidence required by AGENTS.md.
 
 A list-only run discovers all 289 cases from generated experiment sources.
 An independent AST comparison verifies all 66 copied files retain non-timeout
-syntax and fixture bytes, with 97 timing sites inventoried. Arm settings reject
+syntax and fixture bytes, with timing sites inventoried. Arm settings reject
 contradictory worker/budget values. The matrix records original and derived
 hashes. The [handoff](../../round4-windows-rendering-handoff.md) fixes the decision
 table before the hosted runs. Hosted experiment results are recorded on the PR.
