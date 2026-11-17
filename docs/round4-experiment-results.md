@@ -1,5 +1,7 @@
 # Round-4 rendering experiment results
 
+Completed 18 November 2026.
+
 The first complete factor cohort uses immutable source
 `2f18ccfafd79a72b63d4051823fd686707d6e2e6`. Each arm runs all 289 cases with
 zero retries, skips and flaky classifications. Windows Chrome uses four fixed
@@ -27,16 +29,17 @@ B and D recover the same 46 Windows failures relative to A and introduce zero
 new failures. Their remaining 14 titles are identical and match the prior
 Linux baseline. All four Linux arms fail the same 15 titles. The additional
 Linux failure is phone tool-picker clipping introduced by persistent Fit.
-The follow-up narrows the selector while retaining its full labels and target
-size. Focused hosted QA checks that correction separately.
+The final correction restores the 138 px selector and gives Fit and View
+fixed 44 px slots. Final hosted screenshots show the complete Rotate model
+label; the focused checks retain the model bounds and touch targets.
 
 C recovers eight A failures and adds ten different failures. Two-worker failure
 membership continues to vary on identical source. Doubling budgets increases
 waiting time while preserving the timeout cluster. One worker is the next
 Windows CI control, with normal timeout budgets and strict failure checks.
 The regular CI keeps its existing two Windows shards and uses one worker per
-runner. Linux retains two workers. Its complete normal-entry-point run will be
-recorded with the Edge confirmation below.
+runner. Linux retains two workers. The completed normal-entry-point run below
+checks this policy on all three platforms.
 
 These results support a concurrency contribution to Windows failures. The
 hidden rendering measurements identify a plausible mechanism. A rendering
@@ -103,10 +106,65 @@ GitHub artifacts retain original/derived source manifests, browser/runner
 metadata and failure evidence. The factor run finishes with a failure status
 because all existing assertions remain active.
 
-The frozen-source Edge confirmation and current-source focused layout QA are
-running. The user has no staff available for formal trials at this phase.
-The [observer sheet](unaided-trial-observer-sheets.md) now includes an author-led
-solo rehearsal with synthetic files, actual OS/browser recording and a 60-minute
-cap. Independent participant trials and a representative Windows operator
-machine remain pending. The proposed four-of-five formative threshold applies
-to the later participant round.
+## Completed confirmation and final QA
+
+The [frozen-source Edge confirmation](https://github.com/danieljclsilva/LogoTool/actions/runs/44186738066)
+uses source `2f18ccf`, one worker, normal budgets and four shards. It completes
+289 cases with 273 passes and 16 failures, zero skips/retries. Its failures
+include the shared 14 and two document-review journeys. The front-only case
+stalls after a stable Reframe button reaches the click action. The front/back
+case's original failure is masked by its diagnostic screenshot timing out.
+Both journeys pass in the later canonical cohort. Preserve this variability;
+there is no document-renderer fix in this change.
+
+The [final focused hosted QA](https://github.com/danieljclsilva/LogoTool/actions/runs/44189653246)
+on `4b949eb` passes four profiling and eight Fit/guidance/workspace cases in
+each of Linux Chromium, Windows Chrome and Windows Edge: 36 passes in total,
+zero skips/retries. The final Linux phone screenshot shows the full tool label.
+An earlier eight-case box-check cohort passed despite native caption clipping;
+its screenshot is retained separately to document the limit of those assertions.
+
+The [regular CI run](https://github.com/danieljclsilva/LogoTool/actions/runs/44189661462)
+completes all 289 cases on each platform:
+
+| Platform | Workers per runner | Shards | Passed | Failed | Skips / retries |
+| --- | --- | --- | --- | --- | --- |
+| Linux Chromium | 2 | 1 | 275 | 14 | 0 / 0 |
+| Windows Chrome | 1 | 2 | 275 | 14 | 0 / 0 |
+| Windows Edge | 1 | 2 | 275 | 14 | 0 / 0 |
+
+All three failing-title sets exactly match frozen Windows arm B's 14 failures.
+There are no new failures in this cohort. CI remains red: existing failures are
+not allowlisted or skipped. The PR merge checkout `2c3e14e` and branch head
+`4b949eb` have identical tree `c89e1c38df26d6bce3f281b8e14fab5c7b327cee`.
+Subsequent evidence-only changes preserve the tested runtime and CI sources.
+Duplicate CI runs for such report-only pushes may be cancelled; the completed
+run above is the verification evidence.
+
+On macOS 27.3, native Chrome 157.0.8103.51 identifies ANGLE Metal on Apple M1.
+The four-profile cohort has three passes and one browser target closure while
+opening a CDP session for the customer sample. The isolated customer recheck
+passes without retries. No application context losses occur in collected
+samples. Per-page counters cannot observe native contexts retained after a
+page closes, so the recurring macOS closure remains unexplained.
+
+## Improvised rehearsal and remaining acceptance
+
+The user is improvising with available resources at this stage. The
+[observer sheet](unaided-trial-observer-sheets.md) includes an author-led solo
+rehearsal with synthetic files, actual OS/browser recording and a 60-minute cap.
+A generated local `dist/dev/solo-walkthrough.zip` includes self-contained staff
+and customer HTML, models, artwork, a prepared two-product job and instructions.
+It is a development artifact; original assets and blank evidence remain tracked.
+
+A fresh-unzip offline Chromium check accepts staff model/artwork imports,
+retains linked 120 × 60 mm customer dimensions in the downloaded draft, blocks
+adding to the excluded second product, and lists its existing placement as
+omitted in Review. These flows record zero page/console errors and HTTP(S)
+requests. This automated kit check is development evidence on macOS.
+
+Independent participant trials and representative Windows operator-machine
+acceptance remain pending. Solo rehearsal supplies no independent participant
+completion count. The proposed four-of-five formative threshold applies to the
+later participant round. Next implement and measure hidden/offscreen viewer
+suspension, then triage the shared 14 failures with strict assertions retained.

@@ -43,7 +43,8 @@ when a representative Windows machine becomes available.
 
 Use the generated `dist/dev/solo-walkthrough.zip` or its extracted folder.
 The kit contains the current staff HTML, a self-contained customer HTML,
-two synthetic models and a PNG mark. Open the HTML files directly after unzip
+two synthetic models, a PNG mark and a prepared two-product job with existing
+placements. Open the HTML files directly after unzip
 with networking disabled. The models and 300 mm task span are synthetic
 workflow stimuli. Physical acceptance uses a measured real product later.
 
@@ -57,8 +58,12 @@ workflow stimuli. Physical acceptance uses a measured real product later.
    explicitly unlock for independent dimensions, undo, save/reopen, review and
    confirm. The supplied file lets the customer walkthrough continue when the
    staff path is blocked.
-3. Use remaining time for the excluded-product and 22,000 mm checks on separate
-   staff copies, and customer replacement/close warnings. Record saved output
+3. For the exclusion check, open `Two-product job.logo-project` in the staff
+   station. Select Synthetic Tee, Size M and both logos for customer approval.
+   Leave Synthetic Trousers excluded, attempt to add another logo to it, then
+   check Review's Omitted placements. Use remaining
+   time for the 22,000 mm check on a separate staff copy and customer
+   replacement/close warnings. Record saved output
    dimensions and exact warning text. If you issued your own customer file,
    open its return with the office copy and inspect the measurements. Stop at
    the session cap.

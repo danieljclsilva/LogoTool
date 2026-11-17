@@ -1528,5 +1528,7 @@
         }
       ]
     }
-  }
+  },
+  "integrityScope": "Source hashes, case membership, shard completion and retry checks. Runner variation is recorded separately.",
+  "environmentLimit": "Linux C shard 2 uses ubuntu26 image 20261111.82.6 / kernel 7.0.0-1016-aws. Other Linux shards use 20261111.196.1 / 7.0.0-1019-azure."
 }

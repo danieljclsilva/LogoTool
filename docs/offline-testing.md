@@ -1968,3 +1968,29 @@ rendering and SwiftShader evidence, worker/timeout experiments and the
 render-on-demand prototype criteria. The [observer sheets](unaided-trial-observer-sheets.md)
 are ready for unaided staff/customer trials. Windows operator-machine delivery
 acceptance and human trials remain pending.
+
+
+### Round-4 experiments and final QA — 18 November 2026
+
+The [completed report](round4-experiment-results.md) records the frozen A–D
+worker/timeout experiment and idle/context measurements. Windows Chrome has
+60/14/62/14 failures in A/B/C/D; one worker recovers the same 46 failures with
+normal or doubled budgets. Regular CI now uses one worker per Windows runner
+and retains two shards, normal budgets, zero retries and strict failures.
+Linux retains two workers. No viewer scheduling behavior changes in this round.
+
+Final normal-entry-point CI on the `4b949eb` source tree completes 289 cases
+per platform. Linux Chromium, Windows Chrome and Windows Edge each have
+275 passes and the same 14 failures, zero skips/retries. The workflow remains
+failed. A separate frozen-source Edge confirmation had two additional document
+journey timeouts; both pass in this later cohort, so timing variability remains.
+Final hosted profiling and Fit/guidance/workspace checks pass 12 cases in each
+browser. Typecheck and all 884 Node tests pass. A macOS installed-Chrome profile
+cohort records one target closure and a passing isolated recheck; its cause is
+unresolved. See [tracked metadata and screenshots](validation/2026-11-17-round4/README.md).
+
+The local synthetic solo kit is verified after fresh unzip over offline
+`file://`, including linked customer dimensions and excluded-product review.
+Use it with the [rehearsal sheet](unaided-trial-observer-sheets.md) while formal
+participants are unavailable. Independent human trials and actual Windows
+operator-machine delivery acceptance remain pending.
