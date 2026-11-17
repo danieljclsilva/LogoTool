@@ -140,7 +140,10 @@ export async function ingestGlb(page: Page, glb: Buffer): Promise<void> {
 export async function chooseModelTool(page: Page, tool: 'rotate' | 'edit' | 'rectangle' | 'freehand'): Promise<void> {
   const picker = page.locator('[data-model-setup-hook="tool-picker"]');
   if (await picker.isVisible()) await picker.selectOption(tool);
-  else await page.locator(`[data-model-setup-hook="tool-${tool}"]`).click();
+  else {
+    if (tool === 'rotate') await revealModelViewControls(page);
+    await page.locator(`[data-model-setup-hook="tool-${tool}"]`).click();
+  }
 }
 
 export async function revealModelViewControls(page: Page): Promise<void> {

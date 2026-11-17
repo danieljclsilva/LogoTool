@@ -113,7 +113,7 @@
     .canvas-tools .more-actions[open] .manage-row { padding:12px; border:1px solid var(--line); background:white; }
     .manage-row { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; } .manage-row button { font-size:13px; } [data-customer-hook=update] { margin-top:16px; border-color:var(--brand); color:var(--brand); }
     [data-customer-hook=unsaved-warning] { font-size:13px; color:#8a6227; margin:14px 0; } [data-customer-hook=prototype-note] { font-size:11px; text-align:right; color:var(--muted); margin:28px 0 0; }
-    [data-customer-hook=unsaved-guard] { border:1px solid #d9b45a; border-radius:5px; padding:12px 14px; margin:14px 0; background:#fff8e6; }
+    [data-customer-hook=unsaved-guard] { border:1px solid #d9b45a; border-radius:5px; padding:12px 14px; margin:14px 20px; background:#fff8e6; }
     [data-customer-hook=unsaved-guard] h3 { font-size:15px; margin:0 0 8px; }
     [data-customer-hook=unsaved-guard] p { font-size:13px; margin:0 0 10px; }
     [data-customer-hook=unsaved-guard] .manage-row { margin:0; }
@@ -202,6 +202,15 @@
 
       <details><summary>Project details</summary><div class="identity"><span>Project: <strong data-customer-hook="project-id">Not loaded</strong></span><span>Version: <strong data-customer-hook="revision">—</strong></span><span>Files in package: <strong data-customer-hook="asset-count">—</strong></span></div></details>
     </div>
+    <div data-customer-hook="unsaved-guard" role="alertdialog" aria-modal="false" aria-labelledby="unsaved-guard-title" aria-describedby="unsaved-guard-detail" hidden>
+      <h3 id="unsaved-guard-title">Unsaved changes</h3>
+      <p id="unsaved-guard-detail" data-customer-hook="unsaved-guard-detail" aria-live="polite"></p>
+      <div class="manage-row">
+        <button data-customer-hook="unsaved-save" type="button">Save draft</button>
+        <button data-customer-hook="unsaved-discard" type="button">Discard changes</button>
+        <button data-customer-hook="unsaved-keep" type="button">Keep editing</button>
+      </div>
+    </div>
     <p data-customer-hook="status" role="status" aria-live="polite">Open your .logo-project file to begin.</p>
     <div class="desk">
       <section data-customer-hook="canvas-pane" class="canvas-pane" aria-label="Product view">
@@ -212,7 +221,7 @@
           <button data-customer-hook="side-left" type="button" aria-pressed="false">Left</button>
           <button data-customer-hook="side-right" type="button" aria-pressed="false">Right</button>
         </div>
-        <p data-customer-hook="mapping-status" class="mapping-status" role="status">Open a project to see the photo mapping status.</p>
+        <p data-customer-hook="mapping-status" class="mapping-status" role="status">Open a project to see your product view.</p>
         <div class="stage">
           <svg data-customer-hook="canvas" viewBox="-120 -100 240 200" role="img" aria-label="Logo-area diagram with logo boxes"><g data-customer-hook="canvas-layer"></g></svg>
         </div>
@@ -277,12 +286,12 @@
           <div class="area-chips" data-customer-hook="area-chips" role="group" aria-label="Choose a logo area" hidden></div>
           <p class="muted small" data-customer-hook="area-empty" hidden>No logo areas supplied in this product option — open the project file that defines them.</p>
           <p class="proof-hint" data-customer-hook="proof-hint" hidden>Drag a logo on the garment to move it. Drag a corner to resize — shape stays linked.</p>
-          <label>Placement instructions (optional)<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
           <div class="field-row">
             <label>Logo width<span class="mm-field"><input data-customer-hook="width-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span></label>
             <label>Logo height<span class="mm-field"><input data-customer-hook="height-mm" type="number" min="0.000000001" step="any" disabled><span class="unit">mm</span></span></label>
           </div>
           <label class="ratio-row"><input data-customer-hook="ratio-lock" type="checkbox" checked> Keep shape (link width and height)</label>
+          <label>Placement instructions (optional)<textarea data-customer-hook="placement-instructions" disabled></textarea></label>
           <details class="precise" data-customer-hook="precise-position">
             <summary>Advanced: exact position and logo area</summary>
             <div class="field-row">
@@ -322,15 +331,6 @@
         <button data-customer-hook="update" type="button" disabled hidden>Apply my changes</button>
 
         <p data-customer-hook="unsaved-warning" hidden></p>
-        <div data-customer-hook="unsaved-guard" role="alertdialog" aria-modal="false" aria-labelledby="unsaved-guard-title" aria-describedby="unsaved-guard-detail" hidden>
-          <h3 id="unsaved-guard-title">Unsaved changes</h3>
-          <p id="unsaved-guard-detail" data-customer-hook="unsaved-guard-detail" aria-live="polite"></p>
-          <div class="manage-row">
-            <button data-customer-hook="unsaved-save" type="button">Save draft</button>
-            <button data-customer-hook="unsaved-discard" type="button">Discard changes</button>
-            <button data-customer-hook="unsaved-keep" type="button">Keep editing</button>
-          </div>
-        </div>
         <div class="rail-actions">
           <button class="btn-primary" data-customer-hook="primary-next" type="button">Review layout &#8250;</button>
           <button class="btn-back" data-customer-hook="back-step" type="button">Back</button>

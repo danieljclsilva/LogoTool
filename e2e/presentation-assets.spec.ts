@@ -72,7 +72,7 @@ test('reference view and artwork thumbnail display safely; view changes preserve
     await expect(hook(page,'logo-thumb')).toBeVisible(); await expect(hook(page,'canvas')).toBeVisible();
     await expect(hook(page,'reference-img')).toBeHidden();
     await expect(hook(page,'mode-photo')).toBeDisabled();
-    await expect(hook(page,'mapping-status')).toContainText('Reference only');
+    await expect(hook(page,'mapping-status')).toContainText('Use the diagram to position and size your logo.');
     const before = await downloadBytes(page,() => hook(page,'save-draft-top').click());
     await hook(page,'mode-diagram').click(); await expect(hook(page,'canvas')).toBeVisible();
     await expect(hook(page,'mode-photo')).toBeDisabled();
@@ -99,7 +99,7 @@ test('bad optional images, remote references and oversized raster dimensions kee
       // reference-only status; the physical draft stays usable.
       await expect(hook(page,'reference-img')).toBeHidden();
       await expect(hook(page,'canvas')).toBeVisible(); await expect(hook(page,'save-draft-top')).toBeEnabled();
-      await expect(hook(page,'mapping-status')).toContainText('Reference only');
+      await expect(hook(page,'mapping-status')).toContainText('Use the diagram to position and size your logo.');
       await expect(hook(page,'revision')).toHaveText(String(source.project.revision));
     }
     assertCleanProbe(probe);
@@ -180,7 +180,7 @@ test('Builder prunes unselected reference images and preserves the selected imag
     directory = await mkdtemp(join(tmpdir(),'LogoTool reference delivery ')); const htmlPath = join(directory,'OPEN.html'); await writeFile(htmlPath,html);
     const customer = await context.newPage(); customer.on('pageerror',error => probe.pageErrors.push(String(error))); customer.on('console',message => { if(message.type()==='error') probe.consoleErrors.push(message.text()); });
     await customer.goto(pathToFileURL(htmlPath).href); await expect(hook(customer,'reference-img')).toBeHidden();
-    await expect(hook(customer,'mapping-status')).toContainText('Reference only');
+    await expect(hook(customer,'mapping-status')).toContainText('Use the diagram to position and size your logo.');
     await revealCustomerControl(customer, 'width-mm');
     await hook(customer,'width-mm').fill('60'); await hook(customer,'width-mm').press('Tab');
     await hook(customer,'primary-next').click();

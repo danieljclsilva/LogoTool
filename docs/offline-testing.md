@@ -1928,3 +1928,43 @@ leaving the committed outcome in the footer. The canvas regression asserts the
 cleared feedback as well as preserved physical geometry. The final 50-case staff
 layout/persistence cohort passes in Chromium and installed Chrome with two
 workers and zero retries after this refinement and the integral line-height fix.
+
+### PR #6 review follow-up — 17 November 2026
+
+The desktop navigation group now opens from View. Fit closes it and restores
+focus to View. The regression reads actual synthetic model pixels from the GL
+buffer and checks complete bounds inside the canvas, zero overlap with View's
+trigger and a hidden navigation group after Fit. Normal and enlarged desktop
+and phone views retain canvas dimensions, 44 px targets and keyboard access.
+The original 315 px canvas floor, reachable footer and exact saved geometry
+checks remain in place.
+
+Customer dimension text is rounded for display with exact numeric backing for
+form reads. Regression coverage includes linked edits, explicit independent
+sizing, tiny/high-precision values and unchanged dimensions after download,
+reopen and an unrelated edit. The replacement guard appears below the project
+chooser, size precedes instructions, and missing-photo copy uses ordinary language.
+
+Typecheck and all 884 Node tests pass. A preliminary 13-case Chromium cohort
+passes. The broader affected cohort has 87 passes and three failures, including
+two existing model-status assertions and a helper that clicked hidden Rotate.
+After updating the helper to open View, the 67-case compatibility cohort has
+66 passes and the existing 768 px enlargement assertion failure. All new
+canvas/customer regressions, workspace audits, setup/calibration and both
+model-document journeys pass. Runs use zero retries and skips over offline
+`file://` with synthetic fixtures. Browser/OS versions, per-case metadata,
+remaining errors and key screenshots are tracked in the
+[follow-up evidence](validation/2026-11-17-round3-followup/README.md).
+
+Installed Chrome 157.0.8103.51 passes 31 of 32 selected customer, canvas,
+model-document and workspace-audit cases with one worker. The desktop audit
+reports a browser closure during context teardown, then passes a separate
+one-case, zero-retry recheck. All 13 canvas/customer persistence cases pass.
+The recurring macOS Chrome closure remains unresolved. The evidence retains
+both attempts and their environment records.
+
+The [round-4 handoff](round4-windows-rendering-handoff.md) records continuous
+rendering and SwiftShader evidence, worker/timeout experiments and the
+render-on-demand prototype criteria. The [observer sheets](unaided-trial-observer-sheets.md)
+are ready for unaided staff/customer trials. Windows operator-machine delivery
+acceptance and human trials remain pending.

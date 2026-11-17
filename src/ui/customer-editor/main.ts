@@ -530,9 +530,22 @@ let photoGeneration = 0;
 let photoNatural: { width: number; height: number } | null = null;
 const artworkUrls = new Map<string, string>();
 
-// Display rounding: one-decimal text (e.g. 108.1) for UI copy only. The
-// canonical widthMm/heightMm/pos/rotationDeg values are never rounded; form
-// fields keep exact values so re-renders lose no precision.
+// Rounded field text retains exact numeric backing for form reads.
+const exactDimensionValues = new WeakMap<HTMLInputElement, { display: string; exact: number }>();
+
+function writeDimension(input: HTMLInputElement, value: number): void {
+  input.value = String(Number(value.toPrecision(15)));
+  exactDimensionValues.set(input, { display: input.value, exact: value });
+}
+
+function numericInputValue(input: HTMLInputElement): number {
+  const stored = exactDimensionValues.get(input);
+  return stored?.display === input.value ? stored.exact : Number(input.value);
+}
+
+const diagramPlacementMessage = 'Use the diagram to position and size your logo.';
+
+// One-decimal measurements in review copy.
 function formatMm(value: number): string {
   if (!Number.isFinite(value)) return '—';
   return (Math.round(value * 10) / 10).toFixed(1);
@@ -595,7 +608,7 @@ function resolveActivePhoto(): void {
   const context = mappingContextFor(regionId);
   if (!context) {
     // Region/product calibration refs are missing: no mapping can be current.
-    photoWarning = 'No photo mapping supplied for this logo area — Reference only — editing uses measured diagram.';
+    photoWarning = diagramPlacementMessage;
     return;
   }
   // Exact-id candidates only: same product + region; variant-scoped first.
@@ -618,7 +631,7 @@ function resolveActivePhoto(): void {
     }
     if (photoWarning === null) photoWarning = selection.warning;
   }
-  if (photoWarning === null) photoWarning = 'No photo mapping supplied for this logo area — Reference only — editing uses measured diagram.';
+  if (photoWarning === null) photoWarning = diagramPlacementMessage;
 }
 
 function mappingEntriesForSelection(): PhotoMappingEntry[] {
@@ -806,8 +819,8 @@ function modelProofPreview(index: number, patch: ModelPlacementCommitPatch): voi
     xInput.value = String(patch.pos.xMm);
     yInput.value = String(patch.pos.yMm);
   }
-  if (patch.widthMm !== undefined) widthInput.value = String(patch.widthMm);
-  if (patch.heightMm !== undefined) heightInput.value = String(patch.heightMm);
+  if (patch.widthMm !== undefined) writeDimension(widthInput, patch.widthMm);
+  if (patch.heightMm !== undefined) writeDimension(heightInput, patch.heightMm);
   if (patch.rotationDeg !== undefined) rotationInput.value = String(patch.rotationDeg);
 }
 function refreshModelProof(): void {
@@ -951,7 +964,7 @@ function syncPhotoImage(): void {
 }
 
 function describeMappingStatus(): string {
-  if (!loaded?.project) return 'Open a project to see the photo mapping status.';
+  if (!loaded?.project) return 'Open a project to see your product view.';
   if (activePhoto) {
     const entry = activePhoto.entry;
     // Display-only label where present; legacy `${view} view` text otherwise.
@@ -959,7 +972,7 @@ function describeMappingStatus(): string {
     const base = `Mapped photo · ${viewName} · calibrated ${entry.calibrationId} ${entry.calibrationVersion}. Editing uses the measured diagram.`;
     return entry.status === 'provisional' ? `Mapped photo (visual trial, not production approval) · ${viewName} · ${entry.calibrationId} ${entry.calibrationVersion}.` : base;
   }
-  return photoWarning ?? 'No photo mapping for this logo area — Reference only — editing uses measured diagram.';
+  return diagramPlacementMessage;
 }
 
 function renderPrimaryMode(): void {
@@ -979,7 +992,7 @@ function renderPrimaryMode(): void {
   modePhotoButton.disabled = !usable || !activePhoto;
   modePhotoButton.title = activePhoto
     ? 'Show the mapped photo preview for this logo area'
-    : (photoWarning ?? 'No photo mapping for this logo area.');
+    : diagramPlacementMessage;
   modeDiagramButton.disabled = !usable;
   modeDiagramButton.title = 'Show the measured placement diagram (millimetres)';
   mode3dButton.disabled = !usable;
@@ -1057,7 +1070,7 @@ function renderPrimaryMode(): void {
 function choosePrimaryMode(mode: PrimaryMode): void {
   if (!loaded || loading || saving || confirming) return;
   if (mode === 'photo' && !activePhoto) {
-    setStatus(photoWarning ?? 'No photo mapping for this logo area — editing uses the measured diagram.');
+    setStatus(diagramPlacementMessage);
     return;
   }
   if (primaryMode === mode) return;
@@ -1645,8 +1658,8 @@ let lockedRatio: number | null = null;
 function refreshLockedRatio(): void {
   lockedRatio = null;
   if (!ratioLock?.checked) return;
-  const width = Number(widthInput.value);
-  const height = Number(heightInput.value);
+  const width = numericInputValue(widthInput);
+  const height = numericInputValue(heightInput);
   if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
     lockedRatio = width / height;
   }
@@ -1716,7 +1729,7 @@ function showUnsavedGuard(fileName: string): void {
     lastFocusedBeforeGuard = active instanceof HTMLElement ? active : null;
   } catch { lastFocusedBeforeGuard = null; }
   if (unsavedGuardDetail) {
-    unsavedGuardDetail.textContent = `You have ${dirtyKindLabel()} that have not been downloaded yet. “${fileName}” is waiting and nothing has been replaced yet. Save draft, Discard changes, or Keep editing.`;
+    unsavedGuardDetail.textContent = `You have changes that are not saved to a file yet. Choose how to continue before opening “${fileName}”.`;
   }
   unsavedGuard.hidden = false;
   // Focus the safe default (keep editing) so keyboard users land inside the dialog.
@@ -1843,7 +1856,7 @@ function updateButtons(): void {
   modePhotoButton.disabled = !usable || !activePhoto;
   modePhotoButton.title = activePhoto
     ? 'Show the mapped photo preview for this logo area'
-    : (photoWarning ?? 'No photo mapping for this logo area.');
+    : diagramPlacementMessage;
   modeDiagramButton.disabled = !usable;
   mode3dButton.disabled = !usable;
   // Side tabs are navigation, not edits: enabled only for sides with a
@@ -2000,7 +2013,7 @@ function placementLabel(configuration: ProjectDocument['configurations'][number]
   return configuration.placements[index]?.id ?? `Placement ${index + 1}`;
 }
 function readNumeric(input: HTMLInputElement, label: string): number {
-  const value = Number(input.value);
+  const value = numericInputValue(input);
   if (input.value.trim() === '' || !Number.isFinite(value)) throw new Error(`${label} must be a finite number.`);
   return value;
 }
@@ -2015,8 +2028,8 @@ function populatePlacementForm(): void {
     const height = logo?.knownHeightMm ?? (asset ? width * asset.heightPx! / asset.widthPx! : 40);
     xInput.value = '0';
     yInput.value = '0';
-    widthInput.value = String(width);
-    heightInput.value = String(height);
+    writeDimension(widthInput, width);
+    writeDimension(heightInput, height);
     rotationInput.value = '0';
     if (ratioLock) ratioLock.checked = true;
     refreshLockedRatio();
@@ -2025,8 +2038,8 @@ function populatePlacementForm(): void {
   }
   xInput.value = String(placement.pos.xMm);
   yInput.value = String(placement.pos.yMm);
-  widthInput.value = String(placement.widthMm);
-  heightInput.value = String(placement.heightMm);
+  writeDimension(widthInput, placement.widthMm);
+  writeDimension(heightInput, placement.heightMm);
   rotationInput.value = String(placement.rotationDeg);
   placementInstructions.value = placement.instructions ?? '';
   methodSelect.value = placement.method;
@@ -2035,8 +2048,8 @@ function populatePlacementForm(): void {
   const key = JSON.stringify([loaded?.project.projectId, activeConfigurationId, selectedPlacementIndex, selectedLogoId]);
   if (ratioLock && key !== placementFormKey) {
     placementFormKey = key;
-    const width = Number(widthInput.value);
-    const height = Number(heightInput.value);
+    const width = numericInputValue(widthInput);
+    const height = numericInputValue(heightInput);
     ratioLock.checked = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
   }
   refreshLockedRatio();
@@ -3288,11 +3301,14 @@ placementSelect.addEventListener('change', () => {
 });
 
 for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, placementInstructions, projectInstructions, methodSelect, confirmedByInput]) {
-  const markFormChanged = (): void => {
+  const markFormChanged = (event: Event): void => {
     const value = control.value;
     if (drag) {
       cancelDrag('Moving stopped because you typed below. Your saved logo is unchanged.');
       control.value = value;
+    }
+    if (event.type === 'input' && (control === widthInput || control === heightInput)) {
+      exactDimensionValues.delete(control);
     }
     if (control === projectInstructions) {
       projectInstructionsDirty = true;
@@ -3314,9 +3330,9 @@ for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, p
 }
 widthInput.addEventListener('input', () => {
   if (!ratioLock?.checked || lockedRatio === null) return;
-  const width = Number(widthInput.value);
+  const width = numericInputValue(widthInput);
   if (!Number.isFinite(width) || width <= 0) return;
-  heightInput.value = String(width / lockedRatio);
+  writeDimension(heightInput, width / lockedRatio);
   placementFormDirty = true;
   updateUnsavedWarning();
   updateButtons();
@@ -3325,9 +3341,9 @@ heightInput.addEventListener('input', () => {
   // Symmetric lock: editing height while locked recomputes width via
   // lockedRatio. Only an explicit uncheck authorizes distortion.
   if (!ratioLock?.checked || lockedRatio === null) return;
-  const height = Number(heightInput.value);
+  const height = numericInputValue(heightInput);
   if (!Number.isFinite(height) || height <= 0) return;
-  widthInput.value = String(height * lockedRatio);
+  writeDimension(widthInput, height * lockedRatio);
   placementFormDirty = true;
   updateUnsavedWarning();
   updateButtons();

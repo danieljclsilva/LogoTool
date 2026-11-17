@@ -898,13 +898,15 @@
     }
     @media(min-width:821px) {
       .product-editor [data-model-setup-hook="viewbar"] { position:relative; }
+      .product-editor .model-setup-view-toggle { display:inline-flex!important;align-items:center; }
       .product-editor .product-model-toolbar .model-setup-camera-controls {
-        position:absolute;top:calc(100% + 8px);right:8px;z-index:6;
+        display:none;position:absolute;top:48px;right:8px;z-index:6;
         max-width:calc(100% - 16px);min-width:0;
         padding:6px;gap:4px;border:1px solid var(--line);border-radius:6px;
         background:#fffffff2;box-shadow:0 2px 8px #192d3d20;
         pointer-events:none;
       }
+      .product-editor .product-model-toolbar .model-setup-camera-controls.is-open { display:flex; }
       .product-editor .product-model-toolbar .model-setup-camera-controls > * { pointer-events:auto; }
     }
   </style>

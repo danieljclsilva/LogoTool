@@ -226,6 +226,11 @@ test('replacement guard cancel preserves project, selection, and history; discar
     await expect(guard).toHaveAttribute('role', 'alertdialog');
     await expect(page.locator('[data-customer-hook="unsaved-guard-detail"]')).toHaveAttribute('aria-live', 'polite');
     await expect(page.locator('[data-customer-hook="unsaved-keep"]')).toBeFocused();
+    expect(await guard.evaluate(node => node.parentElement?.id)).toBe('customer-editor');
+    const guardBox = (await guard.boundingBox())!;
+    const proofBox = (await page.locator('[data-customer-hook="canvas-pane"]').boundingBox())!;
+    expect(guardBox.y + guardBox.height).toBeLessThanOrEqual(proofBox.y);
+
     await page.screenshot({ path: test.info().outputPath('customer-replacement-guard.png') });
     await expect(page.locator('[data-customer-hook="project-id"]')).toHaveText(projectId ?? '');
     await expect(page.locator('[data-customer-hook="revision"]')).toHaveText(editedRevision ?? '');
@@ -535,6 +540,75 @@ test('a guarded newer file supersedes an in-flight discarded replacement', async
     expect(await isBeforeUnloadDirty(page)).toBe(true);
     await page.locator('[data-customer-hook="unsaved-keep"]').click();
     await expect(page.locator('[data-customer-hook="save"]')).toBeEnabled();
+    expectOfflineClean(probe);
+  } finally {
+    await context.close();
+    await fs.rm(prototype.directory, { recursive: true, force: true });
+  }
+});
+
+
+test('rounded dimension text preserves exact package values through linked edits and reopen', async ({ browser }) => {
+  const prototype = await unpackPrototype();
+  const { context, page, probe } = await openOfflineEditor(browser);
+  try {
+    const parsed = await parseProjectPackage(new Uint8Array(prototype.projectBytes), { sha256 });
+    const project = structuredClone(parsed.project);
+    const placement = project.configurations[0]!.placements[0]!;
+    placement.widthMm = 44.99999999999999;
+    placement.heightMm = 30;
+    delete project.confirmation;
+    const assets = parsed.assets.filter(asset => asset.kind === 'referenced').map(({ path, bytes }) => ({ path, bytes }));
+    const additionalAssets = parsed.assets.filter(asset => asset.kind === 'additional').map(({ path, bytes }) => ({ path, bytes }));
+    const bytes = await createProjectPackage({ project, assets, additionalAssets }, { sha256 });
+    await openPage(page, prototype);
+    await page.locator('[data-customer-hook="file-input"]').setInputFiles({ name: 'precision.logo-project', mimeType: 'application/zip', buffer: Buffer.from(bytes) });
+    await expect(page.locator('[data-customer-hook="project-id"]')).not.toHaveText('Not loaded');
+    const width = page.locator('[data-customer-hook="width-mm"]');
+    const height = page.locator('[data-customer-hook="height-mm"]');
+    await expect(width).toHaveValue('45');
+    await expect(page.locator('[data-customer-hook="mapping-status"]')).toContainText('Use the diagram to position and size your logo.');
+    const instructions = (await page.locator('[data-customer-hook="placement-instructions"]').boundingBox())!;
+    expect((await height.boundingBox())!.y).toBeLessThan(instructions.y);
+    const ratio = placement.widthMm / placement.heightMm;
+    await height.fill('20');
+    await expect(width).toHaveValue('30');
+    await height.press('Tab');
+    await height.fill('30');
+    await expect(width).toHaveValue('45');
+    await height.press('Tab');
+    const linked = await saveDownloadedFile(page, join(prototype.directory, 'linked.logo-project'), async () => {
+      await revealCustomerControl(page, 'save');
+      await page.locator('[data-customer-hook="save"]').click();
+    });
+    const linkedProject = (await parseProjectPackage(new Uint8Array(linked), { sha256 })).project;
+    expect(linkedProject.configurations[0]!.placements[0]!.widthMm).toBe(30 * ratio);
+    expect(linkedProject.configurations[0]!.placements[0]!.heightMm).toBe(30);
+
+    await revealCustomerControl(page, 'ratio-lock');
+    await page.locator('[data-customer-hook="ratio-lock"]').uncheck();
+    const exactWidth = 15.123456789012345;
+    const exactHeight = 0.00000001234567890123456;
+    await setNumber(page, 'width-mm', exactWidth);
+    await setNumber(page, 'height-mm', exactHeight);
+    const path = join(prototype.directory, 'precise.logo-project');
+    const precise = await saveDownloadedFile(page, path, async () => {
+      await revealCustomerControl(page, 'save');
+      await page.locator('[data-customer-hook="save"]').click();
+    });
+    const saved = (await parseProjectPackage(new Uint8Array(precise), { sha256 })).project;
+    expect(saved.configurations[0]!.placements[0]!.widthMm).toBe(exactWidth);
+    expect(saved.configurations[0]!.placements[0]!.heightMm).toBe(exactHeight);
+    await page.locator('[data-customer-hook="file-input"]').setInputFiles(path);
+    await expect(width).toHaveValue(String(Number(exactWidth.toPrecision(15))));
+    await setNumber(page, 'x-mm', 1);
+    const reopened = await saveDownloadedFile(page, join(prototype.directory, 'reopened.logo-project'), async () => {
+      await revealCustomerControl(page, 'save');
+      await page.locator('[data-customer-hook="save"]').click();
+    });
+    const reopenedProject = (await parseProjectPackage(new Uint8Array(reopened), { sha256 })).project;
+    expect(reopenedProject.configurations[0]!.placements[0]!.widthMm).toBe(exactWidth);
+    expect(reopenedProject.configurations[0]!.placements[0]!.heightMm).toBe(exactHeight);
     expectOfflineClean(probe);
   } finally {
     await context.close();

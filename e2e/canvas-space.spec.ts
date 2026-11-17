@@ -146,10 +146,7 @@ test('staff canvas space at 1290x700: normal and enlarged keep canvas, footer, g
     const beforeNormal = (await canvas.boundingBox())!;
     const productsBefore = await saveJobProducts(page, info, 'canvas-before.logo-project');
 
-    // Navigate without shifting the canvas: desktop viewbar actions stay
-    // reachable without opening a menu (established callers rely on this),
-    // so stability is asserted across real navigation. Where a View toggle
-    // menu exists it must also leave the canvas untouched.
+    // Opening View and applying Fit preserve the canvas bounds and physical data.
     const toggle = ms(page, 'view-toggle');
     if (await toggle.isVisible()) {
       await toggle.click();
@@ -195,3 +192,99 @@ test('staff canvas space at 1290x700: normal and enlarged keep canvas, footer, g
     await context.close();
   }
 });
+
+
+async function assertUnobscuredModelAfterFit(page: Page, label: string, info: TestInfo): Promise<void> {
+  await revealModelViewControls(page);
+  const navigation = ms(page, 'camera-controls');
+  await expect(navigation).toBeVisible();
+  await page.locator('[data-model-setup-hook="viewbar"] [data-ps-view="fit"]').click();
+  await expect(navigation).toBeHidden();
+  await expect(ms(page, 'view-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(ms(page, 'view-toggle')).toBeFocused();
+  const model = await b(page, 'product-model-canvas').evaluate(async (node) => {
+    const canvas = node as HTMLCanvasElement;
+    await new Promise<void>(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())));
+    // Read the GL buffer directly so HTML overlays cannot conceal model pixels.
+    const image = new Image();
+    const loaded = new Promise<void>((resolveImage, rejectImage) => {
+      image.onload = () => resolveImage();
+      image.onerror = () => rejectImage(new Error('Could not read the synthetic model image.'));
+    });
+    image.src = canvas.toDataURL('image/png');
+    await loaded;
+    const probe = document.createElement('canvas');
+    probe.width = image.naturalWidth;
+    probe.height = image.naturalHeight;
+    const context = probe.getContext('2d');
+    if (!context) throw new Error('2D readback context unavailable.');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, probe.width, probe.height).data;
+    let left = probe.width;
+    let top = probe.height;
+    let right = -1;
+    let bottom = -1;
+    let count = 0;
+    for (let y = 0; y < probe.height; y += 1) {
+      for (let x = 0; x < probe.width; x += 1) {
+        const index = (y * probe.width + x) * 4;
+        // The fixture's blue cube is distinct from the white background/markers.
+        if (pixels[index + 2]! <= pixels[index + 1]! || pixels[index + 2]! <= pixels[index]!) continue;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+        count += 1;
+      }
+    }
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.x + left * rect.width / probe.width,
+      y: rect.y + top * rect.height / probe.height,
+      width: (right - left + 1) * rect.width / probe.width,
+      height: (bottom - top + 1) * rect.height / probe.height,
+      count,
+      canvas: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    };
+  });
+  expect(model.count).toBeGreaterThan(500);
+  expect(model.x).toBeGreaterThan(model.canvas.x + 1);
+  expect(model.y).toBeGreaterThan(model.canvas.y + 1);
+  expect(model.x + model.width).toBeLessThan(model.canvas.x + model.canvas.width - 1);
+  expect(model.y + model.height).toBeLessThan(model.canvas.y + model.canvas.height - 1);
+  const trigger = (await ms(page, 'view-toggle').boundingBox())!;
+  const overlapX = Math.min(model.x + model.width, trigger.x + trigger.width) - Math.max(model.x, trigger.x);
+  const overlapY = Math.min(model.y + model.height, trigger.y + trigger.height) - Math.max(model.y, trigger.y);
+  expect(overlapX <= 0 || overlapY <= 0).toBe(true);
+  await info.attach(`unobscured-model-${label}`, { contentType: 'application/json', body: JSON.stringify({ model, trigger }, null, 2) });
+  await page.screenshot({ path: info.outputPath(`unobscured-model-${label}.png`) });
+}
+
+for (const viewport of [{ width: 1290, height: 700 }, { width: 390, height: 844 }]) {
+  test(`Fit leaves the complete model clear of View controls at ${viewport.width}`, async ({ browser }, info) => {
+    test.setTimeout(90_000);
+    const { context, page, probe } = await openOfflineContext(browser, viewport);
+    try {
+      await stageModelProduct(page);
+      await assertUnobscuredModelAfterFit(page, `${viewport.width}-normal`, info);
+      const canvas = b(page, 'product-model-canvas');
+      const before = (await canvas.boundingBox())!;
+      await ms(page, 'view-toggle').focus();
+      await page.keyboard.press('Enter');
+      await expect(ms(page, 'camera-controls')).toBeVisible();
+      for (const control of await ms(page, 'camera-controls').locator('button,select').all()) {
+        await expect(control).toBeVisible();
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.keyboard.press('Escape');
+      await expect(ms(page, 'camera-controls')).toBeHidden();
+      await expect(ms(page, 'view-toggle')).toBeFocused();
+      expect((await canvas.boundingBox())!.height).toBe(before.height);
+      await b(page, 'product-model-expand').click();
+      await assertUnobscuredModelAfterFit(page, `${viewport.width}-enlarged`, info);
+      assertCleanProbe(probe);
+    } finally {
+      await context.close();
+    }
+  });
+}

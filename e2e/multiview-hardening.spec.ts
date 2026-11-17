@@ -175,7 +175,7 @@ test('external-reference model with valid views keeps rasters and warns, offline
     const state = await viewsState(page);
     expect(state.modelPath).toBe(null);
     expect(state.warning ?? '').toMatch(/external reference|self-contained/i);
-    await expect(hook(page, 'mapping-status')).toContainText('Reference only');
+    await expect(hook(page, 'mapping-status')).toContainText('Use the diagram to position and size your logo.');
     // The 3D pane reports the rejected model instead of a blank canvas.
     await hook(page, 'mode-3d').click();
     await expect(hook(page, 'mode-3d-pane')).toBeVisible();

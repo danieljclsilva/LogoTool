@@ -3049,7 +3049,7 @@ export function createModelSetupView(
    * View controls adjacent to the preview (zoom + visibility). The View
    * toggle renders into the lead-provided mount
    * `[data-model-setup-hook="viewbar"]` directly above the canvas; the
-   * Model navigation group floats over the stage while retaining its toolbar
+   * Model navigation group opens from View while retaining its toolbar
    * parent for keyboard navigation, status updates and existing callers.
    * Fallback: when the lead mount is absent, create the same hooked node as
    * the canvas's previous sibling so controls still sit adjacent to the
@@ -3098,7 +3098,10 @@ export function createModelSetupView(
     toggle.setAttribute('aria-label', 'View controls');
     toggle.setAttribute('aria-controls', cameraControls.id);
     viewToggle = toggle;
-    toggle.addEventListener('click', () => setViewControlsOpen(!viewControlsOpen));
+    toggle.addEventListener('click', () => {
+      if (!viewControlsOpen) contextPanel?.close();
+      setViewControlsOpen(!viewControlsOpen);
+    });
     setViewControlsOpen(viewControlsOpen);
     mount.append(toggle, cameraControls);
     const modeHint = el('p', 'mode-hint', 'muted');
@@ -3170,6 +3173,8 @@ export function createModelSetupView(
         return;
       }
       syncViewbar(scope);
+      setViewControlsOpen(false);
+      if (toggle.getClientRects().length) toggle.focus({ preventScroll: true });
     });
     const pan = el('button', 'pan', 'btn-secondary');
     pan.type = 'button'; pan.textContent = 'Pan'; pan.setAttribute('aria-pressed', String(panMode));
