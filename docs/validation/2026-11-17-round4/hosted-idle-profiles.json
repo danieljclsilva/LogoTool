@@ -1,0 +1,2526 @@
+{
+  "run": "https://github.com/danieljclsilva/LogoTool/actions/runs/44174017332",
+  "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+  "profiles": [
+    {
+      "environment": {
+        "project": "chromium",
+        "shard": "1/1",
+        "arm": null,
+        "workers": 1,
+        "timeoutMultiplier": 1,
+        "retries": 0,
+        "platform": "linux",
+        "release": "7.0.0-1019-azure",
+        "arch": "x64",
+        "node": "v24.22.2",
+        "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+        "workflowCommit": "5b8a0bbde9c94b80279711dcc76baeeda42f77be",
+        "runnerImage": "ubuntu26",
+        "runnerImageVersion": "20261111.196.1",
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "offline": true,
+        "entryPoint": "file:///home/runner/work/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+        "pageErrors": [],
+        "consoleErrors": [],
+        "httpRequests": [],
+        "browserVersion": "156.0.8078.4",
+        "title": "Logo Station \u00b7 Prepare and review customer projects",
+        "webgl": {
+          "supported": true,
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "result": "passed"
+      },
+      "profile": {
+        "project": "chromium",
+        "stats": {
+          "startTime": "2026-11-17T20:53:50.991Z",
+          "duration": 82824.628,
+          "expected": 4,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "screens": [
+          {
+            "screen": "staff-landing",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4001.5,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.002046,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 5539560,
+            "nodeCount": 870,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-empty",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4000.9000000000015,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.001266,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 6892012,
+            "nodeCount": 1006,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-setup-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4002.0999999999985,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.96851652882239,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.96851652882239,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 240
+                }
+              ]
+            },
+            "taskDurationSeconds": 1.035275,
+            "scriptDurationSeconds": 0.041805,
+            "jsHeapUsedBytes": 9685656,
+            "nodeCount": 1443,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-logos",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4001.9000000000015,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.971513531072716,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.971513531072716,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 720
+                }
+              ]
+            },
+            "taskDurationSeconds": 1.6442,
+            "scriptDurationSeconds": 0.041997,
+            "jsHeapUsedBytes": 12666312,
+            "nodeCount": 3837,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-after-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4001.800000000003,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 241,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 241,
+                  "renderedRafFramesPerSecond": 60.222899695137144,
+                  "clearPasses": 241,
+                  "clearPassesPerSecond": 60.222899695137144,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 723
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.021395,
+            "scriptDurationSeconds": 0.013218,
+            "jsHeapUsedBytes": 11774140,
+            "nodeCount": 3855,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4015.100000000006,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 239,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 239,
+                  "renderedRafFramesPerSecond": 59.52529202261454,
+                  "clearPasses": 239,
+                  "clearPassesPerSecond": 59.52529202261454,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 2151
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.064713,
+            "scriptDurationSeconds": 0.124423,
+            "jsHeapUsedBytes": 10037456,
+            "nodeCount": 2633,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-review",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4006.300000000003,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.90564860344952,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.90564860344952,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 2160
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.031559,
+            "scriptDurationSeconds": 0.114913,
+            "jsHeapUsedBytes": 11228036,
+            "nodeCount": 4358,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-diagram-after-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4002.4000000000087,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.0007650000000000001,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 7866280,
+            "nodeCount": 1117,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-after-two-replacements",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4010.800000000003,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 2,
+                  "name": "loop",
+                  "calls": 238,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 238,
+                  "renderedRafFramesPerSecond": 59.339782587015016,
+                  "clearPasses": 238,
+                  "clearPassesPerSecond": 59.339782587015016,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 2142
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.021074,
+            "scriptDurationSeconds": 0.118344,
+            "jsHeapUsedBytes": 8628484,
+            "nodeCount": 2003,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-review",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4007.199999999997,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.89219405070877,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.89219405070877,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1200
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.89219405070877,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.89219405070877,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1200
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.093566,
+            "scriptDurationSeconds": 0.053564,
+            "jsHeapUsedBytes": 11429784,
+            "nodeCount": 1576,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-1",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4054.2000000000116,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 105,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 105,
+                  "pending": 1
+                },
+                {
+                  "id": 9,
+                  "name": "loop",
+                  "calls": 105,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 30,
+              "longTaskMs": 2897,
+              "longestTaskMs": 118,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 105,
+                  "renderedRafFramesPerSecond": 25.899067633565117,
+                  "clearPasses": 105,
+                  "clearPassesPerSecond": 25.899067633565117,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 525
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 105,
+                  "renderedRafFramesPerSecond": 25.899067633565117,
+                  "clearPasses": 105,
+                  "clearPassesPerSecond": 25.899067633565117,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 525
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 105,
+                  "renderedRafFramesPerSecond": 25.899067633565117,
+                  "clearPasses": 105,
+                  "clearPassesPerSecond": 25.899067633565117,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 525
+                }
+              ]
+            },
+            "taskDurationSeconds": 3.7135510000000003,
+            "scriptDurationSeconds": 0.03935,
+            "jsHeapUsedBytes": 11096104,
+            "nodeCount": 1621,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-2",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4005.0999999999913,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 104,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 104,
+                  "pending": 1
+                },
+                {
+                  "id": 10,
+                  "name": "loop",
+                  "calls": 104,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 30,
+              "longTaskMs": 2954,
+              "longestTaskMs": 124,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 104,
+                  "renderedRafFramesPerSecond": 25.966892212429208,
+                  "clearPasses": 104,
+                  "clearPassesPerSecond": 25.966892212429208,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 520
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 104,
+                  "renderedRafFramesPerSecond": 25.966892212429208,
+                  "clearPasses": 104,
+                  "clearPassesPerSecond": 25.966892212429208,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 520
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 104,
+                  "renderedRafFramesPerSecond": 25.966892212429208,
+                  "clearPasses": 104,
+                  "clearPassesPerSecond": 25.966892212429208,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 520
+                }
+              ]
+            },
+            "taskDurationSeconds": 3.681654,
+            "scriptDurationSeconds": 0.041023000000000004,
+            "jsHeapUsedBytes": 11617448,
+            "nodeCount": 1662,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-after-reframe-cycles",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4006.399999999994,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 241,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 241,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 241,
+                  "renderedRafFramesPerSecond": 60.15375399361031,
+                  "clearPasses": 241,
+                  "clearPassesPerSecond": 60.15375399361031,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1205
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 241,
+                  "renderedRafFramesPerSecond": 60.15375399361031,
+                  "clearPasses": 241,
+                  "clearPassesPerSecond": 60.15375399361031,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1205
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.055273,
+            "scriptDurationSeconds": 0.038534,
+            "jsHeapUsedBytes": 10600248,
+            "nodeCount": 1664,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          }
+        ]
+      }
+    },
+    {
+      "environment": {
+        "project": "chrome",
+        "shard": "1/1",
+        "arm": null,
+        "workers": 1,
+        "timeoutMultiplier": 1,
+        "retries": 0,
+        "platform": "win32",
+        "release": "10.0.26100",
+        "arch": "x64",
+        "node": "v24.22.2",
+        "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+        "workflowCommit": "5b8a0bbde9c94b80279711dcc76baeeda42f77be",
+        "runnerImage": "win25-vs2026",
+        "runnerImageVersion": "20261103.298.1",
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "offline": true,
+        "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+        "pageErrors": [],
+        "consoleErrors": [],
+        "httpRequests": [],
+        "browserVersion": "156.0.8078.80",
+        "title": "Logo Station \u00b7 Prepare and review customer projects",
+        "webgl": {
+          "supported": true,
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "result": "passed"
+      },
+      "profile": {
+        "project": "chrome",
+        "stats": {
+          "startTime": "2026-11-17T20:54:06.120Z",
+          "duration": 104690.249,
+          "expected": 4,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "screens": [
+          {
+            "screen": "staff-landing",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4002.0999999999767,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.002692,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 5659772,
+            "nodeCount": 879,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-empty",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4010.8000000000466,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.002928,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 7012572,
+            "nodeCount": 1015,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-setup-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4002.4000000000233,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.96402158704742,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.96402158704742,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 240
+                }
+              ]
+            },
+            "taskDurationSeconds": 1.8525710000000002,
+            "scriptDurationSeconds": 0.060143,
+            "jsHeapUsedBytes": 9902904,
+            "nodeCount": 1452,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-logos",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4013.4000000000233,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 241,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 241,
+                  "renderedRafFramesPerSecond": 60.04883639806613,
+                  "clearPasses": 241,
+                  "clearPassesPerSecond": 60.04883639806613,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 723
+                }
+              ]
+            },
+            "taskDurationSeconds": 2.8450930000000003,
+            "scriptDurationSeconds": 0.080632,
+            "jsHeapUsedBytes": 12675928,
+            "nodeCount": 3846,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-after-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4001.6999999999534,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.97451083289672,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.97451083289672,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 720
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.051044,
+            "scriptDurationSeconds": 0.029439,
+            "jsHeapUsedBytes": 11798140,
+            "nodeCount": 3864,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4022.7999999999884,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 147,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 147,
+                  "renderedRafFramesPerSecond": 36.541712240230794,
+                  "clearPasses": 147,
+                  "clearPassesPerSecond": 36.541712240230794,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1323
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.1027379999999996,
+            "scriptDurationSeconds": 0.129459,
+            "jsHeapUsedBytes": 9912360,
+            "nodeCount": 2003,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-review",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4054.399999999965,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 148,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 148,
+                  "renderedRafFramesPerSecond": 36.50355169692218,
+                  "clearPasses": 148,
+                  "clearPassesPerSecond": 36.50355169692218,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1332
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.107036,
+            "scriptDurationSeconds": 0.12131,
+            "jsHeapUsedBytes": 11666936,
+            "nodeCount": 3123,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-diagram-after-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4014.9000000000233,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.0008759999999999999,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 7652020,
+            "nodeCount": 1113,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-after-two-replacements",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4073.2999999999884,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 2,
+                  "name": "loop",
+                  "calls": 149,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 149,
+                  "renderedRafFramesPerSecond": 36.57967741143555,
+                  "clearPasses": 149,
+                  "clearPassesPerSecond": 36.57967741143555,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1341
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.123986,
+            "scriptDurationSeconds": 0.121708,
+            "jsHeapUsedBytes": 9396084,
+            "nodeCount": 1744,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-review",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4193.299999999988,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 249,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 249,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 249,
+                  "renderedRafFramesPerSecond": 59.380440226075095,
+                  "clearPasses": 249,
+                  "clearPassesPerSecond": 59.380440226075095,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1245
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 249,
+                  "renderedRafFramesPerSecond": 59.380440226075095,
+                  "clearPasses": 249,
+                  "clearPassesPerSecond": 59.380440226075095,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1245
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.177142,
+            "scriptDurationSeconds": 0.103617,
+            "jsHeapUsedBytes": 11538608,
+            "nodeCount": 1576,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-1",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4227.200000000012,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 72,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 72,
+                  "pending": 1
+                },
+                {
+                  "id": 9,
+                  "name": "loop",
+                  "calls": 72,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 21,
+              "longTaskMs": 3419,
+              "longestTaskMs": 193,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 72,
+                  "renderedRafFramesPerSecond": 17.032551097653247,
+                  "clearPasses": 72,
+                  "clearPassesPerSecond": 17.032551097653247,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 360
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 72,
+                  "renderedRafFramesPerSecond": 17.032551097653247,
+                  "clearPasses": 72,
+                  "clearPassesPerSecond": 17.032551097653247,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 360
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 72,
+                  "renderedRafFramesPerSecond": 17.032551097653247,
+                  "clearPasses": 72,
+                  "clearPassesPerSecond": 17.032551097653247,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 360
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.4404140000000005,
+            "scriptDurationSeconds": 0.047256,
+            "jsHeapUsedBytes": 13414916,
+            "nodeCount": 1621,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-2",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4329,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 70,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 70,
+                  "pending": 1
+                },
+                {
+                  "id": 10,
+                  "name": "loop",
+                  "calls": 70,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 20,
+              "longTaskMs": 3368,
+              "longestTaskMs": 206,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 70,
+                  "renderedRafFramesPerSecond": 16.17001617001617,
+                  "clearPasses": 70,
+                  "clearPassesPerSecond": 16.17001617001617,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 350
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 70,
+                  "renderedRafFramesPerSecond": 16.17001617001617,
+                  "clearPasses": 70,
+                  "clearPassesPerSecond": 16.17001617001617,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 350
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 70,
+                  "renderedRafFramesPerSecond": 16.17001617001617,
+                  "clearPasses": 70,
+                  "clearPassesPerSecond": 16.17001617001617,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 350
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.581689,
+            "scriptDurationSeconds": 0.056236999999999995,
+            "jsHeapUsedBytes": 11619672,
+            "nodeCount": 1662,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-after-reframe-cycles",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4118.799999999988,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 245,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 245,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 245,
+                  "renderedRafFramesPerSecond": 59.48334466349439,
+                  "clearPasses": 245,
+                  "clearPassesPerSecond": 59.48334466349439,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1225
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 245,
+                  "renderedRafFramesPerSecond": 59.48334466349439,
+                  "clearPasses": 245,
+                  "clearPassesPerSecond": 59.48334466349439,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1225
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.19333,
+            "scriptDurationSeconds": 0.12717900000000001,
+            "jsHeapUsedBytes": 10801252,
+            "nodeCount": 1664,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          }
+        ]
+      }
+    },
+    {
+      "environment": {
+        "project": "msedge",
+        "shard": "1/1",
+        "arm": null,
+        "workers": 1,
+        "timeoutMultiplier": 1,
+        "retries": 0,
+        "platform": "win32",
+        "release": "10.0.26100",
+        "arch": "x64",
+        "node": "v24.22.2",
+        "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+        "workflowCommit": "5b8a0bbde9c94b80279711dcc76baeeda42f77be",
+        "runnerImage": "win25-vs2026",
+        "runnerImageVersion": "20261103.298.1",
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "offline": true,
+        "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+        "pageErrors": [],
+        "consoleErrors": [],
+        "httpRequests": [],
+        "browserVersion": "156.0.4314.58",
+        "title": "Logo Station \u00b7 Prepare and review customer projects",
+        "webgl": {
+          "supported": true,
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "result": "passed"
+      },
+      "profile": {
+        "project": "msedge",
+        "stats": {
+          "startTime": "2026-11-17T20:54:27.204Z",
+          "duration": 118190.51400000001,
+          "expected": 4,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "screens": [
+          {
+            "screen": "staff-landing",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4012.7000000000116,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.003408,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 5632548,
+            "nodeCount": 879,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-empty",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4003.5,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": []
+            },
+            "taskDurationSeconds": 0.003193,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 6985392,
+            "nodeCount": 1015,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-setup-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4009,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 241,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 241,
+                  "renderedRafFramesPerSecond": 60.11474183088052,
+                  "clearPasses": 241,
+                  "clearPassesPerSecond": 60.11474183088052,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 241
+                }
+              ]
+            },
+            "taskDurationSeconds": 2.1973979999999997,
+            "scriptDurationSeconds": 0.063172,
+            "jsHeapUsedBytes": 9757564,
+            "nodeCount": 1452,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-logos",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4002.1999999999825,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.96701814002325,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.96701814002325,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 720
+                }
+              ]
+            },
+            "taskDurationSeconds": 3.275877,
+            "scriptDurationSeconds": 0.067196,
+            "jsHeapUsedBytes": 12569332,
+            "nodeCount": 3850,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-prepare-after-model",
+            "viewport": {
+              "width": 1290,
+              "height": 700
+            },
+            "measurement": {
+              "elapsedMs": 4002.1999999999825,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 240,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 240,
+                  "renderedRafFramesPerSecond": 59.96701814002325,
+                  "clearPasses": 240,
+                  "clearPassesPerSecond": 59.96701814002325,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 720
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.081316,
+            "scriptDurationSeconds": 0.035139,
+            "jsHeapUsedBytes": 9032004,
+            "nodeCount": 1440,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4098.6999999999825,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 122,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 122,
+                  "renderedRafFramesPerSecond": 29.765535413667877,
+                  "clearPasses": 122,
+                  "clearPassesPerSecond": 29.765535413667877,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1098
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.205495,
+            "scriptDurationSeconds": 0.120012,
+            "jsHeapUsedBytes": 12200804,
+            "nodeCount": 1863,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-review",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4059.899999999994,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 121,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 121,
+                  "renderedRafFramesPerSecond": 29.8036897460529,
+                  "clearPasses": 121,
+                  "clearPassesPerSecond": 29.8036897460529,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1089
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.126173,
+            "scriptDurationSeconds": 0.107101,
+            "jsHeapUsedBytes": 11845764,
+            "nodeCount": 2783,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-diagram-after-proof",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4001.7999999999884,
+              "visibility": "visible",
+              "liveRafCallbacks": 0,
+              "pendingRafRequests": 0,
+              "callbacks": [],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.000821,
+            "scriptDurationSeconds": 0,
+            "jsHeapUsedBytes": 7135424,
+            "nodeCount": 934,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "customer-after-two-replacements",
+            "viewport": {
+              "width": 1280,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4078.600000000006,
+              "visibility": "visible",
+              "liveRafCallbacks": 1,
+              "pendingRafRequests": 1,
+              "callbacks": [
+                {
+                  "id": 2,
+                  "name": "loop",
+                  "calls": 121,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "pw-model-canvas",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 121,
+                  "renderedRafFramesPerSecond": 29.667042612661167,
+                  "clearPasses": 121,
+                  "clearPassesPerSecond": 29.667042612661167,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1089
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.146508,
+            "scriptDurationSeconds": 0.116752,
+            "jsHeapUsedBytes": 10281204,
+            "nodeCount": 1872,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-review",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4032.2000000000116,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 236,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 236,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "longestTaskMs": 0,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 236,
+                  "renderedRafFramesPerSecond": 58.528842815336375,
+                  "clearPasses": 236,
+                  "clearPassesPerSecond": 58.528842815336375,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1180
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 236,
+                  "renderedRafFramesPerSecond": 58.528842815336375,
+                  "clearPasses": 236,
+                  "clearPassesPerSecond": 58.528842815336375,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1180
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.225239,
+            "scriptDurationSeconds": 0.174791,
+            "jsHeapUsedBytes": 10988536,
+            "nodeCount": 1580,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-1",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4137,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 55,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 55,
+                  "pending": 1
+                },
+                {
+                  "id": 9,
+                  "name": "loop",
+                  "calls": 55,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 15,
+              "longTaskMs": 3169,
+              "longestTaskMs": 243,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 55,
+                  "renderedRafFramesPerSecond": 13.294657964708726,
+                  "clearPasses": 55,
+                  "clearPassesPerSecond": 13.294657964708726,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 275
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 55,
+                  "renderedRafFramesPerSecond": 13.294657964708726,
+                  "clearPasses": 55,
+                  "clearPassesPerSecond": 13.294657964708726,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 275
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 55,
+                  "renderedRafFramesPerSecond": 13.294657964708726,
+                  "clearPasses": 55,
+                  "clearPassesPerSecond": 13.294657964708726,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 275
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.414001999999999,
+            "scriptDurationSeconds": 0.042527,
+            "jsHeapUsedBytes": 12516916,
+            "nodeCount": 1625,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-reframe-2",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4254.100000000035,
+              "visibility": "visible",
+              "liveRafCallbacks": 3,
+              "pendingRafRequests": 3,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 56,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 56,
+                  "pending": 1
+                },
+                {
+                  "id": 10,
+                  "name": "loop",
+                  "calls": 56,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 16,
+              "longTaskMs": 3311,
+              "longestTaskMs": 249,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 56,
+                  "renderedRafFramesPerSecond": 13.16377142051187,
+                  "clearPasses": 56,
+                  "clearPassesPerSecond": 13.16377142051187,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 280
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 56,
+                  "renderedRafFramesPerSecond": 13.16377142051187,
+                  "clearPasses": 56,
+                  "clearPassesPerSecond": 13.16377142051187,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 280
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": true,
+                  "renderedFrames": 56,
+                  "renderedRafFramesPerSecond": 13.16377142051187,
+                  "clearPasses": 56,
+                  "clearPassesPerSecond": 13.16377142051187,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 280
+                }
+              ]
+            },
+            "taskDurationSeconds": 4.296906,
+            "scriptDurationSeconds": 0.042031,
+            "jsHeapUsedBytes": 10483732,
+            "nodeCount": 1662,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          },
+          {
+            "screen": "staff-document-after-reframe-cycles",
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "measurement": {
+              "elapsedMs": 4026.100000000035,
+              "visibility": "visible",
+              "liveRafCallbacks": 2,
+              "pendingRafRequests": 2,
+              "callbacks": [
+                {
+                  "id": 1,
+                  "name": "loop",
+                  "calls": 237,
+                  "pending": 1
+                },
+                {
+                  "id": 6,
+                  "name": "loop",
+                  "calls": 237,
+                  "pending": 1
+                }
+              ],
+              "longTasksSupported": true,
+              "longTasks": 1,
+              "longTaskMs": 51,
+              "longestTaskMs": 51,
+              "contextEvents": [],
+              "contexts": [
+                {
+                  "id": 1,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "product-model-canvas",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 237,
+                  "renderedRafFramesPerSecond": 58.86590000248328,
+                  "clearPasses": 237,
+                  "clearPassesPerSecond": 58.86590000248328,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1185
+                },
+                {
+                  "id": 2,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": true,
+                  "hook": "",
+                  "layoutVisible": true,
+                  "inViewport": false,
+                  "renderedFrames": 237,
+                  "renderedRafFramesPerSecond": 58.86590000248328,
+                  "clearPasses": 237,
+                  "clearPassesPerSecond": 58.86590000248328,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 1185
+                },
+                {
+                  "id": 3,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                },
+                {
+                  "id": 4,
+                  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+                  "reachable": true,
+                  "lost": false,
+                  "connected": false,
+                  "hook": "",
+                  "layoutVisible": false,
+                  "inViewport": false,
+                  "renderedFrames": 0,
+                  "renderedRafFramesPerSecond": 0,
+                  "clearPasses": 0,
+                  "clearPassesPerSecond": 0,
+                  "outsideRafClearPasses": 0,
+                  "drawCalls": 0
+                }
+              ]
+            },
+            "taskDurationSeconds": 0.388856,
+            "scriptDurationSeconds": 0.222901,
+            "jsHeapUsedBytes": 10753968,
+            "nodeCount": 1664,
+            "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+            "testStatus": "expected"
+          }
+        ]
+      }
+    }
+  ]
+}

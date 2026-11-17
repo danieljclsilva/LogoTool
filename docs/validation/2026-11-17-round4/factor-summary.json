@@ -1,0 +1,1532 @@
+{
+  "sourceCommit": "2f18ccfafd79a72b63d4051823fd686707d6e2e6",
+  "run": "https://github.com/danieljclsilva/LogoTool/actions/runs/44174017332",
+  "arms": {
+    "linux-A": {
+      "shards": [
+        "1/2",
+        "2/2"
+      ],
+      "browserVersions": [
+        "156.0.8078.4"
+      ],
+      "runnerImageVersions": [
+        "20261111.196.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 274,
+      "failed": 15,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 1976,
+      "p95DurationMs": 17260,
+      "integrity": [],
+      "failures": [
+        {
+          "case": "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeInViewport() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        }
+      ]
+    },
+    "linux-B": {
+      "shards": [
+        "1/2",
+        "2/2"
+      ],
+      "browserVersions": [
+        "156.0.8078.4"
+      ],
+      "runnerImageVersions": [
+        "20261111.196.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 274,
+      "failed": 15,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 1208,
+      "p95DurationMs": 14818,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [],
+        "newFailures": [],
+        "shared": [
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeInViewport() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        }
+      ]
+    },
+    "linux-C": {
+      "shards": [
+        "1/2",
+        "2/2"
+      ],
+      "browserVersions": [
+        "156.0.8078.4"
+      ],
+      "runnerImageVersions": [
+        "20261111.196.1",
+        "20261111.82.6"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 274,
+      "failed": 15,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 2003,
+      "p95DurationMs": 21356,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [],
+        "newFailures": [],
+        "shared": [
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeInViewport() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 480000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        }
+      ]
+    },
+    "linux-D": {
+      "shards": [
+        "1/2",
+        "2/2"
+      ],
+      "browserVersions": [
+        "156.0.8078.4"
+      ],
+      "runnerImageVersions": [
+        "20261111.196.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 274,
+      "failed": 15,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 1357,
+      "p95DurationMs": 20472,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [],
+        "newFailures": [],
+        "shared": [
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeInViewport() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 480000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        }
+      ]
+    },
+    "win32-A": {
+      "shards": [
+        "1/4",
+        "2/4",
+        "3/4",
+        "4/4"
+      ],
+      "browserVersions": [
+        "156.0.8078.80"
+      ],
+      "runnerImageVersions": [
+        "20261103.298.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 229,
+      "failed": 60,
+      "skipped": 0,
+      "timeouts": 52,
+      "medianDurationMs": 2747,
+      "p95DurationMs": 51884,
+      "integrity": [],
+      "failures": [
+        {
+          "case": "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 12000ms exceeded."
+        },
+        {
+          "case": "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 12000ms exceeded."
+        },
+        {
+          "case": "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290",
+          "kind": "test-timeout",
+          "error": "Test timeout of 90000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+          "kind": "test-timeout",
+          "error": "Test timeout of 180000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.scrollIntoViewIfNeeded: Timeout 11689.609ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.scrollIntoViewIfNeeded: Timeout 3017.777999999991ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+          "kind": "other",
+          "error": "Error: Timeout 10000ms exceeded while waiting on the predicate"
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.scrollIntoViewIfNeeded: Timeout 14678.054000000004ms exceeded."
+        },
+        {
+          "case": "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 10000ms exceeded."
+        },
+        {
+          "case": "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 10000ms exceeded."
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview",
+          "kind": "test-timeout",
+          "error": "Test timeout of 30000ms exceeded."
+        }
+      ]
+    },
+    "win32-B": {
+      "shards": [
+        "1/4",
+        "2/4",
+        "3/4",
+        "4/4"
+      ],
+      "browserVersions": [
+        "156.0.8078.80"
+      ],
+      "runnerImageVersions": [
+        "20261103.298.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 275,
+      "failed": 14,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 1958,
+      "p95DurationMs": 19554,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [
+          "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290",
+          "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry",
+          "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844",
+          "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+          "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen",
+          "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen",
+          "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+          "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900",
+          "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+          "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview",
+          "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged",
+          "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+          "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit",
+          "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+          "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+          "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+          "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works",
+          "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen",
+          "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900"
+        ],
+        "newFailures": [],
+        "shared": [
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        }
+      ]
+    },
+    "win32-C": {
+      "shards": [
+        "1/4",
+        "2/4",
+        "3/4",
+        "4/4"
+      ],
+      "browserVersions": [
+        "156.0.8078.80"
+      ],
+      "runnerImageVersions": [
+        "20261103.298.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 227,
+      "failed": 62,
+      "skipped": 0,
+      "timeouts": 52,
+      "medianDurationMs": 3761,
+      "p95DurationMs": 97440,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [
+          "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290",
+          "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry",
+          "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update",
+          "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview",
+          "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged",
+          "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit"
+        ],
+        "newFailures": [
+          "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load",
+          "editor-regressions.spec.ts :: uncalibrated area offers scale fitting then recompute and logo placement",
+          "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision",
+          "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits",
+          "placements-drag.spec.ts :: drag: pointercancel + wrong-button/non-primary never mutate",
+          "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence",
+          "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking",
+          "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 390x844",
+          "standalone.spec.ts :: asset replacement resets session, areas and placements",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 390\u00d7844"
+        ],
+        "shared": [
+          "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+          "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen",
+          "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen",
+          "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+          "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900",
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+          "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+          "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+          "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+          "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works",
+          "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen",
+          "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.evaluate: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 390x844",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "standalone.spec.ts :: asset replacement resets session, areas and placements",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.press: Timeout 20000ms exceeded."
+        },
+        {
+          "case": "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 20000ms exceeded."
+        },
+        {
+          "case": "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 390\u00d7844",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 20000ms exceeded."
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 480000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "placements-drag.spec.ts :: drag: pointercancel + wrong-button/non-primary never mutate",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen",
+          "kind": "test-timeout",
+          "error": "Test timeout of 180000ms exceeded."
+        },
+        {
+          "case": "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 24000ms exceeded."
+        },
+        {
+          "case": "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+          "kind": "other",
+          "error": "Error: Timeout 20000ms exceeded while waiting on the predicate"
+        },
+        {
+          "case": "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision",
+          "kind": "other",
+          "error": "Error: Timeout 20000ms exceeded while waiting on the predicate"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+          "kind": "test-timeout",
+          "error": "Test timeout of 360000ms exceeded."
+        },
+        {
+          "case": "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+          "kind": "other",
+          "error": "Error: TimeoutError: locator.click: Timeout 20000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        },
+        {
+          "case": "editor-regressions.spec.ts :: uncalibrated area offers scale fitting then recompute and logo placement",
+          "kind": "test-timeout",
+          "error": "Test timeout of 60000ms exceeded."
+        }
+      ]
+    },
+    "win32-D": {
+      "shards": [
+        "1/4",
+        "2/4",
+        "3/4",
+        "4/4"
+      ],
+      "browserVersions": [
+        "156.0.8078.80"
+      ],
+      "runnerImageVersions": [
+        "20261103.298.1"
+      ],
+      "sources": [
+        "2f18ccfafd79a72b63d4051823fd686707d6e2e6"
+      ],
+      "passed": 275,
+      "failed": 14,
+      "skipped": 0,
+      "timeouts": 7,
+      "medianDurationMs": 2053,
+      "p95DurationMs": 28002,
+      "integrity": [],
+      "comparedWithA": {
+        "recovered": [
+          "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290",
+          "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry",
+          "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900",
+          "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844",
+          "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views",
+          "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781",
+          "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900",
+          "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900",
+          "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844",
+          "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen",
+          "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen",
+          "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls",
+          "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900",
+          "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)",
+          "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview",
+          "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged",
+          "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)",
+          "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit",
+          "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back",
+          "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas",
+          "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom",
+          "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works",
+          "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen",
+          "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290",
+          "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720",
+          "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900"
+        ],
+        "newFailures": [],
+        "shared": [
+          "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review"
+        ]
+      },
+      "failures": [
+        {
+          "case": "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        {
+          "case": "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)",
+          "kind": "test-timeout",
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.click: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees",
+          "kind": "action-timeout",
+          "error": "TimeoutError: locator.fill: Timeout 30000ms exceeded."
+        },
+        {
+          "case": "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)",
+          "kind": "assertion",
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        {
+          "case": "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export",
+          "kind": "test-timeout",
+          "error": "Test timeout of 480000ms exceeded."
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        {
+          "case": "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current",
+          "kind": "assertion",
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        }
+      ]
+    }
+  }
+}
