@@ -1,0 +1,847 @@
+{
+  "os": "macOS 27.3 (26C5035r), Darwin 27.3.0 arm64",
+  "browser": "Chrome 157.0.8103.51",
+  "workers": 1,
+  "retries": 0,
+  "cohorts": [
+    {
+      "cohort": "profile-macos-chrome",
+      "stats": {
+        "startTime": "2026-11-17T22:17:50.197Z",
+        "duration": 57765.398,
+        "expected": 3,
+        "skipped": 0,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "cases": [
+        {
+          "title": "Experiment 0 probe counts RAF, draws, cancellation and context loss",
+          "status": "expected",
+          "samples": [],
+          "errors": []
+        },
+        {
+          "title": "Experiment 0 staff screen and hidden-viewer idle measurements",
+          "status": "expected",
+          "samples": [
+            {
+              "screen": "staff-landing",
+              "viewport": {
+                "width": 1290,
+                "height": 700
+              },
+              "measurement": {
+                "elapsedMs": 4004.800000011921,
+                "visibility": "visible",
+                "liveRafCallbacks": 0,
+                "pendingRafRequests": 0,
+                "callbacks": [],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": []
+              },
+              "taskDurationSeconds": 0.005881,
+              "scriptDurationSeconds": 0,
+              "jsHeapUsedBytes": 5649288,
+              "nodeCount": 879,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-prepare-empty",
+              "viewport": {
+                "width": 1290,
+                "height": 700
+              },
+              "measurement": {
+                "elapsedMs": 4003.100000023842,
+                "visibility": "visible",
+                "liveRafCallbacks": 0,
+                "pendingRafRequests": 0,
+                "callbacks": [],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": []
+              },
+              "taskDurationSeconds": 0.004994,
+              "scriptDurationSeconds": 0,
+              "jsHeapUsedBytes": 7025392,
+              "nodeCount": 1015,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-setup-model",
+              "viewport": {
+                "width": 1290,
+                "height": 700
+              },
+              "measurement": {
+                "elapsedMs": 4004.199999988079,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.93706608079379,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.93706608079379,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 240
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.238388,
+              "scriptDurationSeconds": 0.132161,
+              "jsHeapUsedBytes": 9879180,
+              "nodeCount": 1452,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-logos",
+              "viewport": {
+                "width": 1290,
+                "height": 700
+              },
+              "measurement": {
+                "elapsedMs": 4004.5,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.932575852166316,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.932575852166316,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 720
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.27025,
+              "scriptDurationSeconds": 0.153159,
+              "jsHeapUsedBytes": 12659188,
+              "nodeCount": 3846,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-prepare-after-model",
+              "viewport": {
+                "width": 1290,
+                "height": 700
+              },
+              "measurement": {
+                "elapsedMs": 4004.199999988079,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.93706608079379,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.93706608079379,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 720
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.213385,
+              "scriptDurationSeconds": 0.133485,
+              "jsHeapUsedBytes": 12548792,
+              "nodeCount": 3864,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            }
+          ],
+          "errors": []
+        },
+        {
+          "title": "Experiment 0 customer proof, diagram, review and replacement idle measurements",
+          "status": "unexpected",
+          "samples": [],
+          "errors": [
+            "Error: browserContext.newCDPSession: Target page, context or browser has been closed"
+          ]
+        },
+        {
+          "title": "Experiment 0 staff document review and reframe context lifecycle",
+          "status": "expected",
+          "samples": [
+            {
+              "screen": "staff-document-review",
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4007,
+                "visibility": "visible",
+                "liveRafCallbacks": 2,
+                "pendingRafRequests": 2,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 241,
+                    "pending": 1
+                  },
+                  {
+                    "id": 6,
+                    "name": "loop",
+                    "calls": 241,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 241,
+                    "renderedRafFramesPerSecond": 60.14474669328675,
+                    "clearPasses": 241,
+                    "clearPassesPerSecond": 60.14474669328675,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1205
+                  },
+                  {
+                    "id": 2,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": false,
+                    "renderedFrames": 241,
+                    "renderedRafFramesPerSecond": 60.14474669328675,
+                    "clearPasses": 241,
+                    "clearPassesPerSecond": 60.14474669328675,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1205
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.360629,
+              "scriptDurationSeconds": 0.261649,
+              "jsHeapUsedBytes": 11900048,
+              "nodeCount": 1899,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-document-reframe-1",
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4002.7000000476837,
+                "visibility": "visible",
+                "liveRafCallbacks": 3,
+                "pendingRafRequests": 3,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  },
+                  {
+                    "id": 6,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  },
+                  {
+                    "id": 9,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.959527318345344,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.959527318345344,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 2,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.959527318345344,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.959527318345344,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 3,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.959527318345344,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.959527318345344,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.414232,
+              "scriptDurationSeconds": 0.304047,
+              "jsHeapUsedBytes": 11382904,
+              "nodeCount": 1945,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-document-reframe-2",
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4003.5,
+                "visibility": "visible",
+                "liveRafCallbacks": 3,
+                "pendingRafRequests": 3,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  },
+                  {
+                    "id": 6,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  },
+                  {
+                    "id": 10,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.94754589733983,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.94754589733983,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 2,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.94754589733983,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.94754589733983,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 3,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": false,
+                    "hook": "",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 0,
+                    "renderedRafFramesPerSecond": 0,
+                    "clearPasses": 0,
+                    "clearPassesPerSecond": 0,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 0
+                  },
+                  {
+                    "id": 4,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.94754589733983,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.94754589733983,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.40389600000000003,
+              "scriptDurationSeconds": 0.292097,
+              "jsHeapUsedBytes": 14644808,
+              "nodeCount": 1991,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            },
+            {
+              "screen": "staff-document-after-reframe-cycles",
+              "viewport": {
+                "width": 1440,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4004.900000035763,
+                "visibility": "visible",
+                "liveRafCallbacks": 2,
+                "pendingRafRequests": 2,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  },
+                  {
+                    "id": 6,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "product-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.92658992680388,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.92658992680388,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 2,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "",
+                    "layoutVisible": true,
+                    "inViewport": false,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.92658992680388,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.92658992680388,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 1200
+                  },
+                  {
+                    "id": 3,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": false,
+                    "hook": "",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 0,
+                    "renderedRafFramesPerSecond": 0,
+                    "clearPasses": 0,
+                    "clearPassesPerSecond": 0,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 0
+                  },
+                  {
+                    "id": 4,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": false,
+                    "hook": "",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 0,
+                    "renderedRafFramesPerSecond": 0,
+                    "clearPasses": 0,
+                    "clearPassesPerSecond": 0,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 0
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.304544,
+              "scriptDurationSeconds": 0.213224,
+              "jsHeapUsedBytes": 15143668,
+              "nodeCount": 1993,
+              "sourceCommit": "d08feccf77dcf9a0d074f7695622fe30d34d4099"
+            }
+          ],
+          "errors": []
+        }
+      ]
+    },
+    {
+      "cohort": "profile-macos-customer-recheck",
+      "stats": {
+        "startTime": "2026-11-17T22:23:52.120Z",
+        "duration": 24307.091,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "cases": [
+        {
+          "title": "Experiment 0 customer proof, diagram, review and replacement idle measurements",
+          "status": "expected",
+          "samples": [
+            {
+              "screen": "customer-proof",
+              "viewport": {
+                "width": 1280,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4002.100000023842,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "pw-model-canvas",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.968516528465116,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.968516528465116,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 2160
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.440114,
+              "scriptDurationSeconds": 0.319438,
+              "jsHeapUsedBytes": 11452780,
+              "nodeCount": 2623,
+              "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb"
+            },
+            {
+              "screen": "customer-review",
+              "viewport": {
+                "width": 1280,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4004.400000035763,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 1,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "pw-model-canvas",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.934072519692485,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.934072519692485,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 2160
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.406271,
+              "scriptDurationSeconds": 0.288117,
+              "jsHeapUsedBytes": 11987896,
+              "nodeCount": 4308,
+              "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb"
+            },
+            {
+              "screen": "customer-diagram-after-proof",
+              "viewport": {
+                "width": 1280,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4004.699999988079,
+                "visibility": "visible",
+                "liveRafCallbacks": 0,
+                "pendingRafRequests": 0,
+                "callbacks": [],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": false,
+                    "hook": "pw-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 0,
+                    "renderedRafFramesPerSecond": 0,
+                    "clearPasses": 0,
+                    "clearPassesPerSecond": 0,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 0
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.0012419999999999998,
+              "scriptDurationSeconds": 0,
+              "jsHeapUsedBytes": 7194400,
+              "nodeCount": 934,
+              "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb"
+            },
+            {
+              "screen": "customer-after-two-replacements",
+              "viewport": {
+                "width": 1280,
+                "height": 900
+              },
+              "measurement": {
+                "elapsedMs": 4006.5,
+                "visibility": "visible",
+                "liveRafCallbacks": 1,
+                "pendingRafRequests": 1,
+                "callbacks": [
+                  {
+                    "id": 2,
+                    "name": "loop",
+                    "calls": 240,
+                    "pending": 1
+                  }
+                ],
+                "longTasksSupported": true,
+                "longTasks": 0,
+                "longTaskMs": 0,
+                "longestTaskMs": 0,
+                "contextEvents": [],
+                "contexts": [
+                  {
+                    "id": 1,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": false,
+                    "hook": "pw-model-canvas",
+                    "layoutVisible": false,
+                    "inViewport": false,
+                    "renderedFrames": 0,
+                    "renderedRafFramesPerSecond": 0,
+                    "clearPasses": 0,
+                    "clearPassesPerSecond": 0,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 0
+                  },
+                  {
+                    "id": 2,
+                    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+                    "reachable": true,
+                    "lost": false,
+                    "connected": true,
+                    "hook": "pw-model-canvas",
+                    "layoutVisible": true,
+                    "inViewport": true,
+                    "renderedFrames": 240,
+                    "renderedRafFramesPerSecond": 59.90265818045676,
+                    "clearPasses": 240,
+                    "clearPassesPerSecond": 59.90265818045676,
+                    "outsideRafClearPasses": 0,
+                    "drawCalls": 2160
+                  }
+                ]
+              },
+              "taskDurationSeconds": 0.478348,
+              "scriptDurationSeconds": 0.341659,
+              "jsHeapUsedBytes": 10120592,
+              "nodeCount": 2638,
+              "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb"
+            }
+          ],
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

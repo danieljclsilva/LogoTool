@@ -1,0 +1,67 @@
+{
+  "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb",
+  "artifact": "dist/dev/solo-walkthrough.zip",
+  "bytes": 1252986,
+  "sha256": "f2d25de17a2db9475a31d7e7f18d92244da17477a2b744eba65fc1966c978570",
+  "buildManifest": {
+    "sourceCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb",
+    "synthetic": true,
+    "entryPoint": "file://",
+    "files": {
+      "Observer sheets.txt": "695229f88c1f73326318f8149fdfd6596385c256187ef747db07916f43a105e9",
+      "Model sources.txt": "4a4c35ead13f33545b9557d7d920db2f5be5eb999ba30dc0645df60652903c93",
+      "Customer.html": "8c65af1a05ada71f22bbdc17958311f1b1c9c72b94a31639ba6ba31d9401cb80",
+      "Product B.glb": "764cdf404d17dc2152a3038570682c6fea009677417924433868fd75eca71f27",
+      "Product A.glb": "570d08dadb19a0ce99964ee20701cbbf5f6b17c2c1fd6c348268cb1b121fdac9",
+      "Two-product job.logo-project": "89d9745e617070558a3290f747c14d6248b17b8b33fcf8f6c33f7ab279794496",
+      "Mark A.png": "d4f97e715a9ea568175d4b25a72494636a1a0cc091f532698fcabc7c7a612130",
+      "Logo Station.html": "02eb771921639b909d4c459b77485879d338e480155a7f0ae474bcdadfe05388",
+      "READ ME.txt": "09ed56ce8ca9827f4d24938d833c388ac3c2798ba431355797833f2550e94616"
+    }
+  },
+  "platform": "macOS 27.3 / Darwin 27.3.0 arm64",
+  "browser": "Chromium 156.0.8078.4",
+  "freshUnzip": true,
+  "offline": true,
+  "entryPoint": "file://",
+  "synthetic": true,
+  "results": [
+    {
+      "result": "passed",
+      "browser": "156.0.8078.4",
+      "offline": true,
+      "entry": "file://",
+      "errors": [],
+      "requests": [],
+      "staff": "model and PNG accepted",
+      "customer": "linked 120x60 and draft downloaded",
+      "viewport": {
+        "width": 1290,
+        "height": 900
+      }
+    },
+    {
+      "result": "passed",
+      "offline": true,
+      "entry": "file://",
+      "products": 2,
+      "excludedAdd": "blocked",
+      "review": "existing trouser placement omitted",
+      "errors": [],
+      "requests": [],
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ],
+  "downloadedCustomerDimensionsMm": {
+    "width": 120,
+    "height": 60
+  },
+  "limits": [
+    "Automated local development evidence",
+    "No independent human trial",
+    "No actual Windows operator-machine acceptance"
+  ]
+}

@@ -45,6 +45,7 @@ jobs:
             partitions: 2
     env:
       CI: true
+      E2E_WORKERS: ${{ matrix.os == 'windows-latest' && 1 || 2 }}
       TEST_SHARD: ${{ matrix.partition }}/${{ matrix.partitions }}
       PLAYWRIGHT_JSON_OUTPUT_FILE: ci-evidence/${{ matrix.project }}/results.json
     steps:
@@ -63,7 +64,7 @@ jobs:
       - name: Verify installed browser and offline file entry
         run: node scripts/record-e2e-environment.mjs ${{ matrix.project }}
       - name: Run offline suite with zero retries
-        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --shard=${{ matrix.partition }}/${{ matrix.partitions }} --reporter=line,json,html
+        run: npx playwright test --project=${{ matrix.project }} --workers=${{ env.E2E_WORKERS }} --retries=0 --shard=${{ matrix.partition }}/${{ matrix.partitions }} --reporter=line,json,html
       - name: Summarize failing cases
         if: always()
         run: node scripts/summarize-e2e.mjs ${{ matrix.project }}

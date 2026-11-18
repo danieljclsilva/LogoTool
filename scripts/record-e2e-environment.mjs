@@ -3,6 +3,8 @@ import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { release, arch } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { experimentSettings } from './experiment-settings.mjs';
+import { execFileSync } from 'node:child_process';
 
 const project = process.argv[2];
 const channels = { chromium: undefined, chrome: 'chrome', msedge: 'msedge' };
@@ -10,8 +12,9 @@ if (!Object.hasOwn(channels, project)) throw new Error(`Unsupported browser proj
 const directory = resolve('ci-evidence', project);
 await mkdir(directory, { recursive: true });
 const evidence = {
-  project, shard: process.env.TEST_SHARD ?? '1/1', workers: 2, retries: 0, platform: process.platform, release: release(), arch: arch(),
-  node: process.version, sourceCommit: process.env.GITHUB_SHA ?? null,
+  project, shard: process.env.TEST_SHARD ?? '1/1', ...experimentSettings(), retries: 0, platform: process.platform, release: release(), arch: arch(),
+  node: process.version, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  workflowCommit: process.env.GITHUB_SHA ?? null,
   runnerImage: process.env.ImageOS ?? null, runnerImageVersion: process.env.ImageVersion ?? null,
   viewport: { width: 1280, height: 900 }, offline: true,
   entryPoint: pathToFileURL(resolve('dist/station/Logo Station.html')).href,

@@ -1,0 +1,4551 @@
+{
+  "run": "https://github.com/danieljclsilva/LogoTool/actions/runs/44189661462",
+  "headCommit": "4b949ebcd8915d2253f703f58bb36e310c2824bb",
+  "projects": {
+    "chromium": {
+      "environments": [
+        {
+          "project": "chromium",
+          "shard": "1/1",
+          "arm": null,
+          "workers": 2,
+          "timeoutMultiplier": 1,
+          "retries": 0,
+          "platform": "linux",
+          "release": "7.0.0-1016-aws",
+          "arch": "x64",
+          "node": "v24.22.2",
+          "sourceCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "workflowCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "runnerImage": "ubuntu26",
+          "runnerImageVersion": "20261111.82.6",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "offline": true,
+          "entryPoint": "file:///home/runner/work/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+          "pageErrors": [],
+          "consoleErrors": [],
+          "httpRequests": [],
+          "browserVersion": "156.0.8078.4",
+          "title": "Logo Station \u00b7 Prepare and review customer projects",
+          "webgl": {
+            "supported": true,
+            "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "result": "passed"
+        }
+      ],
+      "passed": 275,
+      "failed": 14,
+      "skipped": 0,
+      "flaky": 0,
+      "cases": {
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 1280": {
+          "status": "expected",
+          "durationMs": 1314,
+          "error": ""
+        },
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 390": {
+          "status": "expected",
+          "durationMs": 1222,
+          "error": ""
+        },
+        "calibration-areas.spec.ts :: calibration areas: author, determinism, forged recompute, atomic failures": {
+          "status": "expected",
+          "durationMs": 3485,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry": {
+          "status": "expected",
+          "durationMs": 7812,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290": {
+          "status": "expected",
+          "durationMs": 4576,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 390": {
+          "status": "expected",
+          "durationMs": 1733,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: markers keep usable sizes on a 2000 px photo, desktop and narrow": {
+          "status": "expected",
+          "durationMs": 1618,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: unsaved drafts survive switches, precision, cancel, reimport, scoped saves": {
+          "status": "expected",
+          "durationMs": 1855,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: variant switches restore drafts, shared effect stated at save": {
+          "status": "expected",
+          "durationMs": 2248,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: photo setup and logo placement share the product editor and contextual controls": {
+          "status": "expected",
+          "durationMs": 920,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: offline chooser edit, multiple configurations, exact review, confirmation, and package round-trip": {
+          "status": "expected",
+          "durationMs": 1793,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: drop accepts a geometric-invalid editable draft but blocks confirmation and submit": {
+          "status": "expected",
+          "durationMs": 807,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: over-budget unused-region geometry is rejected before installation or polygon rendering": {
+          "status": "expected",
+          "durationMs": 586,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: footprint drag preserves its grab offset and physical box, while Escape cancels an uncommitted drag": {
+          "status": "expected",
+          "durationMs": 1127,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: superseded load, confirmation digest, and draft-save completion cannot install or download stale state": {
+          "status": "expected",
+          "durationMs": 679,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: undo and reset restore package content as new revisions": {
+          "status": "expected",
+          "durationMs": 860,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: one workspace edits position and size together; review stays a separate confirmation step": {
+          "status": "expected",
+          "durationMs": 1460,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: visible area chips select each named area without opening Advanced": {
+          "status": "expected",
+          "durationMs": 603,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: short fit warning, invalid numeric draft, and no-area honesty": {
+          "status": "expected",
+          "durationMs": 573,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900": {
+          "status": "expected",
+          "durationMs": 11958,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844": {
+          "status": "expected",
+          "durationMs": 5988,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: model without mapping stays honest and does not invent a customer edit surface": {
+          "status": "expected",
+          "durationMs": 368,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 17764,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 11479,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: beforeunload tracks pending, applied-awaiting-download, and download-clean": {
+          "status": "expected",
+          "durationMs": 680,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: real reload shows native beforeunload and dismissal keeps work": {
+          "status": "expected",
+          "durationMs": 431,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: replacement guard cancel preserves project, selection, and history; discard proceeds": {
+          "status": "expected",
+          "durationMs": 648,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: guard save-draft downloads then installs the pending file": {
+          "status": "expected",
+          "durationMs": 438,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: confirmation counts as dirty awaiting download; confirmed download cleans until next edit": {
+          "status": "expected",
+          "durationMs": 562,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: symmetric ratio lock mirrors width and height; explicit unlock allows distortion": {
+          "status": "expected",
+          "durationMs": 603,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: discard of invalid replacement preserves pending inputs and unload guard": {
+          "status": "expected",
+          "durationMs": 408,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: superseded pending file during save cannot install the older file": {
+          "status": "expected",
+          "durationMs": 570,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: a guarded newer file supersedes an in-flight discarded replacement": {
+          "status": "expected",
+          "durationMs": 502,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: rounded dimension text preserves exact package values through linked edits and reopen": {
+          "status": "expected",
+          "durationMs": 825,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: internal review imports a confirmed return, discards forged reviews, and sends a new revision back for confirmation": {
+          "status": "expected",
+          "durationMs": 749,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: return review rejects tampering, stale confirmation, and old revisions without replacing the valid imported project": {
+          "status": "expected",
+          "durationMs": 649,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: issued hybrid project returns through review, revised customer confirmation, and internal reimport": {
+          "status": "expected",
+          "durationMs": 1395,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-out bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 804,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-in bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 1813,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: refresh-created controls expose stable describedby reasons": {
+          "status": "expected",
+          "durationMs": 1121,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 5132,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields": {
+          "status": "expected",
+          "durationMs": 4102,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 6240,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 10203,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 9837,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 4150,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 9757,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 8284,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 2463,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 6556,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 5132,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1518,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1648,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1392,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load": {
+          "status": "expected",
+          "durationMs": 1019,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 10977,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 8301,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 4625,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 3381,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1663,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated area offers scale fitting then recompute and logo placement": {
+          "status": "expected",
+          "durationMs": 5349,
+          "error": ""
+        },
+        "inspector-smoke.spec.ts :: inspector smoke: identity, ingest, offline cleanliness, layout": {
+          "status": "expected",
+          "durationMs": 854,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: guided preparation flows from open to deliberate selection to details": {
+          "status": "expected",
+          "durationMs": 3544,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a subset hybrid package at revision 1 with approvals cleared": {
+          "status": "expected",
+          "durationMs": 3037,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues self-contained HTML that opens standalone and auto-loads the project": {
+          "status": "expected",
+          "durationMs": 3000,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a zero-logo (zero-artwork) selection end to end": {
+          "status": "expected",
+          "durationMs": 1649,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: checking a prepared product and variant includes its setups without opening specific setups": {
+          "status": "expected",
+          "durationMs": 1729,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: fractional millimetres render rounded once in staff return comparisons": {
+          "status": "expected",
+          "durationMs": 1799,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: rejects an invalid source without replacing the loaded selection": {
+          "status": "expected",
+          "durationMs": 1432,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: clears generated outputs and the baseline when a different source loads": {
+          "status": "expected",
+          "durationMs": 1736,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: saves two files, opens the customer file, and reviews the return against the office copy": {
+          "status": "expected",
+          "durationMs": 3546,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: keeps the automatic project ID stable and regenerates deterministic delivery bytes": {
+          "status": "expected",
+          "durationMs": 3170,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: source reads reject oversized and unreadable files and discard obsolete reads": {
+          "status": "expected",
+          "durationMs": 1469,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: generation locks inputs, rejects obsolete hashing and recovers from hash failures": {
+          "status": "expected",
+          "durationMs": 1781,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (1536px)": {
+          "status": "expected",
+          "durationMs": 2227,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (390px)": {
+          "status": "expected",
+          "durationMs": 2425,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 20602,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 41259,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900": {
+          "status": "expected",
+          "durationMs": 23815,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 390x844": {
+          "status": "expected",
+          "durationMs": 3199,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls": {
+          "status": "expected",
+          "durationMs": 6433,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision": {
+          "status": "expected",
+          "durationMs": 12971,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: lighting is available immediately after model intake without calibration or areas": {
+          "status": "expected",
+          "durationMs": 1126,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: thin shell: rear projections, facing and hit-tests cull with the visible side": {
+          "status": "expected",
+          "durationMs": 584,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: folded shell: rear projections and facing cull with the visible side": {
+          "status": "expected",
+          "durationMs": 509,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: pan reservation, camera state and clean capture API contract": {
+          "status": "expected",
+          "durationMs": 847,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: front/back artwork occludes correctly in both add orders": {
+          "status": "expected",
+          "durationMs": 1551,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: GLB-only creation adds a provisional product with a model entry": {
+          "status": "expected",
+          "durationMs": 1356,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Lone view)": {
+          "status": "expected",
+          "durationMs": 1659,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Front)": {
+          "status": "expected",
+          "durationMs": 1442,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: explicit named views travel with labels; no forced sides": {
+          "status": "expected",
+          "durationMs": 1759,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: invalid imports keep prior state: bad magic, oversized header, remote-looking names, external GLB": {
+          "status": "expected",
+          "durationMs": 1034,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: obsolete async product reads stay inert after opening a replacement job": {
+          "status": "expected",
+          "durationMs": 465,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: save/reopen preserves exact bytes and physical-data invariance": {
+          "status": "expected",
+          "durationMs": 1549,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: v1 reference history upgrades verbatim: issue plus reopen preserves both": {
+          "status": "expected",
+          "durationMs": 1847,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: over-budget presentation add is rejected and leaves prior state untouched": {
+          "status": "expected",
+          "durationMs": 1491,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model-only package stays offline with a failure caption, never a blank success canvas": {
+          "status": "expected",
+          "durationMs": 330,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model with valid views keeps rasters and warns, offline": {
+          "status": "expected",
+          "durationMs": 330,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: stale package load keeps the current project until the new bytes validate": {
+          "status": "expected",
+          "durationMs": 291,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: preview-only config with artwork blocks placement in the real UI; calibrated config places normally": {
+          "status": "expected",
+          "durationMs": 557,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability": {
+          "status": "unexpected",
+          "durationMs": 10411,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: image-only single side (front) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 334,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (back) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 323,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (left) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 331,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (right) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 355,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: mapped front/back views switch sides on one canvas; switching never mutates": {
+          "status": "expected",
+          "durationMs": 696,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: invalid manifest, corrupt model and bad rasters fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 623,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: photo mode and side switching never mutate the project; save/reopen keeps exact bytes": {
+          "status": "expected",
+          "durationMs": 698,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: zero-placement project loads the diagram by default for decisions": {
+          "status": "expected",
+          "durationMs": 273,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current": {
+          "status": "unexpected",
+          "durationMs": 10413,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: GLB-only flat image proxy is replaced by the honest 3D pane": {
+          "status": "expected",
+          "durationMs": 545,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: combined model plus three photos keeps right honest in the single canvas": {
+          "status": "expected",
+          "durationMs": 531,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: switching mapped photo mode during a held raster decode retries the same image": {
+          "status": "expected",
+          "durationMs": 390,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: stale raster decode never installs the wrong side after a side switch": {
+          "status": "expected",
+          "durationMs": 414,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: corrupt model surfaces preview-unavailable in the 3D pane, never a blank success": {
+          "status": "expected",
+          "durationMs": 423,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: single-canvas layout stays bounded across animation frames and screenshots settle": {
+          "status": "expected",
+          "durationMs": 1968,
+          "error": ""
+        },
+        "new-project.spec.ts :: create starts a truly empty draft with no demo UI": {
+          "status": "expected",
+          "durationMs": 1099,
+          "error": ""
+        },
+        "new-project.spec.ts :: create generates revision-1 issues with prepared catalogue identity and zero placements": {
+          "status": "expected",
+          "durationMs": 1660,
+          "error": ""
+        },
+        "new-project.spec.ts :: create customer journey adds a new raster logo and reviews the return": {
+          "status": "expected",
+          "durationMs": 2005,
+          "error": ""
+        },
+        "new-project.spec.ts :: create supports zero logos and distinct duplicate logo filenames": {
+          "status": "expected",
+          "durationMs": 1754,
+          "error": ""
+        },
+        "new-project.spec.ts :: a new create resets a previously opened job and its logos": {
+          "status": "expected",
+          "durationMs": 1092,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job round-trips through a fresh open with geometry and identity intact": {
+          "status": "expected",
+          "durationMs": 1222,
+          "error": ""
+        },
+        "new-project.spec.ts :: guard Discard replaces the dirty job with a fresh draft": {
+          "status": "expected",
+          "durationMs": 877,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job keeps imported customer logos in the referenced bucket": {
+          "status": "expected",
+          "durationMs": 716,
+          "error": ""
+        },
+        "new-project.spec.ts :: hostile logo uploads retain prior good state with zero errors or requests": {
+          "status": "expected",
+          "durationMs": 1088,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 1536x1024": {
+          "status": "expected",
+          "durationMs": 1107,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 390x844": {
+          "status": "expected",
+          "durationMs": 1063,
+          "error": ""
+        },
+        "new-project.spec.ts :: adding artwork preserves product, option, setup and logo choices": {
+          "status": "expected",
+          "durationMs": 1468,
+          "error": ""
+        },
+        "new-project.spec.ts :: repeated saves of an unchanged job are byte-identical": {
+          "status": "expected",
+          "durationMs": 715,
+          "error": ""
+        },
+        "new-project.spec.ts :: invalid open keeps the previous job": {
+          "status": "expected",
+          "durationMs": 881,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet composites a mapped photo proof with applied artwork and no artwork panels": {
+          "status": "expected",
+          "durationMs": 317,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet omits unmapped photos from print with an explicit note": {
+          "status": "expected",
+          "durationMs": 294,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet explains missing or undecodable artwork bytes instead of guessing an overlay": {
+          "status": "expected",
+          "durationMs": 254,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet falls back when a mapped product photo fails native decode": {
+          "status": "expected",
+          "durationMs": 353,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet drops revision and digest while the candidate JSON keeps them": {
+          "status": "expected",
+          "durationMs": 397,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet keeps draft status after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 388,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet renders without overflow on a narrow mobile viewport": {
+          "status": "expected",
+          "durationMs": 317,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet shows business identity, mm sizes and unfinished notes without technical ids": {
+          "status": "expected",
+          "durationMs": 350,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: zero-placement configuration is shown explicitly": {
+          "status": "expected",
+          "durationMs": 233,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: print media hides main reviewer UI and shows the operation sheet": {
+          "status": "expected",
+          "durationMs": 302,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet refreshes placement width after a revised proposal and never prints customer notes": {
+          "status": "expected",
+          "durationMs": 469,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet stays free of review state after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 402,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: department-authored sheet prints one A4 page with operator data": {
+          "status": "expected",
+          "durationMs": 2558,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: two dimensions on the same logo print, measure and export together": {
+          "status": "expected",
+          "durationMs": 1933,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: fully configured two-view sheet prints complete with no unfinished items": {
+          "status": "expected",
+          "durationMs": 3573,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: operation sheet stays readable on a narrow viewport without horizontal overflow": {
+          "status": "expected",
+          "durationMs": 1758,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview matches core export after import (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 522,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: zero placements and repeated artwork (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 289,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: pending status survives internal approval (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 328,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: failed load preserves last valid candidate and atomic download (mobile 390\u00d7844)": {
+          "status": "expected",
+          "durationMs": 421,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview clears when no valid pair (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 339,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: revised proposal refreshes exact preview and export, safely displaying instruction text": {
+          "status": "expected",
+          "durationMs": 459,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: obsolete candidate hashing is discarded without overwriting replacement status or locks": {
+          "status": "expected",
+          "durationMs": 394,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: candidate hash failure unlocks controls and allows an unchanged retry": {
+          "status": "expected",
+          "durationMs": 334,
+          "error": ""
+        },
+        "operator-file-chooser.spec.ts :: visible view chooser stages a file; add alone still reports empty staging": {
+          "status": "expected",
+          "durationMs": 658,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: direct images job: intake, setup, placements, measurement, technique, review, save, reopen": {
+          "status": "expected",
+          "durationMs": 9399,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked": {
+          "status": "unexpected",
+          "durationMs": 16609,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement": {
+          "status": "unexpected",
+          "durationMs": 11050,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "operator-workflow.spec.ts :: artwork selection: add choices selected-only, excluded-used stays resolvable": {
+          "status": "expected",
+          "durationMs": 1712,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram": {
+          "status": "unexpected",
+          "durationMs": 11278,
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping": {
+          "status": "unexpected",
+          "durationMs": 16038,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo": {
+          "status": "unexpected",
+          "durationMs": 16051,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "photo-mapping-workflow.spec.ts :: operator maps a photo, issues it, and the customer proves placement on the mapped photo": {
+          "status": "expected",
+          "durationMs": 6547,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: stale calibration and undeclared photos fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 424,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: sheared mapping with a rotated placement still renders the artwork overlay": {
+          "status": "expected",
+          "durationMs": 518,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: staged mappings survive Save master, reopen, issue and the mapped photo proof": {
+          "status": "expected",
+          "durationMs": 2697,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: mapped proof print layout stays compact on two sides": {
+          "status": "expected",
+          "durationMs": 1713,
+          "error": ""
+        },
+        "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)": {
+          "status": "unexpected",
+          "durationMs": 120003,
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update": {
+          "status": "expected",
+          "durationMs": 4879,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: letterboxed mapping stays correct on small viewport": {
+          "status": "expected",
+          "durationMs": 2307,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: off-centre grab preserves grab offset": {
+          "status": "expected",
+          "durationMs": 4439,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: rotated placement out of safe bounds, multi-step x+y deltas": {
+          "status": "expected",
+          "durationMs": 4563,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits": {
+          "status": "expected",
+          "durationMs": 4322,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: pointercancel + wrong-button/non-primary never mutate": {
+          "status": "expected",
+          "durationMs": 3520,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: real lostpointercapture + focus-loss handler cancel, then re-drag": {
+          "status": "expected",
+          "durationMs": 8429,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag invalidation aborts late commit": {
+          "status": "expected",
+          "durationMs": 7028,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag export yields baseline; save/restore roundtrips": {
+          "status": "expected",
+          "durationMs": 7198,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: out-of-limit release never mutates; release without move preserves centre": {
+          "status": "expected",
+          "durationMs": 3390,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: punctuation placement id restores, resolves, and drags": {
+          "status": "expected",
+          "durationMs": 3694,
+          "error": ""
+        },
+        "placements-race.spec.ts :: placement restore race: busy locks and obsolete reads stay inert": {
+          "status": "expected",
+          "durationMs": 2232,
+          "error": ""
+        },
+        "placements-restore.spec.ts :: placement restore: roundtrip, forged recompute, atomic, stale lock": {
+          "status": "expected",
+          "durationMs": 7587,
+          "error": ""
+        },
+        "placements.spec.ts :: placements: empty export, multi-add, statuses, numeric update": {
+          "status": "expected",
+          "durationMs": 1818,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: opens a prepared saved project and issues it with exact mm geometry and sidecar evidence": {
+          "status": "expected",
+          "durationMs": 1522,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: customer places in the prepared mm region, confirms, saves and reopens": {
+          "status": "expected",
+          "durationMs": 2713,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: baseline review of the prepared-product return yields a consistent candidate": {
+          "status": "expected",
+          "durationMs": 3525,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: rejects tampered evidence digests before the station ever sees them": {
+          "status": "expected",
+          "durationMs": 551,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: reference view and artwork thumbnail display safely; view changes preserve exact saved bytes": {
+          "status": "expected",
+          "durationMs": 561,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: bad optional images, remote references and oversized raster dimensions keep physical drafts usable": {
+          "status": "expected",
+          "durationMs": 460,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: fixed product, artwork, area and method do not become redundant selectors": {
+          "status": "expected",
+          "durationMs": 422,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: Builder prunes unselected reference images and preserves the selected image through delivery and return": {
+          "status": "expected",
+          "durationMs": 2378,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: obsolete image decoding cannot install a reference after a different package opens": {
+          "status": "expected",
+          "durationMs": 361,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: guided primary actions create zero and repeated placements without duplicates": {
+          "status": "expected",
+          "durationMs": 773,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: keyboard 3D-mode switch cancels an unfinished drag without changing saved bytes": {
+          "status": "expected",
+          "durationMs": 544,
+          "error": ""
+        },
+        "product-cards.spec.ts :: product cards: thumbnails, independent open, single-option default, narrowed subset": {
+          "status": "expected",
+          "durationMs": 1946,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks excluded B, recovers on A and issues its intended placement": {
+          "status": "expected",
+          "durationMs": 1931,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks an excluded option and rechecks a stale Add handler": {
+          "status": "expected",
+          "durationMs": 1369,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion keeps existing excluded placements visible and blocks duplication": {
+          "status": "expected",
+          "durationMs": 1645,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion Review summarizes omitted placements and clears on re-include": {
+          "status": "expected",
+          "durationMs": 1146,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at workspace fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 2773,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at commit boundary fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 2858,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: named views, gating, single empty state, stays in Prepare": {
+          "status": "expected",
+          "durationMs": 2493,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: 3D model flow hides photo UI": {
+          "status": "expected",
+          "durationMs": 1079,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level": {
+          "status": "unexpected",
+          "durationMs": 15771,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees": {
+          "status": "unexpected",
+          "durationMs": 18477,
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)": {
+          "status": "expected",
+          "durationMs": 19991,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)": {
+          "status": "expected",
+          "durationMs": 30594,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)": {
+          "status": "unexpected",
+          "durationMs": 2017,
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (390)": {
+          "status": "expected",
+          "durationMs": 15949,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: standalone transport preview opens offline, loads by chooser and drop, and round-trips the package": {
+          "status": "expected",
+          "durationMs": 453,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: invalid and superseded asynchronous loads never replace a valid project": {
+          "status": "expected",
+          "durationMs": 365,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: zero-placement configurations are named in empty and mixed projects": {
+          "status": "expected",
+          "durationMs": 296,
+          "error": ""
+        },
+        "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview": {
+          "status": "expected",
+          "durationMs": 1479,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: auto-loads the exact embedded project, revision, and asset count": {
+          "status": "expected",
+          "durationMs": 505,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: edit, confirm, save, and reopen round-trips values through the embedded package": {
+          "status": "expected",
+          "durationMs": 1054,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: zero-placement self-contained HTML loads with no placements and usable chooser": {
+          "status": "expected",
+          "durationMs": 506,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: malformed embedded data shows a useful error and leaves the chooser usable": {
+          "status": "expected",
+          "durationMs": 2424,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: oversized embedded data is rejected by the packaging boundary and never shipped": {
+          "status": "expected",
+          "durationMs": 9,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: deterministic obsolete startup replacement wins over a delayed embedded digest": {
+          "status": "expected",
+          "durationMs": 295,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup: guided measure + mm + safe area + anchors + tool toggles + atomic save": {
+          "status": "expected",
+          "durationMs": 2494,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model-only 3D calibration: A/B surface picks + mm + named area + toggles (no images)": {
+          "status": "expected",
+          "durationMs": 5023,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span setup: two-click reference + drawn area + atomic save creates region": {
+          "status": "expected",
+          "durationMs": 4031,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images two named areas: draw, rename, save, reopen, issue, customer places in both": {
+          "status": "expected",
+          "durationMs": 7589,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images delete unreferenced area: region and links gone, customer cannot select it": {
+          "status": "expected",
+          "durationMs": 2431,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup edit invalidates generated outputs: download disabled until regenerate": {
+          "status": "expected",
+          "durationMs": 2359,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span span-reference retires on photo replacement, no stale calibration reuse": {
+          "status": "expected",
+          "durationMs": 1021,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span recalibration from sibling-owned mapping resolves the owning scope": {
+          "status": "expected",
+          "durationMs": 2064,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images shared scope: stale sibling submitter is refused, reset recovers": {
+          "status": "expected",
+          "durationMs": 1567,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen": {
+          "status": "expected",
+          "durationMs": 21992,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works": {
+          "status": "expected",
+          "durationMs": 19643,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 4615,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit": {
+          "status": "expected",
+          "durationMs": 3568,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: prepared-master save/reopen retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 1527,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing": {
+          "status": "expected",
+          "durationMs": 3729,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom": {
+          "status": "expected",
+          "durationMs": 9838,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools wrap cleanly at 390x844 with real overlays": {
+          "status": "expected",
+          "durationMs": 1998,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back": {
+          "status": "expected",
+          "durationMs": 1216,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)": {
+          "status": "expected",
+          "durationMs": 4526,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)": {
+          "status": "expected",
+          "durationMs": 4159,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (mobile)": {
+          "status": "expected",
+          "durationMs": 2734,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking": {
+          "status": "expected",
+          "durationMs": 3263,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence": {
+          "status": "expected",
+          "durationMs": 7664,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000": {
+          "status": "expected",
+          "durationMs": 7573,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 390x844": {
+          "status": "expected",
+          "durationMs": 2299,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged": {
+          "status": "expected",
+          "durationMs": 2624,
+          "error": ""
+        },
+        "standalone.spec.ts :: asset replacement resets session, areas and placements": {
+          "status": "expected",
+          "durationMs": 1351,
+          "error": ""
+        },
+        "standalone.spec.ts :: standalone copy runs with no sibling dependencies": {
+          "status": "expected",
+          "durationMs": 428,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station entry is the single obvious staff page with no legacy sidecars": {
+          "status": "expected",
+          "durationMs": 649,
+          "error": ""
+        },
+        "station-entry.spec.ts :: fresh-copied station issues both customer formats offline with no repo dependency": {
+          "status": "expected",
+          "durationMs": 2352,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station stays readable on a narrow viewport": {
+          "status": "expected",
+          "durationMs": 396,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 calibration warning is advisory, value-scoped and dismissible": {
+          "status": "expected",
+          "durationMs": 2467,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290": {
+          "status": "expected",
+          "durationMs": 5788,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440": {
+          "status": "expected",
+          "durationMs": 8356,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 pristine Prepare has neutral validation and a ready disabled reason": {
+          "status": "expected",
+          "durationMs": 469,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 new placements start locked and save styling follows clean and pending edits": {
+          "status": "expected",
+          "durationMs": 3473,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: real close warnings for dirty and pending placement edits, clean close without prompt": {
+          "status": "expected",
+          "durationMs": 1030,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: freshly opened job closes without a native dialog after activation": {
+          "status": "expected",
+          "durationMs": 362,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: downloaded job closes without a native dialog": {
+          "status": "expected",
+          "durationMs": 387,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: discarded New-guard changes close without a native dialog": {
+          "status": "expected",
+          "durationMs": 429,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 1440": {
+          "status": "expected",
+          "durationMs": 628,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 768": {
+          "status": "expected",
+          "durationMs": 651,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 390": {
+          "status": "expected",
+          "durationMs": 606,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only images, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 874,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only model, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 866,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: download failure shows a plain headline and escaped technical disclosure": {
+          "status": "expected",
+          "durationMs": 470,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: invalid placement fields explain disabled Apply and recover without losing edits": {
+          "status": "expected",
+          "durationMs": 968,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 12364,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 8029,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 4731,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the self-contained customer file": {
+          "status": "expected",
+          "durationMs": 4964,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the hybrid ZIP customer file": {
+          "status": "expected",
+          "durationMs": 4778,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (self customer file)": {
+          "status": "expected",
+          "durationMs": 4574,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (hybrid customer file)": {
+          "status": "expected",
+          "durationMs": 4951,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer absolute: verbatim geometry, pending-review envelope, deterministic bytes": {
+          "status": "expected",
+          "durationMs": 1175,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer normalized: fixed-size keeps dims, proportional scales (worked rects)": {
+          "status": "expected",
+          "durationMs": 1605,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer override: exact mm position/size/rotation win over rule": {
+          "status": "expected",
+          "durationMs": 1157,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer multiple placements together; zero placements export empty; unsafe stays pendingReview with fits:false": {
+          "status": "expected",
+          "durationMs": 2641,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer source snapshot survives target asset replacement; result invalidates until rerun": {
+          "status": "expected",
+          "durationMs": 2394,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer frozen source numeric preservation across a different target region": {
+          "status": "expected",
+          "durationMs": 1495,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer between independently calibrated variants preserves source and leaves target draft unchanged": {
+          "status": "expected",
+          "durationMs": 2845,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer drag locks discard results and recover after cancellation without capturing a candidate": {
+          "status": "expected",
+          "durationMs": 1272,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer ignores an obsolete restore read after target asset replacement": {
+          "status": "expected",
+          "durationMs": 1840,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer atomic failures: bad rules JSON, missing mapping, stale calibration, busy restore, post-run edits": {
+          "status": "expected",
+          "durationMs": 2767,
+          "error": ""
+        },
+        "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export": {
+          "status": "unexpected",
+          "durationMs": 240002,
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        "visual-placement.spec.ts :: visual placement: photo/diagram handles move, resize, rotate, cancel, siblings": {
+          "status": "expected",
+          "durationMs": 2912,
+          "error": ""
+        },
+        "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review": {
+          "status": "unexpected",
+          "durationMs": 10327,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant": {
+          "status": "unexpected",
+          "durationMs": 10444,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 19801,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 25594,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 4880,
+          "error": ""
+        }
+      },
+      "newVsBaseline": [],
+      "recoveredVsBaseline": []
+    },
+    "chrome": {
+      "environments": [
+        {
+          "project": "chrome",
+          "shard": "1/2",
+          "arm": null,
+          "workers": 1,
+          "timeoutMultiplier": 1,
+          "retries": 0,
+          "platform": "win32",
+          "release": "10.0.26100",
+          "arch": "x64",
+          "node": "v24.22.2",
+          "sourceCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "workflowCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "runnerImage": "win25-vs2026",
+          "runnerImageVersion": "20261103.298.1",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "offline": true,
+          "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+          "pageErrors": [],
+          "consoleErrors": [],
+          "httpRequests": [],
+          "browserVersion": "156.0.8078.80",
+          "title": "Logo Station \u00b7 Prepare and review customer projects",
+          "webgl": {
+            "supported": true,
+            "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "result": "passed"
+        },
+        {
+          "project": "chrome",
+          "shard": "2/2",
+          "arm": null,
+          "workers": 1,
+          "timeoutMultiplier": 1,
+          "retries": 0,
+          "platform": "win32",
+          "release": "10.0.26100",
+          "arch": "x64",
+          "node": "v24.22.2",
+          "sourceCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "workflowCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "runnerImage": "win25-vs2026",
+          "runnerImageVersion": "20261103.298.1",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "offline": true,
+          "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+          "pageErrors": [],
+          "consoleErrors": [],
+          "httpRequests": [],
+          "browserVersion": "156.0.8078.80",
+          "title": "Logo Station \u00b7 Prepare and review customer projects",
+          "webgl": {
+            "supported": true,
+            "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "result": "passed"
+        }
+      ],
+      "passed": 275,
+      "failed": 14,
+      "skipped": 0,
+      "flaky": 0,
+      "cases": {
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 1280": {
+          "status": "expected",
+          "durationMs": 4260,
+          "error": ""
+        },
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 390": {
+          "status": "expected",
+          "durationMs": 1364,
+          "error": ""
+        },
+        "calibration-areas.spec.ts :: calibration areas: author, determinism, forged recompute, atomic failures": {
+          "status": "expected",
+          "durationMs": 2689,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry": {
+          "status": "expected",
+          "durationMs": 3904,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290": {
+          "status": "expected",
+          "durationMs": 1625,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 390": {
+          "status": "expected",
+          "durationMs": 1509,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: markers keep usable sizes on a 2000 px photo, desktop and narrow": {
+          "status": "expected",
+          "durationMs": 1424,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: unsaved drafts survive switches, precision, cancel, reimport, scoped saves": {
+          "status": "expected",
+          "durationMs": 1924,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: variant switches restore drafts, shared effect stated at save": {
+          "status": "expected",
+          "durationMs": 2640,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: photo setup and logo placement share the product editor and contextual controls": {
+          "status": "expected",
+          "durationMs": 1227,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: offline chooser edit, multiple configurations, exact review, confirmation, and package round-trip": {
+          "status": "expected",
+          "durationMs": 1906,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: drop accepts a geometric-invalid editable draft but blocks confirmation and submit": {
+          "status": "expected",
+          "durationMs": 874,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: over-budget unused-region geometry is rejected before installation or polygon rendering": {
+          "status": "expected",
+          "durationMs": 652,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: footprint drag preserves its grab offset and physical box, while Escape cancels an uncommitted drag": {
+          "status": "expected",
+          "durationMs": 1227,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: superseded load, confirmation digest, and draft-save completion cannot install or download stale state": {
+          "status": "expected",
+          "durationMs": 802,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: undo and reset restore package content as new revisions": {
+          "status": "expected",
+          "durationMs": 1045,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: one workspace edits position and size together; review stays a separate confirmation step": {
+          "status": "expected",
+          "durationMs": 1601,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: visible area chips select each named area without opening Advanced": {
+          "status": "expected",
+          "durationMs": 631,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: short fit warning, invalid numeric draft, and no-area honesty": {
+          "status": "expected",
+          "durationMs": 663,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900": {
+          "status": "expected",
+          "durationMs": 10199,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844": {
+          "status": "expected",
+          "durationMs": 4113,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: model without mapping stays honest and does not invent a customer edit surface": {
+          "status": "expected",
+          "durationMs": 365,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 17904,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 9366,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: beforeunload tracks pending, applied-awaiting-download, and download-clean": {
+          "status": "expected",
+          "durationMs": 648,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: real reload shows native beforeunload and dismissal keeps work": {
+          "status": "expected",
+          "durationMs": 445,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: replacement guard cancel preserves project, selection, and history; discard proceeds": {
+          "status": "expected",
+          "durationMs": 708,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: guard save-draft downloads then installs the pending file": {
+          "status": "expected",
+          "durationMs": 582,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: confirmation counts as dirty awaiting download; confirmed download cleans until next edit": {
+          "status": "expected",
+          "durationMs": 671,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: symmetric ratio lock mirrors width and height; explicit unlock allows distortion": {
+          "status": "expected",
+          "durationMs": 666,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: discard of invalid replacement preserves pending inputs and unload guard": {
+          "status": "expected",
+          "durationMs": 494,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: superseded pending file during save cannot install the older file": {
+          "status": "expected",
+          "durationMs": 556,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: a guarded newer file supersedes an in-flight discarded replacement": {
+          "status": "expected",
+          "durationMs": 543,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: rounded dimension text preserves exact package values through linked edits and reopen": {
+          "status": "expected",
+          "durationMs": 996,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: internal review imports a confirmed return, discards forged reviews, and sends a new revision back for confirmation": {
+          "status": "expected",
+          "durationMs": 825,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: return review rejects tampering, stale confirmation, and old revisions without replacing the valid imported project": {
+          "status": "expected",
+          "durationMs": 651,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: issued hybrid project returns through review, revised customer confirmation, and internal reimport": {
+          "status": "expected",
+          "durationMs": 6236,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-out bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 767,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-in bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 1400,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: refresh-created controls expose stable describedby reasons": {
+          "status": "expected",
+          "durationMs": 576,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 2572,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields": {
+          "status": "expected",
+          "durationMs": 2299,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 3750,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 7172,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 3850,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 1939,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 6008,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 3044,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 1671,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 4733,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 2590,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1386,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1474,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1224,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load": {
+          "status": "expected",
+          "durationMs": 999,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 6812,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 3393,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 2651,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 1627,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1442,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated area offers scale fitting then recompute and logo placement": {
+          "status": "expected",
+          "durationMs": 3907,
+          "error": ""
+        },
+        "inspector-smoke.spec.ts :: inspector smoke: identity, ingest, offline cleanliness, layout": {
+          "status": "expected",
+          "durationMs": 606,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: guided preparation flows from open to deliberate selection to details": {
+          "status": "expected",
+          "durationMs": 2491,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a subset hybrid package at revision 1 with approvals cleared": {
+          "status": "expected",
+          "durationMs": 3056,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues self-contained HTML that opens standalone and auto-loads the project": {
+          "status": "expected",
+          "durationMs": 2882,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a zero-logo (zero-artwork) selection end to end": {
+          "status": "expected",
+          "durationMs": 1566,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: checking a prepared product and variant includes its setups without opening specific setups": {
+          "status": "expected",
+          "durationMs": 1746,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: fractional millimetres render rounded once in staff return comparisons": {
+          "status": "expected",
+          "durationMs": 1772,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: rejects an invalid source without replacing the loaded selection": {
+          "status": "expected",
+          "durationMs": 1395,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: clears generated outputs and the baseline when a different source loads": {
+          "status": "expected",
+          "durationMs": 1716,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: saves two files, opens the customer file, and reviews the return against the office copy": {
+          "status": "expected",
+          "durationMs": 3489,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: keeps the automatic project ID stable and regenerates deterministic delivery bytes": {
+          "status": "expected",
+          "durationMs": 3074,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: source reads reject oversized and unreadable files and discard obsolete reads": {
+          "status": "expected",
+          "durationMs": 1496,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: generation locks inputs, rejects obsolete hashing and recovers from hash failures": {
+          "status": "expected",
+          "durationMs": 1724,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (1536px)": {
+          "status": "expected",
+          "durationMs": 2205,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (390px)": {
+          "status": "expected",
+          "durationMs": 2236,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 20527,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 40100,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900": {
+          "status": "expected",
+          "durationMs": 17484,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 390x844": {
+          "status": "expected",
+          "durationMs": 2432,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls": {
+          "status": "expected",
+          "durationMs": 5332,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision": {
+          "status": "expected",
+          "durationMs": 20080,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: lighting is available immediately after model intake without calibration or areas": {
+          "status": "expected",
+          "durationMs": 3280,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: thin shell: rear projections, facing and hit-tests cull with the visible side": {
+          "status": "expected",
+          "durationMs": 485,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: folded shell: rear projections and facing cull with the visible side": {
+          "status": "expected",
+          "durationMs": 475,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: pan reservation, camera state and clean capture API contract": {
+          "status": "expected",
+          "durationMs": 509,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: front/back artwork occludes correctly in both add orders": {
+          "status": "expected",
+          "durationMs": 1193,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: GLB-only creation adds a provisional product with a model entry": {
+          "status": "expected",
+          "durationMs": 932,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Lone view)": {
+          "status": "expected",
+          "durationMs": 1327,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Front)": {
+          "status": "expected",
+          "durationMs": 1359,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: explicit named views travel with labels; no forced sides": {
+          "status": "expected",
+          "durationMs": 1664,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: invalid imports keep prior state: bad magic, oversized header, remote-looking names, external GLB": {
+          "status": "expected",
+          "durationMs": 1009,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: obsolete async product reads stay inert after opening a replacement job": {
+          "status": "expected",
+          "durationMs": 565,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: save/reopen preserves exact bytes and physical-data invariance": {
+          "status": "expected",
+          "durationMs": 1669,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: v1 reference history upgrades verbatim: issue plus reopen preserves both": {
+          "status": "expected",
+          "durationMs": 1839,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: over-budget presentation add is rejected and leaves prior state untouched": {
+          "status": "expected",
+          "durationMs": 1339,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model-only package stays offline with a failure caption, never a blank success canvas": {
+          "status": "expected",
+          "durationMs": 348,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model with valid views keeps rasters and warns, offline": {
+          "status": "expected",
+          "durationMs": 394,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: stale package load keeps the current project until the new bytes validate": {
+          "status": "expected",
+          "durationMs": 334,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: preview-only config with artwork blocks placement in the real UI; calibrated config places normally": {
+          "status": "expected",
+          "durationMs": 589,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability": {
+          "status": "unexpected",
+          "durationMs": 10460,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: image-only single side (front) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 773,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (back) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 467,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (left) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 406,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (right) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 457,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: mapped front/back views switch sides on one canvas; switching never mutates": {
+          "status": "expected",
+          "durationMs": 843,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: invalid manifest, corrupt model and bad rasters fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 806,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: photo mode and side switching never mutate the project; save/reopen keeps exact bytes": {
+          "status": "expected",
+          "durationMs": 810,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: zero-placement project loads the diagram by default for decisions": {
+          "status": "expected",
+          "durationMs": 393,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current": {
+          "status": "unexpected",
+          "durationMs": 10464,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: GLB-only flat image proxy is replaced by the honest 3D pane": {
+          "status": "expected",
+          "durationMs": 594,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: combined model plus three photos keeps right honest in the single canvas": {
+          "status": "expected",
+          "durationMs": 666,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: switching mapped photo mode during a held raster decode retries the same image": {
+          "status": "expected",
+          "durationMs": 480,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: stale raster decode never installs the wrong side after a side switch": {
+          "status": "expected",
+          "durationMs": 588,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: corrupt model surfaces preview-unavailable in the 3D pane, never a blank success": {
+          "status": "expected",
+          "durationMs": 501,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: single-canvas layout stays bounded across animation frames and screenshots settle": {
+          "status": "expected",
+          "durationMs": 2008,
+          "error": ""
+        },
+        "new-project.spec.ts :: create starts a truly empty draft with no demo UI": {
+          "status": "expected",
+          "durationMs": 858,
+          "error": ""
+        },
+        "new-project.spec.ts :: create generates revision-1 issues with prepared catalogue identity and zero placements": {
+          "status": "expected",
+          "durationMs": 1452,
+          "error": ""
+        },
+        "new-project.spec.ts :: create customer journey adds a new raster logo and reviews the return": {
+          "status": "expected",
+          "durationMs": 2045,
+          "error": ""
+        },
+        "new-project.spec.ts :: create supports zero logos and distinct duplicate logo filenames": {
+          "status": "expected",
+          "durationMs": 1672,
+          "error": ""
+        },
+        "new-project.spec.ts :: a new create resets a previously opened job and its logos": {
+          "status": "expected",
+          "durationMs": 976,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job round-trips through a fresh open with geometry and identity intact": {
+          "status": "expected",
+          "durationMs": 1147,
+          "error": ""
+        },
+        "new-project.spec.ts :: guard Discard replaces the dirty job with a fresh draft": {
+          "status": "expected",
+          "durationMs": 818,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job keeps imported customer logos in the referenced bucket": {
+          "status": "expected",
+          "durationMs": 719,
+          "error": ""
+        },
+        "new-project.spec.ts :: hostile logo uploads retain prior good state with zero errors or requests": {
+          "status": "expected",
+          "durationMs": 895,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 1536x1024": {
+          "status": "expected",
+          "durationMs": 1116,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 390x844": {
+          "status": "expected",
+          "durationMs": 1059,
+          "error": ""
+        },
+        "new-project.spec.ts :: adding artwork preserves product, option, setup and logo choices": {
+          "status": "expected",
+          "durationMs": 1396,
+          "error": ""
+        },
+        "new-project.spec.ts :: repeated saves of an unchanged job are byte-identical": {
+          "status": "expected",
+          "durationMs": 773,
+          "error": ""
+        },
+        "new-project.spec.ts :: invalid open keeps the previous job": {
+          "status": "expected",
+          "durationMs": 764,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet composites a mapped photo proof with applied artwork and no artwork panels": {
+          "status": "expected",
+          "durationMs": 378,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet omits unmapped photos from print with an explicit note": {
+          "status": "expected",
+          "durationMs": 340,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet explains missing or undecodable artwork bytes instead of guessing an overlay": {
+          "status": "expected",
+          "durationMs": 309,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet falls back when a mapped product photo fails native decode": {
+          "status": "expected",
+          "durationMs": 344,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet drops revision and digest while the candidate JSON keeps them": {
+          "status": "expected",
+          "durationMs": 428,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet keeps draft status after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 393,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet renders without overflow on a narrow mobile viewport": {
+          "status": "expected",
+          "durationMs": 347,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet shows business identity, mm sizes and unfinished notes without technical ids": {
+          "status": "expected",
+          "durationMs": 401,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: zero-placement configuration is shown explicitly": {
+          "status": "expected",
+          "durationMs": 295,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: print media hides main reviewer UI and shows the operation sheet": {
+          "status": "expected",
+          "durationMs": 321,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet refreshes placement width after a revised proposal and never prints customer notes": {
+          "status": "expected",
+          "durationMs": 515,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet stays free of review state after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 448,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: department-authored sheet prints one A4 page with operator data": {
+          "status": "expected",
+          "durationMs": 2517,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: two dimensions on the same logo print, measure and export together": {
+          "status": "expected",
+          "durationMs": 1960,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: fully configured two-view sheet prints complete with no unfinished items": {
+          "status": "expected",
+          "durationMs": 3447,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: operation sheet stays readable on a narrow viewport without horizontal overflow": {
+          "status": "expected",
+          "durationMs": 3168,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview matches core export after import (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 977,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: zero placements and repeated artwork (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 619,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: pending status survives internal approval (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 649,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: failed load preserves last valid candidate and atomic download (mobile 390\u00d7844)": {
+          "status": "expected",
+          "durationMs": 805,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview clears when no valid pair (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 646,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: revised proposal refreshes exact preview and export, safely displaying instruction text": {
+          "status": "expected",
+          "durationMs": 758,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: obsolete candidate hashing is discarded without overwriting replacement status or locks": {
+          "status": "expected",
+          "durationMs": 681,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: candidate hash failure unlocks controls and allows an unchanged retry": {
+          "status": "expected",
+          "durationMs": 619,
+          "error": ""
+        },
+        "operator-file-chooser.spec.ts :: visible view chooser stages a file; add alone still reports empty staging": {
+          "status": "expected",
+          "durationMs": 970,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: direct images job: intake, setup, placements, measurement, technique, review, save, reopen": {
+          "status": "expected",
+          "durationMs": 13513,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked": {
+          "status": "unexpected",
+          "durationMs": 17099,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement": {
+          "status": "unexpected",
+          "durationMs": 11766,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "operator-workflow.spec.ts :: artwork selection: add choices selected-only, excluded-used stays resolvable": {
+          "status": "expected",
+          "durationMs": 2394,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram": {
+          "status": "unexpected",
+          "durationMs": 11867,
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping": {
+          "status": "unexpected",
+          "durationMs": 16724,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo": {
+          "status": "unexpected",
+          "durationMs": 17462,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "photo-mapping-workflow.spec.ts :: operator maps a photo, issues it, and the customer proves placement on the mapped photo": {
+          "status": "expected",
+          "durationMs": 6357,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: stale calibration and undeclared photos fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 567,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: sheared mapping with a rotated placement still renders the artwork overlay": {
+          "status": "expected",
+          "durationMs": 634,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: staged mappings survive Save master, reopen, issue and the mapped photo proof": {
+          "status": "expected",
+          "durationMs": 3006,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: mapped proof print layout stays compact on two sides": {
+          "status": "expected",
+          "durationMs": 1863,
+          "error": ""
+        },
+        "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)": {
+          "status": "unexpected",
+          "durationMs": 120007,
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update": {
+          "status": "expected",
+          "durationMs": 4436,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: letterboxed mapping stays correct on small viewport": {
+          "status": "expected",
+          "durationMs": 2285,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: off-centre grab preserves grab offset": {
+          "status": "expected",
+          "durationMs": 3919,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: rotated placement out of safe bounds, multi-step x+y deltas": {
+          "status": "expected",
+          "durationMs": 3934,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits": {
+          "status": "expected",
+          "durationMs": 3919,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: pointercancel + wrong-button/non-primary never mutate": {
+          "status": "expected",
+          "durationMs": 3202,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: real lostpointercapture + focus-loss handler cancel, then re-drag": {
+          "status": "expected",
+          "durationMs": 8051,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag invalidation aborts late commit": {
+          "status": "expected",
+          "durationMs": 5898,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag export yields baseline; save/restore roundtrips": {
+          "status": "expected",
+          "durationMs": 7603,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: out-of-limit release never mutates; release without move preserves centre": {
+          "status": "expected",
+          "durationMs": 3261,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: punctuation placement id restores, resolves, and drags": {
+          "status": "expected",
+          "durationMs": 3569,
+          "error": ""
+        },
+        "placements-race.spec.ts :: placement restore race: busy locks and obsolete reads stay inert": {
+          "status": "expected",
+          "durationMs": 2123,
+          "error": ""
+        },
+        "placements-restore.spec.ts :: placement restore: roundtrip, forged recompute, atomic, stale lock": {
+          "status": "expected",
+          "durationMs": 7694,
+          "error": ""
+        },
+        "placements.spec.ts :: placements: empty export, multi-add, statuses, numeric update": {
+          "status": "expected",
+          "durationMs": 2193,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: opens a prepared saved project and issues it with exact mm geometry and sidecar evidence": {
+          "status": "expected",
+          "durationMs": 1925,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: customer places in the prepared mm region, confirms, saves and reopens": {
+          "status": "expected",
+          "durationMs": 3911,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: baseline review of the prepared-product return yields a consistent candidate": {
+          "status": "expected",
+          "durationMs": 3787,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: rejects tampered evidence digests before the station ever sees them": {
+          "status": "expected",
+          "durationMs": 761,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: reference view and artwork thumbnail display safely; view changes preserve exact saved bytes": {
+          "status": "expected",
+          "durationMs": 812,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: bad optional images, remote references and oversized raster dimensions keep physical drafts usable": {
+          "status": "expected",
+          "durationMs": 632,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: fixed product, artwork, area and method do not become redundant selectors": {
+          "status": "expected",
+          "durationMs": 584,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: Builder prunes unselected reference images and preserves the selected image through delivery and return": {
+          "status": "expected",
+          "durationMs": 2678,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: obsolete image decoding cannot install a reference after a different package opens": {
+          "status": "expected",
+          "durationMs": 554,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: guided primary actions create zero and repeated placements without duplicates": {
+          "status": "expected",
+          "durationMs": 1064,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: keyboard 3D-mode switch cancels an unfinished drag without changing saved bytes": {
+          "status": "expected",
+          "durationMs": 722,
+          "error": ""
+        },
+        "product-cards.spec.ts :: product cards: thumbnails, independent open, single-option default, narrowed subset": {
+          "status": "expected",
+          "durationMs": 1822,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks excluded B, recovers on A and issues its intended placement": {
+          "status": "expected",
+          "durationMs": 1896,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks an excluded option and rechecks a stale Add handler": {
+          "status": "expected",
+          "durationMs": 1547,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion keeps existing excluded placements visible and blocks duplication": {
+          "status": "expected",
+          "durationMs": 1815,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion Review summarizes omitted placements and clears on re-include": {
+          "status": "expected",
+          "durationMs": 1293,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at workspace fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 3060,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at commit boundary fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 3067,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: named views, gating, single empty state, stays in Prepare": {
+          "status": "expected",
+          "durationMs": 2336,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: 3D model flow hides photo UI": {
+          "status": "expected",
+          "durationMs": 1172,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level": {
+          "status": "unexpected",
+          "durationMs": 15944,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees": {
+          "status": "unexpected",
+          "durationMs": 18306,
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)": {
+          "status": "expected",
+          "durationMs": 39698,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)": {
+          "status": "expected",
+          "durationMs": 38938,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)": {
+          "status": "unexpected",
+          "durationMs": 1923,
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (390)": {
+          "status": "expected",
+          "durationMs": 19649,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: standalone transport preview opens offline, loads by chooser and drop, and round-trips the package": {
+          "status": "expected",
+          "durationMs": 685,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: invalid and superseded asynchronous loads never replace a valid project": {
+          "status": "expected",
+          "durationMs": 510,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: zero-placement configurations are named in empty and mixed projects": {
+          "status": "expected",
+          "durationMs": 498,
+          "error": ""
+        },
+        "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview": {
+          "status": "expected",
+          "durationMs": 1301,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: auto-loads the exact embedded project, revision, and asset count": {
+          "status": "expected",
+          "durationMs": 780,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: edit, confirm, save, and reopen round-trips values through the embedded package": {
+          "status": "expected",
+          "durationMs": 1396,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: zero-placement self-contained HTML loads with no placements and usable chooser": {
+          "status": "expected",
+          "durationMs": 685,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: malformed embedded data shows a useful error and leaves the chooser usable": {
+          "status": "expected",
+          "durationMs": 3016,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: oversized embedded data is rejected by the packaging boundary and never shipped": {
+          "status": "expected",
+          "durationMs": 10,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: deterministic obsolete startup replacement wins over a delayed embedded digest": {
+          "status": "expected",
+          "durationMs": 544,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup: guided measure + mm + safe area + anchors + tool toggles + atomic save": {
+          "status": "expected",
+          "durationMs": 3334,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model-only 3D calibration: A/B surface picks + mm + named area + toggles (no images)": {
+          "status": "expected",
+          "durationMs": 9423,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span setup: two-click reference + drawn area + atomic save creates region": {
+          "status": "expected",
+          "durationMs": 5249,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images two named areas: draw, rename, save, reopen, issue, customer places in both": {
+          "status": "expected",
+          "durationMs": 13593,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images delete unreferenced area: region and links gone, customer cannot select it": {
+          "status": "expected",
+          "durationMs": 4241,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup edit invalidates generated outputs: download disabled until regenerate": {
+          "status": "expected",
+          "durationMs": 3852,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span span-reference retires on photo replacement, no stale calibration reuse": {
+          "status": "expected",
+          "durationMs": 1812,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span recalibration from sibling-owned mapping resolves the owning scope": {
+          "status": "expected",
+          "durationMs": 3170,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images shared scope: stale sibling submitter is refused, reset recovers": {
+          "status": "expected",
+          "durationMs": 2178,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen": {
+          "status": "expected",
+          "durationMs": 42714,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works": {
+          "status": "expected",
+          "durationMs": 28359,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 7646,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit": {
+          "status": "expected",
+          "durationMs": 4243,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: prepared-master save/reopen retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 2380,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing": {
+          "status": "expected",
+          "durationMs": 4146,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom": {
+          "status": "expected",
+          "durationMs": 17780,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools wrap cleanly at 390x844 with real overlays": {
+          "status": "expected",
+          "durationMs": 2194,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back": {
+          "status": "expected",
+          "durationMs": 1486,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)": {
+          "status": "expected",
+          "durationMs": 4365,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)": {
+          "status": "expected",
+          "durationMs": 5689,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (mobile)": {
+          "status": "expected",
+          "durationMs": 2707,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking": {
+          "status": "expected",
+          "durationMs": 4118,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence": {
+          "status": "expected",
+          "durationMs": 9555,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000": {
+          "status": "expected",
+          "durationMs": 8689,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 390x844": {
+          "status": "expected",
+          "durationMs": 2206,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged": {
+          "status": "expected",
+          "durationMs": 3979,
+          "error": ""
+        },
+        "standalone.spec.ts :: asset replacement resets session, areas and placements": {
+          "status": "expected",
+          "durationMs": 1402,
+          "error": ""
+        },
+        "standalone.spec.ts :: standalone copy runs with no sibling dependencies": {
+          "status": "expected",
+          "durationMs": 541,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station entry is the single obvious staff page with no legacy sidecars": {
+          "status": "expected",
+          "durationMs": 759,
+          "error": ""
+        },
+        "station-entry.spec.ts :: fresh-copied station issues both customer formats offline with no repo dependency": {
+          "status": "expected",
+          "durationMs": 3133,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station stays readable on a narrow viewport": {
+          "status": "expected",
+          "durationMs": 709,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 calibration warning is advisory, value-scoped and dismissible": {
+          "status": "expected",
+          "durationMs": 3438,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290": {
+          "status": "expected",
+          "durationMs": 5888,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440": {
+          "status": "expected",
+          "durationMs": 9308,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 pristine Prepare has neutral validation and a ready disabled reason": {
+          "status": "expected",
+          "durationMs": 618,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 new placements start locked and save styling follows clean and pending edits": {
+          "status": "expected",
+          "durationMs": 4367,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: real close warnings for dirty and pending placement edits, clean close without prompt": {
+          "status": "expected",
+          "durationMs": 1342,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: freshly opened job closes without a native dialog after activation": {
+          "status": "expected",
+          "durationMs": 676,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: downloaded job closes without a native dialog": {
+          "status": "expected",
+          "durationMs": 746,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: discarded New-guard changes close without a native dialog": {
+          "status": "expected",
+          "durationMs": 747,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 1440": {
+          "status": "expected",
+          "durationMs": 1018,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 768": {
+          "status": "expected",
+          "durationMs": 967,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 390": {
+          "status": "expected",
+          "durationMs": 970,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only images, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 1386,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only model, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 1270,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: download failure shows a plain headline and escaped technical disclosure": {
+          "status": "expected",
+          "durationMs": 797,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: invalid placement fields explain disabled Apply and recover without losing edits": {
+          "status": "expected",
+          "durationMs": 1360,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 15280,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 8898,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 6844,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the self-contained customer file": {
+          "status": "expected",
+          "durationMs": 22012,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the hybrid ZIP customer file": {
+          "status": "expected",
+          "durationMs": 22251,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (self customer file)": {
+          "status": "expected",
+          "durationMs": 22132,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (hybrid customer file)": {
+          "status": "expected",
+          "durationMs": 22085,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer absolute: verbatim geometry, pending-review envelope, deterministic bytes": {
+          "status": "expected",
+          "durationMs": 1639,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer normalized: fixed-size keeps dims, proportional scales (worked rects)": {
+          "status": "expected",
+          "durationMs": 1765,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer override: exact mm position/size/rotation win over rule": {
+          "status": "expected",
+          "durationMs": 1633,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer multiple placements together; zero placements export empty; unsafe stays pendingReview with fits:false": {
+          "status": "expected",
+          "durationMs": 2808,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer source snapshot survives target asset replacement; result invalidates until rerun": {
+          "status": "expected",
+          "durationMs": 3799,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer frozen source numeric preservation across a different target region": {
+          "status": "expected",
+          "durationMs": 1732,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer between independently calibrated variants preserves source and leaves target draft unchanged": {
+          "status": "expected",
+          "durationMs": 2268,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer drag locks discard results and recover after cancellation without capturing a candidate": {
+          "status": "expected",
+          "durationMs": 1541,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer ignores an obsolete restore read after target asset replacement": {
+          "status": "expected",
+          "durationMs": 2303,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer atomic failures: bad rules JSON, missing mapping, stale calibration, busy restore, post-run edits": {
+          "status": "expected",
+          "durationMs": 3014,
+          "error": ""
+        },
+        "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export": {
+          "status": "unexpected",
+          "durationMs": 240001,
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        "visual-placement.spec.ts :: visual placement: photo/diagram handles move, resize, rotate, cancel, siblings": {
+          "status": "expected",
+          "durationMs": 4060,
+          "error": ""
+        },
+        "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review": {
+          "status": "unexpected",
+          "durationMs": 10629,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant": {
+          "status": "unexpected",
+          "durationMs": 10829,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 41898,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 78692,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 22934,
+          "error": ""
+        }
+      },
+      "newVsBaseline": [],
+      "recoveredVsBaseline": []
+    },
+    "msedge": {
+      "environments": [
+        {
+          "project": "msedge",
+          "shard": "1/2",
+          "arm": null,
+          "workers": 1,
+          "timeoutMultiplier": 1,
+          "retries": 0,
+          "platform": "win32",
+          "release": "10.0.26100",
+          "arch": "x64",
+          "node": "v24.22.2",
+          "sourceCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "workflowCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "runnerImage": "win25-vs2026",
+          "runnerImageVersion": "20261103.298.1",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "offline": true,
+          "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+          "pageErrors": [],
+          "consoleErrors": [],
+          "httpRequests": [],
+          "browserVersion": "156.0.4314.58",
+          "title": "Logo Station \u00b7 Prepare and review customer projects",
+          "webgl": {
+            "supported": true,
+            "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "result": "passed"
+        },
+        {
+          "project": "msedge",
+          "shard": "2/2",
+          "arm": null,
+          "workers": 1,
+          "timeoutMultiplier": 1,
+          "retries": 0,
+          "platform": "win32",
+          "release": "10.0.26100",
+          "arch": "x64",
+          "node": "v24.22.2",
+          "sourceCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "workflowCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+          "runnerImage": "win25-vs2026",
+          "runnerImageVersion": "20261103.298.1",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          },
+          "offline": true,
+          "entryPoint": "file:///D:/a/LogoTool/LogoTool/dist/station/Logo%20Station.html",
+          "pageErrors": [],
+          "consoleErrors": [],
+          "httpRequests": [],
+          "browserVersion": "156.0.4314.58",
+          "title": "Logo Station \u00b7 Prepare and review customer projects",
+          "webgl": {
+            "supported": true,
+            "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "result": "passed"
+        }
+      ],
+      "passed": 275,
+      "failed": 14,
+      "skipped": 0,
+      "flaky": 0,
+      "cases": {
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 1280": {
+          "status": "expected",
+          "durationMs": 2518,
+          "error": ""
+        },
+        "batch-intake.spec.ts :: batch intake collects two products and two logos before setup at 390": {
+          "status": "expected",
+          "durationMs": 1077,
+          "error": ""
+        },
+        "calibration-areas.spec.ts :: calibration areas: author, determinism, forged recompute, atomic failures": {
+          "status": "expected",
+          "durationMs": 2557,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: staff canvas space at 1290x700: normal and enlarged keep canvas, footer, geometry": {
+          "status": "expected",
+          "durationMs": 3386,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 1290": {
+          "status": "expected",
+          "durationMs": 1227,
+          "error": ""
+        },
+        "canvas-space.spec.ts :: Fit leaves the complete model clear of View controls at 390": {
+          "status": "expected",
+          "durationMs": 1114,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: markers keep usable sizes on a 2000 px photo, desktop and narrow": {
+          "status": "expected",
+          "durationMs": 1199,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: unsaved drafts survive switches, precision, cancel, reimport, scoped saves": {
+          "status": "expected",
+          "durationMs": 1553,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: contextual workspace: variant switches restore drafts, shared effect stated at save": {
+          "status": "expected",
+          "durationMs": 2097,
+          "error": ""
+        },
+        "contextual-workspace.spec.ts :: photo setup and logo placement share the product editor and contextual controls": {
+          "status": "expected",
+          "durationMs": 1014,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: offline chooser edit, multiple configurations, exact review, confirmation, and package round-trip": {
+          "status": "expected",
+          "durationMs": 1547,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: drop accepts a geometric-invalid editable draft but blocks confirmation and submit": {
+          "status": "expected",
+          "durationMs": 796,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: over-budget unused-region geometry is rejected before installation or polygon rendering": {
+          "status": "expected",
+          "durationMs": 516,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: footprint drag preserves its grab offset and physical box, while Escape cancels an uncommitted drag": {
+          "status": "expected",
+          "durationMs": 1033,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: superseded load, confirmation digest, and draft-save completion cannot install or download stale state": {
+          "status": "expected",
+          "durationMs": 693,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: undo and reset restore package content as new revisions": {
+          "status": "expected",
+          "durationMs": 824,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: one workspace edits position and size together; review stays a separate confirmation step": {
+          "status": "expected",
+          "durationMs": 1393,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: visible area chips select each named area without opening Advanced": {
+          "status": "expected",
+          "durationMs": 540,
+          "error": ""
+        },
+        "customer-editor.spec.ts :: short fit warning, invalid numeric draft, and no-area honesty": {
+          "status": "expected",
+          "durationMs": 590,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 1440x900": {
+          "status": "expected",
+          "durationMs": 11013,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: customer model proof pointer edits preserve mapping and constraints at 390x844": {
+          "status": "expected",
+          "durationMs": 3920,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: model without mapping stays honest and does not invent a customer edit surface": {
+          "status": "expected",
+          "durationMs": 361,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return with a populated field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 18858,
+          "error": ""
+        },
+        "customer-model-proof.spec.ts :: adopted return without a prior field draft keeps inclusion and saves cleanly": {
+          "status": "expected",
+          "durationMs": 13349,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: beforeunload tracks pending, applied-awaiting-download, and download-clean": {
+          "status": "expected",
+          "durationMs": 696,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: real reload shows native beforeunload and dismissal keeps work": {
+          "status": "expected",
+          "durationMs": 461,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: replacement guard cancel preserves project, selection, and history; discard proceeds": {
+          "status": "expected",
+          "durationMs": 755,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: guard save-draft downloads then installs the pending file": {
+          "status": "expected",
+          "durationMs": 618,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: confirmation counts as dirty awaiting download; confirmed download cleans until next edit": {
+          "status": "expected",
+          "durationMs": 778,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: symmetric ratio lock mirrors width and height; explicit unlock allows distortion": {
+          "status": "expected",
+          "durationMs": 749,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: discard of invalid replacement preserves pending inputs and unload guard": {
+          "status": "expected",
+          "durationMs": 536,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: superseded pending file during save cannot install the older file": {
+          "status": "expected",
+          "durationMs": 629,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: a guarded newer file supersedes an in-flight discarded replacement": {
+          "status": "expected",
+          "durationMs": 549,
+          "error": ""
+        },
+        "customer-persistence.spec.ts :: rounded dimension text preserves exact package values through linked edits and reopen": {
+          "status": "expected",
+          "durationMs": 1264,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: internal review imports a confirmed return, discards forged reviews, and sends a new revision back for confirmation": {
+          "status": "expected",
+          "durationMs": 951,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: return review rejects tampering, stale confirmation, and old revisions without replacing the valid imported project": {
+          "status": "expected",
+          "durationMs": 759,
+          "error": ""
+        },
+        "customer-return-review.spec.ts :: issued hybrid project returns through review, revised customer confirmation, and internal reimport": {
+          "status": "expected",
+          "durationMs": 7292,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-out bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 770,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: zoom-in bound exposes stable describedby reason and restores cleanly": {
+          "status": "expected",
+          "durationMs": 1238,
+          "error": ""
+        },
+        "disabled-reasons.spec.ts :: refresh-created controls expose stable describedby reasons": {
+          "status": "expected",
+          "durationMs": 549,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: editor guidance at 1280x720 fits stable three-line row in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 2351,
+          "error": ""
+        },
+        "editor-guidance.spec.ts :: phone editor at 390x844 keeps full tool labels and contextual authoring fields": {
+          "status": "expected",
+          "durationMs": 2188,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 3744,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 7112,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 4196,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 2281,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 6259,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 3174,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 1856,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 4892,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 2697,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through mode entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1552,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated model remains visible through prepare entry at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1606,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: normal editor keeps the page top and actions reachable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1207,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: switching tools during texture loading completes the same model load": {
+          "status": "expected",
+          "durationMs": 974,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 10063,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 3703,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: Finish area is readable, aligned and clickable at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 2817,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 1440\u00d7781": {
+          "status": "expected",
+          "durationMs": 1678,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: artwork popup wraps long logo cards without clipping at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 1405,
+          "error": ""
+        },
+        "editor-regressions.spec.ts :: uncalibrated area offers scale fitting then recompute and logo placement": {
+          "status": "expected",
+          "durationMs": 3400,
+          "error": ""
+        },
+        "inspector-smoke.spec.ts :: inspector smoke: identity, ingest, offline cleanliness, layout": {
+          "status": "expected",
+          "durationMs": 538,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: guided preparation flows from open to deliberate selection to details": {
+          "status": "expected",
+          "durationMs": 2463,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a subset hybrid package at revision 1 with approvals cleared": {
+          "status": "expected",
+          "durationMs": 3564,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues self-contained HTML that opens standalone and auto-loads the project": {
+          "status": "expected",
+          "durationMs": 2901,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: issues a zero-logo (zero-artwork) selection end to end": {
+          "status": "expected",
+          "durationMs": 1537,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: checking a prepared product and variant includes its setups without opening specific setups": {
+          "status": "expected",
+          "durationMs": 1615,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: fractional millimetres render rounded once in staff return comparisons": {
+          "status": "expected",
+          "durationMs": 1668,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: rejects an invalid source without replacing the loaded selection": {
+          "status": "expected",
+          "durationMs": 1391,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: clears generated outputs and the baseline when a different source loads": {
+          "status": "expected",
+          "durationMs": 1545,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: saves two files, opens the customer file, and reviews the return against the office copy": {
+          "status": "expected",
+          "durationMs": 3343,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: keeps the automatic project ID stable and regenerates deterministic delivery bytes": {
+          "status": "expected",
+          "durationMs": 3017,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: source reads reject oversized and unreadable files and discard obsolete reads": {
+          "status": "expected",
+          "durationMs": 1416,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: generation locks inputs, rejects obsolete hashing and recovers from hash failures": {
+          "status": "expected",
+          "durationMs": 1615,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (1536px)": {
+          "status": "expected",
+          "durationMs": 2213,
+          "error": ""
+        },
+        "internal-builder.spec.ts :: staff journey needs no technical settings (390px)": {
+          "status": "expected",
+          "durationMs": 2103,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front only): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 19874,
+          "error": ""
+        },
+        "model-document-workflow.spec.ts :: GLB-only document (front and back): artwork, measured views and offline save/reopen": {
+          "status": "expected",
+          "durationMs": 31759,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 1440x900": {
+          "status": "expected",
+          "durationMs": 15026,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: model lighting visibly changes and survives save/reopen at 390x844": {
+          "status": "expected",
+          "durationMs": 2035,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: customer issue inherits model lighting while keeping the limited customer controls": {
+          "status": "expected",
+          "durationMs": 4005,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: changing lighting refreshes cached document images without changing the physical revision": {
+          "status": "expected",
+          "durationMs": 10515,
+          "error": ""
+        },
+        "model-lighting.spec.ts :: lighting is available immediately after model intake without calibration or areas": {
+          "status": "expected",
+          "durationMs": 1685,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: thin shell: rear projections, facing and hit-tests cull with the visible side": {
+          "status": "expected",
+          "durationMs": 325,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: folded shell: rear projections and facing cull with the visible side": {
+          "status": "expected",
+          "durationMs": 294,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: pan reservation, camera state and clean capture API contract": {
+          "status": "expected",
+          "durationMs": 362,
+          "error": ""
+        },
+        "model-visibility-regression-b.spec.ts :: front/back artwork occludes correctly in both add orders": {
+          "status": "expected",
+          "durationMs": 1075,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: GLB-only creation adds a provisional product with a model entry": {
+          "status": "expected",
+          "durationMs": 715,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Lone view)": {
+          "status": "expected",
+          "durationMs": 1010,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: single named view image-only creation suffices (Front)": {
+          "status": "expected",
+          "durationMs": 1010,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: explicit named views travel with labels; no forced sides": {
+          "status": "expected",
+          "durationMs": 1374,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: invalid imports keep prior state: bad magic, oversized header, remote-looking names, external GLB": {
+          "status": "expected",
+          "durationMs": 797,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: obsolete async product reads stay inert after opening a replacement job": {
+          "status": "expected",
+          "durationMs": 428,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: save/reopen preserves exact bytes and physical-data invariance": {
+          "status": "expected",
+          "durationMs": 1335,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: v1 reference history upgrades verbatim: issue plus reopen preserves both": {
+          "status": "expected",
+          "durationMs": 1679,
+          "error": ""
+        },
+        "multiview-builder.spec.ts :: over-budget presentation add is rejected and leaves prior state untouched": {
+          "status": "expected",
+          "durationMs": 1220,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model-only package stays offline with a failure caption, never a blank success canvas": {
+          "status": "expected",
+          "durationMs": 303,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: external-reference model with valid views keeps rasters and warns, offline": {
+          "status": "expected",
+          "durationMs": 344,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: stale package load keeps the current project until the new bytes validate": {
+          "status": "expected",
+          "durationMs": 278,
+          "error": ""
+        },
+        "multiview-hardening.spec.ts :: preview-only config with artwork blocks placement in the real UI; calibrated config places normally": {
+          "status": "expected",
+          "durationMs": 562,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: model-only package offers honest 3D with a rendered model and side-tab availability": {
+          "status": "unexpected",
+          "durationMs": 10411,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: image-only single side (front) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 1566,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (back) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 501,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (left) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 437,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: image-only single side (right) falls back to the diagram with missing-side honesty": {
+          "status": "expected",
+          "durationMs": 432,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: mapped front/back views switch sides on one canvas; switching never mutates": {
+          "status": "expected",
+          "durationMs": 847,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: invalid manifest, corrupt model and bad rasters fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 851,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: photo mode and side switching never mutate the project; save/reopen keeps exact bytes": {
+          "status": "expected",
+          "durationMs": 811,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: zero-placement project loads the diagram by default for decisions": {
+          "status": "expected",
+          "durationMs": 410,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: replacement model bytes and an intervening image proxy keep the honest 3D pane current": {
+          "status": "unexpected",
+          "durationMs": 10424,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "multiview-viewer.spec.ts :: GLB-only flat image proxy is replaced by the honest 3D pane": {
+          "status": "expected",
+          "durationMs": 789,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: combined model plus three photos keeps right honest in the single canvas": {
+          "status": "expected",
+          "durationMs": 689,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: switching mapped photo mode during a held raster decode retries the same image": {
+          "status": "expected",
+          "durationMs": 574,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: stale raster decode never installs the wrong side after a side switch": {
+          "status": "expected",
+          "durationMs": 455,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: corrupt model surfaces preview-unavailable in the 3D pane, never a blank success": {
+          "status": "expected",
+          "durationMs": 499,
+          "error": ""
+        },
+        "multiview-viewer.spec.ts :: single-canvas layout stays bounded across animation frames and screenshots settle": {
+          "status": "expected",
+          "durationMs": 1968,
+          "error": ""
+        },
+        "new-project.spec.ts :: create starts a truly empty draft with no demo UI": {
+          "status": "expected",
+          "durationMs": 759,
+          "error": ""
+        },
+        "new-project.spec.ts :: create generates revision-1 issues with prepared catalogue identity and zero placements": {
+          "status": "expected",
+          "durationMs": 1317,
+          "error": ""
+        },
+        "new-project.spec.ts :: create customer journey adds a new raster logo and reviews the return": {
+          "status": "expected",
+          "durationMs": 3310,
+          "error": ""
+        },
+        "new-project.spec.ts :: create supports zero logos and distinct duplicate logo filenames": {
+          "status": "expected",
+          "durationMs": 2536,
+          "error": ""
+        },
+        "new-project.spec.ts :: a new create resets a previously opened job and its logos": {
+          "status": "expected",
+          "durationMs": 962,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job round-trips through a fresh open with geometry and identity intact": {
+          "status": "expected",
+          "durationMs": 1335,
+          "error": ""
+        },
+        "new-project.spec.ts :: guard Discard replaces the dirty job with a fresh draft": {
+          "status": "expected",
+          "durationMs": 811,
+          "error": ""
+        },
+        "new-project.spec.ts :: save job keeps imported customer logos in the referenced bucket": {
+          "status": "expected",
+          "durationMs": 1077,
+          "error": ""
+        },
+        "new-project.spec.ts :: hostile logo uploads retain prior good state with zero errors or requests": {
+          "status": "expected",
+          "durationMs": 914,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 1536x1024": {
+          "status": "expected",
+          "durationMs": 1083,
+          "error": ""
+        },
+        "new-project.spec.ts :: create-to-customer journey stays clean at 390x844": {
+          "status": "expected",
+          "durationMs": 1147,
+          "error": ""
+        },
+        "new-project.spec.ts :: adding artwork preserves product, option, setup and logo choices": {
+          "status": "expected",
+          "durationMs": 2143,
+          "error": ""
+        },
+        "new-project.spec.ts :: repeated saves of an unchanged job are byte-identical": {
+          "status": "expected",
+          "durationMs": 1262,
+          "error": ""
+        },
+        "new-project.spec.ts :: invalid open keeps the previous job": {
+          "status": "expected",
+          "durationMs": 884,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet composites a mapped photo proof with applied artwork and no artwork panels": {
+          "status": "expected",
+          "durationMs": 557,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet omits unmapped photos from print with an explicit note": {
+          "status": "expected",
+          "durationMs": 339,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet explains missing or undecodable artwork bytes instead of guessing an overlay": {
+          "status": "expected",
+          "durationMs": 283,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet falls back when a mapped product photo fails native decode": {
+          "status": "expected",
+          "durationMs": 354,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet drops revision and digest while the candidate JSON keeps them": {
+          "status": "expected",
+          "durationMs": 647,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet keeps draft status after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 390,
+          "error": ""
+        },
+        "operation-document-assets.spec.ts :: operation sheet renders without overflow on a narrow mobile viewport": {
+          "status": "expected",
+          "durationMs": 365,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet shows business identity, mm sizes and unfinished notes without technical ids": {
+          "status": "expected",
+          "durationMs": 464,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: zero-placement configuration is shown explicitly": {
+          "status": "expected",
+          "durationMs": 302,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: print media hides main reviewer UI and shows the operation sheet": {
+          "status": "expected",
+          "durationMs": 340,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet refreshes placement width after a revised proposal and never prints customer notes": {
+          "status": "expected",
+          "durationMs": 540,
+          "error": ""
+        },
+        "operation-document-preview.spec.ts :: operation sheet stays free of review state after an internal workflow decision": {
+          "status": "expected",
+          "durationMs": 456,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: department-authored sheet prints one A4 page with operator data": {
+          "status": "expected",
+          "durationMs": 2600,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: two dimensions on the same logo print, measure and export together": {
+          "status": "expected",
+          "durationMs": 1950,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: fully configured two-view sheet prints complete with no unfinished items": {
+          "status": "expected",
+          "durationMs": 3307,
+          "error": ""
+        },
+        "operation-sheet-print.spec.ts :: operation sheet stays readable on a narrow viewport without horizontal overflow": {
+          "status": "expected",
+          "durationMs": 3474,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview matches core export after import (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 947,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: zero placements and repeated artwork (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 600,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: pending status survives internal approval (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 665,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: failed load preserves last valid candidate and atomic download (mobile 390\u00d7844)": {
+          "status": "expected",
+          "durationMs": 804,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: preview clears when no valid pair (desktop 1280\u00d7900)": {
+          "status": "expected",
+          "durationMs": 565,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: revised proposal refreshes exact preview and export, safely displaying instruction text": {
+          "status": "expected",
+          "durationMs": 729,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: obsolete candidate hashing is discarded without overwriting replacement status or locks": {
+          "status": "expected",
+          "durationMs": 661,
+          "error": ""
+        },
+        "operational-candidate-preview.spec.ts :: candidate hash failure unlocks controls and allows an unchanged retry": {
+          "status": "expected",
+          "durationMs": 613,
+          "error": ""
+        },
+        "operator-file-chooser.spec.ts :: visible view chooser stages a file; add alone still reports empty staging": {
+          "status": "expected",
+          "durationMs": 863,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: direct images job: intake, setup, placements, measurement, technique, review, save, reopen": {
+          "status": "expected",
+          "durationMs": 13478,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: invalid footprint stays scoped: actionable issue, complete print blocked, draft marked": {
+          "status": "unexpected",
+          "durationMs": 16980,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: zero-placement option stays present and prints its explicit statement": {
+          "status": "unexpected",
+          "durationMs": 12038,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "operator-workflow.spec.ts :: artwork selection: add choices selected-only, excluded-used stays resolvable": {
+          "status": "expected",
+          "durationMs": 2422,
+          "error": ""
+        },
+        "operator-workflow.spec.ts :: calibrated photo overlay tracks canonical dimensions; unmapped views stay diagram": {
+          "status": "unexpected",
+          "durationMs": 11748,
+          "error": "Error: expect(locator).toHaveCount(expected) failed"
+        },
+        "operator-workflow.spec.ts :: primary span calibration drives the photo overlay with no Advanced mapping": {
+          "status": "unexpected",
+          "durationMs": 16749,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "operator-workflow.spec.ts :: direct model-only job: calibrated diagram placement without any photo": {
+          "status": "unexpected",
+          "durationMs": 17775,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "photo-mapping-workflow.spec.ts :: operator maps a photo, issues it, and the customer proves placement on the mapped photo": {
+          "status": "expected",
+          "durationMs": 6348,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: stale calibration and undeclared photos fall back to the measured diagram": {
+          "status": "expected",
+          "durationMs": 521,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: sheared mapping with a rotated placement still renders the artwork overlay": {
+          "status": "expected",
+          "durationMs": 572,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: staged mappings survive Save master, reopen, issue and the mapped photo proof": {
+          "status": "expected",
+          "durationMs": 2915,
+          "error": ""
+        },
+        "photo-mapping-workflow.spec.ts :: mapped proof print layout stays compact on two sides": {
+          "status": "expected",
+          "durationMs": 1742,
+          "error": ""
+        },
+        "placement-ux-regression-a.spec.ts :: placement UX: tray provisional preview, unified lock, unblocked drag (1280x900)": {
+          "status": "unexpected",
+          "durationMs": 120015,
+          "error": "Test timeout of 120000ms exceeded."
+        },
+        "placements-drag.spec.ts :: drag: basic move commits mm delta, fields + verdict update": {
+          "status": "expected",
+          "durationMs": 4115,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: letterboxed mapping stays correct on small viewport": {
+          "status": "expected",
+          "durationMs": 2384,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: off-centre grab preserves grab offset": {
+          "status": "expected",
+          "durationMs": 3207,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: rotated placement out of safe bounds, multi-step x+y deltas": {
+          "status": "expected",
+          "durationMs": 3649,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: Escape cancels to baseline with note, then re-drag commits": {
+          "status": "expected",
+          "durationMs": 3554,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: pointercancel + wrong-button/non-primary never mutate": {
+          "status": "expected",
+          "durationMs": 3117,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: real lostpointercapture + focus-loss handler cancel, then re-drag": {
+          "status": "expected",
+          "durationMs": 7731,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag invalidation aborts late commit": {
+          "status": "expected",
+          "durationMs": 5514,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: mid-drag export yields baseline; save/restore roundtrips": {
+          "status": "expected",
+          "durationMs": 6141,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: out-of-limit release never mutates; release without move preserves centre": {
+          "status": "expected",
+          "durationMs": 2970,
+          "error": ""
+        },
+        "placements-drag.spec.ts :: drag: punctuation placement id restores, resolves, and drags": {
+          "status": "expected",
+          "durationMs": 3354,
+          "error": ""
+        },
+        "placements-race.spec.ts :: placement restore race: busy locks and obsolete reads stay inert": {
+          "status": "expected",
+          "durationMs": 1867,
+          "error": ""
+        },
+        "placements-restore.spec.ts :: placement restore: roundtrip, forged recompute, atomic, stale lock": {
+          "status": "expected",
+          "durationMs": 6789,
+          "error": ""
+        },
+        "placements.spec.ts :: placements: empty export, multi-add, statuses, numeric update": {
+          "status": "expected",
+          "durationMs": 1917,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: opens a prepared saved project and issues it with exact mm geometry and sidecar evidence": {
+          "status": "expected",
+          "durationMs": 1628,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: customer places in the prepared mm region, confirms, saves and reopens": {
+          "status": "expected",
+          "durationMs": 2917,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: baseline review of the prepared-product return yields a consistent candidate": {
+          "status": "expected",
+          "durationMs": 3683,
+          "error": ""
+        },
+        "prepared-product-import.spec.ts :: rejects tampered evidence digests before the station ever sees them": {
+          "status": "expected",
+          "durationMs": 662,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: reference view and artwork thumbnail display safely; view changes preserve exact saved bytes": {
+          "status": "expected",
+          "durationMs": 807,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: bad optional images, remote references and oversized raster dimensions keep physical drafts usable": {
+          "status": "expected",
+          "durationMs": 547,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: fixed product, artwork, area and method do not become redundant selectors": {
+          "status": "expected",
+          "durationMs": 501,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: Builder prunes unselected reference images and preserves the selected image through delivery and return": {
+          "status": "expected",
+          "durationMs": 2550,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: obsolete image decoding cannot install a reference after a different package opens": {
+          "status": "expected",
+          "durationMs": 475,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: guided primary actions create zero and repeated placements without duplicates": {
+          "status": "expected",
+          "durationMs": 1065,
+          "error": ""
+        },
+        "presentation-assets.spec.ts :: keyboard 3D-mode switch cancels an unfinished drag without changing saved bytes": {
+          "status": "expected",
+          "durationMs": 761,
+          "error": ""
+        },
+        "product-cards.spec.ts :: product cards: thumbnails, independent open, single-option default, narrowed subset": {
+          "status": "expected",
+          "durationMs": 1778,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks excluded B, recovers on A and issues its intended placement": {
+          "status": "expected",
+          "durationMs": 1829,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion blocks an excluded option and rechecks a stale Add handler": {
+          "status": "expected",
+          "durationMs": 1472,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion keeps existing excluded placements visible and blocks duplication": {
+          "status": "expected",
+          "durationMs": 1808,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion Review summarizes omitted placements and clears on re-include": {
+          "status": "expected",
+          "durationMs": 1203,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at workspace fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 2991,
+          "error": ""
+        },
+        "product-inclusion.spec.ts :: inclusion read failure at commit boundary fails closed and commits nothing": {
+          "status": "expected",
+          "durationMs": 3000,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: named views, gating, single empty state, stays in Prepare": {
+          "status": "expected",
+          "durationMs": 2391,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: station intake: 3D model flow hides photo UI": {
+          "status": "expected",
+          "durationMs": 1078,
+          "error": ""
+        },
+        "product-photo-intake.spec.ts :: in-place named rows: legacy views keep working, slug views at byte level": {
+          "status": "unexpected",
+          "durationMs": 15852,
+          "error": "TimeoutError: locator.click: Timeout 15000ms exceeded."
+        },
+        "product-photo-intake.spec.ts :: five named views calibrate, save, reopen, issue, customer places, review agrees": {
+          "status": "unexpected",
+          "durationMs": 18383,
+          "error": "TimeoutError: locator.fill: Timeout 15000ms exceeded."
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1280)": {
+          "status": "expected",
+          "durationMs": 44187,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (1440)": {
+          "status": "expected",
+          "durationMs": 52462,
+          "error": ""
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (768)": {
+          "status": "unexpected",
+          "durationMs": 2574,
+          "error": "Error: expect(received).toBeGreaterThan(expected)"
+        },
+        "product-workspace.spec.ts :: product workspace: live outline, enlarged controls, artwork and physical movement (390)": {
+          "status": "expected",
+          "durationMs": 30527,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: standalone transport preview opens offline, loads by chooser and drop, and round-trips the package": {
+          "status": "expected",
+          "durationMs": 890,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: invalid and superseded asynchronous loads never replace a valid project": {
+          "status": "expected",
+          "durationMs": 548,
+          "error": ""
+        },
+        "project-package-inspector.spec.ts :: zero-placement configurations are named in empty and mixed projects": {
+          "status": "expected",
+          "durationMs": 559,
+          "error": ""
+        },
+        "safe-area-regression.spec.ts :: safe areas: rect and concave-with-exclusion verdicts plus preview": {
+          "status": "expected",
+          "durationMs": 1362,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: auto-loads the exact embedded project, revision, and asset count": {
+          "status": "expected",
+          "durationMs": 920,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: edit, confirm, save, and reopen round-trips values through the embedded package": {
+          "status": "expected",
+          "durationMs": 1647,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: zero-placement self-contained HTML loads with no placements and usable chooser": {
+          "status": "expected",
+          "durationMs": 703,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: malformed embedded data shows a useful error and leaves the chooser usable": {
+          "status": "expected",
+          "durationMs": 3142,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: oversized embedded data is rejected by the packaging boundary and never shipped": {
+          "status": "expected",
+          "durationMs": 10,
+          "error": ""
+        },
+        "self-contained-customer.spec.ts :: deterministic obsolete startup replacement wins over a delayed embedded digest": {
+          "status": "expected",
+          "durationMs": 566,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup: guided measure + mm + safe area + anchors + tool toggles + atomic save": {
+          "status": "expected",
+          "durationMs": 3349,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model-only 3D calibration: A/B surface picks + mm + named area + toggles (no images)": {
+          "status": "expected",
+          "durationMs": 12598,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span setup: two-click reference + drawn area + atomic save creates region": {
+          "status": "expected",
+          "durationMs": 4987,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images two named areas: draw, rename, save, reopen, issue, customer places in both": {
+          "status": "expected",
+          "durationMs": 10786,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images delete unreferenced area: region and links gone, customer cannot select it": {
+          "status": "expected",
+          "durationMs": 3424,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images setup edit invalidates generated outputs: download disabled until regenerate": {
+          "status": "expected",
+          "durationMs": 3144,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span span-reference retires on photo replacement, no stale calibration reuse": {
+          "status": "expected",
+          "durationMs": 1525,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images span recalibration from sibling-owned mapping resolves the owning scope": {
+          "status": "expected",
+          "durationMs": 2701,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: images shared scope: stale sibling submitter is refused, reset recovers": {
+          "status": "expected",
+          "durationMs": 1874,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D setup: model-only mount + surface reference + save to master + reopen": {
+          "status": "expected",
+          "durationMs": 29705,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station 3D delete + resave: unreferenced region removed with links, issue works": {
+          "status": "expected",
+          "durationMs": 22544,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model setup save/reopen roundtrip retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 6810,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model product visibility: hide/show mesh keeps reference, areas and fit": {
+          "status": "expected",
+          "durationMs": 3996,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: prepared-master save/reopen retains references, calibration and areas": {
+          "status": "expected",
+          "durationMs": 2225,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools: dotted reference, rectangle to independent polygon, edge insertion, rollback, zoom, visibility, point drawing": {
+          "status": "expected",
+          "durationMs": 3948,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model tools: independent polygon corners, insertion, rollback, point drawing and zoom": {
+          "status": "expected",
+          "durationMs": 18645,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: product-setup tools wrap cleanly at 390x844 with real overlays": {
+          "status": "expected",
+          "durationMs": 2063,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model safe-area fill follows a raised fold without changing saved coordinates or painting the back": {
+          "status": "expected",
+          "durationMs": 1388,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model rectangle drag on a non-planar surface stages a visible area (perimeter fallback)": {
+          "status": "expected",
+          "durationMs": 4318,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (desktop)": {
+          "status": "expected",
+          "durationMs": 5761,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: model clicked outlines accept optional names and avoid name collisions (mobile)": {
+          "status": "expected",
+          "durationMs": 2517,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: dense model area keeps exact points while idle and zoom avoid repeated picking": {
+          "status": "expected",
+          "durationMs": 4177,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: contextual outline editor: More, rename, direct points, bends and persistence": {
+          "status": "expected",
+          "durationMs": 10195,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 1440x1000": {
+          "status": "expected",
+          "durationMs": 8581,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: station polygon tools keep the picking canvas fixed at 390x844": {
+          "status": "expected",
+          "durationMs": 2031,
+          "error": ""
+        },
+        "setup-calibration.spec.ts :: focus this area: camera-only focus grows the selected patch, fit restores, data unchanged": {
+          "status": "expected",
+          "durationMs": 12195,
+          "error": ""
+        },
+        "standalone.spec.ts :: asset replacement resets session, areas and placements": {
+          "status": "expected",
+          "durationMs": 1784,
+          "error": ""
+        },
+        "standalone.spec.ts :: standalone copy runs with no sibling dependencies": {
+          "status": "expected",
+          "durationMs": 590,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station entry is the single obvious staff page with no legacy sidecars": {
+          "status": "expected",
+          "durationMs": 783,
+          "error": ""
+        },
+        "station-entry.spec.ts :: fresh-copied station issues both customer formats offline with no repo dependency": {
+          "status": "expected",
+          "durationMs": 3038,
+          "error": ""
+        },
+        "station-entry.spec.ts :: station stays readable on a narrow viewport": {
+          "status": "expected",
+          "durationMs": 638,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 calibration warning is advisory, value-scoped and dismissible": {
+          "status": "expected",
+          "durationMs": 3226,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1290": {
+          "status": "expected",
+          "durationMs": 5393,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 dock, footer, header and field order at 1440": {
+          "status": "expected",
+          "durationMs": 9083,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 pristine Prepare has neutral validation and a ready disabled reason": {
+          "status": "expected",
+          "durationMs": 552,
+          "error": ""
+        },
+        "station-round2.spec.ts :: round 2 new placements start locked and save styling follows clean and pending edits": {
+          "status": "expected",
+          "durationMs": 4451,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: real close warnings for dirty and pending placement edits, clean close without prompt": {
+          "status": "expected",
+          "durationMs": 1268,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: freshly opened job closes without a native dialog after activation": {
+          "status": "expected",
+          "durationMs": 564,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: downloaded job closes without a native dialog": {
+          "status": "expected",
+          "durationMs": 698,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: discarded New-guard changes close without a native dialog": {
+          "status": "expected",
+          "durationMs": 622,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 1440": {
+          "status": "expected",
+          "durationMs": 995,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 768": {
+          "status": "expected",
+          "durationMs": 1004,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: readable persistence follows Save through download, edit and reopen at 390": {
+          "status": "expected",
+          "durationMs": 981,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only images, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 1288,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: retains both staged modes and Add includes only model, releasing thumbnails": {
+          "status": "expected",
+          "durationMs": 1206,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: download failure shows a plain headline and escaped technical disclosure": {
+          "status": "expected",
+          "durationMs": 687,
+          "error": ""
+        },
+        "station-ux.spec.ts :: station UX: invalid placement fields explain disabled Apply and recover without losing edits": {
+          "status": "expected",
+          "durationMs": 1262,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1440\u00d7900": {
+          "status": "expected",
+          "durationMs": 15682,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 1280\u00d7720": {
+          "status": "expected",
+          "durationMs": 11145,
+          "error": ""
+        },
+        "unified-editor.spec.ts :: one editing workspace preserves canvas, areas and logos at 390\u00d7844": {
+          "status": "expected",
+          "durationMs": 6962,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the self-contained customer file": {
+          "status": "expected",
+          "durationMs": 21817,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey through the hybrid ZIP customer file": {
+          "status": "expected",
+          "durationMs": 23098,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (self customer file)": {
+          "status": "expected",
+          "durationMs": 22904,
+          "error": ""
+        },
+        "user-workflow.spec.ts :: whole-workflow journey from a fresh station copy (hybrid customer file)": {
+          "status": "expected",
+          "durationMs": 23449,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer absolute: verbatim geometry, pending-review envelope, deterministic bytes": {
+          "status": "expected",
+          "durationMs": 1904,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer normalized: fixed-size keeps dims, proportional scales (worked rects)": {
+          "status": "expected",
+          "durationMs": 1978,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer override: exact mm position/size/rotation win over rule": {
+          "status": "expected",
+          "durationMs": 1648,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer multiple placements together; zero placements export empty; unsafe stays pendingReview with fits:false": {
+          "status": "expected",
+          "durationMs": 3137,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer source snapshot survives target asset replacement; result invalidates until rerun": {
+          "status": "expected",
+          "durationMs": 2371,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer frozen source numeric preservation across a different target region": {
+          "status": "expected",
+          "durationMs": 1586,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer between independently calibrated variants preserves source and leaves target draft unchanged": {
+          "status": "expected",
+          "durationMs": 2213,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer drag locks discard results and recover after cancellation without capturing a candidate": {
+          "status": "expected",
+          "durationMs": 1775,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer ignores an obsolete restore read after target asset replacement": {
+          "status": "expected",
+          "durationMs": 2110,
+          "error": ""
+        },
+        "variant-transfer.spec.ts :: transfer atomic failures: bad rules JSON, missing mapping, stale calibration, busy restore, post-run edits": {
+          "status": "expected",
+          "durationMs": 2930,
+          "error": ""
+        },
+        "visual-operation-dimensions.spec.ts :: four select-based measurements across two logos print and export": {
+          "status": "unexpected",
+          "durationMs": 240003,
+          "error": "Test timeout of 240000ms exceeded."
+        },
+        "visual-placement.spec.ts :: visual placement: photo/diagram handles move, resize, rotate, cancel, siblings": {
+          "status": "expected",
+          "durationMs": 4191,
+          "error": ""
+        },
+        "visual-product-setup.spec.ts :: visual setup: upload \u2192 guided measure \u2192 draw + anchors \u2192 save \u2192 job roundtrip \u2192 review": {
+          "status": "unexpected",
+          "durationMs": 10569,
+          "error": "Error: expect(locator).toContainText(expected) failed"
+        },
+        "visual-product-setup.spec.ts :: shared region: one safe-area edit reaches both variants, anchors stay per-variant": {
+          "status": "unexpected",
+          "durationMs": 10929,
+          "error": "Error: expect(locator).toBeVisible() failed"
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 1440x900: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 41510,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 768x1024: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 75270,
+          "error": ""
+        },
+        "workspace-layout-audit.spec.ts :: workspace layout audit at 390x844: idle/active toolbar in normal/enlarged views": {
+          "status": "expected",
+          "durationMs": 23142,
+          "error": ""
+        }
+      },
+      "newVsBaseline": [],
+      "recoveredVsBaseline": []
+    }
+  },
+  "checkoutCommit": "2c3e14e45539231625e52719d099fbde1de6ef38",
+  "headTree": "c89e1c38df26d6bce3f281b8e14fab5c7b327cee",
+  "checkoutTree": "c89e1c38df26d6bce3f281b8e14fab5c7b327cee",
+  "sourceTreeMatches": true
+}
