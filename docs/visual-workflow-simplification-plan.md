@@ -21,7 +21,7 @@ live Odoo, or changes to existing publishing settings are authorized.
 - One staff entry: `dist/station/Logo Station.html` and its assets. All delivered
   customer output works through offline `file://` without server/CDN/install.
 - Empty release start; no embedded demo catalogue/products/logos. Tests use
-  explicitly supplied synthetic fixtures; real jacket/EDEKA evidence stays private.
+  explicitly supplied synthetic fixtures; real jacket/Customer A evidence stays private.
 - Physical geometry is millimetres in explicit region frames/calibration; pixels
   and mesh transforms are presentation. Reuse evaluated affine photo mapping.
   A real reference with sufficient known lengths remains necessary. No inferred
@@ -161,7 +161,7 @@ pointer/keyboard actions; inspect exact serialized bindings, mm values, printabl
 arrows and minimal JSON. Test rotated logo, incompatible edge/convention, missing
 mapping, no anchors, 0/1/3+ placements, Escape, delete, view switch and draft reopen.
 Actual PDF must remain readable at normal A4 size, not just have a matching DOM
-count or one-page assertion. Preserve the accepted real EDEKA trial geometry.
+count or one-page assertion. Preserve the accepted real Customer A trial geometry.
 
 ## C. Contextual controls and draft safety
 
@@ -277,7 +277,7 @@ repeat only affected checks. No unbounded retries or pipe-to-tail masking failur
 Capture meaningful desktop and narrow screenshots. Validate actual saved packages,
 asset digests, bindings, reopened drafts and operator JSON, not only UI messages.
 Render actual PDF pages and inspect labels/arrows at normal print size. At a final
-completed checkpoint repeat private real jacket/two-EDEKA workflow in fullscreen
+completed checkpoint repeat private real jacket workflow with two Customer A marks in fullscreen
 native Chrome with DevTools closed where accessible, preserving original files.
 Synthetic tracked tests only; private evidence remains ignored/local.
 

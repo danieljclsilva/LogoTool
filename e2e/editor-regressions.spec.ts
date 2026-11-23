@@ -279,7 +279,7 @@ for (const viewport of [{width:1440,height:781},{width:390,height:844}]) {
     try {
       await createUnconfiguredModel(page);
       const png = await page.evaluate(()=>{const c=document.createElement('canvas');c.width=20;c.height=10;c.getContext('2d')!.fillRect(0,0,20,10);return c.toDataURL().split(',')[1]!;});
-      await b(page,'logo-file').setInputFiles({name:'[LOGO EDEKA RL4 PT] Synthetic long customer artwork name transparent.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
+      await b(page,'logo-file').setInputFiles({name:'[LOGO CUSTOMER A RL4 PT] Synthetic long customer artwork name transparent.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
       await expect(b(page,'logo-status')).toContainText('Added');
       await b(page,'editor-logos').click();
       for(const expanded of [false,true]) {

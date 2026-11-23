@@ -482,12 +482,21 @@ test('create generates revision-1 issues with prepared catalogue identity and ze
     expect(parsed.project.configurations.map((configuration) => [configuration.productId, configuration.variantId])).toEqual(
       [['SYN-CAP-001', 'SYN-CAP-OS'], ['SYN-TEE-001', 'SYN-TEE-M'], ['SYN-TEE-001', 'SYN-TEE-XL']]);
     expect(parsed.project.configurations.flatMap((configuration) => configuration.placements)).toHaveLength(0);
-    // Only the selected logo and its assets ship.
+    // The issued archive contains the selected artwork and the identity used for return review.
     expect(parsed.project.logos.map((logo) => logo.id)).toEqual(['SYN-LOGO-A']);
     expect(parsed.project.logos[0]).toEqual(fixtureLogos[0]);
-    expect(parsed.assets.map((asset) => asset.path)).toEqual(['logos/syn-mark-a.svg']);
+    expect(parsed.assets.map((asset) => asset.path)).toEqual(['approval/issue-identity.json', 'logos/syn-mark-a.svg']);
+    const [issueIdentity, logoAsset] = parsed.assets;
+    expect(issueIdentity!.kind).toBe('additional');
+    expect(new TextDecoder().decode(issueIdentity!.bytes)).toBe(JSON.stringify({
+      version: 1,
+      customerLabel: 'Acme Athletics',
+      jobReference: jobRef,
+      issuedBy: 'Internal operator',
+      projectId: issuedProjectId,
+    }));
     const fixtureBytes = new Uint8Array(await readFile(resolve(process.cwd(), 'examples/logos/syn-mark-a.svg')));
-    expect(Buffer.from(parsed.assets[0]!.bytes)).toEqual(Buffer.from(fixtureBytes));
+    expect(Buffer.from(logoAsset!.bytes)).toEqual(Buffer.from(fixtureBytes));
 
     // Self-contained customer file embeds the exact issued package.
     const html = await readDownload(page, 'OPEN_LOGO_CONFIGURATOR.html', () =>
@@ -578,8 +587,8 @@ test('create customer journey adds a new raster logo and reviews the return', as
     expect(logo.assets[0]!.heightPx).toBe(10);
     expect(logo).not.toHaveProperty('knownWidthMm');
     expect(logo).not.toHaveProperty('knownHeightMm');
-    expect(parsed.assets.map((asset) => asset.path)).toEqual([`logos/${logo.id}.png`]);
-    expect(Buffer.from(parsed.assets[0]!.bytes)).toEqual(Buffer.from(png));
+    expect(parsed.assets.map((asset) => asset.path)).toEqual(['approval/issue-identity.json', `logos/${logo.id}.png`]);
+    expect(Buffer.from(parsed.assets[1]!.bytes)).toEqual(Buffer.from(png));
     expect(parsed.project.configurations.flatMap((configuration) => configuration.placements)).toHaveLength(0);
 
     // Open the real customer file offline with no siblings, place the new logo,
@@ -692,7 +701,9 @@ test('create supports zero logos and distinct duplicate logo filenames', async (
     const byId = new Map(parsed.project.logos.map((logo) => [logo.id, logo]));
     expect(byId.get(importedIds[0]!)!.assets[0]!.mediaType).toBe('image/png');
     expect(byId.get(importedIds[1]!)!.assets[0]!.mediaType).toBe('image/jpeg');
-    expect(new Set(parsed.assets.map((asset) => asset.path)).size).toBe(2);
+    expect(parsed.assets.map((asset) => asset.path).sort()).toEqual([
+      'approval/issue-identity.json', `logos/${importedIds[0]}.png`, `logos/${importedIds[1]}.jpg`,
+    ].sort());
     const bytesByPath = new Map(parsed.assets.map((asset) => [asset.path, asset.bytes]));
     expect(Buffer.from(bytesByPath.get(`logos/${importedIds[0]}.png`)!)).toEqual(Buffer.from(png));
     expect(Buffer.from(bytesByPath.get(`logos/${importedIds[1]}.jpg`)!)).toEqual(Buffer.from(jpeg));
@@ -711,7 +722,9 @@ test('create supports zero logos and distinct duplicate logo filenames', async (
       branch(page).getByRole('button', { name: 'Save office copy' }).click());
     const zeroParsed = await parseProjectPackage(zero.bytes, { sha256 });
     expect(zeroParsed.project.logos.map((logo) => logo.id).sort()).toEqual([...EXAMPLE_LOGO_IDS].sort());
-    expect(zeroParsed.assets.map((asset) => asset.path).sort()).toEqual(['logos/syn-mark-a.svg', 'logos/syn-mark-b.svg']);
+    expect(zeroParsed.assets.map((asset) => asset.path)).toEqual([
+      'approval/issue-identity.json', 'logos/syn-mark-a.svg', 'logos/syn-mark-b.svg',
+    ]);
     expect(zeroParsed.project.configurations.flatMap((configuration) => configuration.placements)).toHaveLength(0);
     expectOfflineClean(probe);
   } finally {
@@ -1019,7 +1032,9 @@ for (const viewport of [{ width: 1536, height: 1024 }, { width: 390, height: 844
       expect(parsed.project.products.map((product) => product.id)).toEqual(['SYN-TEE-001']);
       expect(parsed.project.logos.map((logo) => logo.id)).toContain('SYN-LOGO-A');
       expect(parsed.project.logos).toHaveLength(2);
-      expect(parsed.assets).toHaveLength(2);
+      expect(parsed.assets.filter((asset) => asset.kind === 'referenced')).toHaveLength(2);
+      expect(parsed.assets.filter((asset) => asset.kind === 'additional').map((asset) => asset.path))
+        .toEqual(['approval/issue-identity.json']);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expectOfflineClean(probe);
     } finally {

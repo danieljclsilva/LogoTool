@@ -401,12 +401,8 @@ async function runUserWorkflow(
     );
     if (format === 'hybrid') expect(delivery.name).toBe(`${jobRef}-customer-file.zip`);
     else expect(delivery.name).toBe('OPEN_LOGO_CONFIGURATOR.html');
-    // Second issue with a fresh ID but an identical selection: same assets,
-    // different project. Saved now and used later as the wrong-baseline
-    // return probe (same assets so the app reaches the project-identity
-    // check instead of stopping at asset comparison).
-    // Issued after the delivery download above, so the customer journey keeps
-    // the first issue's files.
+    // Keep the first issue's delivery. A second issue with identical selections
+    // has its own project ID and identity metadata for the wrong-office-copy check.
     const otherProjectId = await createBranchIssue(page);
     assert.ok(otherProjectId.length > 0 && otherProjectId !== issuedProjectId, 'expected a fresh project ID');
     await downloadTo(page, `${jobRef}-office-copy-2.logo-project`, () =>
@@ -691,10 +687,8 @@ async function runUserWorkflow(
     await expect(placement(page, 'pw-placement-list')).toContainText('synthetic raster logo');
     await shoot(page, `${format}-10-installed-placements`);
 
-    // Invalid and wrong-project files preserve the previous good state: the
-    // invalid return is rejected before reading, and the second office copy
-    // carries the same assets under a different project ID, so the check
-    // reaches baseline-project-mismatch without touching the job.
+    // Invalid and wrong-project files preserve the previous good state. The
+    // second office copy should produce the identity error before asset comparison.
     const summaryAfterInstall = await branchSummary(page).textContent();
     await openApprovalBranch(page);
     await branchOpenFile(
@@ -713,6 +707,7 @@ async function runUserWorkflow(
     await branchOpenFile(page, 'Open customer response', returned.name, returned.bytes);
     await expect(branch(page)).toContainText('Could not import response');
     await expect(branch(page)).toContainText('baseline-project-mismatch');
+    await expect(branch(page)).toContainText('Open its matching office copy.');
     await expect(branch(page)).toContainText('The active job and outputs are unchanged.');
     expect(await branchSummary(page).textContent()).toBe(summaryAfterInstall);
 

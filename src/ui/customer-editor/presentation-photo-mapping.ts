@@ -616,7 +616,9 @@ export function validateMappingContext(entry: PhotoMappingEntry, context: PhotoM
     return view.view === entry.view;
   });
   if (!declared) {
-    errors.push(`mapping photo "${entry.image}" (${entry.view}) is not a declared preview view for this product option`);
+    // Stable view identity in diagnostics (never the display label, never a
+    // misleading inert bucket alone when a viewId is declared).
+    errors.push(`mapping photo "${entry.image}" (${mappingViewIdOf(entry)}) is not a declared preview view for this product option`);
   }
   return errors;
 }

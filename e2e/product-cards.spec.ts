@@ -15,7 +15,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createProjectPackage } from '../src/packaging/project-package/index.js';
 import { createHash } from 'node:crypto';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
-import { BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
+import { STATION_EVIDENCE_URL, gotoBuilder, openOfflineContext, revealBuilderControl } from './helpers.js';
 import type { Probe } from './helpers.js';
 import { release } from 'node:os';
 
@@ -36,7 +36,7 @@ async function openStation(browser: Browser): Promise<{ context: BrowserContext;
     body: JSON.stringify({
       os: process.platform, release: release(), arch: process.arch,
       browser: browser.browserType().name(), browserVersion: browser.version(),
-      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: BUILDER_URL,
+      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: STATION_EVIDENCE_URL,
     }, null, 2),
   });
   const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });

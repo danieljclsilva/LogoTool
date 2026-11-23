@@ -420,6 +420,7 @@
       margin:0; padding:0; min-height:0; min-width:0; max-width:30rem;
       white-space:normal; overflow-wrap:anywhere; font-size:14px;
     }
+    .builder-alert.builder-success { border-color:#28714b;color:#20553c;background:#f1faf5;padding:8px 12px; }
     .builder-alert pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
     .job-steps { list-style: none; }
     [data-job-landing] .actions { max-width: 34rem; }
@@ -863,6 +864,11 @@
       }
       .product-editor.station-expanded-workspace [data-builder-hook="product-model"][data-mode="logos"]:has(#placement-context:not([hidden])) { grid-template-rows:minmax(0,1fr); }
       .product-editor #placement-context { position:relative!important;grid-column:2;grid-row:1;left:auto!important;bottom:auto!important;width:340px;max-width:100%!important;height:100%;max-height:100%!important;overflow:auto!important;box-shadow:none;min-height:0; }
+      .product-editor .pw-main:has(> .pw-stage):has(> #placement-context:not([hidden])) {
+        display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 12px;align-items:start;
+      }
+      .product-editor .pw-main:has(> .pw-stage) > :not(#placement-context) { grid-column:1;min-width:0; }
+      .product-editor .pw-main:has(> .pw-stage) > #placement-context { height:auto;max-height:60vh!important; }
       .product-editor [data-builder-hook="product-model"][data-mode="logos"] .product-model-stage { min-width:0; }
     }
     @media(max-width:1023px) {

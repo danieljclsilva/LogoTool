@@ -1,5 +1,9 @@
 # Offline testing — offline inspector and Phase 8 workflow prototypes
 
+Use synthetic fixtures in public evidence. Replace local home directory prefixes
+with `~/` and redact machine-specific prefixes from file URLs before committing
+browser logs or reports. Use anonymized customer labels such as Customer A.
+
 ## Hosted browser evidence
 
 `.github/workflows/offline-e2e.yml` runs on PRs, main pushes and manual dispatch.
@@ -144,7 +148,7 @@ page errors and console errors. Tested viewports include 1440×1000, 1440×900,
 Chromium 156.0.8078.4 and Chrome 156.0.8078.74. Artifacts and before/after
 private jacket checks are under /tmp/logotool-ux-repair-20261102/.
 
-The jacket's four safe areas and both Edeka artworks remain test evidence:
+The jacket's four safe areas and both Customer A artworks remain test evidence:
 its 300 mm reference is provisional, not a physical calibration certificate.
 Real Windows Chrome/Edge and actual touch-device release checks remain open.
 The repeated private-jacket edit-cycle sample improved from a 2.50 s median

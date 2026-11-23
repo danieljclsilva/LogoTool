@@ -577,7 +577,13 @@ function mappingContextFor(regionId: string): PhotoMappingContext | null {
     configuration.productId,
     configuration.variantId,
     lookup,
-  ).views.flatMap((view) => (view.view === null ? [] : [{ view: view.view, image: view.imagePath }]));
+    // Stable view identity rides along as `viewId` (duplicated from the
+    // manifest `view` slug, which is the legacy side or a flexible v3 id).
+    // Labels never participate. The validator compares `viewId` when both
+    // sides declare it, otherwise the legacy `view` bucket, so legacy
+    // packages without viewIds keep binding exactly as before while
+    // flexible named views (view-1/view-2, …) bind via stable identity.
+  ).views.flatMap((view) => (view.view === null ? [] : [{ view: view.view, viewId: view.view, image: view.imagePath }]));
   return {
     productId: configuration.productId,
     variantId: configuration.variantId,
@@ -616,7 +622,17 @@ function resolveActivePhoto(): void {
     .filter((entry) => entry.productId === productId && entry.regionId === regionId &&
       (entry.variantId === undefined || entry.variantId === variantId))
     .sort((left, right) => (left.variantId === undefined ? 1 : 0) - (right.variantId === undefined ? 1 : 0));
-  for (const candidate of candidates) {
+  // Prefer the user-selected stable view when it still binds (flexible
+  // named views: one region may carry several calibrated photos, one per
+  // view). Otherwise fall back to the first valid mapping for the region
+  // and adopt its stable identity so the view tabs stay in sync.
+  const ordered = selectedViewId !== null
+    ? [
+        ...candidates.filter((entry) => mappingViewIdOf(entry) === selectedViewId),
+        ...candidates.filter((entry) => mappingViewIdOf(entry) !== selectedViewId),
+      ]
+    : candidates;
+  for (const candidate of ordered) {
     // Full-key selection (product, variant, region, view/viewId, image):
     // exact match only, bytes validated by the mapping adapter. The caller's
     // context additionally enforces the region calibration reference and
@@ -626,12 +642,14 @@ function resolveActivePhoto(): void {
       const bytes = lookup(selection.mapping.image);
       if (bytes && bytes.length > 0) {
         activePhoto = { entry: selection.mapping, imageBytes: bytes };
+        selectedViewId = mappingViewIdOf(selection.mapping);
         return;
       }
     }
     if (photoWarning === null) photoWarning = selection.warning;
   }
   if (photoWarning === null) photoWarning = diagramPlacementMessage;
+  selectedViewId = null;
 }
 
 function mappingEntriesForSelection(): PhotoMappingEntry[] {
@@ -722,6 +740,133 @@ function mappedRegionForViewId(viewId: string): Region | undefined {
   return undefined;
 }
 
+function isLegacySide(value: string): value is PhotoMappingView {
+  return value === 'front' || value === 'back' || value === 'left' || value === 'right';
+}
+
+interface CustomerPhotoView {
+  id: string;
+  label: string;
+  region: Region | undefined;
+}
+
+/**
+ * Supplied product views for the customer proof, in manifest order, labelled
+ * by their saved labels (never derived from English). Each view carries its
+ * currently mapped region when the binding is current (calibration +
+ * declared preview binding agree, bytes present); unmapped/stale views carry
+ * `region: undefined` and render as disabled reference-only tabs that fail
+ * closed to the measured diagram.
+ */
+function customerPhotoViews(): CustomerPhotoView[] {
+  const project = loaded?.project;
+  const configuration = project && selectedConfiguration(project);
+  if (!loaded || !project || !configuration) return [];
+  const lookup = (path: string): Uint8Array | undefined =>
+    loaded?.assets.find((entry) => entry.path === path)?.bytes;
+  const selection = selectPresentationViews(
+    loaded.presentationManifest,
+    loaded.presentationManifestPresent,
+    configuration.productId,
+    configuration.variantId,
+    lookup,
+  );
+  const out: CustomerPhotoView[] = [];
+  for (const view of selection.views) {
+    if (view.view === null) continue;
+    const id = view.view;
+    const label = view.label?.trim() ? view.label.trim() : id;
+    out.push({ id, label, region: mappedRegionForViewId(id) });
+  }
+  return out;
+}
+
+/**
+ * Flexible named-view switcher (stable view identity, saved labels). Same
+ * guarded transition as {@link chooseSide}: cancels in-flight moves, refuses
+ * unmapped/stale views with an explicit message (never a silent no-op or a
+ * mislabelled photo), otherwise adopts the view's region and re-renders so
+ * {@link resolveActivePhoto} picks that view's calibrated mapping.
+ */
+function chooseView(viewId: string): void {
+  if (!loaded || loading || saving || confirming || placementFormDirty || projectInstructionsDirty) return;
+  const region = mappedRegionForViewId(viewId);
+  if (!region) return;
+  cancelDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  cancelPhotoDrag('Move cancelled because the logo area changed. Your saved logo is unchanged.');
+  const configuration = selectedConfiguration(loaded.project);
+  const index = currentPlacement()?.regionId === region.id
+    ? selectedPlacementIndex
+    : configuration?.placements.findIndex((placement) => placement.regionId === region.id);
+  selectedRegionId = region.id;
+  selectedViewId = viewId;
+  primaryMode = 'photo';
+  setSelectedPlacement(index !== undefined && index !== null && index >= 0 ? index : null);
+}
+
+/**
+ * Flexible view tabs: for packages whose supplied views carry non-legacy
+ * stable ids (v3 `view-1`, …), hides the inert legacy Front/Back/Left/Right
+ * buttons and renders one tab per supplied view by its saved label. Legacy
+ * side manifests keep their four buttons exactly as before. Tabs are
+ * navigation, never silent: disabled when unmapped, pressed only for the
+ * active calibrated photo, titled truthfully. Idempotent; safe to call from
+ * both {@link renderPrimaryMode} and {@link updateButtons}.
+ */
+function syncFlexibleTabs(): void {
+  const container = optionalHook<HTMLElement>('side-tabs');
+  if (!container) return;
+  const views = customerPhotoViews();
+  const hasFlexible = views.some((view) => !isLegacySide(view.id));
+  const existing = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-flex-view-id]'));
+  if (!hasFlexible) {
+    for (const button of existing) button.remove();
+    for (const side of ['front', 'back', 'left', 'right'] as const) {
+      if (sideButtons[side].hidden) sideButtons[side].hidden = false;
+    }
+    return;
+  }
+  for (const side of ['front', 'back', 'left', 'right'] as const) {
+    sideButtons[side].hidden = true;
+  }
+  const usable = loaded?.project !== undefined && !loading;
+  const shownViewId = activePhoto ? mappingViewIdOf(activePhoto.entry) : null;
+  const byId = new Map<string, HTMLButtonElement>();
+  for (const button of existing) {
+    const id = button.getAttribute('data-flex-view-id');
+    if (id) byId.set(id, button);
+  }
+  for (const [id, button] of byId) {
+    if (!views.some((view) => view.id === id)) {
+      button.remove();
+      byId.delete(id);
+    }
+  }
+  for (const view of views) {
+    let button = byId.get(view.id);
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('data-flex-view-id', view.id);
+      const captured = view.id;
+      button.addEventListener('click', () => chooseView(captured));
+      container.append(button);
+      byId.set(view.id, button);
+    }
+    button.textContent = view.label;
+    button.setAttribute('aria-pressed', shownViewId === view.id && view.region?.id === selectedRegionId ? 'true' : 'false');
+    button.disabled = !usable || !view.region || saving || confirming || placementFormDirty || projectInstructionsDirty;
+    button.hidden = false;
+    if (!usable) button.title = 'Open a project first.';
+    else if (view.region) button.title = `Show the ${view.label} logo area.`;
+    else button.title = `${view.label} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`;
+  }
+  for (const view of views) {
+    const button = byId.get(view.id);
+    if (button) container.append(button);
+  }
+}
+
 function revokePhotoUrl(): void {
   if (photoObjectUrl !== null) {
     try { URL.revokeObjectURL(photoObjectUrl); } catch { /* already gone */ }
@@ -775,8 +920,29 @@ function modelProofSelect(index: number): void {
     return;
   }
   contextChanged();
-  setSelectedPlacement(index);
+  setSelectedPlacement(index, false);
 }
+let emptyModelProofSide: 'front' | 'back' | null = null;
+
+function canChooseModelProofSide(): boolean {
+  if (placementFormDirty || projectInstructionsDirty || saving || confirming || modelProofDragging) {
+    setStatus(unsavedStepMessage());
+    return false;
+  }
+  return true;
+}
+
+function modelProofChooseSide(side: 'front' | 'back', visibleRegionIds: ReadonlySet<string>): void {
+  const configuration = selectedConfiguration();
+  if (!configuration) return;
+  const selected = currentPlacement();
+  if (selected && visibleRegionIds.has(selected.regionId)) return;
+  const index = configuration.placements.findIndex((placement) => visibleRegionIds.has(placement.regionId));
+  contextChanged();
+  emptyModelProofSide = index < 0 ? side : null;
+  setSelectedPlacement(index < 0 ? null : index, false);
+}
+
 function modelProofMove(index: number, pos: { xMm: number; yMm: number }): void {
   modelProofCommit(index, { pos });
 }
@@ -823,7 +989,7 @@ function modelProofPreview(index: number, patch: ModelPlacementCommitPatch): voi
   if (patch.heightMm !== undefined) writeDimension(heightInput, patch.heightMm);
   if (patch.rotationDeg !== undefined) rotationInput.value = String(patch.rotationDeg);
 }
-function refreshModelProof(): void {
+function refreshModelProof(alignCamera = true): void {
   modelProofScene = resolveCurrentProofScene();
   root.classList.toggle('customer-model-proof', modelProofVisible());
   const modes = optionalHook<HTMLElement>('view-toggle');
@@ -844,6 +1010,8 @@ function refreshModelProof(): void {
     try {
       modelProofView = mountCustomerModelProof(host, {
         select: modelProofSelect,
+        canChooseSide: canChooseModelProofSide,
+        chooseSide: modelProofChooseSide,
         move: modelProofMove,
         commit: modelProofCommit,
         preview: modelProofPreview,
@@ -862,7 +1030,9 @@ function refreshModelProof(): void {
   geometryFor(project);
   const verdicts = geometryLookup?.get(configuration.id);
   host.hidden = !modelProofVisible();
+  const selected = currentPlacement();
   modelProofView.update({
+    alignSelection: alignCamera,
     scene: {
       key: scene.key,
       bytes: scene.bytes,
@@ -883,7 +1053,9 @@ function refreshModelProof(): void {
     selectedIndex: selectedPlacementIndex ?? -1,
     activeRegionId: selectedRegionId || null,
     revision: String(project.revision),
-    status: geometryStatus.textContent ?? '',
+    status: emptyModelProofSide && !selected
+      ? `No logo placed on the ${emptyModelProofSide}. Choose a placed logo to edit it.`
+      : geometryStatus.textContent ?? '',
   });
 }
 
@@ -922,7 +1094,10 @@ function syncPhotoImage(): void {
     return;
   }
   const entry = activePhoto.entry;
-  const key = `${entry.productId}|${entry.variantId ?? ''}|${entry.regionId}|${entry.view}|${entry.image}`;
+  // Stable view identity in the cache key (never the display label): two
+  // flexible views may share the inert legacy `view` bucket and differ only
+  // by `viewId` + image.
+  const key = `${entry.productId}|${entry.variantId ?? ''}|${entry.regionId}|${mappingViewIdOf(entry)}|${entry.image}`;
   if (key === photoObjectKey && photoObjectUrl && referenceImg.getAttribute('src') !== photoObjectUrl) {
     referenceImg.src = photoObjectUrl;
     referenceImg.hidden = false;
@@ -940,7 +1115,7 @@ function syncPhotoImage(): void {
       return;
     }
     const current = activePhoto.entry;
-    const currentKey = `${current.productId}|${current.variantId ?? ''}|${current.regionId}|${current.view}|${current.image}`;
+    const currentKey = `${current.productId}|${current.variantId ?? ''}|${current.regionId}|${mappingViewIdOf(current)}|${current.image}`;
     if (currentKey !== key) {
       if (decoded) URL.revokeObjectURL(decoded.url);
       return;
@@ -948,6 +1123,7 @@ function syncPhotoImage(): void {
     if (!decoded) {
       photoWarning = `Photo-mapped image “${current.image}” could not be shown; showing the measured diagram instead.`;
       activePhoto = null;
+      selectedViewId = null;
       if (primaryMode === 'photo') primaryMode = 'diagram';
       renderAll();
       return;
@@ -957,7 +1133,7 @@ function syncPhotoImage(): void {
     photoObjectKey = key;
     if (referenceImg) {
       referenceImg.src = decoded.url;
-      referenceImg.alt = `Mapped ${current.view} photo for ${current.regionId}`;
+      referenceImg.alt = `Mapped ${mappingDisplayLabel(current, mappingViewIdOf(current))} photo for ${current.regionId}`;
       referenceImg.hidden = primaryMode !== 'photo';
     }
   });
@@ -967,10 +1143,12 @@ function describeMappingStatus(): string {
   if (!loaded?.project) return 'Open a project to see your product view.';
   if (activePhoto) {
     const entry = activePhoto.entry;
-    // Display-only label where present; legacy `${view} view` text otherwise.
-    const viewName = mappingDisplayLabel(entry, `${entry.view} view`);
-    const base = `Mapped photo · ${viewName} · calibrated ${entry.calibrationId} ${entry.calibrationVersion}. Editing uses the measured diagram.`;
-    return entry.status === 'provisional' ? `Mapped photo (visual trial, not production approval) · ${viewName} · ${entry.calibrationId} ${entry.calibrationVersion}.` : base;
+    // Display-only label where present; stable view identity otherwise (never
+    // the inert legacy bucket for flexible views, never a derived label).
+    const viewName = mappingDisplayLabel(entry, `${mappingViewIdOf(entry)} view`);
+    return entry.status === 'provisional'
+      ? `Mapped photo (visual trial, not production approval) · ${viewName}.`
+      : `Mapped photo · ${viewName}.`;
   }
   return diagramPlacementMessage;
 }
@@ -1001,7 +1179,7 @@ function renderPrimaryMode(): void {
   const caption = optionalHook<HTMLElement>('view-caption');
   if (caption) {
     caption.textContent = showingPhoto && activePhoto
-      ? `Mapped photo · ${mappingDisplayLabel(activePhoto.entry, `${activePhoto.entry.view} view`)} · preview only, not to scale`
+      ? `Mapped photo · ${mappingDisplayLabel(activePhoto.entry, `${mappingViewIdOf(activePhoto.entry)} view`)} · preview only, not to scale`
       : showing3d ? '3D availability · reference only' : 'Placement diagram · millimetres';
   }
   mappingStatus.textContent = describeMappingStatus();
@@ -1027,16 +1205,20 @@ function renderPrimaryMode(): void {
       referenceWarning.hidden = true;
     } else if (photoWarning && !showingPhoto && loaded?.project) {
       referenceWarning.hidden = false;
-      referenceWarning.textContent = photoWarning;
+      referenceWarning.textContent = photoWarning === diagramPlacementMessage
+        ? diagramPlacementMessage
+        : 'Photo preview unavailable. Use the diagram to position and size your logo.';
     } else {
       referenceWarning.hidden = true;
     }
   }
-  const shownSide = activePhoto?.entry.view ?? null;
+  // Stable view identity for the pressed state (never the inert legacy
+  // bucket for flexible views, never a display label).
+  const shownViewId = activePhoto ? mappingViewIdOf(activePhoto.entry) : null;
   (Object.keys(sideButtons) as PhotoMappingView[]).forEach((side) => {
     const button = sideButtons[side];
     const mapped = mappedRegionForSide(side);
-    button.setAttribute('aria-pressed', shownSide === side && mapped?.id === selectedRegionId ? 'true' : 'false');
+    button.setAttribute('aria-pressed', shownViewId === side && mapped?.id === selectedRegionId ? 'true' : 'false');
     button.disabled = !usable || !mapped;
     button.title = mapped
       ? `Show the ${side} logo area`
@@ -1044,6 +1226,9 @@ function renderPrimaryMode(): void {
         ? `${side} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`
         : `No ${side} view supplied in this package — no photo invented.`;
   });
+  // Flexible named views render by saved label beside (instead of) the
+  // legacy four buttons; legacy manifests keep the four buttons untouched.
+  syncFlexibleTabs();
   const project = loaded?.project;
   const configuration = project && selectedConfiguration(project);
   if (configuration) {
@@ -1668,6 +1853,8 @@ let loaded: EditorPackage | null = null;
 let baseline: ProjectDocument | null = null;
 let activeConfigurationId = '';
 let selectedRegionId = '';
+/** Stable view identity the customer selected (legacy side or flexible v3 id). Null when no mapped photo is active. */
+let selectedViewId: string | null = null;
 let selectedLogoId = '';
 let selectedPlacementIndex: number | null = null;
 let undoHistory: ProjectDocument[] = [];
@@ -1834,25 +2021,30 @@ function updateButtons(): void {
   const canEdit = usable && configuration !== undefined;
   const hasSelectedPlacement = canEdit && currentPlacement() !== undefined;
   const hasPendingEdits = placementFormDirty || projectInstructionsDirty;
+  const onEmptyModelSide = modelProofVisible() && emptyModelProofSide !== null && !hasSelectedPlacement;
   const structurallyValid = project !== undefined && validateProject(project).ok;
   saveButton.disabled = !usable || saving || modelProofDragging || !structurallyValid || hasPendingEdits;
   submitButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || !structurallyValid || hasPendingEdits || !confirmationFresh || !isGeometryValid(project!);
   confirmButton.disabled = !usable || confirming || saving || drag !== null || photoDrag !== null || modelProofDragging || !structurallyValid || hasPendingEdits || !confirmedByInput.value.trim() || !isGeometryValid(project!);
   updateButton.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || (!projectInstructionsDirty && (!placementFormDirty || !hasSelectedPlacement));
-  addButton.disabled = !canEdit || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || !selectedRegionId || !selectedLogoId;
+  const canStartPlacement = canEdit && !saving && !confirming && drag === null && photoDrag === null && !modelProofDragging && !!selectedRegionId && !!selectedLogoId;
+  addButton.disabled = !canStartPlacement || onEmptyModelSide;
   removeButton.disabled = !canEdit || !hasSelectedPlacement || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
   undoButton.disabled = !canEdit || undoHistory.length === 0 || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
   resetButton.disabled = !canEdit || baseline === null || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || hasPendingEdits;
   for (const control of [configurationSelect, productSelect, variantSelect, regionSelect, logoSelect, placementSelect,
     xInput, yInput, widthInput, heightInput, rotationInput, methodSelect, placementInstructions, projectInstructions,
     confirmedByInput]) control.disabled = !usable || modelProofDragging;
+  if (onEmptyModelSide) {
+    for (const control of [xInput, yInput, widthInput, heightInput, rotationInput, placementInstructions]) control.disabled = true;
+  }
   // Guided shell mirrors: top draft button tracks save; step navigation and
   // the primary/back actions stay enabled whenever a project is usable so
   // the Position -> Size -> Review progression never strands the user.
   if (saveDraftTop) saveDraftTop.disabled = saveButton.disabled;
   if (primaryNext) primaryNext.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
   if (backStep) backStep.disabled = !usable || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging || guideStep === 'edit';
-  if (addAnotherButton) addAnotherButton.disabled = addButton.disabled;
+  if (addAnotherButton) addAnotherButton.disabled = !canStartPlacement;
   modePhotoButton.disabled = !usable || !activePhoto;
   modePhotoButton.title = activePhoto
     ? 'Show the mapped photo preview for this logo area'
@@ -1861,16 +2053,18 @@ function updateButtons(): void {
   mode3dButton.disabled = !usable;
   // Side tabs are navigation, not edits: enabled only for sides with a
   // mapped logo area in this product option — never a silent no-op.
+  // Pressed state uses the stable view identity (never the display label).
   (Object.keys(sideButtons) as PhotoMappingView[]).forEach((side) => {
     const button = sideButtons[side];
     const mapped = usable ? mappedRegionForSide(side) : undefined;
     button.disabled = !usable || !mapped;
-    button.setAttribute('aria-pressed', activePhoto?.entry.view === side && mapped?.id === selectedRegionId ? 'true' : 'false');
+    button.setAttribute('aria-pressed', (activePhoto ? mappingViewIdOf(activePhoto.entry) === side : false) && mapped?.id === selectedRegionId ? 'true' : 'false');
     if (!usable) button.title = 'Open a project first.';
     else if (mapped) button.title = `Show the ${side} logo area.`;
     else if (legacySidePresent(side)) button.title = `${side} photo is present but not mapped to a logo area — reference only; editing uses the measured diagram.`;
     else button.title = `No ${side} view supplied in this package — no photo invented.`;
   });
+  syncFlexibleTabs();
   const stepBlocked = !usable || loading || saving || confirming || drag !== null || photoDrag !== null || modelProofDragging;
   if (stepEditButton) stepEditButton.disabled = stepBlocked;
   if (stepReviewButton) stepReviewButton.disabled = stepBlocked;
@@ -2248,7 +2442,7 @@ function renderReview(): void {
   referenceReview.textContent = references.join('\n');
 }
 
-function renderAll(): void {
+function renderAll(alignModelCamera = true): void {
   const project = loaded?.project;
   root.classList.toggle('is-empty', !project);
   dropzone.hidden = project !== undefined;
@@ -2262,6 +2456,7 @@ function renderAll(): void {
     activePhoto = null;
     photoWarning = null;
     photoNatural = null;
+    selectedViewId = null;
     revokePhotoUrl();
     updateConfirmationState();
     renderSelectorOptions();
@@ -2275,7 +2470,7 @@ function renderAll(): void {
     renderLogoChips();
     renderAreaChips();
     updateUnsavedWarning();
-    refreshModelProof();
+    refreshModelProof(alignModelCamera);
     renderPrimaryMode();
     renderPhotoOverlay();
     void refreshShowcase();
@@ -2301,7 +2496,7 @@ function renderAll(): void {
   renderLogoChips();
   renderAreaChips();
   updateUnsavedWarning();
-  refreshModelProof();
+  refreshModelProof(alignModelCamera);
   renderPrimaryMode();
   renderPhotoOverlay();
   void refreshShowcase();
@@ -2543,6 +2738,8 @@ async function loadProjectSource(
     selectedLogoId = selectedPlacementIndex !== null
       ? firstConfiguration?.placements[0]?.logoId ?? ''
       : parsed.project.logos[0]?.id ?? '';
+    selectedViewId = null;
+    emptyModelProofSide = null;
     loading = false;
     stateGeneration += 1;
     confirmationFresh = false;
@@ -2715,6 +2912,7 @@ async function confirmCurrentRevision(): Promise<void> {
 }
 
 function contextChanged(): void {
+  emptyModelProofSide = null;
   if (photoDrag) cancelPhotoDrag('Moving stopped because you switched to something else. Your saved logo is unchanged.');
   if (placementFormDirty || projectInstructionsDirty) setStatus('You typed something that was not applied yet — it was discarded because you switched to something else.');
   placementFormDirty = false;
@@ -2748,16 +2946,17 @@ function chooseProductOrVariant(productId: string, variantId: string): void {
   installMutation(next, `Added an empty ${productId} / ${variantId} product set as version ${next.revision}.`);
 }
 
-function setSelectedPlacement(index: number | null): void {
+function setSelectedPlacement(index: number | null, alignModelCamera = true): void {
   const project = loaded?.project;
   const configuration = project && selectedConfiguration(project);
   const placement = index !== null ? configuration?.placements[index] : undefined;
   selectedPlacementIndex = index;
   if (placement) {
+    emptyModelProofSide = null;
     selectedRegionId = placement.regionId;
     selectedLogoId = placement.logoId;
   }
-  renderAll();
+  renderAll(alignModelCamera);
 }
 
 function renderDragPreview(current: DragState): void {
@@ -3440,7 +3639,7 @@ primaryNext?.addEventListener('click', () => {
     applyPendingEdits();
     if (hasUnsavedEdits()) return;
   }
-  if (guideStep === 'edit' && !currentPlacement()) {
+  if (guideStep === 'edit' && !currentPlacement() && !(modelProofVisible() && emptyModelProofSide)) {
     addButton.click();
     if (!currentPlacement()) return;
   }
@@ -3449,6 +3648,7 @@ primaryNext?.addEventListener('click', () => {
 addAnotherButton?.addEventListener('click', () => {
   if (!loaded || loading || saving || confirming || drag || photoDrag || modelProofDragging) return;
   if (hasUnsavedEdits()) { applyPendingEdits(); if (hasUnsavedEdits()) return; }
+  emptyModelProofSide = null;
   selectedPlacementIndex = null;
   guideStep = 'edit';
   renderAll();

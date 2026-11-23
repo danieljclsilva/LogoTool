@@ -66,6 +66,7 @@ export async function gotoInspector(page: Page): Promise<void> {
 // Single-entry Logo Station canonical outputs. Declared before BUILDER_URL
 // so the long-standing builder entry below aliases the shipped station.
 export const STATION_FILENAME = 'Logo Station.html';
+export const STATION_EVIDENCE_URL = 'file://…/dist/station/Logo%20Station.html';
 export const STATION_DIR = resolve(process.cwd(), 'dist/station');
 export const STATION_PATH = resolve(STATION_DIR, STATION_FILENAME);
 export const STATION_URL = pathToFileURL(STATION_PATH).href;

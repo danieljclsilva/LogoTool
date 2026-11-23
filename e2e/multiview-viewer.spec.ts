@@ -190,7 +190,7 @@ test('model-only package offers honest 3D with a rendered model and side-tab ava
     await hook(page, 'mode-3d').click();
     await expect(hook(page, 'mode-3d-wrap')).toBeVisible();
     await expect.poll(() => mode3dCanvasRendered(page)).toBe(true);
-    await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');
+    await expect(hook(page, 'model-availability')).toContainText('Interactive 3D model is supplied');
     await expect(hook(page, 'model-availability')).toContainText('No logo artwork is projected');
     await expect(hook(page, 'mode-3d-zoom-in')).toBeEnabled();
     await expect(hook(page, 'mode-3d-zoom-out')).toBeEnabled();
@@ -454,7 +454,7 @@ test('replacement model bytes and an intervening image proxy keep the honest 3D 
     await hook(page, 'mode-3d').click();
     await expect(hook(page, 'mode-3d-canvas')).toBeVisible();
     await expect.poll(() => mode3dPixels(page).then((pixels) => pixels.lit)).toBeGreaterThan(50);
-    await expect(hook(page, 'model-availability')).toContainText('presentation/model.glb');
+    await expect(hook(page, 'model-availability')).toContainText('Interactive 3D model is supplied');
     // A red model with identical container bytes replaces the pane content;
     // an intervening model-less package clears it (never a stale blue canvas).
     await load(page, proxyPackage, 'proxy.logo-project');

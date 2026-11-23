@@ -387,6 +387,13 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
 
     // Measure the front and save one anchor: the replace below must retire
     // exactly this mapping while the superseded bytes stay as evidence.
+    // The in-place disclosure lives inside the Product images & model
+    // popover: collapse it through its real summary so it cannot overlay
+    // the workspace tabs below.
+    const photoDisclosure = page.locator('[data-builder-hook="product-photo-disclosure"]');
+    if (await photoDisclosure.evaluate((element) => (element as HTMLDetailsElement).open)) {
+      await photoDisclosure.locator('> summary').click();
+    }
     await workspace.getByRole('tab', { name: 'Front' }).click();
     await workspace.getByRole('button', { name: 'Set up scale' }).click();
     const guided = builder(page, 'guided-scale');
@@ -427,6 +434,8 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
 
     // Replace the front through its named row: mapping retires, outputs stale.
     await (await shown(page, 'job-step-1')).click();
+    await page.getByRole('button', { name: 'Open setup for Legacy Jacket' }).click();
+    await shown(page, 'product-photo-status');
     const frontPng2 = await syntheticPngBytes(page, '#1d4a6f');
     const frontDigest2 = digestOf(frontPng2);
     await page.locator('[data-in-place-view="front"] input[type="file"]')
@@ -439,6 +448,9 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
     await reopenApprovalBranch(page);
     await expect(approval(page)).toContainText('Customer file created');
     await (await shown(page, 'job-step-1')).click();
+    // Prepare shows the product cards: reopen the visible setup to reach
+    // the workspace tabs again.
+    await page.getByRole('button', { name: 'Open setup for Legacy Jacket' }).click();
     await workspace.getByRole('tab', { name: 'Front' }).click();
     await expect(workspace.getByText('has no scale mapping yet')).toBeVisible();
     if (info.project.name === 'chromium') {
@@ -532,6 +544,9 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
     await expect(builder(page, 'builder-alert')).toContainText('unsaved changes');
     await builder(page, 'builder-alert').getByRole('button', { name: 'Discard changes' }).click();
     await expect(await shown(page, 'source-status')).toContainText('Loaded photo-intake-master.logo-project');
+    // Reopening lands back in Prepare: reopen the visible setup to reach
+    // the rows and tabs again.
+    await page.getByRole('button', { name: 'Open setup for Legacy Jacket' }).click();
     await expect(page.locator('[data-in-place-view="front"] .view-row-name')).toHaveValue('Front view');
     await expect(workspace.getByRole('tab', { name: 'Front' })).toBeVisible();
 
@@ -573,6 +588,16 @@ test('in-place named rows: legacy views keep working, slug views at byte level',
     if (info.project.name === 'chromium') {
       await page.setViewportSize({ width: 480, height: 900 });
       await (await shown(page, 'job-step-1')).click();
+      await page.getByRole('button', { name: 'Open setup for Legacy Jacket' }).click();
+      // The rows live in the Product images & model popover: open the
+      // popover and its disclosure through their real visible controls.
+      if (await page.locator('#product-options-context').evaluate((element) => (element as HTMLElement).hidden)) {
+        await page.locator('[data-builder-hook="editor-files"]').click();
+      }
+      const narrowDisclosure = page.locator('[data-builder-hook="product-photo-disclosure"]');
+      if (!await narrowDisclosure.evaluate((element) => (element as HTMLDetailsElement).open)) {
+        await narrowDisclosure.locator('> summary').click();
+      }
       await expect(page.locator('[data-builder-hook="product-photo-disclosure"]')).toBeVisible();
       await page.screenshot({ path: info.outputPath('photo-intake-narrow.png') });
       await page.setViewportSize({ width: 1280, height: 900 });
@@ -673,6 +698,11 @@ test('five named views calibrate, save, reopen, issue, customer places, review a
     await createBranchIssue(page);
     await expect(approval(page).getByRole('button', { name: 'Save customer file', exact: true })).toBeEnabled();
     await (await shown(page, 'job-step-1')).click();
+    // Prepare shows the product cards: reopen the visible setup, then
+    // reveal the in-place rows through the real status control (it opens
+    // the Product images & model popover and its disclosure).
+    await page.getByRole('button', { name: 'Open setup for Five View Jacket' }).click();
+    await shown(page, 'product-photo-status');
     const crownRow = page.locator('[data-in-place-view="view-1"]');
     await crownRow.locator('input[type="text"]').fill('Crown front');
     await crownRow.getByRole('button', { name: 'Rename view Crown' }).click();
@@ -681,6 +711,9 @@ test('five named views calibrate, save, reopen, issue, customer places, review a
     await reopenApprovalBranch(page);
     await expect(approval(page)).toContainText('Customer file created');
     await (await shown(page, 'job-step-1')).click();
+    // Back in Prepare the workspace hides: reopen the visible setup to
+    // reach the renamed tab again.
+    await page.getByRole('button', { name: 'Open setup for Five View Jacket' }).click();
     // Tab, hook and calibration follow the stable id: the label changes, the
     // measurements do not.
     await expect(workspace.getByRole('tab', { name: 'Crown front' })).toBeVisible();
@@ -730,6 +763,9 @@ test('five named views calibrate, save, reopen, issue, customer places, review a
       await gotoBuilder(fresh);
       await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(masterPath);
       await expect(fresh.locator('[data-builder-hook="source-status"]')).toContainText('.logo-project');
+      // A fresh reopen lands in Prepare: open the visible setup to reach
+      // the restored tabs.
+      await fresh.getByRole('button', { name: 'Open setup for Five View Jacket' }).click();
       const freshWorkspace = builder(fresh, 'product-workspace');
       for (const label of renamedLabels) {
         await expect(freshWorkspace.getByRole('tab', { name: label })).toBeVisible();

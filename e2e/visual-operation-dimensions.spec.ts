@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { addProductAndOpenSetup, BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, STATION_EVIDENCE_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import type { Probe } from './helpers.js';
 
 // Visual operation dimensions acceptance through the operator job shell:
@@ -34,7 +34,7 @@ async function openStation(browser: Browser): Promise<{ context: BrowserContext;
     body: JSON.stringify({
       os: process.platform, release: release(), arch: process.arch,
       browser: browser.browserType().name(), browserVersion: browser.version(),
-      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: BUILDER_URL,
+      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: STATION_EVIDENCE_URL,
     }, null, 2),
   });
   const { context, page, probe } = await openOfflineContext(browser, { width: 1280, height: 900 });
@@ -267,13 +267,15 @@ test('four select-based measurements across two logos print and export', async (
       await fresh.locator('[data-builder-hook="job-landing-open"]').click();
       await fresh.locator('[data-builder-hook="job-open-file"]').setInputFiles(jobPath);
       await expect(fresh.locator('[data-job-step="prepare"]')).toBeVisible();
-      await fresh.locator('[data-builder-hook="job-to-placements"]').click();
-      const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
-      expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(2);
+      await expect(builder(fresh, 'source-status')).toContainText('Loaded');
+      await builder(fresh, 'job-to-placements').click();
+      await ensurePlacementPanel(fresh);
+      const freshHost = builder(fresh, 'job-placement-host');
+      await expect(freshHost.locator('[data-placement-hook^="pw-placement-row-"]')).toHaveCount(2);
       await freshHost.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'crest' }).click();
-      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText()).toBe(crestRows);
+      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText({ timeout: 10_000 })).toBe(crestRows);
       await freshHost.locator('[data-placement-hook^="pw-placement-row-"]', { hasText: 'star' }).click();
-      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText()).toBe(starRows);
+      expect(await freshHost.locator('[data-placement-hook="pw-measurements"]').innerText({ timeout: 10_000 })).toBe(starRows);
       expect(freshProbe.pageErrors).toEqual([]);
       expect(freshProbe.consoleErrors).toEqual([]);
       expect(freshProbe.httpRequests).toEqual([]);

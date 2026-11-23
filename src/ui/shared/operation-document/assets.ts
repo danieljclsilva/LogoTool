@@ -21,6 +21,7 @@ import {
   selectPresentationViews,
 } from "../../customer-editor/presentation-assets.js";
 import {
+  mappingViewIdOf,
   parsePhotoMappings,
   PHOTO_MAPPINGS_PATH,
   validateMappingContext,
@@ -67,7 +68,7 @@ export function evaluateOperationPhotoStates(
       configuration.productId,
       configuration.variantId,
       lookup,
-    ).views.flatMap((view) => (view.view === null ? [] : [{ view: view.view, image: view.imagePath }] as const));
+    ).views.flatMap((view) => (view.view === null ? [] : [{ view: view.view, viewId: view.view, image: view.imagePath }] as const));
     const states: PhotoMappingState[] = [];
     for (const entry of mappings.mappings) {
       if (entry.productId !== configuration.productId) continue;
@@ -90,7 +91,7 @@ export function evaluateOperationPhotoStates(
         imagePath: entry.image,
         status: entry.status,
         regionId: entry.regionId,
-        view: entry.view,
+        view: mappingViewIdOf(entry),
         transform: { ...entry.transform },
       });
     }

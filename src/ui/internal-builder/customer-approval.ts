@@ -67,7 +67,18 @@ import type {
 } from '../../packaging/project-package/index.js';
 import { createSelfContainedHtml } from '../../packaging/self-contained-html/index.js';
 import { displayScopeTitle, displayVariantName } from '../../core/operation-document/index.js';
-import { selectPresentationPackageAssets } from '../customer-editor/presentation-assets.js';
+import {
+  PRESENTATION_MANIFEST_PATH,
+  parsePresentationManifest,
+  selectPresentationPackageAssets,
+  selectPresentationViews,
+} from '../customer-editor/presentation-assets.js';
+import {
+  PHOTO_MAPPINGS_PATH,
+  mappingViewIdOf,
+  parsePhotoMappings,
+  selectPhotoMapping,
+} from '../customer-editor/presentation-photo-mapping.js';
 import { zipSync } from 'fflate';
 
 /** Current operator job, supplied by the lead. */
@@ -108,7 +119,7 @@ export interface CustomerApprovalDeps {
    * override); auto-minted and untouched IDs are never manual. */
   isIssueIdManual(): boolean;
   /** Install the exact validated response content and open Step 2. */
-  useCustomerChanges(project: ProjectDocument, assets: ProjectPackageAsset[]): void;
+  useCustomerChanges(project: ProjectDocument, assets: ProjectPackageAsset[], identity: ApprovalOfficeIdentity | null): void;
 }
 
 export interface CustomerApprovalHandle {
@@ -422,6 +433,82 @@ export function describeApprovalChanges(
   return { groups, geometryOk, geometryText, confirmationText };
 }
 
+const ISSUE_IDENTITY_PATH = 'approval/issue-identity.json';
+
+export type ApprovalOfficeIdentity = Pick<BuilderIdentity, 'customerLabel' | 'jobReference' | 'issuedBy'>;
+
+function approvalPhotoWarnings(
+  project: ProjectDocument,
+  assets: ReadonlyArray<{ path: string; bytes: Uint8Array }>,
+): string[] {
+  const byPath = new Map(assets.map(({ path, bytes }) => [path, bytes]));
+  const preview = byPath.get(PRESENTATION_MANIFEST_PATH);
+  const manifest = parsePresentationManifest(preview);
+  if (!preview) return [];
+  if (!manifest) return ['The job’s photo preview data could not be read.'];
+  const mappings = parsePhotoMappings(byPath.get(PHOTO_MAPPINGS_PATH));
+  const lookup = (path: string) => byPath.get(path);
+  const warnings = new Set<string>();
+  for (const config of project.configurations) {
+    const product = project.products.find((item) => item.id === config.productId);
+    const option = product?.variants.find((item) => item.id === config.variantId);
+    if (!product || !option) continue;
+    const label = [product.name ?? product.id, option.name ?? option.id].join(' · ');
+    const selection = selectPresentationViews(manifest, true, product.id, option.id, lookup);
+    if (selection.warning) warnings.add(`${label} · at least one supplied photo could not be read.`);
+    const declared = selection.views.flatMap((view) => view.view === null ? [] : [
+      { view: view.view, viewId: view.view, image: view.imagePath },
+    ]);
+    const candidates = (mappings?.mappings ?? []).filter((entry) => entry.productId === product.id &&
+      (entry.variantId === undefined || entry.variantId === option.id) && option.regionIds.includes(entry.regionId));
+    for (const view of selection.views) {
+      const current = candidates.some((entry) => {
+        if (entry.image !== view.imagePath || mappingViewIdOf(entry) !== view.view) return false;
+        const region = product.regions.find((item) => item.id === entry.regionId);
+        if (!region) return false;
+        const context = {
+          productId: product.id,
+          variantId: option.id,
+          regionId: region.id,
+          calibrationId: region.calibrationRef.calibrationId,
+          calibrationVersion: region.calibrationRef.version,
+          manifestViews: declared,
+        };
+        return selectPhotoMapping(mappings, true, product.id, option.id, region.id, entry.view,
+          entry.image, lookup, context, entry.viewId).mapping !== null;
+      });
+      if (!current) warnings.add(`${label} · ${view.label ?? view.view ?? 'Product photo'} needs a current photo mapping.`);
+    }
+  }
+  return [...warnings];
+}
+
+function readOfficeIdentity(project: ProjectDocument, assets: readonly ProjectPackageAsset[]): ApprovalOfficeIdentity | null {
+  const sidecar = assets.find((asset) => asset.path === ISSUE_IDENTITY_PATH && asset.kind === 'additional');
+  if (sidecar) {
+    if (sidecar.bytes.length > 8192) return null;
+    try {
+      const data = JSON.parse(new TextDecoder().decode(sidecar.bytes)) as Partial<BuilderIdentity> & { version?: number };
+      const { customerLabel, jobReference, issuedBy } = data;
+      if (data.version === 1 && data.projectId === project.projectId &&
+        typeof customerLabel === 'string' && typeof jobReference === 'string' && typeof issuedBy === 'string' &&
+        [customerLabel, jobReference, issuedBy].every((value) => value === value.trim() && value.length > 0 && value.length <= 256)) {
+        return { customerLabel, jobReference, issuedBy };
+      }
+    } catch { /* Unreadable metadata leaves identity for staff to enter. */ }
+    return null;
+  }
+  const prefix = `Internal-builder issue ${project.projectId} for `;
+  const suffix = '. Confirmation and internal review history reset before customer handoff.';
+  const description = project.description;
+  if (!description?.startsWith(prefix) || !description.endsWith(suffix)) return null;
+  const names = description.slice(prefix.length, -suffix.length).split(' / ');
+  if (names.length !== 2) return null;
+  const reference = names[1]!.split(' by ');
+  if (reference.length !== 2 || [names[0], ...reference].some((value) => !value?.trim() || value.length > 256)) return null;
+  return { customerLabel: names[0]!, jobReference: reference[0]!, issuedBy: reference[1]! };
+}
+
 interface IssuedBranchState {
   jobPart: string;
   format: ApprovalFormat;
@@ -440,6 +527,7 @@ type IssuedHistory = Map<string, string>;
 
 interface ResponseBranchState {
   fileName: string;
+  identity: ApprovalOfficeIdentity | null;
   project: ProjectDocument;
   assets: ProjectPackageAsset[];
   digest: string;
@@ -481,6 +569,9 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
   const summaryLines = el('div', 'muted');
   summaryBox.append(summaryTitle, summaryLines);
 
+  const proofNotice = el('section', 'calibration-warning');
+  proofNotice.setAttribute('aria-label', 'Customer photo availability');
+  proofNotice.hidden = true;
   const formatDetails = document.createElement('details');
   formatDetails.className = 'disclosure';
   const formatSummary = document.createElement('summary');
@@ -582,7 +673,7 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
   backButton.className = 'btn-link';
   backButton.textContent = 'Back to placements';
 
-  host.append(heading, intro, summaryBox, formatDetails, createButton, statusLine, handoffBox, responseBox, backButton);
+  host.append(heading, intro, summaryBox, proofNotice, formatDetails, createButton, statusLine, handoffBox, responseBox, backButton);
 
   const setBusy = (value: boolean): void => {
     busy = value;
@@ -608,6 +699,13 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
   function update(): void {
     if (destroyed) return;
     const job = deps.readJob();
+    const receiving = job === null;
+    heading.textContent = receiving ? 'Open customer response' : 'Send for customer approval';
+    intro.textContent = receiving
+      ? 'Choose the office copy and the file returned by the customer to compare them.'
+      : 'Create the customer file, save the office copy for review, and send the customer file separately.';
+    for (const node of [summaryBox, formatDetails, createButton, statusLine, handoffBox]) node.hidden = receiving;
+    backButton.textContent = receiving ? 'Back to start' : 'Back to placements';
     summaryLines.replaceChildren();
     if (job === null) {
       summaryLines.append(el('p', undefined, 'No job open. Create or open a job to send it for customer approval.'));
@@ -632,6 +730,16 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       issueIdLine.textContent = issueId !== ''
         ? `Issue project ID: ${issueId} (unique per issue; kept under More options).`
         : 'Issue project ID: none yet — create one under More options before creating the customer file.';
+    }
+    proofNotice.replaceChildren();
+    const warnings = job ? approvalPhotoWarnings(job.project, deps.readAdditionalAssets()) : [];
+    proofNotice.hidden = warnings.length === 0;
+    if (warnings.length > 0) {
+      proofNotice.append(el('p', undefined, 'Some photos will use the measured diagram for editing. Check these views in Measurements & areas before issuing a photo proof.'));
+      const list = el('ul');
+      for (const warning of warnings.slice(0, 12)) list.append(el('li', undefined, warning));
+      if (warnings.length > 12) list.append(el('li', undefined, `${warnings.length - 12} more views need attention.`));
+      proofNotice.append(list);
     }
     const stale = isIssuedStale();
     createButton.disabled = busy || job === null;
@@ -734,8 +842,18 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       const additional = [
         ...presentationFiltered,
         ...withKind
-          .filter((asset) => !asset.path.startsWith('presentation/'))
+          .filter((asset) => !asset.path.startsWith('presentation/') && asset.path !== ISSUE_IDENTITY_PATH)
           .map(({ path, bytes }) => ({ path, bytes })),
+        {
+          path: ISSUE_IDENTITY_PATH,
+          bytes: new TextEncoder().encode(JSON.stringify({
+            version: 1,
+            customerLabel: identity.customerLabel,
+            jobReference: identity.jobReference,
+            issuedBy: identity.issuedBy,
+            projectId: identity.projectId,
+          })),
+        },
       ];
       const packageBytes = await createProjectPackage(
         { project: built.project, assets: referenced, additionalAssets: additional },
@@ -883,6 +1001,9 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       const parsed = await parseProjectPackage(bytes, { sha256: deps.sha256Bytes });
       if (myGeneration !== generation) return;
       assertProjectEditorLimits(parsed.project);
+      if (parsed.project.projectId !== baseline.project.projectId) {
+        throw new Error('baseline-project-mismatch: This response belongs to a different customer issue. Open its matching office copy.');
+      }
       const assetErrors = compareAssetBytes(baseline.assets, parsed.assets);
       if (assetErrors.length > 0) {
         throw new Error(`asset comparison differs from the issued baseline: ${assetErrors.join('; ')}`);
@@ -896,8 +1017,10 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       }
       if (myGeneration !== generation) return;
       const described = describeApprovalChanges(baseline.project, outcome.project, digest);
+      const identity = readOfficeIdentity(baseline.project, baseline.assets);
       response = {
         fileName: file.name,
+        identity,
         project: outcome.project,
         assets: parsed.assets.slice(),
         digest,
@@ -907,7 +1030,9 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
       changesBox.replaceChildren();
       const confirmationLine = el('p', undefined, described.confirmationText);
       const geometryLine = el('p', undefined, described.geometryText);
-      changesBox.append(confirmationLine, geometryLine);
+      if (identity) changesBox.append(el('p', undefined, `Office copy: ${identity.customerLabel} · ${identity.jobReference}`));
+      const scope = summarizeApprovalScope(baseline.project);
+      changesBox.append(el('p', undefined, `Issued scope: ${scope.productCount} product(s), ${scope.optionCount} option(s).`), confirmationLine, geometryLine);
       for (const group of described.groups) {
         const section = el('section');
         section.append(el('h4', undefined, group.title));
@@ -932,7 +1057,7 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
     decisionBox.hidden = true;
     changesBox.replaceChildren();
     responseStatus.textContent = 'No customer response opened.';
-    deps.useCustomerChanges(snapshot.project, snapshot.assets);
+    deps.useCustomerChanges(snapshot.project, snapshot.assets, snapshot.identity);
   }
 
   function keepJob(): void {

@@ -11,7 +11,7 @@ import { createProjectPackage, parseProjectPackage } from '../src/packaging/proj
 import { createProjectFromDefinitions } from '../src/core/project-builder/create-project.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 import {
-  BUILDER_URL,
+  STATION_EVIDENCE_URL,
   STATION_DIR,
   STATION_FILENAME,
   assertStationPresent,
@@ -124,7 +124,7 @@ test('station entry is the single obvious staff page with no legacy sidecars', a
     body: JSON.stringify({
       os: process.platform, release: release(), arch: process.arch,
       browser: browser.browserType().name(), browserVersion: browser.version(),
-      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: BUILDER_URL,
+      viewport: { width: 1280, height: 900 }, offline: true, entryPoint: STATION_EVIDENCE_URL,
     }, null, 2),
   });
   await assertStationPresent();

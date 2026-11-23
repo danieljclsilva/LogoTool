@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, gotoBuilder, revealBuilderControl, ensurePlacementPanel, chooseModelTool } from './helpers.js';
 import { parseProjectPackage } from '../src/packaging/project-package/index.js';
 import type { ProjectPackageSha256 } from '../src/packaging/project-package/index.js';
 
@@ -700,6 +700,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     // with no measurement. Structurally valid but incomplete → explicit
     // Print draft with DRAFT markings, complete print still disabled.
     await reviewHost.getByRole('button', { name: 'Back to placements' }).click();
+    await ensurePlacementPanel(page);
     await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
     await host.getByRole('button', { name: 'Remove placement' }).click();
     await ensurePlacementPanel(page);
@@ -720,6 +721,7 @@ test('invalid footprint stays scoped: actionable issue, complete print blocked, 
     // Unapplied edits never leak: editing without Apply keeps review gated,
     // and Save job offers Apply / Discard / Keep editing.
     await reviewHost.getByRole('button', { name: 'Back to placements' }).click();
+    await ensurePlacementPanel(page);
     await host.locator('[data-placement-hook^="pw-placement-row-"]').first().click();
     await pw(page, 'pw-width').fill('95');
     await page.locator('[data-builder-hook="job-step-3"]').click();
@@ -748,6 +750,7 @@ test('zero-placement option stays present and prints its explicit statement', as
     await addProductAndOpenSetup(page);
     await expect(await shown(page, 'product-status')).toContainText('Added');
     await setupProductWithAnchor(page, 'Chest center');
+    await (await shown(page, 'job-step-1')).click();
     await checkProductCard(page, 'Team jacket');
     await (await shown(page, 'job-to-placements')).click();
     const host = builder(page, 'job-placement-host');
@@ -961,11 +964,12 @@ test('primary span calibration drives the photo overlay with no Advanced mapping
     await guided.locator('[data-guided="span-create"]').click();
     await expect(await shown(page, 'workspace-status')).toContainText('Calibration created from the reference span');
     const stage = workspace.locator('.product-setup-overlay').first();
-    const stageBox = (await stage.boundingBox())!;
     for (const [fx, fy] of [[0.08, 0.3], [0.28, 0.3], [0.28, 0.7], [0.08, 0.7]] as const) {
+      await stage.scrollIntoViewIfNeeded();
+      const stageBox = (await stage.boundingBox())!;
       await stage.click({ position: { x: Math.round(stageBox.width * fx), y: Math.round(stageBox.height * fy) } });
     }
-    await workspace.getByRole('button', { name: 'Finish safe area' }).click();
+    await stage.press('Enter');
     await workspace.getByRole('button', { name: 'Save product setup' }).click();
     await expect(workspace.getByText(/Saved .* \([0-9]+ safe-area corners, [0-9]+ anchors?\)/)).toBeVisible();
     const crestPng = await syntheticPngBytes(page, '#d4af37', 200, 120);
@@ -1078,6 +1082,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
       await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     };
     const ms = (name: string) => modelPane.locator(`[data-model-setup-hook="${name}"]`);
+    await ms('context-measure').click();
     await ms('ref-pick-a').click();
     await surfaceClick(0.5, 0.5);
     await expect(ms('reference-readout')).toContainText('A (');
@@ -1086,8 +1091,8 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     await ms('ref-mm').fill('470');
     await ms('ref-fit').click();
     await expect(ms('reference-scale')).toContainText('scale 1 unit =');
+    await chooseModelTool(page, 'freehand');
     await ms('area-name').fill('Chest');
-    await ms('tool-freehand').click();
     await surfaceClick(0.44, 0.44);
     await surfaceClick(0.56, 0.44);
     await surfaceClick(0.56, 0.52);
@@ -1103,7 +1108,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
     const host = builder(page, 'job-placement-host');
     // Exact saved model calibration maps artwork onto the product, without
     // requiring a photograph or changing the canonical region millimetres.
-    await expect(host).toContainText('Place logos on the product');
+    await expect(host).toContainText('Set up & place logos');
     await expect(host.locator('[data-placement-hook="pw-model-canvas"]')).toBeVisible();
     await expect(host.locator('[data-placement-hook="pw-overlay-image"]')).toHaveCount(0);
     await ensurePlacementPanel(page);
@@ -1145,7 +1150,7 @@ test('direct model-only job: calibrated diagram placement without any photo', as
       await fresh.locator('[data-builder-hook="job-to-placements"]').click();
       const freshHost = fresh.locator('[data-builder-hook="job-placement-host"]');
       expect(await freshHost.locator('[data-placement-hook^="pw-placement-row-"]').count()).toBe(1);
-      await expect(freshHost).toContainText('Place logos on the product');
+      await expect(freshHost).toContainText('Set up & place logos');
       await expect(freshHost.locator('[data-placement-hook="pw-model-workbench"]')).toHaveAttribute('data-artwork-count', /[1-9]/);
       expectOfflineClean(freshProbe);
     } finally {
