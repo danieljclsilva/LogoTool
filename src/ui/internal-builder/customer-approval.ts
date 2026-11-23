@@ -77,7 +77,7 @@ import {
   PHOTO_MAPPINGS_PATH,
   mappingViewIdOf,
   parsePhotoMappings,
-  validateMappingContext,
+  selectPhotoMapping,
 } from '../customer-editor/presentation-photo-mapping.js';
 import { zipSync } from 'fflate';
 
@@ -446,31 +446,36 @@ function approvalPhotoWarnings(
   const manifest = parsePresentationManifest(preview);
   if (!preview) return [];
   if (!manifest) return ['The job’s photo preview data could not be read.'];
-  const mappings = parsePhotoMappings(byPath.get(PHOTO_MAPPINGS_PATH))?.mappings ?? [];
+  const mappings = parsePhotoMappings(byPath.get(PHOTO_MAPPINGS_PATH));
+  const lookup = (path: string) => byPath.get(path);
   const warnings = new Set<string>();
   for (const config of project.configurations) {
     const product = project.products.find((item) => item.id === config.productId);
     const option = product?.variants.find((item) => item.id === config.variantId);
     if (!product || !option) continue;
     const label = [product.name ?? product.id, option.name ?? option.id].join(' · ');
-    const selection = selectPresentationViews(manifest, true, product.id, option.id, (path) => byPath.get(path));
+    const selection = selectPresentationViews(manifest, true, product.id, option.id, lookup);
     if (selection.warning) warnings.add(`${label} · at least one supplied photo could not be read.`);
     const declared = selection.views.flatMap((view) => view.view === null ? [] : [
       { view: view.view, viewId: view.view, image: view.imagePath },
     ]);
+    const candidates = (mappings?.mappings ?? []).filter((entry) => entry.productId === product.id &&
+      (entry.variantId === undefined || entry.variantId === option.id) && option.regionIds.includes(entry.regionId));
     for (const view of selection.views) {
-      const candidates = mappings.filter((entry) =>
-        entry.image === view.imagePath && mappingViewIdOf(entry) === view.view);
       const current = candidates.some((entry) => {
+        if (entry.image !== view.imagePath || mappingViewIdOf(entry) !== view.view) return false;
         const region = product.regions.find((item) => item.id === entry.regionId);
-        return region !== undefined && option.regionIds.includes(region.id) && validateMappingContext(entry, {
+        if (!region) return false;
+        const context = {
           productId: product.id,
           variantId: option.id,
           regionId: region.id,
           calibrationId: region.calibrationRef.calibrationId,
           calibrationVersion: region.calibrationRef.version,
           manifestViews: declared,
-        }).length === 0;
+        };
+        return selectPhotoMapping(mappings, true, product.id, option.id, region.id, entry.view,
+          entry.image, lookup, context, entry.viewId).mapping !== null;
       });
       if (!current) warnings.add(`${label} · ${view.label ?? view.view ?? 'Product photo'} needs a current photo mapping.`);
     }
