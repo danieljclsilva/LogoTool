@@ -454,3 +454,31 @@ test('artworkPhotoMatrix refuses degenerate inputs with null', async () => {
   assert.equal(artworkPhotoMatrix(good, 200, 160, { ...placement, xMm: Number.NaN }), null);
   assert.equal(artworkPhotoMatrix(good, 0, 160, placement), null);
 });
+
+test('flexible named views bind by stable viewId carried in manifestViews, never labels', () => {
+  // Office-copy shape: manifest v3 views view-1/view-2 (labels Front/Back),
+  // mappings with matching viewId plus an inert legacy `view: front` bucket.
+  const context: PhotoMappingContext = {
+    productId: 'p',
+    variantId: 'v',
+    regionId: 'r1',
+    calibrationId: 'cal-1',
+    calibrationVersion: '3',
+    manifestViews: [
+      { view: 'view-1', viewId: 'view-1', image: 'presentation/view-1.png' },
+      { view: 'view-2', viewId: 'view-2', image: 'presentation/view-2.png' },
+    ],
+  };
+  const first = flipEntry({ regionId: 'r1', view: 'front', viewId: 'view-1', image: 'presentation/view-1.png', label: 'Front' });
+  const second = flipEntry({ regionId: 'r1', view: 'front', viewId: 'view-2', image: 'presentation/view-2.png', label: 'Back' });
+  assert.deepEqual(validateMappingContext(first, context), []);
+  assert.deepEqual(validateMappingContext(second, context), []);
+  // A relabel never invalidates: binding is image + stable identity only.
+  assert.deepEqual(validateMappingContext({ ...first, label: 'Renamed' }, context), []);
+  // A mismatched stable identity stays stale and names the stable id (never a label).
+  const wrong = validateMappingContext({ ...first, viewId: 'view-9' }, context);
+  assert.ok(wrong.some((message) => message.includes('not a declared preview view')));
+  assert.ok(wrong.some((message) => message.includes('view-9')));
+  // A legacy bucket alone never binds a flexible view.
+  assert.ok(validateMappingContext(flipEntry({ regionId: 'r1', view: 'front', image: 'presentation/view-1.png' }), context).length > 0);
+});

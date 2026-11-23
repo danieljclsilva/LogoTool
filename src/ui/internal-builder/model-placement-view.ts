@@ -35,7 +35,8 @@ export interface ModelPlacementItem {
    */
   lock?: { ratio: number } | null;
 }
-interface ViewData { anchors?: Array<{ id: string; model: ModelPoint; regionId?: string }>; scene: ModelPlacementScene; items: ModelPlacementItem[]; selectedIndex: number; activeRegionId: string | null; revision: string; status: string }
+type ProductSide = 'front' | 'back';
+interface ViewData { alignSelection?: boolean; anchors?: Array<{ id: string; model: ModelPoint; regionId?: string }>; scene: ModelPlacementScene; items: ModelPlacementItem[]; selectedIndex: number; activeRegionId: string | null; revision: string; status: string }
 /** Geometry patch for a committed resize/rotate/move. Only changed fields are set. */
 export interface ModelPlacementCommitPatch { pos?: { xMm: number; yMm: number }; widthMm?: number; heightMm?: number; rotationDeg?: number }
 export interface ModelPlacementView {
@@ -64,6 +65,8 @@ export interface ModelPlacementSharedSurface {
 /** Persistent camera + local raster assets. Only release commits canonical mm. */
 export function createModelPlacementView(callbacks: {
   select(index: number): void;
+  canChooseSide?(): boolean;
+  chooseSide?(side: ProductSide, visibleRegionIds: ReadonlySet<string>): void;
   anchor?(regionId: string, pos: { xMm: number; yMm: number }, name: string): void;
   move(index: number, pos: { xMm: number; yMm: number }): void;
   status(message: string): void;
@@ -161,8 +164,37 @@ export function createModelPlacementView(callbacks: {
   const pan = button('Pan', () => { anchorName = null; forceRotate = false; placeMode = false; panMode = true; syncTools(); }, 'pw-model-pan');
   const move = button('Move logo', () => { anchorName = null; forceRotate = false; placeMode = true; panMode = false; syncTools(); }, 'pw-model-move');
   move.title = 'Select or move: click a logo to select it, drag it to move it';
-  button('Front', () => { if (sharedActive()) viewerOf()?.setViewSide('front'); }, 'pw-model-front');
-  button('Back', () => { if (sharedActive()) viewerOf()?.setViewSide('back'); }, 'pw-model-back');
+  function surfaceVisible(live: ModelViewer, region: ModelPlacementRegion): boolean {
+    const anchor = region.pointsModel[0];
+    return (anchor !== undefined && live.isSurfaceFacing(anchor, region.frame.normal) === true) ||
+      live.isSurfaceFacing(region.frame.origin, region.frame.normal) === true;
+  }
+  function alignSelectedSurface(live: ModelViewer | null): void {
+    const selected = data?.items.find((item) => item.index === data?.selectedIndex);
+    if (!live || !selected || !data?.alignSelection) return;
+    const region = regionFor(selected);
+    if (!region || surfaceVisible(live, region)) return;
+    const original = live.getCameraState();
+    if (!original) return;
+    for (const side of ['front', 'back'] as const) {
+      live.setViewSide(side);
+      if (surfaceVisible(live, region)) return;
+    }
+    live.setCameraState(original);
+  }
+  function showSide(side: ProductSide): void {
+    const live = viewerOf();
+    if (!sharedActive() || !live || active || callbacks.canChooseSide?.() === false) return;
+    live.setViewSide(side);
+    if (callbacks.chooseSide && data && ready) {
+      const placedAreas = new Set(data.items.map((item) => item.placement.regionId));
+      const visibleIds = new Set(data.scene.regions.filter((region) =>
+        placedAreas.has(region.id) && surfaceVisible(live, region)).map((region) => region.id));
+      callbacks.chooseSide(side, visibleIds);
+    }
+  }
+  button('Front', () => showSide('front'), 'pw-model-front');
+  button('Back', () => showSide('back'), 'pw-model-back');
   button('Fit', () => { if (sharedActive()) viewerOf()?.fitCurrentView(); }, 'pw-model-fit');
   const focusArea = button('Focus this area', () => {
     if (!sharedActive()) return;
@@ -184,8 +216,18 @@ export function createModelPlacementView(callbacks: {
     }
   }, 'pw-model-focus-area');
   focusArea.title = 'Focus this area in the 3D preview (camera only)';
-  button('−', () => zoom(-1), 'pw-model-zoom-out').setAttribute('aria-label', 'Zoom out product');
-  button('+', () => zoom(1), 'pw-model-zoom-in').setAttribute('aria-label', 'Zoom in product');
+  const zoomOut = button('−', () => zoom(-1), 'pw-model-zoom-out');
+  const zoomIn = button('+', () => zoom(1), 'pw-model-zoom-in');
+  zoomOut.setAttribute('aria-label', 'Zoom out product');
+  zoomIn.setAttribute('aria-label', 'Zoom in product');
+  if (customer) {
+    const zoomGroup = document.createElement('div');
+    zoomGroup.className = 'model-placement-zoom';
+    zoomGroup.setAttribute('role', 'group');
+    zoomGroup.setAttribute('aria-label', 'Product zoom');
+    bar.append(zoomGroup);
+    zoomGroup.append(zoomOut, zoomIn);
+  }
   const expand = button('Enlarge workspace', () => { callbacks.expand(); syncTools(); }, 'pw-model-expand');
   const details = button('Placement details', () => { details.setAttribute('aria-expanded', String(callbacks.toggleDetails())); }, 'pw-model-details');
   details.classList.add('model-placement-details-button'); details.setAttribute('aria-expanded', 'false');
@@ -996,6 +1038,7 @@ export function createModelPlacementView(callbacks: {
         return;
       }
       if (active && (data?.revision !== next.revision || data?.selectedIndex !== next.selectedIndex || data?.activeRegionId !== next.activeRegionId)) cancel();
+      const selectionChanged = data?.activeRegionId !== next.activeRegionId;
       data = next;
       for (const src of images.keys()) if (!next.items.some((item) => item.imageSrc === src)) images.delete(src);
       if (key !== next.scene.key) {
@@ -1011,10 +1054,11 @@ export function createModelPlacementView(callbacks: {
           ready = result.kind === 'ready';
           if (!ready) { state.textContent = 'The product model could not be opened.'; return; }
           try { viewer?.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
-          if (customer) { viewer?.setViewSide('front'); viewer?.fitCurrentView(); }
+          if (customer) { viewer?.setViewSide('front'); viewer?.fitCurrentView(); alignSelectedSurface(viewer); }
           paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles(); element.dataset.ready = 'true';
         });
       } else {
+        if (customer && selectionChanged) alignSelectedSurface(viewer);
         try { viewer?.setLighting(normalizeModelLighting(next.scene.lighting)); } catch { /* lighting is advisory */ }
         paintAreas(); paint(); positionOverlay(); syncTools(); syncHandles();
       }

@@ -56,9 +56,52 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(`cus
     await page.screenshot({path:info.outputPath('customer-model-proof.png')});
     await c(page,'file-input').setInputFiles(info.outputPath('edited.logo-project'));await expect(m(page,'pw-model-workbench')).toHaveAttribute('data-artwork-count','2');
     expect(Number(await c(page,'width-mm').inputValue())).toBeCloseTo(after.widthMm,8);
-    await m(page,'pw-model-back').click();await expect(m(page,'pw-model-corner-0')).toBeHidden();
+    await m(page,'pw-model-back').click();
+    await expect(c(page,'artwork-name')).toHaveText('Back artwork');
+    await expect(c(page,'width-mm')).toHaveValue('40');
+    await expect(m(page,'pw-model-corner-0')).toBeVisible();
+    await m(page,'pw-model-front').click();
+    await expect(c(page,'artwork-name')).toHaveText('Chest artwork');
+    expect(Number(await c(page,'width-mm').inputValue())).toBeCloseTo(after.widthMm,8);
+    const afterNavigation=await saveDraft(page,info.outputPath('after-navigation.logo-project'));
+    expect(afterNavigation.project.configurations).toEqual(draft.project.configurations);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);assertCleanProbe(probe);
   }finally{await context.close();}
+});
+
+test('an empty 3D side clears the old selection until a logo is chosen', async ({ browser }, info) => {
+  const { context, page, probe } = await openOfflineContext(browser, { width: 390, height: 844 });
+  try {
+    const fixture = await customerModelPackage(await artwork(page));
+    const parsed = await parseProjectPackage(fixture.bytes, { sha256 });
+    parsed.project.configurations[0]!.placements.splice(1);
+    const bytes = await createProjectPackage({
+      project: parsed.project,
+      assets: parsed.assets.filter((asset) => asset.kind === 'referenced'),
+      additionalAssets: parsed.assets.filter((asset) => asset.kind === 'additional'),
+    }, { sha256 });
+    const path = info.outputPath('single-sided.html');
+    await writeFile(path, createSelfContainedHtml({
+      html: await readFile(resolve('dist/dev/customer-configurator.html'), 'utf8'), projectPackage: bytes,
+    }));
+    await page.goto(pathToFileURL(path).href);
+    await expect(m(page, 'pw-model-workbench')).toHaveAttribute('data-ready', 'true');
+    await m(page, 'pw-model-back').click();
+    await expect(m(page, 'pw-model-status')).toContainText('No logo placed on the back');
+    await expect(c(page, 'width-mm')).toBeDisabled();
+    await expect(m(page, 'pw-model-corner-0')).toBeHidden();
+    await c(page, 'primary-next').click();
+    await expect(c(page, 'review')).toContainText('Chest artwork');
+    const draft = await saveDraft(page, info.outputPath('empty-side-review.logo-project'));
+    expect(draft.project.configurations[0]!.placements).toHaveLength(1);
+    await c(page, 'step-edit').click();
+    await m(page, 'pw-model-front').click();
+    await expect(c(page, 'width-mm')).toBeEnabled();
+    await expect(c(page, 'artwork-name')).toHaveText('Chest artwork');
+    assertCleanProbe(probe);
+  } finally {
+    await context.close();
+  }
 });
 
 test('model without mapping stays honest and does not invent a customer edit surface',async({browser},info)=>{
@@ -135,6 +178,28 @@ async function runAdoptionFlow(
   expect(returned.project.products).toEqual(office.project.products);
   expect(returned.project.configurations[0]!.placements[0]!.instructions).toBe(note);
   expect(returned.project.configurations[0]!.placements[0]!.widthMm).toBe(48);
+  if (!preselectPlacement) {
+    const fresh = await page.context().newPage();
+    try {
+      await gotoBuilder(fresh);
+      const chooser = fresh.waitForEvent('filechooser');
+      await fresh.getByRole('button', { name: 'Open customer response', exact: true }).click();
+      await (await chooser).setFiles(officePath);
+      const freshBranch = fresh.locator('[data-job-branch=approval]');
+      await expect(freshBranch.getByRole('heading', { name: 'Open customer response' })).toBeVisible();
+      await expect(freshBranch).toContainText('Office copy loaded');
+      await fresh.getByLabel('Choose the returned customer file').setInputFiles(returnPath);
+      await expect(freshBranch).toContainText('Office copy: Synthetic customer · SYN-MODEL-PROOF');
+      await freshBranch.getByRole('button', { name: 'Use customer changes' }).click();
+      await fresh.locator('[data-builder-hook=job-step-3]').click();
+      const summary = fresh.locator('[data-doc-review-rail]');
+      await expect(summary).toContainText('Customer: Synthetic customer');
+      await expect(summary).toContainText('Job: SYN-MODEL-PROOF');
+      await expect(summary).toContainText('Products: 1 · Options: 1 · Placements: 2');
+    } finally {
+      await fresh.close();
+    }
+  }
   const originalMapping = office.assets.find(a => a.path.includes('setup-calibration'))!;
   expect(returned.assets.find(a => a.path === originalMapping.path)?.bytes).toEqual(originalMapping.bytes);
   const alteredAssets = returned.assets.map(a => a.path === originalMapping.path ? { ...a, bytes: new TextEncoder().encode('{}') } : a);

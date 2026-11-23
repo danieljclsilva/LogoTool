@@ -25,6 +25,8 @@ export interface CustomerProofAsset {
 
 export interface CustomerModelProofCallbacks {
   select(index: number): void;
+  canChooseSide(): boolean;
+  chooseSide(side: 'front' | 'back', visibleRegionIds: ReadonlySet<string>): void;
   move(index: number, pos: { xMm: number; yMm: number }): void;
   commit(index: number, patch: ModelPlacementCommitPatch): void;
   preview(index: number, patch: ModelPlacementCommitPatch): void;
@@ -76,6 +78,8 @@ export function mountCustomerModelProof(
     customer: true,
     interaction: callbacks.interaction,
     select: (index) => callbacks.select(index),
+    canChooseSide: callbacks.canChooseSide,
+    chooseSide: callbacks.chooseSide,
     move: (index, pos) => callbacks.move(index, pos),
     commit: (index, patch) => callbacks.commit(index, patch),
     preview: (index, patch) => callbacks.preview(index, patch),

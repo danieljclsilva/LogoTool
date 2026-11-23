@@ -282,7 +282,7 @@ test('department-authored sheet prints one A4 page with operator data', async ({
     await expect(preview).toContainText('Chest center, right edge, horizontal');
     await expect(preview).not.toContainText('DRAFT');
     await expect(preview.locator('.opsheet')).toHaveCount(1);
-    expect(await preview.locator('figure.opsheet-photo figcaption').evaluateAll((els) => els.map((e) => e.textContent))).toEqual([]);
+    await expect(preview.locator('figure.opsheet-photo figcaption')).toHaveText(['Front']);
     await page.screenshot({ path: info.outputPath('operation-sheet-desktop.png'), fullPage: true });
 
     await expect(reviewHost.getByRole('button', { name: 'Print / save PDF' })).toBeEnabled();

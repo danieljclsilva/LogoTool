@@ -2067,7 +2067,6 @@ export function createModelSetupView(
     upClient: { x: number; y: number },
   ): { ring: SetupVec3[] } | { error: string } => {
     const PER_EDGE = 8;
-    const total = PER_EDGE * 4;
     const corners = [
       { x: downClient.x, y: downClient.y },
       { x: upClient.x, y: downClient.y },
@@ -2091,7 +2090,7 @@ export function createModelSetupView(
         }
         if (hit === null) {
           return {
-            error: `That drag leaves the model surface (perimeter sample ${edge * PER_EDGE + step + 1} of ${total} missed) — keep the whole rectangle on one surface patch. Previous draft kept.`,
+            error: 'Part of the rectangle fell outside the model. Draw a smaller rectangle on one continuous patch. Previous draft kept.',
           };
         }
         const last = ring[ring.length - 1] ?? null;

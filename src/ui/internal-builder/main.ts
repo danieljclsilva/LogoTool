@@ -490,8 +490,10 @@ const modelSetupBox = hook<HTMLElement>('model-setup');
 const modelSetupSave = hook<HTMLButtonElement>('model-setup-save');
 const modelSetupProductsToggle = hook<HTMLInputElement>('model-setup-products-toggle');
 const modelSetupStatus = hook<HTMLElement>('model-setup-status');
-function alertBuilder(message = '', details?: string): void {
+function alertBuilder(message = '', details?: string, tone?: 'success'): void {
   builderAlert.replaceChildren();
+  builderAlert.classList.toggle('builder-success', tone === 'success');
+  builderAlert.setAttribute('role', tone === 'success' ? 'status' : 'alert');
   if (!message && !details) {
     builderAlert.hidden = true;
     return;
@@ -588,7 +590,10 @@ function defaultPlacementSelection(): void {
 }
 function setJobStep(next: JobStep): void {
   productOptions.close();
-  if (next !== 'placements') placementHandle?.suspend();
+  if (next !== 'placements') {
+    placementHandle?.suspend();
+    if (builderAlert.classList.contains('builder-success')) alertBuilder();
+  }
   if (next !== 'prepare' && next !== 'placements') { modelExpansion.close(); editorOpen = false; }
   if (next === 'landing') editorOpen = false;
   if (next !== 'landing' && next !== 'approval' && source === null) next = 'landing';
@@ -3662,24 +3667,56 @@ function jobLogoDataUrl(logoId: string): { src: string; alt: string } | null {
     return { src: url, alt: name || logoId };
   } catch { return null; }
 }
-function jobViewRefs(productId: string): Array<{ id: string; label: string; imagePath: string }> {
+function jobViewRefs(productId: string, variantId?: string): Array<{ id: string; label: string; imagePath: string }> {
   if (!source) return [];
   const manifestBytes = jobManifestBytes();
   const manifest = manifestBytes ? parsePresentationManifest(manifestBytes) : null;
   const present = manifestBytes !== undefined;
   const lookup = jobPresentationLookup();
   const seen = new Map<string, { label: string; imagePath: string }>();
-  const variants = [...new Set(source.project.configurations.filter((config) => config.productId === productId).map((config) => config.variantId))];
-  for (const variantId of (variants.length > 0 ? variants : [''])) {
-    for (const view of selectPresentationViews(manifest, present, productId, variantId, lookup).views) {
+  // Variant-scoped lookup when the caller knows the option: another option's
+  // views never leak into this product/option's tab list. Without a variant
+  // (legacy callers) the previous product-wide union is kept.
+  const variants = variantId !== undefined && variantId !== ''
+    ? [variantId]
+    : [...new Set(source.project.configurations.filter((config) => config.productId === productId).map((config) => config.variantId))];
+  for (const scoped of (variants.length > 0 ? variants : [''])) {
+    for (const view of selectPresentationViews(manifest, present, productId, scoped, lookup).views) {
       const id = view.view ?? 'default';
       if (!seen.has(id)) seen.set(id, { label: view.label ?? id, imagePath: view.imagePath });
     }
   }
   return [...seen.entries()].map(([id, ref]) => ({ id, ...ref }));
 }
-function jobProductViews(productId: string): Array<{ id: string; label: string }> {
-  return jobViewRefs(productId).map(({ id, label }) => ({ id, label }));
+function jobProductViews(productId: string, variantId?: string): Array<{ id: string; label: string }> {
+  return jobViewRefs(productId, variantId).map(({ id, label }) => ({ id, label }));
+}
+/**
+ * Stable view identity bound to one product/option region via the session
+ * photo mappings (staged over packaged, exact-variant over product-wide).
+ * Identity only: a stale calibration still binds (the overlay reader decides
+ * photo-vs-diagram), and unmapped regions return null so the diagram
+ * fallback stays deliberate. Null when the region is unknown.
+ */
+function jobRegionViewId(productId: string, variantId: string, regionId: string): string | null {
+  try {
+    if (!source) return null;
+    if (jobProductMediaKind(productId) === 'model') return null;
+    const merged = workspaceMergedMappings();
+    const stagedKeys = new Set(stagedPhotoMappings.map((entry) => mappingKeyOf(entry)));
+    const candidates = merged.mappings.filter((entry) =>
+      entry.productId === productId &&
+      entry.regionId === regionId &&
+      (entry.variantId === undefined || entry.variantId === variantId));
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) =>
+      (a.variantId === variantId ? 0 : 2) - (b.variantId === variantId ? 0 : 2) ||
+      (stagedKeys.has(mappingKeyOf(a)) ? 0 : 1) - (stagedKeys.has(mappingKeyOf(b)) ? 0 : 1));
+    const winner = candidates[0];
+    return winner ? mappingViewIdOf(winner) : null;
+  } catch {
+    return null;
+  }
 }
 /** Calibrated Images photo overlay for the exact selected scope, or null.
  * Uses the evaluated session mapping (staged over packaged) only when it
@@ -3697,7 +3734,7 @@ function jobStageOverlay(productId: string, variantId: string, regionId: string,
     if (!product) return null;
     const region = product.regions.find((entry) => entry.id === regionId);
     if (!region || region.safeArea.length < 3) return null;
-    const views = jobViewRefs(productId);
+    const views = jobViewRefs(productId, variantId);
     if (views.length === 0) return null;
     const activeId = viewId !== null && views.some((view) => view.id === viewId) ? viewId : views[0]!.id;
     const view = views.find((entry) => entry.id === activeId);
@@ -3877,8 +3914,9 @@ function mountJobModules(): void {
       },
       commit: (label, next) => commitPlacementProject(label, next),
       newPlacementId: () => newLocalId(),
-      getProductViews: (productId) => jobProductViews(productId),
+      getProductViews: (productId, variantId) => jobProductViews(productId, variantId),
       getProductMediaKind: (productId) => jobProductMediaKind(productId),
+      getRegionViewId: (productId, variantId, regionId) => jobRegionViewId(productId, variantId, regionId),
       getModelScene: (productId, variantId) => jobModelPlacementScene(productId, variantId),
       getStageOverlay: (productId, variantId, regionId, viewId) => jobStageOverlay(productId, variantId, regionId, viewId),
       getLogoImage: (logoId) => jobLogoDataUrl(logoId),
@@ -3934,7 +3972,7 @@ function mountJobModules(): void {
       onReview: () => setJobStep('review'),
       onApprovalBranch: () => setJobStep('approval'),
       onBack: () => { editorOpen = false; modelExpansion.close(); setJobStep('prepare'); window.scrollTo(0, 0); },
-      onStatus: (message) => alertBuilder(message),
+      onStatus: (message, tone) => alertBuilder(message, undefined, tone),
       onSaveJob: () => void saveJobToFile(),
     });
   } catch (error) {
@@ -3996,7 +4034,7 @@ function mountJobModules(): void {
       sanitizeJobPart: (value) => safeJobPart(value),
       downloadBytes: (bytes, fileName, mime) => downloadBytes(bytes, fileName, mime),
       readAdditionalAssets: () => readBranchAdditionalAssets(),
-      backToPlacements: () => setJobStep('placements'),
+      backToPlacements: () => setJobStep(source ? 'placements' : 'landing'),
       fixIdentity: (field) => {
         if (field === 'project') {
           setJobStep('approval');
@@ -4010,7 +4048,7 @@ function mountJobModules(): void {
       fixPlacements: () => setJobStep('placements'),
       mintFreshIssueId: () => mintFreshIssueId(),
       isIssueIdManual: () => issueIdManual,
-      useCustomerChanges: (project, assets) => installCustomerResponse(project, assets),
+      useCustomerChanges: installCustomerResponse,
     });
   } catch (error) {
     alertBuilder(`Customer approval branch unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -4177,10 +4215,15 @@ function readBranchAdditionalAssets(): Array<{ path: string; bytes: Uint8Array }
 /** Install validated customer-response content: exact content, placements
  * rebuilt, notes stay read-only context, opens Step 2. No auto-merge beyond
  * this explicit operator action; no sources or baseline are lost. */
-function installCustomerResponse(project: ProjectDocument, assets: Array<{ path: string; bytes: Uint8Array; kind: 'referenced' | 'additional' }>): void {
+function installCustomerResponse(
+  project: ProjectDocument,
+  assets: Array<{ path: string; bytes: Uint8Array; kind: 'referenced' | 'additional' }>,
+  identity: import('./customer-approval.js').ApprovalOfficeIdentity | null,
+): void {
   suppressJobDirty = true;
   try {
     assertProjectEditorLimits(project);
+    const fresh = source === null || source.project.products.length === 0;
     const priorFocus = source === null ? null : { ...source.selection };
     const priorTouched = configurationsTouched;
     const priorLogoIds = new Set(readSelection().logoIds);
@@ -4217,8 +4260,24 @@ function installCustomerResponse(project: ProjectDocument, assets: Array<{ path:
     // Reuse exact checkbox preservation, including explicit empty variant
     // subsets. Adoption must never broaden an operator's chosen scope.
     renderSelectionLists(source.summary, true);
+    if (fresh) {
+      const issuedOptions = new Set(project.configurations.map((config) => `${config.productId}\0${config.variantId}`));
+      for (const box of productList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+        const owner = box.getAttribute('data-product');
+        box.checked = owner === null
+          ? project.configurations.some((config) => config.productId === box.value)
+          : issuedOptions.has(`${owner}\0${box.value}`);
+      }
+      for (const box of configurationList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) box.checked = true;
+      configurationsTouched = false;
+      if (identity) {
+        if (!customerName.value.trim()) customerName.value = identity.customerLabel;
+        if (!jobRef.value.trim()) jobRef.value = identity.jobReference;
+        if (!issuedBy.value.trim()) issuedBy.value = identity.issuedBy;
+      }
+    }
     for (const box of logoList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
-      box.checked = priorLogoIds.has(box.value);
+      box.checked = fresh || priorLogoIds.has(box.value);
     }
     if (priorFocus !== null && source.project.products.some((product) =>
       product.id === priorFocus.productId && product.variants.some((variant) => variant.id === priorFocus.variantId))) {
@@ -4268,10 +4327,6 @@ function rebaseAuthoringOntoResponse(response: ProjectDocument): void {
   rebaseSessionAuthoring(source, response);
 }
 function openApprovalResponseEntry(): void {
-  if (!source) {
-    jobLandingStatus.textContent = 'Create a job or open a saved job first, then open the customer response.';
-    return;
-  }
   setJobStep('approval');
   if (approvalHandle) approvalHandle.openResponseEntry();
 }

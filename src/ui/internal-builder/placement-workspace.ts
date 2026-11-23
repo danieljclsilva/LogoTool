@@ -161,8 +161,15 @@ export interface PlacementWorkspaceDeps {
    * issue/review/output content.
    */
   getIncludedScope?(): { productIds: string[]; configurationIds: string[] } | null;
-  getProductViews(productId: string): PlacementProductView[];
+  getProductViews(productId: string, variantId?: string): PlacementProductView[];
   getProductMediaKind(productId: string): 'images' | 'model' | 'none';
+  /**
+   * Stable view identity bound to one product/option region (caller-evaluated
+   * from the session photo mappings). Null means unmapped: the module keeps
+   * the deliberate region-mm diagram fallback for that region. Optional until
+   * the lead wires the mapping reader; absent means no per-view filtering.
+   */
+  getRegionViewId?(productId: string, variantId: string, regionId: string): string | null;
   getModelScene?(productId: string, variantId: string): ModelPlacementScene | null;
   getStageOverlay(
     productId: string,
@@ -193,7 +200,7 @@ export interface PlacementWorkspaceDeps {
   onReview(): void;
   onApprovalBranch(): void;
   onBack(): void;
-  onStatus?(message: string): void;
+  onStatus?(message: string, tone?: 'success'): void;
   onSaveJob?(): void;
 }
 
@@ -765,10 +772,10 @@ export function mountPlacementWorkspace(
     }
   });
 
-  function announce(message: string): void {
+  function announce(message: string, tone?: 'success'): void {
     status = message;
     try {
-      deps.onStatus?.(message);
+      deps.onStatus?.(message, tone);
     } catch { /* status is best-effort */ }
   }
 
@@ -1298,6 +1305,7 @@ export function mountPlacementWorkspace(
         deps.setSelection({
           productId: select.value,
           variantId: first?.id ?? selection.variantId,
+          viewId: null,
           placementId: null,
         });
         viewOverride = null;
@@ -1320,7 +1328,7 @@ export function mountPlacementWorkspace(
       }
       select.value = selection.variantId;
       select.addEventListener('change', () => {
-        deps.setSelection({ variantId: select.value, placementId: null });
+        deps.setSelection({ variantId: select.value, viewId: null, placementId: null });
         viewOverride = null;
         update();
       });
@@ -1330,7 +1338,7 @@ export function mountPlacementWorkspace(
     const kind = productForSelection(project, selection) !== null
       ? deps.getProductMediaKind(selection.productId)
       : 'none';
-    const views = deps.getProductViews(selection.productId);
+    const views = deps.getProductViews(selection.productId, selection.variantId);
     if (views.length > 1) {
       needsHeader = true;
       const tabs = el('div', 'pw-tabs', 'pw-view-tabs') as HTMLElement;
@@ -1341,12 +1349,20 @@ export function mountPlacementWorkspace(
         tab.type = 'button';
         tab.textContent = view.label;
         tab.setAttribute('role', 'tab');
-        const active = (selection.viewId ?? views[0]?.id ?? null) === view.id;
+        const active = activeViewId(views, selection) === view.id;
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
         if (active) tab.classList.add('is-active');
         tab.addEventListener('click', () => {
-          deps.setSelection({ viewId: view.id });
+          const context = currentContext();
+          const onView = (entry: Placement): boolean =>
+            regionViewIdOf(selection.productId, selection.variantId, entry.regionId) === view.id;
+          const index = context.placement !== null && onView(context.placement)
+            ? context.placementIndex
+            : context.configuration?.placements.findIndex(onView) ?? -1;
+          const placement = context.configuration?.placements[index];
+          deps.setSelection({ viewId: view.id, placementId: placement ? placement.id ?? `index:${index}` : null });
           viewOverride = null;
+          measureDraft = null;
           update();
         });
         tabs.append(tab);
@@ -1371,7 +1387,7 @@ export function mountPlacementWorkspace(
         headerRow.append(view);
       }
     }
-    if (needsHeader && !deps.sharedSurface) wrap.append(headerRow);
+    if (needsHeader && (!deps.sharedSurface || (kind === 'images' && views.length > 1))) wrap.append(headerRow);
   }
 
   function productForSelection(
@@ -1389,14 +1405,36 @@ export function mountPlacementWorkspace(
     return views[0]?.id ?? null;
   }
 
-  function stageRegion(): Region | null {
+  /** Stable view bound to one region, or null when unmapped/unknown (diagram fallback stays). Never throws. */
+  function regionViewIdOf(productId: string, variantId: string, regionId: string): string | null {
+    try {
+      return deps.getRegionViewId?.(productId, variantId, regionId) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function stageRegion(activeId: string | null): Region | null {
     const { product, selection, placement } = currentContext();
     if (product === null) return null;
+    const areas = configuredAreas(product, selection.variantId);
+    const boundOf = (regionId: string): string | null =>
+      regionViewIdOf(selection.productId, selection.variantId, regionId);
     if (placement !== null) {
       const region = product.regions.find((entry) => entry.id === placement.regionId);
-      if (region !== undefined) return region;
+      if (region !== undefined) {
+        const placementView = boundOf(region.id);
+        // Unmapped regions stay with the selection (deliberate diagram
+        // fallback); a placement bound to the active view stays too. Only a
+        // placement bound to *another* view yields to that view's region so a
+        // tab switch keeps the clicked photo in context.
+        if (placementView === null || placementView === activeId) return region;
+      }
     }
-    const areas = configuredAreas(product, selection.variantId);
+    if (activeId !== null) {
+      const scoped = areas.find((area) => boundOf(area.id) === activeId);
+      if (scoped !== undefined) return scoped;
+    }
     return areas[0] ?? product.regions.find((entry) =>
       product.variants.find((variant) => variant.id === selection.variantId)?.regionIds.includes(entry.id),
     ) ?? null;
@@ -1418,10 +1456,12 @@ export function mountPlacementWorkspace(
       main.append(note);
       return;
     }
-    const region = stageRegion();
     const modelScene = deps.getModelScene?.(selection.productId, selection.variantId) ?? null;
-    const calibrated = modelScene !== null && region !== null && modelScene.regions.some((entry) => entry.id === region.id);
     if (modelScene) {
+      // Model products carry no photo views: the null hint keeps the legacy
+      // placement-region-first resolution for the 3D surface below.
+      const region = stageRegion(null);
+      const calibrated = region !== null && modelScene.regions.some((entry) => entry.id === region.id);
       main.parentElement?.classList.add('pw-product-workspace');
       modelViewDisplayOnly = !calibrated;
       if (!modelView) modelView = createModelPlacementView({
@@ -1566,8 +1606,9 @@ export function mountPlacementWorkspace(
       return;
     }
     modelView?.destroy(); modelView = null; modelViewDisplayOnly = false;
-    const views = deps.getProductViews(selection.productId);
+    const views = deps.getProductViews(selection.productId, selection.variantId);
     const viewId = activeViewId(views, selection);
+    const region = stageRegion(viewId);
     let overlay: PlacementStageOverlay | null = null;
     if (region !== null) {
       try {
@@ -1586,8 +1627,24 @@ export function mountPlacementWorkspace(
     main.append(box);
 
     const areas = configuredAreas(product, selection.variantId);
+    // Each calibrated area has its own millimetre frame, even when it
+    // shares an image with another area. Only verified mappings to this
+    // photo may contribute geometry.
+    const photoMode = overlay !== null;
+    const areaOverlays = new Map<string, PlacementStageOverlay>();
+    if (overlay !== null && region !== null) {
+      areaOverlays.set(region.id, overlay);
+      for (const area of areas) {
+        if (area.id === region.id) continue;
+        const areaOverlay = deps.getStageOverlay(selection.productId, selection.variantId, area.id, viewId);
+        if (areaOverlay?.imageSrc === overlay.imageSrc) areaOverlays.set(area.id, areaOverlay);
+      }
+    }
+    const visibleAreas = photoMode ? areas.filter((area) => areaOverlays.has(area.id)) : areas;
+    const placementVisible = (regionId: string): boolean => !photoMode || areaOverlays.has(regionId);
     const footprintPts: StagePoint[] = [];
-    for (const area of areas) {
+    for (const area of visibleAreas) {
+      if (photoMode && area.id !== region?.id) continue;
       for (const point of area.safeArea) footprintPts.push({ x: point[0]!, y: point[1]! });
     }
     const anchors = region !== null
@@ -1597,6 +1654,7 @@ export function mountPlacementWorkspace(
       : [];
     for (const anchor of anchors) footprintPts.push({ x: anchor.posMm[0]!, y: anchor.posMm[1]! });
     for (const entry of configuration.placements) {
+      if (photoMode && entry.regionId !== region?.id) continue;
       for (const corner of rotatedFootprintCorners(
         entry.pos.xMm, entry.pos.yMm, entry.widthMm, entry.heightMm, entry.rotationDeg,
       )) footprintPts.push({ x: corner.x, y: corner.y });
@@ -1652,10 +1710,11 @@ export function mountPlacementWorkspace(
       box.append(note);
     }
 
-    for (const area of areas) {
+    for (const area of visibleAreas) {
+      const projectArea = areaOverlays.get(area.id)?.mmToPx ?? mapping.toSvg;
       const mapped: StagePoint[] = [];
       for (const point of area.safeArea) {
-        const svgPt = mapping.toSvg(point[0]!, point[1]!);
+        const svgPt = projectArea(point[0]!, point[1]!);
         if (svgPt !== null) mapped.push(svgPt);
       }
       if (mapped.length < 3) continue;
@@ -1683,7 +1742,7 @@ export function mountPlacementWorkspace(
       for (const exclusion of area.exclusions ?? []) {
         const exclMapped: StagePoint[] = [];
         for (const point of exclusion) {
-          const svgPt = mapping.toSvg(point[0]!, point[1]!);
+          const svgPt = projectArea(point[0]!, point[1]!);
           if (svgPt !== null) exclMapped.push(svgPt);
         }
         if (exclMapped.length < 3) continue;
@@ -1697,13 +1756,14 @@ export function mountPlacementWorkspace(
       }
     }
 
-    for (const [index, entry] of [...configuration.placements.entries()].sort(([a], [b]) => Number(a === placementIndex) - Number(b === placementIndex))) {
+    for (const [index, entry] of [...configuration.placements.entries()].filter(([, item]) => placementVisible(item.regionId)).sort(([a], [b]) => Number(a === placementIndex) - Number(b === placementIndex))) {
+      const projectPlacement = areaOverlays.get(entry.regionId)?.mmToPx ?? mapping.toSvg;
       const corners = rotatedFootprintCorners(
         entry.pos.xMm, entry.pos.yMm, entry.widthMm, entry.heightMm, entry.rotationDeg,
       );
       const mapped: StagePoint[] = [];
       for (const corner of corners) {
-        const svgPt = mapping.toSvg(corner.x, corner.y);
+        const svgPt = projectPlacement(corner.x, corner.y);
         if (svgPt !== null) mapped.push(svgPt);
       }
       if (mapped.length < 3) continue;
@@ -1726,7 +1786,7 @@ export function mountPlacementWorkspace(
           );
           const quad: StagePoint[] = [];
           for (const corner of corners) {
-            const svgPt = mapping.toSvg(corner.x, corner.y);
+            const svgPt = projectPlacement(corner.x, corner.y);
             if (svgPt === null) break;
             quad.push(svgPt);
           }
@@ -2014,6 +2074,13 @@ export function mountPlacementWorkspace(
         if (!Number.isInteger(index)) return;
         const entry = configuration.placements[index];
         if (entry === undefined || svgPt === null) return;
+        if (photoMode && entry.regionId !== region?.id) {
+          deps.setSelection({ placementId: entry.id ?? `index:${index}` });
+          measureDraft = null;
+          update();
+          event.preventDefault();
+          return;
+        }
         const mm = mapping.fromSvg(svgPt);
         if (mm === null) return;
         drag = {
@@ -2560,9 +2627,14 @@ export function mountPlacementWorkspace(
       return;
     }
     const areas = configuredAreas(product, configuration.variantId);
-    const currentRegion = stageRegion();
+    const views = deps.getProductViews(configuration.productId, configuration.variantId);
+    const activeId = activeViewId(views, deps.getSelection());
+    const currentRegion = stageRegion(activeId);
+    const viewDefault = activeId !== null
+      ? areas.find((area) => regionViewIdOf(configuration.productId, configuration.variantId, area.id) === activeId) ?? null
+      : null;
     const target = destination ? areas.find((area) => area.id === destination.regionId) ?? null
-      : (currentRegion !== null && areas.some((area) => area.id === currentRegion.id) ? currentRegion : areas[0]) ?? null;
+      : (currentRegion !== null && areas.some((area) => area.id === currentRegion.id) ? currentRegion : viewDefault ?? areas[0]) ?? null;
     if (target === null) {
       announce(`Add a safe area for ${product.name?.trim() || 'this product'} before placing a logo.`);
       deps.requestProductSetup(configuration.productId, configuration.variantId);
@@ -2611,7 +2683,8 @@ export function mountPlacementWorkspace(
     }
     if (commitNext('Place artwork preview', next)) {
       ratioLocks.set(placementKeyOf(configuration.id, placement, configuration.placements.length), policyForLock({ xMm: placement.pos.xMm, yMm: placement.pos.yMm, widthMm: placement.widthMm, heightMm: placement.heightMm, rotationDeg: placement.rotationDeg }));
-      deps.setSelection({ placementId: id });
+      const targetView = regionViewIdOf(configuration.productId, configuration.variantId, target.id);
+      deps.setSelection(targetView !== null ? { placementId: id, viewId: targetView } : { placementId: id });
       const notes: string[] = [];
       if (known === null) notes.push('size is provisional — verify physically before production');
       notes.push(`method defaults to ${methodLabel(method)} — change it in the inspector if needed`);
@@ -2623,6 +2696,11 @@ export function mountPlacementWorkspace(
   }
 
   /** Tray pick without placing: prefill the add form (click, Enter, or Space). */
+  function usesPhotoPlacementForm(configuration: Configuration): boolean {
+    return deps.getProductMediaKind(configuration.productId) === 'images' &&
+      deps.getProductViews(configuration.productId, configuration.variantId).length > 1;
+  }
+
   function prefillAddForm(project: ProjectDocument, configuration: Configuration, logoId: string): void {
     const product = project.products.find((entry) => entry.id === configuration.productId);
     addOpen = true;
@@ -2643,7 +2721,7 @@ export function mountPlacementWorkspace(
     if (prefillBlock !== null) {
       announce(prefillBlock);
     } else {
-      announce('Artwork ready: check the size, then Add placement — or Place it for an immediate preview.');
+      announce('Artwork ready. Check the area and size, then add the placement.', 'success');
     }
     update();
   }
@@ -2655,7 +2733,10 @@ export function mountPlacementWorkspace(
     title.textContent = 'Artwork';
     section.append(title);
     const hint = el('p', 'pw-muted', 'pw-artwork-hint');
-    hint.textContent = 'Choose artwork, then place it on the product: drag a card onto the product, use Place, or open the form for exact sizes.';
+    const useForm = usesPhotoPlacementForm(configuration);
+    hint.textContent = useForm
+      ? 'Choose artwork to open the placement form for this view.'
+      : 'Drag artwork onto the product, or choose it to open the placement form.';
     section.append(hint);
     let included: Set<string> | null = null;
     try {
@@ -2715,20 +2796,22 @@ export function mountPlacementWorkspace(
         }
       });
       card.append(pick);
-      const place = el('button', 'pw-secondary pw-artwork-place', `pw-artwork-place-${logo.id}`) as HTMLButtonElement;
-      place.type = 'button';
-      place.textContent = 'Place';
-      place.setAttribute('aria-label', `Place ${name} on the product now as a provisional preview`);
-      if (blocked) {
-        place.disabled = true;
-        place.title = trayBlockReason ?? '';
+      if (!useForm) {
+        const place = el('button', 'pw-secondary pw-artwork-place', `pw-artwork-place-${logo.id}`) as HTMLButtonElement;
+        place.type = 'button';
+        place.textContent = 'Place';
+        place.setAttribute('aria-label', `Place ${name} on the product now as a provisional preview`);
+        if (blocked) {
+          place.disabled = true;
+          place.title = trayBlockReason ?? '';
+        }
+        place.addEventListener('click', () => { placeProvisional(deps.getProject(), configuration, logo.id); });
+        card.append(place);
       }
-      place.addEventListener('click', () => { placeProvisional(deps.getProject(), configuration, logo.id); });
-      card.append(place);
       grid.append(card);
     }
     section.append(grid);
-    section.append(helpPopover('pw-help-tray', 'Place shows the artwork on the product immediately with a provisional size and method. Unresolved size or method stays visible in the inspector and blocks review — never the preview.'));
+    if (!useForm) section.append(helpPopover('pw-help-tray', 'Place shows the artwork on the product immediately with a provisional size and method. Unresolved size or method stays visible in the inspector and blocks review — never the preview.'));
     rail.append(section);
   }
 
@@ -2794,6 +2877,22 @@ export function mountPlacementWorkspace(
       body.append(name, sub);
       row.append(body);
       row.addEventListener('click', () => {
+        // Selecting a placement brings its view into context: when the
+        // placement's region is bound to another available view, select that
+        // view by stable id so the stage keeps the right photo. Unmapped
+        // regions keep the current view (deliberate diagram fallback).
+        const bound = regionViewIdOf(configuration.productId, configuration.variantId, entry.regionId);
+        if (bound !== null) {
+          try {
+            const views = deps.getProductViews(configuration.productId, configuration.variantId);
+            if (views.some((view) => view.id === bound)) {
+              deps.setSelection({ placementId: entry.id ?? `index:${index}`, viewId: bound });
+              measureDraft = null;
+              update();
+              return;
+            }
+          } catch { /* fall through to the view-preserving selection */ }
+        }
         deps.setSelection({ placementId: entry.id ?? `index:${index}` });
         measureDraft = null;
         update();
@@ -2910,13 +3009,27 @@ export function mountPlacementWorkspace(
     const { selection } = currentContext();
     const product = project.products.find((entry) => entry.id === configuration.productId);
     const areas = product !== undefined ? configuredAreas(product, configuration.variantId) : [];
-    const firstLogo = project.logos[0];
-    const logoId = firstLogo?.id ?? '';
-    const currentRegion = stageRegion();
+    const currentLogo = currentContext().placement?.logoId;
+    const included = deps.getIncludedLogoIds?.();
+    const logos = project.logos.filter((logo) => included == null || included.includes(logo.id));
+    const logoId = logos.find((logo) => logo.id === currentLogo)?.id ?? logos[0]?.id ?? '';
+    // Preselect the current visible region: the stage region when it is
+    // bound to the active view (or unmapped), else the active view's own
+    // region, else the legacy first-area fallback.
+    const views = deps.getProductViews(configuration.productId, configuration.variantId);
+    const activeId = activeViewId(views, selection);
+    const currentRegion = stageRegion(activeId);
+    const currentBound = currentRegion !== null
+      ? regionViewIdOf(configuration.productId, configuration.variantId, currentRegion.id)
+      : null;
+    const viewBound = activeId !== null
+      ? areas.find((area) => regionViewIdOf(configuration.productId, configuration.variantId, area.id) === activeId) ?? null
+      : null;
     const regionId = (currentRegion !== null &&
-      areas.some((area) => area.id === currentRegion.id))
+      areas.some((area) => area.id === currentRegion.id) &&
+      (currentBound === null || currentBound === activeId))
       ? currentRegion.id
-      : (areas[0]?.id ?? '');
+      : (viewBound?.id ?? areas[0]?.id ?? '');
     // Provisional starting size when the artwork has no known mm
     // dimensions: aspect-preserving, fitted to the calibrated region.
     const targetArea = areas.find((entry) => entry.id === regionId);
@@ -3242,13 +3355,14 @@ export function mountPlacementWorkspace(
       ratioLocks.set(placementKeyOf(configuration.id, placement, configuration.placements.length), { ...policy, locked: draft.keepProportions && policy.locked });
       addOpen = false;
       addDraft = null;
-      deps.setSelection({ placementId: id });
+      const createdView = regionViewIdOf(configuration.productId, configuration.variantId, region.id);
+      deps.setSelection(createdView !== null ? { placementId: id, viewId: createdView } : { placementId: id });
       if (verdict !== null && !verdict.ok) {
         announce(
           `${logoName} extends outside ${areaName}. Move it or reduce its size. (${verdict.reason})`,
         );
       } else {
-        announce(`Placement added for ${logoName} in ${areaName}.`);
+        announce(`Placement added for ${logoName} in ${areaName}.`, 'success');
       }
       update();
     } else {
