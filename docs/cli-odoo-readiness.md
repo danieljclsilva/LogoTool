@@ -178,7 +178,7 @@ unapproved connectivity or semantics test.
 ## Local source evidence
 
 Assessment inspected the source under
-`/Users/komorinokage/Developer/cli-odoo`:
+`~/Developer/cli-odoo`:
 
 - `cmd/search.go`, `cmd/read.go`, `cmd/schema.go`, `cmd/diag.go`, `cmd/call.go`,
   `cmd/attach.go`: human read/search/schema/aggregate/attachment capabilities.

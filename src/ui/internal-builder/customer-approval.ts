@@ -839,7 +839,16 @@ export function mountCustomerApproval(host: HTMLElement, deps: CustomerApprovalD
         ...withKind
           .filter((asset) => !asset.path.startsWith('presentation/') && asset.path !== ISSUE_IDENTITY_PATH)
           .map(({ path, bytes }) => ({ path, bytes })),
-        { path: ISSUE_IDENTITY_PATH, bytes: new TextEncoder().encode(JSON.stringify({ version: 1, ...identity })) },
+        {
+          path: ISSUE_IDENTITY_PATH,
+          bytes: new TextEncoder().encode(JSON.stringify({
+            version: 1,
+            customerLabel: identity.customerLabel,
+            jobReference: identity.jobReference,
+            issuedBy: identity.issuedBy,
+            projectId: identity.projectId,
+          })),
+        },
       ];
       const packageBytes = await createProjectPackage(
         { project: built.project, assets: referenced, additionalAssets: additional },

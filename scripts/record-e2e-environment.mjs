@@ -17,7 +17,7 @@ const evidence = {
   workflowCommit: process.env.GITHUB_SHA ?? null,
   runnerImage: process.env.ImageOS ?? null, runnerImageVersion: process.env.ImageVersion ?? null,
   viewport: { width: 1280, height: 900 }, offline: true,
-  entryPoint: pathToFileURL(resolve('dist/station/Logo Station.html')).href,
+  entryPoint: 'file://…/dist/station/Logo%20Station.html',
   pageErrors: [], consoleErrors: [], httpRequests: [],
 };
 let browser;
@@ -33,7 +33,7 @@ try {
   page.on('console', message => {
     if (message.type() === 'error') evidence.consoleErrors.push(message.text());
   });
-  await page.goto(evidence.entryPoint);
+  await page.goto(pathToFileURL(resolve('dist/station/Logo Station.html')).href);
   await page.locator('[data-builder-hook="job-landing-create"]').waitFor();
   evidence.title = await page.title();
   evidence.webgl = await page.evaluate(() => {

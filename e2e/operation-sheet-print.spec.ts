@@ -3,7 +3,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
-import { addProductAndOpenSetup, BUILDER_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
+import { addProductAndOpenSetup, STATION_EVIDENCE_URL, gotoBuilder, openOfflineContext, revealBuilderControl, ensurePlacementPanel } from './helpers.js';
 import { countPdfPages, readMediaBox } from './sheet-fixtures.js';
 import type { Probe } from './helpers.js';
 
@@ -44,7 +44,7 @@ async function openStation(browser: Browser, viewport = { width: 1280, height: 9
     body: JSON.stringify({
       os: process.platform, release: release(), arch: process.arch,
       browser: browser.browserType().name(), browserVersion: browser.version(),
-      viewport, offline: true, entryPoint: BUILDER_URL,
+      viewport, offline: true, entryPoint: STATION_EVIDENCE_URL,
     }, null, 2),
   });
   const { context, page, probe } = await openOfflineContext(browser, viewport);

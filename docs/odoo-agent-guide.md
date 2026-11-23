@@ -123,7 +123,7 @@ model does not automatically enable every field or arbitrary method calls.
 
 First verify the installed command's help locally if the CLI has changed.
 CLI source and administration documentation live in
-`/Users/komorinokage/Developer/cli-odoo/docs/agent-broker.md`.
+`~/Developer/cli-odoo/docs/agent-broker.md`.
 
 The current investigation setup supports repeatable `--include-model`:
 

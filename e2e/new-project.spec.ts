@@ -488,13 +488,13 @@ test('create generates revision-1 issues with prepared catalogue identity and ze
     expect(parsed.assets.map((asset) => asset.path)).toEqual(['approval/issue-identity.json', 'logos/syn-mark-a.svg']);
     const [issueIdentity, logoAsset] = parsed.assets;
     expect(issueIdentity!.kind).toBe('additional');
-    expect(JSON.parse(new TextDecoder().decode(issueIdentity!.bytes))).toEqual({
+    expect(new TextDecoder().decode(issueIdentity!.bytes)).toBe(JSON.stringify({
       version: 1,
-      projectId: issuedProjectId,
       customerLabel: 'Acme Athletics',
       jobReference: jobRef,
       issuedBy: 'Internal operator',
-    });
+      projectId: issuedProjectId,
+    }));
     const fixtureBytes = new Uint8Array(await readFile(resolve(process.cwd(), 'examples/logos/syn-mark-a.svg')));
     expect(Buffer.from(logoAsset!.bytes)).toEqual(Buffer.from(fixtureBytes));
 
